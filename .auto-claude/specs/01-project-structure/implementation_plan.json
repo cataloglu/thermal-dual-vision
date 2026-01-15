@@ -147,8 +147,9 @@
             "command": "grep -q 'opencv' requirements.txt && grep -q 'ultralytics' requirements.txt && grep -q 'openai' requirements.txt && grep -q 'paho-mqtt' requirements.txt && grep -q 'telegram' requirements.txt && echo 'OK'",
             "expected": "OK"
           },
-          "status": "pending",
-          "notes": "File already exists - verify all deps present"
+          "status": "completed",
+          "notes": "Verified requirements.txt contains all required dependencies: opencv-python-headless>=4.8.0, ultralytics>=8.0.0, openai>=1.0.0, paho-mqtt>=2.0.0, python-telegram-bot>=20.0. Verification command passed successfully.",
+          "updated_at": "2026-01-15T22:44:00.063242+00:00"
         }
       ]
     },
@@ -178,8 +179,9 @@
             "command": "python3 -c \"from src.config import Config; c=Config.from_env(); print(f'Camera URL: {c.camera.url}')\"",
             "expected": "Camera URL:"
           },
-          "status": "pending",
-          "notes": "File already exists - verify dataclass structure works"
+          "status": "completed",
+          "notes": "Verified src/config.py uses dataclasses (CameraConfig, MotionConfig, YoloConfig, LLMConfig, ScreenshotConfig, MQTTConfig, TelegramConfig, Config) and has from_env() classmethod that loads configuration from environment variables. Verification command passed: 'python3 -c \\\"from src.config import Config; c=Config.from_env(); print(f'Camera URL: {c.camera.url}')\\\"' outputs 'Camera URL:' as expected.",
+          "updated_at": "2026-01-15T22:44:58.228731+00:00"
         },
         {
           "id": "subtask-5-2",
@@ -391,6 +393,6 @@
   },
   "status": "in_progress",
   "planStatus": "in_progress",
-  "updated_at": "2026-01-15T22:42:10.468Z",
-  "last_updated": "2026-01-15T22:42:46.743679+00:00"
+  "updated_at": "2026-01-15T22:44:25.228Z",
+  "last_updated": "2026-01-15T22:44:58.228744+00:00"
 }
