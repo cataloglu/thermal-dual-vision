@@ -243,8 +243,9 @@
             "command": "python3 -c \"from src import config, logger, utils; print('All imports OK')\"",
             "expected": "All imports OK"
           },
-          "status": "pending",
-          "notes": "This is a key QA criterion from spec.md"
+          "status": "completed",
+          "notes": "Refactored src/utils.py to use lazy imports for external dependencies (cv2, numpy, PIL). This allows module imports to succeed without runtime dependencies installed. Verification passed: python3 -c \"from src import config, logger, utils; print('All imports OK')\" outputs \"All imports OK\". Committed as 3d8e5cb.",
+          "updated_at": "2026-01-15T22:50:33.294314+00:00"
         },
         {
           "id": "subtask-6-2",
@@ -258,8 +259,9 @@
             "command": "grep -l 'def.*:.*->\\|: str\\|: int\\|: bool\\|: List\\|: Optional' src/config.py src/logger.py src/utils.py | wc -l | grep -q '3' && echo 'OK'",
             "expected": "OK"
           },
-          "status": "pending",
-          "notes": "Type hints are required per spec.md"
+          "status": "completed",
+          "notes": "Verified type hints are present in all modules. src/config.py uses List, Optional, and return type annotations. src/logger.py uses Optional and -> logging.Logger return types. src/utils.py uses TYPE_CHECKING, Optional, Callable, TypeVar, Any, and return type annotations. Verification command passed: grep -l finds all 3 files with type hint patterns.",
+          "updated_at": "2026-01-15T22:51:28.971419+00:00"
         },
         {
           "id": "subtask-6-3",
@@ -395,6 +397,6 @@
   },
   "status": "in_progress",
   "planStatus": "in_progress",
-  "updated_at": "2026-01-15T22:46:34.049Z",
-  "last_updated": "2026-01-15T22:48:10.770518+00:00"
+  "updated_at": "2026-01-15T22:50:52.035Z",
+  "last_updated": "2026-01-15T22:51:28.971430+00:00"
 }
