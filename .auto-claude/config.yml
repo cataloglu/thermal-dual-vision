@@ -1,4 +1,5 @@
 # auto-claude Configuration
+GRAPHITI_ENABLED: true
 auto_approve: true
 auto_approve_bash: true
 working_directory: /home/ac/Documents/motion-detector/motion-detector

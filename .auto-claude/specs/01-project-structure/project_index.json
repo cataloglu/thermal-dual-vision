@@ -1,14 +1,55 @@
 {
   "project_type": "single",
   "name": "smart-motion-detector",
-  "language": "python",
-  "framework": "home-assistant-addon",
-  "root_path": "/home/ac/Documents/motion-detector/motion-detector",
+  "description": "AI-powered motion detection Home Assistant add-on with YOLO and GPT-4 Vision",
+  "services": {
+    "backend": {
+      "path": ".",
+      "tech_stack": ["python", "opencv", "ultralytics", "openai"],
+      "framework": "home-assistant-addon",
+      "port": 8099,
+      "dev_command": "python3 -m src.main",
+      "test_command": "python3 -m pytest tests/",
+      "language_version": "3.11+"
+    }
+  },
+  "infrastructure": {
+    "docker": true,
+    "docker_compose": false,
+    "database": null,
+    "message_queue": "mqtt",
+    "ci_cd": false
+  },
+  "conventions": {
+    "linter": null,
+    "formatter": null,
+    "testing": "pytest",
+    "type_hints": true,
+    "docstrings": "google-style"
+  },
   "structure": {
-    "src": "Source code directory",
-    "tests": "Test files",
+    "src/": "Source code directory - Python modules",
+    "tests/": "Test files directory",
     "config.yaml": "Home Assistant add-on configuration",
-    "Dockerfile": "Container build file",
+    "Dockerfile": "Container build file (multi-arch)",
+    "run.sh": "Entry point script using bashio",
     "requirements.txt": "Python dependencies"
+  },
+  "key_files": {
+    "entry_point": "src/main.py",
+    "config": ["config.yaml", "src/config.py"],
+    "logging": "src/logger.py",
+    "utilities": "src/utils.py"
+  },
+  "dependencies": {
+    "opencv-python-headless": ">=4.8.0",
+    "numpy": ">=1.24.0",
+    "ultralytics": ">=8.0.0",
+    "openai": ">=1.0.0",
+    "paho-mqtt": ">=2.0.0",
+    "python-telegram-bot": ">=20.0",
+    "aiohttp": ">=3.9.0",
+    "pyyaml": ">=6.0",
+    "Pillow": ">=10.0.0"
   }
 }

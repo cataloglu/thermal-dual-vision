@@ -121,6 +121,58 @@
           ]
         }
       ]
+    },
+    {
+      "phase": 5,
+      "name": "UI Tests (Puppeteer)",
+      "chunks": [
+        {
+          "id": "09-13",
+          "description": "HA dashboard MQTT entity testi",
+          "status": "pending",
+          "files": [
+            "tests/ui/test_ha_dashboard.py"
+          ]
+        },
+        {
+          "id": "09-14",
+          "description": "Add-on config panel testi",
+          "status": "pending",
+          "files": [
+            "tests/ui/test_addon_config.py"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 6,
+      "name": "Web UI Tests",
+      "chunks": [
+        {
+          "id": "09-15",
+          "description": "Web API endpoint testleri",
+          "status": "pending",
+          "files": [
+            "tests/unit/test_web_api.py"
+          ]
+        },
+        {
+          "id": "09-16",
+          "description": "WebSocket connection testi",
+          "status": "pending",
+          "files": [
+            "tests/unit/test_websocket.py"
+          ]
+        },
+        {
+          "id": "09-17",
+          "description": "Web UI E2E testleri (Puppeteer)",
+          "status": "pending",
+          "files": [
+            "tests/ui/test_web_ui.py"
+          ]
+        }
+      ]
     }
   ]
 }
