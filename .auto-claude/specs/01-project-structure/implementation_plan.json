@@ -275,8 +275,9 @@
             "command": "grep -l '\"\"\"' src/config.py src/logger.py src/utils.py | wc -l | grep -q '3' && echo 'OK'",
             "expected": "OK"
           },
-          "status": "pending",
-          "notes": "Docstrings are required per spec.md"
+          "status": "completed",
+          "notes": "Verified docstrings are present in all modules. src/config.py has module docstring and docstrings for all 8 dataclasses plus from_env() and validate() methods. src/logger.py has module docstring and full Args/Returns docstrings for setup_logger() and get_logger(). src/utils.py has module docstring and docstrings for all functions (_get_cv2, _get_numpy, _get_pil_image, encode_frame_to_base64, encode_frame_to_bytes, decode_base64_to_frame, timestamp_now, timestamp_filename, retry_async) and RateLimiter class with its methods. Verification command passed: grep -l '\\\"\\\"\\\"' finds all 3 files.",
+          "updated_at": "2026-01-15T22:52:56.053726+00:00"
         }
       ]
     }
@@ -397,6 +398,6 @@
   },
   "status": "in_progress",
   "planStatus": "in_progress",
-  "updated_at": "2026-01-15T22:50:52.035Z",
-  "last_updated": "2026-01-15T22:51:28.971430+00:00"
+  "updated_at": "2026-01-15T22:52:20.674Z",
+  "last_updated": "2026-01-15T22:52:56.053738+00:00"
 }
