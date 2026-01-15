@@ -1,0 +1,20 @@
+{
+  "task_description": "Proje temel yapısını ve dosya organizasyonunu oluştur",
+  "files_to_create": [
+    "config.yaml",
+    "Dockerfile",
+    "run.sh",
+    "requirements.txt",
+    "src/__init__.py",
+    "src/config.py",
+    "src/logger.py",
+    "src/utils.py",
+    "tests/__init__.py"
+  ],
+  "files_to_modify": [],
+  "files_to_reference": [
+    ".auto-claude/CONTEXT.md",
+    ".auto-claude/test_data/sample_config.yaml"
+  ],
+  "scoped_services": []
+}

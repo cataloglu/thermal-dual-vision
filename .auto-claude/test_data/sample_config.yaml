@@ -1,0 +1,52 @@
+# Sample Home Assistant Add-on Configuration
+# This file shows the expected options structure
+
+camera:
+  type: "rgb"  # rgb, thermal, both
+  url: "rtsp://192.168.1.100:554/stream"
+  fps: 5
+  resolution: [1280, 720]
+
+thermal:
+  enabled: false
+  temperature_threshold: 35.0  # Celsius
+  heatmap_colormap: "jet"
+
+motion:
+  sensitivity: 7  # 1-10
+  min_area: 500  # pixels
+  cooldown_seconds: 5
+
+yolo:
+  model: "yolov8n"  # yolov8n, yolov8s, yolov8m
+  confidence: 0.5
+  classes:  # Filter these classes
+    - person
+    - car
+    - dog
+    - cat
+
+llm:
+  provider: "openai"  # openai, ollama
+  model: "gpt-4-vision-preview"  # or llava for ollama
+  api_key: ""  # From HA secrets
+  
+screenshots:
+  before_seconds: 3
+  after_seconds: 3
+  quality: 85  # JPEG quality
+  max_stored: 100
+
+mqtt:
+  topic_prefix: "smart_motion"
+  discovery: true
+  qos: 1
+
+telegram:
+  enabled: true
+  bot_token: ""  # From HA secrets
+  chat_id: ""
+  rate_limit_seconds: 5
+
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR

@@ -1,0 +1,22 @@
+{
+  "task_description": "OpenAI GPT-4 Vision API entegrasyonu. 3 ekran görüntüsünü karşılaştırmalı analiz et.",
+  "workflow_type": "feature",
+  "services_involved": [
+    "openai",
+    "gpt4-vision",
+    "async"
+  ],
+  "user_requirements": [
+    "OpenAI API entegrasyonu",
+    "3 görüntü karşılaştırmalı analiz",
+    "Türkçe prompt ve yanıt",
+    "JSON formatında çıktı",
+    "Rate limiting",
+    "Error handling ve retry"
+  ],
+  "constraints": [
+    "API timeout < 30s",
+    "Async/await kullanımı",
+    "API key güvenli saklama"
+  ]
+}

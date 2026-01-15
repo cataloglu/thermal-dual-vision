@@ -1,0 +1,14 @@
+{
+  "project_type": "single",
+  "name": "smart-motion-detector",
+  "language": "python",
+  "framework": "home-assistant-addon",
+  "root_path": "/home/ac/Documents/motion-detector/motion-detector",
+  "structure": {
+    "src": "Source code directory",
+    "tests": "Test files",
+    "config.yaml": "Home Assistant add-on configuration",
+    "Dockerfile": "Container build file",
+    "requirements.txt": "Python dependencies"
+  }
+}

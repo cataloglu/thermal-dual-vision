@@ -1,0 +1,14 @@
+{
+  "task_description": "Telegram bot ile bildirim ve komut sistemi",
+  "files_to_create": [
+    "src/telegram_bot.py"
+  ],
+  "files_to_modify": [],
+  "files_to_reference": [
+    "src/config.py",
+    "src/logger.py",
+    "src/screenshot_manager.py",
+    "src/llm_analyzer.py"
+  ],
+  "scoped_services": ["telegram"]
+}

@@ -1,0 +1,94 @@
+{
+  "feature": "04 - Screenshot System",
+  "workflow_type": "feature",
+  "phases": [
+    {
+      "phase": 1,
+      "name": "Data Structures",
+      "chunks": [
+        {
+          "id": "04-01",
+          "description": "ScreenshotSet dataclass tanımla",
+          "status": "pending",
+          "files": [
+            "src/screenshot_manager.py"
+          ]
+        },
+        {
+          "id": "04-02",
+          "description": "Ring buffer (deque) setup",
+          "status": "pending",
+          "files": [
+            "src/screenshot_manager.py"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "name": "Buffer Operations",
+      "chunks": [
+        {
+          "id": "04-03",
+          "description": "add_frame() - frame ve timestamp ekleme",
+          "status": "pending",
+          "files": [
+            "src/screenshot_manager.py"
+          ]
+        },
+        {
+          "id": "04-04",
+          "description": "get_frame_at() - belirli zamandaki frame'i bul",
+          "status": "pending",
+          "files": [
+            "src/screenshot_manager.py"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "name": "Capture Sequence",
+      "chunks": [
+        {
+          "id": "04-05",
+          "description": "capture_sequence() - async 3'lü yakalama",
+          "status": "pending",
+          "files": [
+            "src/screenshot_manager.py"
+          ]
+        },
+        {
+          "id": "04-06",
+          "description": "JPEG encoding ve Base64 conversion",
+          "status": "pending",
+          "files": [
+            "src/screenshot_manager.py"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 4,
+      "name": "Storage Management",
+      "chunks": [
+        {
+          "id": "04-07",
+          "description": "cleanup_old() - eski screenshot'ları sil",
+          "status": "pending",
+          "files": [
+            "src/screenshot_manager.py"
+          ]
+        },
+        {
+          "id": "04-08",
+          "description": "save_to_disk() - opsiyonel disk kaydetme",
+          "status": "pending",
+          "files": [
+            "src/screenshot_manager.py"
+          ]
+        }
+      ]
+    }
+  ]
+}

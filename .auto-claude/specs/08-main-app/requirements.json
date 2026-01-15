@@ -1,0 +1,17 @@
+{
+  "task_description": "Tüm modülleri birleştiren ana uygulama. Event loop, orchestration, graceful shutdown ve health check.",
+  "workflow_type": "feature",
+  "services_involved": ["asyncio", "orchestration", "lifecycle"],
+  "user_requirements": [
+    "Tüm modüllerin orkestrasyonu",
+    "Async event loop",
+    "Graceful shutdown (SIGTERM, SIGINT)",
+    "Health check endpoint",
+    "Error recovery"
+  ],
+  "constraints": [
+    "asyncio.gather kullanımı",
+    "Merkezi exception handling",
+    "Full logging"
+  ]
+}

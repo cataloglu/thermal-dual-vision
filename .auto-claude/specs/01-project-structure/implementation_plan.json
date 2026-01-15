@@ -1,0 +1,127 @@
+{
+  "feature": "01 - Project Structure",
+  "workflow_type": "feature",
+  "phases": [
+    {
+      "phase": 1,
+      "name": "Directory Structure",
+      "chunks": [
+        {
+          "id": "01-01",
+          "description": "src/ ve tests/ klasörlerini oluştur",
+          "status": "pending",
+          "files": [
+            "src/",
+            "tests/"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "name": "Home Assistant Config",
+      "chunks": [
+        {
+          "id": "01-02",
+          "description": "config.yaml dosyasını Home Assistant add-on formatında oluştur",
+          "status": "pending",
+          "files": [
+            "config.yaml"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "name": "Docker Setup",
+      "chunks": [
+        {
+          "id": "01-03",
+          "description": "Dockerfile oluştur (multi-arch, Python 3.11, OpenCV)",
+          "status": "pending",
+          "files": [
+            "Dockerfile"
+          ]
+        },
+        {
+          "id": "01-04",
+          "description": "run.sh entry point script oluştur (bashio)",
+          "status": "pending",
+          "files": [
+            "run.sh"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 4,
+      "name": "Python Dependencies",
+      "chunks": [
+        {
+          "id": "01-05",
+          "description": "requirements.txt dosyasını oluştur",
+          "status": "pending",
+          "files": [
+            "requirements.txt"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 5,
+      "name": "Core Modules",
+      "chunks": [
+        {
+          "id": "01-06",
+          "description": "src/__init__.py package init oluştur",
+          "status": "pending",
+          "files": [
+            "src/__init__.py"
+          ]
+        },
+        {
+          "id": "01-07",
+          "description": "src/config.py konfigürasyon modülü (dataclasses)",
+          "status": "pending",
+          "files": [
+            "src/config.py"
+          ]
+        },
+        {
+          "id": "01-08",
+          "description": "src/logger.py loglama modülü",
+          "status": "pending",
+          "files": [
+            "src/logger.py"
+          ]
+        },
+        {
+          "id": "01-09",
+          "description": "src/utils.py yardımcı fonksiyonlar",
+          "status": "pending",
+          "files": [
+            "src/utils.py"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 6,
+      "name": "Test Setup",
+      "chunks": [
+        {
+          "id": "01-10",
+          "description": "tests/__init__.py test package init",
+          "status": "pending",
+          "files": [
+            "tests/__init__.py"
+          ]
+        }
+      ]
+    }
+  ],
+  "description": "Proje temel yapısını ve dosya organizasyonunu oluştur. Home Assistant add-on formatında config.yaml, Dockerfile, run.sh, requirements.txt ve src/ modüllerini hazırla.",
+  "updated_at": "2026-01-15T22:30:46.146Z",
+  "status": "in_progress",
+  "planStatus": "in_progress"
+}

@@ -1,0 +1,17 @@
+{
+  "task_description": "Docker build ve HA Add-on store yayınlama",
+  "files_to_create": [
+    ".github/workflows/build.yml",
+    ".github/workflows/release.yml",
+    "build.yaml",
+    "repository.yaml"
+  ],
+  "files_to_modify": [
+    "Dockerfile"
+  ],
+  "files_to_reference": [
+    "config.yaml",
+    "requirements.txt"
+  ],
+  "scoped_services": ["devops", "ci-cd"]
+}

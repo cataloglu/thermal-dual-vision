@@ -1,0 +1,89 @@
+{
+  "feature": "12 - Deployment",
+  "workflow_type": "feature",
+  "phases": [
+    {
+      "phase": 1,
+      "name": "CI Pipeline",
+      "chunks": [
+        {
+          "id": "12-01",
+          "description": "build.yml - PR ve push workflow",
+          "status": "pending",
+          "files": [
+            ".github/workflows/build.yml"
+          ]
+        },
+        {
+          "id": "12-02",
+          "description": "Test ve lint steps",
+          "status": "pending",
+          "files": [
+            ".github/workflows/build.yml"
+          ]
+        },
+        {
+          "id": "12-03",
+          "description": "Security scan (trivy)",
+          "status": "pending",
+          "files": [
+            ".github/workflows/build.yml"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "name": "Release Pipeline",
+      "chunks": [
+        {
+          "id": "12-04",
+          "description": "release.yml - tag-based release",
+          "status": "pending",
+          "files": [
+            ".github/workflows/release.yml"
+          ]
+        },
+        {
+          "id": "12-05",
+          "description": "Multi-arch Docker build",
+          "status": "pending",
+          "files": [
+            ".github/workflows/release.yml",
+            "Dockerfile"
+          ]
+        },
+        {
+          "id": "12-06",
+          "description": "GHCR push",
+          "status": "pending",
+          "files": [
+            ".github/workflows/release.yml"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "name": "Add-on Repository",
+      "chunks": [
+        {
+          "id": "12-07",
+          "description": "repository.yaml setup",
+          "status": "pending",
+          "files": [
+            "repository.yaml"
+          ]
+        },
+        {
+          "id": "12-08",
+          "description": "build.yaml HA format",
+          "status": "pending",
+          "files": [
+            "build.yaml"
+          ]
+        }
+      ]
+    }
+  ]
+}

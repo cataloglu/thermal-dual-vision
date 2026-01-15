@@ -1,0 +1,18 @@
+{
+  "task_description": "Home Assistant MQTT entegrasyonu. Auto-discovery ile entity'ler oluştur ve motion event'lerini publish et.",
+  "workflow_type": "feature",
+  "services_involved": ["mqtt", "home-assistant", "paho-mqtt"],
+  "user_requirements": [
+    "paho-mqtt kütüphanesi",
+    "HA MQTT Auto-discovery",
+    "Binary sensor (motion)",
+    "Sensor (threat level, last detection)",
+    "Event publish",
+    "QoS ayarı"
+  ],
+  "constraints": [
+    "Reconnect mekanizması",
+    "TLS opsiyonel",
+    "HA Supervisor MQTT broker"
+  ]
+}

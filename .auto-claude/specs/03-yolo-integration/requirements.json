@@ -1,0 +1,17 @@
+{
+  "task_description": "YOLOv8 Nano model entegrasyonu ile nesne tespiti. Hareket algılanan frame'lerde insan, araba, kedi, köpek gibi nesneleri tespit et.",
+  "workflow_type": "feature",
+  "services_involved": ["ultralytics", "yolo", "opencv"],
+  "user_requirements": [
+    "YOLOv8n (Nano) model kullanımı",
+    "Configurable confidence threshold",
+    "Sınıf filtreleme (person, car, dog, cat)",
+    "Bounding box ve label çıktısı",
+    "CPU inference desteği"
+  ],
+  "constraints": [
+    "Inference süresi < 500ms",
+    "Model cache edilmeli",
+    "Memory efficient"
+  ]
+}

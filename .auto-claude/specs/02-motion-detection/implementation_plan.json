@@ -1,0 +1,110 @@
+{
+  "feature": "02 - Motion Detection",
+  "workflow_type": "feature",
+  "phases": [
+    {
+      "phase": 1,
+      "name": "Camera Connection",
+      "chunks": [
+        {
+          "id": "02-01",
+          "description": "RTSP stream bağlantısı için VideoCapture wrapper oluştur",
+          "status": "pending",
+          "files": [
+            "src/motion_detector.py"
+          ]
+        },
+        {
+          "id": "02-02",
+          "description": "Connection retry ve timeout mekanizması ekle",
+          "status": "pending",
+          "files": [
+            "src/motion_detector.py"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "name": "Motion Algorithm",
+      "chunks": [
+        {
+          "id": "02-03",
+          "description": "BackgroundSubtractorMOG2 ile motion detection implementasyonu",
+          "status": "pending",
+          "files": [
+            "src/motion_detector.py"
+          ]
+        },
+        {
+          "id": "02-04",
+          "description": "Contour detection ve minimum area filtresi",
+          "status": "pending",
+          "files": [
+            "src/motion_detector.py"
+          ]
+        },
+        {
+          "id": "02-05",
+          "description": "Sensitivity parametresi ile eşik ayarlama",
+          "status": "pending",
+          "files": [
+            "src/motion_detector.py"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "name": "Threading & Callbacks",
+      "chunks": [
+        {
+          "id": "02-06",
+          "description": "Frame capture thread oluştur",
+          "status": "pending",
+          "files": [
+            "src/motion_detector.py"
+          ]
+        },
+        {
+          "id": "02-07",
+          "description": "Thread-safe callback mekanizması",
+          "status": "pending",
+          "files": [
+            "src/motion_detector.py"
+          ]
+        },
+        {
+          "id": "02-08",
+          "description": "Cooldown timer implementasyonu",
+          "status": "pending",
+          "files": [
+            "src/motion_detector.py"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 4,
+      "name": "Lifecycle Management",
+      "chunks": [
+        {
+          "id": "02-09",
+          "description": "start() ve stop() metodları",
+          "status": "pending",
+          "files": [
+            "src/motion_detector.py"
+          ]
+        },
+        {
+          "id": "02-10",
+          "description": "Graceful shutdown ve resource cleanup",
+          "status": "pending",
+          "files": [
+            "src/motion_detector.py"
+          ]
+        }
+      ]
+    }
+  ]
+}

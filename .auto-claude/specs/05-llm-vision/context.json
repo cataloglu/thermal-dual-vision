@@ -1,0 +1,15 @@
+{
+  "task_description": "OpenAI GPT-4 Vision ile görüntü analizi",
+  "files_to_create": [
+    "src/llm_analyzer.py"
+  ],
+  "files_to_modify": [],
+  "files_to_reference": [
+    "src/config.py",
+    "src/logger.py",
+    "src/utils.py",
+    "src/screenshot_manager.py",
+    ".auto-claude/test_data/LLM_PROMPTS.md"
+  ],
+  "scoped_services": ["llm"]
+}

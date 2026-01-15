@@ -1,0 +1,23 @@
+{
+  "task_description": "Unit test, integration test ve mock sistemleri",
+  "files_to_create": [
+    "tests/conftest.py",
+    "tests/unit/test_motion_detector.py",
+    "tests/unit/test_yolo_detector.py",
+    "tests/unit/test_screenshot_manager.py",
+    "tests/unit/test_llm_analyzer.py",
+    "tests/unit/test_mqtt_client.py",
+    "tests/unit/test_telegram_bot.py",
+    "tests/integration/test_pipeline.py",
+    "tests/mocks/__init__.py",
+    "tests/mocks/mock_camera.py",
+    "tests/mocks/mock_openai.py",
+    "pytest.ini"
+  ],
+  "files_to_modify": [],
+  "files_to_reference": [
+    "src/",
+    ".auto-claude/test_data/"
+  ],
+  "scoped_services": ["testing"]
+}

@@ -1,0 +1,119 @@
+{
+  "feature": "13 - Optimization",
+  "workflow_type": "refactor",
+  "phases": [
+    {
+      "phase": 1,
+      "name": "Metrics & Monitoring",
+      "chunks": [
+        {
+          "id": "13-01",
+          "description": "PerformanceMetrics dataclass ve metrics.py",
+          "status": "pending",
+          "files": [
+            "src/metrics.py"
+          ]
+        },
+        {
+          "id": "13-02",
+          "description": "Metrics collection ve endpoint",
+          "status": "pending",
+          "files": [
+            "src/metrics.py",
+            "src/main.py"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "name": "Memory Optimization",
+      "chunks": [
+        {
+          "id": "13-03",
+          "description": "Ring buffer boyut optimizasyonu",
+          "status": "pending",
+          "files": [
+            "src/screenshot_manager.py"
+          ]
+        },
+        {
+          "id": "13-04",
+          "description": "Frame resize ve JPEG optimization",
+          "status": "pending",
+          "files": [
+            "src/screenshot_manager.py",
+            "src/utils.py"
+          ]
+        },
+        {
+          "id": "13-05",
+          "description": "Numpy array reuse",
+          "status": "pending",
+          "files": [
+            "src/motion_detector.py"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "name": "CPU Optimization",
+      "chunks": [
+        {
+          "id": "13-06",
+          "description": "Frame skip mekanizması",
+          "status": "pending",
+          "files": [
+            "src/motion_detector.py"
+          ]
+        },
+        {
+          "id": "13-07",
+          "description": "YOLO inference optimization",
+          "status": "pending",
+          "files": [
+            "src/yolo_detector.py"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 4,
+      "name": "Network Optimization",
+      "chunks": [
+        {
+          "id": "13-08",
+          "description": "LLM response caching",
+          "status": "pending",
+          "files": [
+            "src/llm_analyzer.py"
+          ]
+        },
+        {
+          "id": "13-09",
+          "description": "Connection pooling ve keep-alive",
+          "status": "pending",
+          "files": [
+            "src/mqtt_client.py",
+            "src/telegram_bot.py"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 5,
+      "name": "Long-running Tests",
+      "chunks": [
+        {
+          "id": "13-10",
+          "description": "24h stability test",
+          "status": "pending",
+          "files": [
+            "tests/integration/test_stability.py"
+          ]
+        }
+      ]
+    }
+  ]
+}

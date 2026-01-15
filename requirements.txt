@@ -1,0 +1,28 @@
+# Smart Motion Detector - Python Dependencies
+
+# Core
+opencv-python-headless>=4.8.0
+numpy>=1.24.0
+
+# YOLO Object Detection
+ultralytics>=8.0.0
+
+# OpenAI GPT-4 Vision
+openai>=1.0.0
+
+# MQTT
+paho-mqtt>=2.0.0
+
+# Telegram Bot
+python-telegram-bot>=20.0
+
+# Async support
+aiohttp>=3.9.0
+asyncio-mqtt>=0.16.0
+
+# Configuration
+pyyaml>=6.0
+python-dotenv>=1.0.0
+
+# Utilities
+Pillow>=10.0.0

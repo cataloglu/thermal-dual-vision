@@ -1,0 +1,18 @@
+{
+  "task_description": "RTSP kamera stream'inden hareket algılama modülü geliştir. OpenCV background subtraction kullanarak motion detection yap.",
+  "workflow_type": "feature",
+  "services_involved": ["opencv", "rtsp", "threading"],
+  "user_requirements": [
+    "RTSP stream desteği",
+    "Background subtraction algoritması (MOG2)",
+    "Ayarlanabilir sensitivity (1-10)",
+    "Minimum alan filtresi",
+    "Cooldown mekanizması",
+    "Callback sistemi"
+  ],
+  "constraints": [
+    "Thread-safe olmalı",
+    "Graceful shutdown desteklemeli",
+    ">= 5 FPS performans"
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "task_description": "Docker build ve HA Add-on store yayınlama. Multi-arch build, GitHub Actions CI/CD, version tagging.",
+  "workflow_type": "feature",
+  "services_involved": ["docker", "github-actions", "ghcr", "ci-cd"],
+  "user_requirements": [
+    "Multi-arch Dockerfile (amd64, aarch64)",
+    "GitHub Actions CI/CD",
+    "Version tagging (semantic)",
+    "HA Add-on repository",
+    "Security scan (trivy)"
+  ],
+  "constraints": [
+    "Build cache kullanımı",
+    "GHCR image push",
+    "Automated releases"
+  ]
+}

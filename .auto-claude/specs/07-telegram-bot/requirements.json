@@ -1,0 +1,18 @@
+{
+  "task_description": "Telegram bot ile bildirim ve komut sistemi. Alarm gönder, /status, /arm, /disarm, /snapshot komutlarını destekle.",
+  "workflow_type": "feature",
+  "services_involved": ["telegram", "python-telegram-bot", "async"],
+  "user_requirements": [
+    "python-telegram-bot kütüphanesi",
+    "Alarm bildirimi (görüntü + analiz)",
+    "Komutlar: /status, /arm, /disarm, /snapshot, /help",
+    "Rate limiting",
+    "Multi-chat desteği",
+    "Unauthorized erişim engelleme"
+  ],
+  "constraints": [
+    "Async handler",
+    "Media group (3 görüntü)",
+    "Rate limit 5 saniye"
+  ]
+}

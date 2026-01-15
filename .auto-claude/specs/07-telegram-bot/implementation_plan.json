@@ -1,0 +1,104 @@
+{
+  "feature": "07 - Telegram Bot",
+  "workflow_type": "feature",
+  "phases": [
+    {
+      "phase": 1,
+      "name": "Bot Setup",
+      "chunks": [
+        {
+          "id": "07-01",
+          "description": "TelegramBot sınıfı ve Application setup",
+          "status": "pending",
+          "files": [
+            "src/telegram_bot.py"
+          ]
+        },
+        {
+          "id": "07-02",
+          "description": "start() ve stop() lifecycle metodları",
+          "status": "pending",
+          "files": [
+            "src/telegram_bot.py"
+          ]
+        },
+        {
+          "id": "07-03",
+          "description": "Chat ID authorization middleware",
+          "status": "pending",
+          "files": [
+            "src/telegram_bot.py"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "name": "Command Handlers",
+      "chunks": [
+        {
+          "id": "07-04",
+          "description": "/status komutu handler",
+          "status": "pending",
+          "files": [
+            "src/telegram_bot.py"
+          ]
+        },
+        {
+          "id": "07-05",
+          "description": "/arm ve /disarm komutları",
+          "status": "pending",
+          "files": [
+            "src/telegram_bot.py"
+          ]
+        },
+        {
+          "id": "07-06",
+          "description": "/snapshot komutu",
+          "status": "pending",
+          "files": [
+            "src/telegram_bot.py"
+          ]
+        },
+        {
+          "id": "07-07",
+          "description": "/help komutu",
+          "status": "pending",
+          "files": [
+            "src/telegram_bot.py"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "name": "Alert System",
+      "chunks": [
+        {
+          "id": "07-08",
+          "description": "send_alert() - analiz ve görüntü gönderme",
+          "status": "pending",
+          "files": [
+            "src/telegram_bot.py"
+          ]
+        },
+        {
+          "id": "07-09",
+          "description": "Media group (3 görüntü) gönderme",
+          "status": "pending",
+          "files": [
+            "src/telegram_bot.py"
+          ]
+        },
+        {
+          "id": "07-10",
+          "description": "Rate limiting entegrasyonu",
+          "status": "pending",
+          "files": [
+            "src/telegram_bot.py"
+          ]
+        }
+      ]
+    }
+  ]
+}

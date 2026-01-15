@@ -1,0 +1,110 @@
+{
+  "feature": "06 - MQTT Integration",
+  "workflow_type": "feature",
+  "phases": [
+    {
+      "phase": 1,
+      "name": "MQTT Client Setup",
+      "chunks": [
+        {
+          "id": "06-01",
+          "description": "MQTTClient sınıfı ve paho-mqtt wrapper",
+          "status": "pending",
+          "files": [
+            "src/mqtt_client.py"
+          ]
+        },
+        {
+          "id": "06-02",
+          "description": "connect() ve disconnect() metodları",
+          "status": "pending",
+          "files": [
+            "src/mqtt_client.py"
+          ]
+        },
+        {
+          "id": "06-03",
+          "description": "Reconnect ve callback mekanizması",
+          "status": "pending",
+          "files": [
+            "src/mqtt_client.py"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "name": "Auto-Discovery",
+      "chunks": [
+        {
+          "id": "06-04",
+          "description": "Binary sensor discovery config",
+          "status": "pending",
+          "files": [
+            "src/mqtt_client.py"
+          ]
+        },
+        {
+          "id": "06-05",
+          "description": "Sensor discovery configs (threat, confidence, analysis)",
+          "status": "pending",
+          "files": [
+            "src/mqtt_client.py"
+          ]
+        },
+        {
+          "id": "06-06",
+          "description": "publish_discovery() - tüm config'leri gönder",
+          "status": "pending",
+          "files": [
+            "src/mqtt_client.py"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "name": "State Publishing",
+      "chunks": [
+        {
+          "id": "06-07",
+          "description": "publish_motion() - motion state ve analysis",
+          "status": "pending",
+          "files": [
+            "src/mqtt_client.py"
+          ]
+        },
+        {
+          "id": "06-08",
+          "description": "publish_state() - generic state publish",
+          "status": "pending",
+          "files": [
+            "src/mqtt_client.py"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 4,
+      "name": "Reliability",
+      "chunks": [
+        {
+          "id": "06-09",
+          "description": "Last Will Testament (LWT) setup",
+          "status": "pending",
+          "files": [
+            "src/mqtt_client.py"
+          ]
+        },
+        {
+          "id": "06-10",
+          "description": "QoS ve retain flag yönetimi",
+          "status": "pending",
+          "files": [
+            "src/mqtt_client.py"
+          ]
+        }
+      ]
+    }
+  ]
+}
