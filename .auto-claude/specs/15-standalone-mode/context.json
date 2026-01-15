@@ -1,0 +1,22 @@
+{
+  "background": "Proje hem Home Assistant add-on hem de bağımsız Docker container olarak çalışabilmeli. Bu esneklik farklı kullanım senaryolarını destekler.",
+  "technical_context": {
+    "ha_mode_true": {
+      "config_source": "Bashio (options.json)",
+      "web_server": "Ingress proxy arkasında",
+      "mqtt": "Auto-discovery aktif",
+      "entry_point": "run.sh"
+    },
+    "ha_mode_false": {
+      "config_source": "ENV vars + config.yaml",
+      "web_server": "Doğrudan port expose",
+      "mqtt": "Opsiyonel, auto-discovery yok",
+      "entry_point": "python -m src.main"
+    }
+  },
+  "related_modules": [
+    "src/config.py - Config yönetimi",
+    "src/web_server.py - Web sunucu",
+    "src/mqtt_client.py - MQTT iletişim"
+  ]
+}

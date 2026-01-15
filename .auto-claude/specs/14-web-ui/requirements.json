@@ -1,0 +1,31 @@
+{
+  "task_description": "Home Assistant ingress uyumlu web arayüzü. Vite + Preact + Tailwind CSS frontend, Flask backend ile dashboard, canlı görüntü, galeri ve ayarlar.",
+  "workflow_type": "feature",
+  "services_involved": [
+    "flask",
+    "vite",
+    "preact",
+    "tailwindcss",
+    "websocket",
+    "home-assistant-ingress"
+  ],
+  "user_requirements": [
+    "HA ingress uyumlu web arayüzü",
+    "Canlı kamera stream görüntüleme",
+    "Screenshot galerisi",
+    "Event/tespit geçmişi",
+    "Konfigürasyon ayarları sayfası",
+    "Dashboard istatistikler",
+    "Dark/Light mode",
+    "Responsive tasarım",
+    "WebSocket ile canlı güncellemeler"
+  ],
+  "constraints": [
+    "Sadece 172.30.32.2 IP erişimi",
+    "X-Ingress-Path header desteği",
+    "Hafif bundle (<100KB gzipped)",
+    "Type hints zorunlu",
+    "TypeScript kullanımı",
+    "English code comments"
+  ]
+}

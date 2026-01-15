@@ -1,0 +1,15 @@
+{
+  "discovered_files": {
+    "src/__init__.py": {
+      "description": "Package init file with __version__ = \"1.0.0\" and __author__ defined. Module imports successfully.",
+      "category": "package_structure",
+      "discovered_at": "2026-01-15T22:38:34.821023+00:00"
+    },
+    "src/utils.py": {
+      "description": "Uses lazy imports pattern for cv2, numpy, PIL - allows module import without runtime dependencies. TYPE_CHECKING for type hints, _get_cv2()/_get_numpy()/_get_pil_image() helper functions for runtime imports.",
+      "category": "pattern",
+      "discovered_at": "2026-01-15T22:50:33.312538+00:00"
+    }
+  },
+  "last_updated": "2026-01-15T22:50:33.312550+00:00"
+}

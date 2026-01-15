@@ -1,0 +1,18 @@
+{
+  "task_id": "15-standalone-mode",
+  "title": "15 - Standalone Mode",
+  "status": "pending",
+  "priority": "high",
+  "estimated_complexity": "medium",
+  "dependencies": [
+    "01-project-structure",
+    "08-main-app",
+    "14-web-ui"
+  ],
+  "tags": [
+    "docker-compose",
+    "standalone",
+    "deployment",
+    "config"
+  ]
+}

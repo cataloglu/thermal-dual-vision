@@ -1,0 +1,235 @@
+{
+  "feature": "14 - Web UI",
+  "workflow_type": "feature",
+  "phases": [
+    {
+      "phase": 1,
+      "name": "Backend API Setup",
+      "chunks": [
+        {
+          "id": "14-01",
+          "description": "Flask web server ve ingress konfigürasyonu",
+          "status": "pending",
+          "files": [
+            "src/web_server.py"
+          ]
+        },
+        {
+          "id": "14-02",
+          "description": "API routes - status, stats, config endpoints",
+          "status": "pending",
+          "files": [
+            "src/api/__init__.py",
+            "src/api/routes.py"
+          ]
+        },
+        {
+          "id": "14-03",
+          "description": "Screenshot ve events API endpoints",
+          "status": "pending",
+          "files": [
+            "src/api/routes.py"
+          ]
+        },
+        {
+          "id": "14-04",
+          "description": "MJPEG stream endpoint",
+          "status": "pending",
+          "files": [
+            "src/api/routes.py"
+          ]
+        },
+        {
+          "id": "14-05",
+          "description": "WebSocket handlers (Flask-SocketIO)",
+          "status": "pending",
+          "files": [
+            "src/api/websocket.py"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "name": "Frontend Project Setup",
+      "chunks": [
+        {
+          "id": "14-06",
+          "description": "Vite + Preact + TypeScript proje kurulumu",
+          "status": "pending",
+          "files": [
+            "web/package.json",
+            "web/vite.config.ts",
+            "web/tsconfig.json"
+          ]
+        },
+        {
+          "id": "14-07",
+          "description": "Tailwind CSS konfigürasyonu",
+          "status": "pending",
+          "files": [
+            "web/tailwind.config.js",
+            "web/postcss.config.js",
+            "web/src/index.css"
+          ]
+        },
+        {
+          "id": "14-08",
+          "description": "Main app entry ve routing",
+          "status": "pending",
+          "files": [
+            "web/index.html",
+            "web/src/main.tsx",
+            "web/src/App.tsx"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "name": "Layout Components",
+      "chunks": [
+        {
+          "id": "14-09",
+          "description": "Layout, Sidebar, Header components",
+          "status": "pending",
+          "files": [
+            "web/src/components/Layout.tsx",
+            "web/src/components/Sidebar.tsx",
+            "web/src/components/Header.tsx"
+          ]
+        },
+        {
+          "id": "14-10",
+          "description": "Theme provider (Dark/Light mode)",
+          "status": "pending",
+          "files": [
+            "web/src/components/ThemeProvider.tsx"
+          ]
+        },
+        {
+          "id": "14-11",
+          "description": "Common UI components (Card, Button, Table)",
+          "status": "pending",
+          "files": [
+            "web/src/components/ui/Card.tsx",
+            "web/src/components/ui/Button.tsx",
+            "web/src/components/ui/Table.tsx"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 4,
+      "name": "Pages - Core",
+      "chunks": [
+        {
+          "id": "14-12",
+          "description": "Dashboard sayfası - stats, recent events",
+          "status": "pending",
+          "files": [
+            "web/src/pages/Dashboard.tsx"
+          ]
+        },
+        {
+          "id": "14-13",
+          "description": "LiveView sayfası - MJPEG stream player",
+          "status": "pending",
+          "files": [
+            "web/src/pages/LiveView.tsx"
+          ]
+        },
+        {
+          "id": "14-14",
+          "description": "Gallery sayfası - screenshot grid",
+          "status": "pending",
+          "files": [
+            "web/src/pages/Gallery.tsx"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 5,
+      "name": "Pages - Secondary",
+      "chunks": [
+        {
+          "id": "14-15",
+          "description": "Events sayfası - tespit geçmişi tablosu",
+          "status": "pending",
+          "files": [
+            "web/src/pages/Events.tsx"
+          ]
+        },
+        {
+          "id": "14-16",
+          "description": "Settings sayfası - config form",
+          "status": "pending",
+          "files": [
+            "web/src/pages/Settings.tsx"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 6,
+      "name": "Hooks & Utils",
+      "chunks": [
+        {
+          "id": "14-17",
+          "description": "API utility functions",
+          "status": "pending",
+          "files": [
+            "web/src/utils/api.ts"
+          ]
+        },
+        {
+          "id": "14-18",
+          "description": "useWebSocket hook - canlı event stream",
+          "status": "pending",
+          "files": [
+            "web/src/hooks/useWebSocket.ts"
+          ]
+        },
+        {
+          "id": "14-19",
+          "description": "useApi hook - data fetching",
+          "status": "pending",
+          "files": [
+            "web/src/hooks/useApi.ts"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 7,
+      "name": "Build & Integration",
+      "chunks": [
+        {
+          "id": "14-20",
+          "description": "Dockerfile güncelleme - Node.js build step",
+          "status": "pending",
+          "files": [
+            "Dockerfile"
+          ]
+        },
+        {
+          "id": "14-21",
+          "description": "requirements.txt güncelleme",
+          "status": "pending",
+          "files": [
+            "requirements.txt"
+          ]
+        },
+        {
+          "id": "14-22",
+          "description": "Static file serving ve production build",
+          "status": "pending",
+          "files": [
+            "src/web_server.py"
+          ]
+        }
+      ]
+    }
+  ]
+}
