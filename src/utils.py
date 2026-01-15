@@ -5,16 +5,37 @@ import base64
 import io
 from datetime import datetime
 from functools import wraps
-from typing import Any, Callable, Optional, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, Optional, TypeVar
 
-import cv2
-import numpy as np
-from PIL import Image
+# Lazy imports for heavy dependencies (cv2, numpy, PIL)
+# These are runtime dependencies available in Docker container
+if TYPE_CHECKING:
+    import cv2
+    import numpy as np
+    from PIL import Image
 
 T = TypeVar("T")
 
 
-def encode_frame_to_base64(frame: np.ndarray, quality: int = 85) -> str:
+def _get_cv2():
+    """Lazy import for cv2 (OpenCV)."""
+    import cv2
+    return cv2
+
+
+def _get_numpy():
+    """Lazy import for numpy."""
+    import numpy as np
+    return np
+
+
+def _get_pil_image():
+    """Lazy import for PIL Image."""
+    from PIL import Image
+    return Image
+
+
+def encode_frame_to_base64(frame: "np.ndarray", quality: int = 85) -> str:
     """
     Encode a numpy frame to base64 JPEG string.
 
@@ -25,6 +46,9 @@ def encode_frame_to_base64(frame: np.ndarray, quality: int = 85) -> str:
     Returns:
         Base64 encoded string
     """
+    cv2 = _get_cv2()
+    Image = _get_pil_image()
+
     # Convert BGR to RGB
     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
@@ -39,7 +63,7 @@ def encode_frame_to_base64(frame: np.ndarray, quality: int = 85) -> str:
     return base64.b64encode(buffer.getvalue()).decode("utf-8")
 
 
-def encode_frame_to_bytes(frame: np.ndarray, quality: int = 85) -> bytes:
+def encode_frame_to_bytes(frame: "np.ndarray", quality: int = 85) -> bytes:
     """
     Encode a numpy frame to JPEG bytes.
 
@@ -50,12 +74,14 @@ def encode_frame_to_bytes(frame: np.ndarray, quality: int = 85) -> bytes:
     Returns:
         JPEG bytes
     """
+    cv2 = _get_cv2()
+
     encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), quality]
     _, buffer = cv2.imencode(".jpg", frame, encode_param)
     return buffer.tobytes()
 
 
-def decode_base64_to_frame(base64_string: str) -> np.ndarray:
+def decode_base64_to_frame(base64_string: str) -> "np.ndarray":
     """
     Decode a base64 string to numpy frame.
 
@@ -65,6 +91,9 @@ def decode_base64_to_frame(base64_string: str) -> np.ndarray:
     Returns:
         OpenCV frame (BGR format)
     """
+    cv2 = _get_cv2()
+    np = _get_numpy()
+
     image_data = base64.b64decode(base64_string)
     nparr = np.frombuffer(image_data, np.uint8)
     return cv2.imdecode(nparr, cv2.IMREAD_COLOR)
