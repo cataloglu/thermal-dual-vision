@@ -121,7 +121,9 @@
             "command": "python -c \"from src.llm_analyzer import LLMAnalyzer; import inspect; sig = inspect.signature(LLMAnalyzer.analyze_with_retry); params = list(sig.parameters.keys()); print('OK' if 'max_retries' in params else 'FAIL')\"",
             "expected": "OK"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Implemented analyze_with_retry method with exponential backoff (1s initial delay, 2x multiplier). Method calls self.analyze() and retries on any exception.",
+          "updated_at": "2026-01-16T06:48:19.351619+00:00"
         },
         {
           "id": "subtask-2-4",
@@ -139,7 +141,9 @@
             "command": "python -c \"from src.llm_analyzer import LLMAnalyzerError, JSONParseError; print('OK')\"",
             "expected": "OK"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Added LLMAnalyzerError and JSONParseError exception classes. Implemented proper error handling for OpenAI API errors (RateLimitError, APIError, APITimeoutError, APIConnectionError) and JSON parsing errors in the analyze() method. Updated analyze_with_retry() with better error handling and logging using get_logger. Verification passed via AST parsing.",
+          "updated_at": "2026-01-16T06:50:56.772263+00:00"
         }
       ]
     },
@@ -284,6 +288,6 @@
   "description": "OpenAI GPT-4 Vision API entegrasyonu. 3 ekran goruntusunu karsilastirmali analiz et.",
   "status": "in_progress",
   "planStatus": "in_progress",
-  "updated_at": "2026-01-16T06:44:53.743Z",
-  "last_updated": "2026-01-16T06:46:38.695507+00:00"
+  "updated_at": "2026-01-16T06:48:34.769Z",
+  "last_updated": "2026-01-16T06:50:56.772276+00:00"
 }
