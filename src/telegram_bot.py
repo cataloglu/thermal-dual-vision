@@ -86,3 +86,26 @@ class TelegramBot:
         except Exception as e:
             self.logger.error(f"Failed to stop Telegram bot: {e}")
             raise
+
+    def _check_authorization(self, chat_id: int) -> bool:
+        """
+        Check if a chat ID is authorized to use the bot.
+
+        Args:
+            chat_id: Telegram chat ID to check
+
+        Returns:
+            True if chat ID is authorized, False otherwise
+        """
+        chat_id_str = str(chat_id)
+
+        if not self.config.chat_ids:
+            self.logger.warning("No authorized chat IDs configured")
+            return False
+
+        is_authorized = chat_id_str in self.config.chat_ids
+
+        if not is_authorized:
+            self.logger.warning(f"Unauthorized access attempt from chat_id: {chat_id}")
+
+        return is_authorized
