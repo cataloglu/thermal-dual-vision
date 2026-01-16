@@ -1,5 +1,7 @@
 """YOLO object detection module for Smart Motion Detector."""
 
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 import numpy as np
@@ -137,3 +139,27 @@ class YoloDetector:
         except Exception as e:
             logger.error(f"Detection failed: {e}")
             raise
+
+    async def detect_async(self, frame: np.ndarray) -> List[Detection]:
+        """
+        Asynchronously detect objects in the given frame.
+
+        This method runs the synchronous detect() in a thread pool executor
+        to avoid blocking the event loop. Useful for integration with async
+        applications like FastAPI.
+
+        Args:
+            frame: Input image as numpy array (BGR format)
+
+        Returns:
+            List of Detection objects containing detected objects
+
+        Raises:
+            Exception: If model loading or inference fails
+        """
+        loop = asyncio.get_event_loop()
+        with ThreadPoolExecutor() as executor:
+            detections = await loop.run_in_executor(
+                executor, self.detect, frame
+            )
+        return detections
