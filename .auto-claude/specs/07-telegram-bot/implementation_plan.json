@@ -252,7 +252,9 @@
             "type": "manual",
             "instructions": "Review send_alert() method and verify it sends formatted alert message plus 3 images as InputMediaPhoto media group"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Implemented send_alert() method that sends motion detection alerts with 3 images as media group. Added InputMediaPhoto import, encode_frame_to_bytes import from utils. Method converts 3 frames (before, now, after) to JPEG bytes, creates InputMediaPhoto media group with alert message as caption on first photo, and sends to all configured chat IDs with proper error handling and logging.",
+          "updated_at": "2026-01-16T07:06:21.000944+00:00"
         },
         {
           "id": "subtask-3-4",
@@ -269,7 +271,9 @@
             "type": "manual",
             "instructions": "Review send_alert() and verify it uses RateLimiter from utils.py to enforce rate_limit_seconds from config"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Integrated RateLimiter from utils.py to enforce rate_limit_seconds from config. Rate limiter initialized in __init__ and applied to send_alert() using async context manager. Ensures minimum interval between alert sends.",
+          "updated_at": "2026-01-16T07:07:42.686348+00:00"
         }
       ]
     },
@@ -299,7 +303,9 @@
             "type": "manual",
             "instructions": "Review all command handlers and verify they have try/except blocks that catch and log exceptions"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Added comprehensive error handling to all 5 command handlers (_cmd_help, _cmd_status, _cmd_arm, _cmd_disarm, _cmd_snapshot). Each handler now wraps its logic in try/except blocks that catch exceptions, log errors using self.logger.error(), and send user-friendly error messages in Turkish to the user. Includes nested try/except around error message sending to handle cases where sending the error message itself might fail. Follows error handling patterns from utils.py and existing code in send_message/send_alert methods.",
+          "updated_at": "2026-01-16T07:09:17.911178+00:00"
         },
         {
           "id": "subtask-4-2",
@@ -316,7 +322,9 @@
             "type": "manual",
             "instructions": "Review send_alert() and send_message() methods and verify they use @retry_async decorator for automatic retries"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Added @retry_async decorator to send_message() and send_alert() network methods with default parameters (max_attempts=3, delay=1.0, backoff=2.0) for automatic retry on network failures",
+          "updated_at": "2026-01-16T07:10:39.100863+00:00"
         },
         {
           "id": "subtask-4-3",
@@ -331,7 +339,9 @@
             "type": "manual",
             "instructions": "Review start() method and verify application.add_error_handler() is called to log uncaught errors"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Added async _error_handler() method to handle uncaught errors from the Telegram bot. Registered error handler in start() method using application.add_error_handler(). Handler logs all uncaught exceptions using self.logger.error() with exc_info for full stack traces. Follows error handling patterns from existing codebase.",
+          "updated_at": "2026-01-16T07:12:15.734139+00:00"
         }
       ]
     },
@@ -558,6 +568,6 @@
   "qa_signoff": null,
   "status": "in_progress",
   "planStatus": "in_progress",
-  "updated_at": "2026-01-16T07:04:54.391Z",
-  "last_updated": "2026-01-16T07:04:28.275535+00:00"
+  "updated_at": "2026-01-16T07:12:35.700Z",
+  "last_updated": "2026-01-16T07:12:15.734165+00:00"
 }
