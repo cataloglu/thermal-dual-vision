@@ -2,7 +2,7 @@
 
 import asyncio
 from datetime import datetime
-from typing import Optional
+from typing import Any, Dict, Optional
 
 import numpy as np
 
@@ -100,6 +100,71 @@ class SmartMotionDetector:
             True if armed, False otherwise
         """
         return self._armed
+
+    async def health_check(self) -> Dict[str, Any]:
+        """
+        Perform health check on all modules and return status.
+
+        Returns:
+            Dictionary containing overall status and module-specific health information
+        """
+        health = {
+            "status": "ok",
+            "armed": self._armed,
+            "start_time": self._start_time.isoformat() if self._start_time else None,
+            "last_detection": self._last_detection_time.isoformat() if self._last_detection_time else None,
+            "modules": {}
+        }
+
+        # Check MQTT client
+        if self.mqtt_client:
+            health["modules"]["mqtt"] = {
+                "available": True,
+                "connected": self.mqtt_client.is_connected
+            }
+        else:
+            health["modules"]["mqtt"] = {
+                "available": False,
+                "connected": False
+            }
+
+        # Check Telegram bot
+        if self.telegram_bot:
+            health["modules"]["telegram"] = {
+                "available": True,
+                "running": self.telegram_bot.is_running
+            }
+        else:
+            health["modules"]["telegram"] = {
+                "available": False,
+                "running": False
+            }
+
+        # Check LLM analyzer
+        health["modules"]["llm"] = {
+            "available": self.llm_analyzer is not None
+        }
+
+        # Check YOLO detector
+        health["modules"]["yolo"] = {
+            "available": self.yolo_detector is not None
+        }
+
+        # Check Screenshot manager
+        health["modules"]["screenshots"] = {
+            "available": self.screenshot_manager is not None
+        }
+
+        # Check Motion detector
+        health["modules"]["motion"] = {
+            "available": self.motion_detector is not None
+        }
+
+        # Determine overall status based on critical modules
+        if not health["modules"]["motion"]["available"]:
+            health["status"] = "degraded"
+
+        return health
 
     async def start(self) -> None:
         """
