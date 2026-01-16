@@ -81,6 +81,52 @@ class ScreenshotManager:
         """
         return len(self._buffer)
 
+    def get_buffer_memory_usage(self) -> int:
+        """
+        Calculate total memory usage of frames in the buffer.
+
+        Calculates the sum of memory used by all numpy arrays
+        stored in the ring buffer.
+
+        Returns:
+            Total memory usage in bytes
+        """
+        total_bytes = 0
+        for frame, _ in self._buffer:
+            # Calculate memory size of numpy array
+            # nbytes gives the total bytes consumed by the array's data
+            total_bytes += frame.nbytes
+        return total_bytes
+
+    def get_buffer_statistics(self) -> dict:
+        """
+        Get comprehensive buffer statistics.
+
+        Returns a dictionary with buffer state information including
+        frame count, memory usage, and capacity utilization.
+
+        Returns:
+            Dictionary containing:
+                - frame_count: Current number of frames in buffer
+                - max_capacity: Maximum buffer capacity
+                - utilization: Buffer utilization percentage (0-100)
+                - memory_bytes: Total memory used by frames
+                - memory_mb: Memory usage in megabytes
+        """
+        frame_count = len(self._buffer)
+        max_capacity = self._buffer.maxlen if self._buffer.maxlen else 0
+        memory_bytes = self.get_buffer_memory_usage()
+
+        utilization = (frame_count / max_capacity * 100) if max_capacity > 0 else 0
+
+        return {
+            "frame_count": frame_count,
+            "max_capacity": max_capacity,
+            "utilization": round(utilization, 2),
+            "memory_bytes": memory_bytes,
+            "memory_mb": round(memory_bytes / (1024 * 1024), 2)
+        }
+
     def _get_frame_before(self, timestamp: datetime, seconds: float) -> Optional[np.ndarray]:
         """
         Find frame closest to N seconds before the given timestamp.
