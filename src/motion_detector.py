@@ -46,7 +46,15 @@ class MotionDetector:
         self._lock = threading.Lock()
 
         # Motion detection
-        self._background_subtractor = None
+        # Initialize BackgroundSubtractorMOG2 with sensible defaults
+        # history: Number of frames for background model (500 frames ~= 100s at 5fps)
+        # varThreshold: Threshold for pixel-model match (lower = more sensitive)
+        # detectShadows: Detect and mark shadows (reduces false positives)
+        self._background_subtractor = cv2.createBackgroundSubtractorMOG2(
+            history=500,
+            varThreshold=16,
+            detectShadows=True
+        )
         self._callbacks: List[Callable[[np.ndarray, List], None]] = []
 
         # Frame storage

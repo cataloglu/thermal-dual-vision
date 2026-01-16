@@ -28,7 +28,9 @@
             "command": "python -c \"from src.motion_detector import MotionDetector; from src.config import CameraConfig, MotionConfig; md = MotionDetector(CameraConfig(), MotionConfig()); print('OK')\"",
             "expected": "OK"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Successfully created MotionDetector class skeleton with __init__, basic properties (is_running, get_frame), VideoCapture setup placeholder, and thread management. Verification passed. Follows patterns from config.py and logger.py.",
+          "updated_at": "2026-01-16T00:52:27.362917+00:00"
         },
         {
           "id": "subtask-1-2",
@@ -45,7 +47,9 @@
             "type": "manual",
             "instructions": "Code review: Verify VideoCapture initialization with proper timeout and error handling"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Implemented RTSP connection logic with cv2.VideoCapture including:\n- Connection timeout handling (10s open timeout, 5s read timeout)\n- Connection validation via test frame reading\n- Proper error handling and resource cleanup\n- Public connect()/disconnect() methods and is_connected property\n- Comprehensive logging and error messages",
+          "updated_at": "2026-01-16T00:53:42.934082+00:00"
         },
         {
           "id": "subtask-1-3",
@@ -62,7 +66,9 @@
             "type": "manual",
             "instructions": "Code review: Verify retry logic with backoff, max attempts, and proper logging"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Added retry mechanism with exponential backoff to MotionDetector.connect(). Configuration includes retry_max_attempts (default 3), retry_initial_delay (default 1.0s), and retry_backoff (default 2.0x). Extracted connection logic to _attempt_connection() method. Added proper logging for each attempt and retry delays.",
+          "updated_at": "2026-01-16T00:55:00.090570+00:00"
         }
       ]
     },
@@ -456,5 +462,6 @@
   "qa_signoff": null,
   "status": "in_progress",
   "planStatus": "in_progress",
-  "updated_at": "2026-01-16T00:50:45.293Z"
+  "updated_at": "2026-01-16T00:55:15.309Z",
+  "last_updated": "2026-01-16T00:55:00.090582+00:00"
 }
