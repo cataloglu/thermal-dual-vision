@@ -138,7 +138,7 @@ class TestSensitivityMapping:
         """Test sensitivity level 10 (least sensitive)."""
         var_threshold, min_area = map_sensitivity_to_params(10)
         assert var_threshold == 50
-        assert min_area == 2000
+        assert min_area == 1999  # int(100 + 9 * 211.11) = 1999
 
     def test_sensitivity_invalid_low(self):
         """Test invalid sensitivity below range."""
@@ -149,6 +149,43 @@ class TestSensitivityMapping:
         """Test invalid sensitivity above range."""
         with pytest.raises(ValueError, match="must be between 1 and 10"):
             map_sensitivity_to_params(11)
+
+    def test_sensitivity_linear_interpolation(self):
+        """Test that sensitivity values are linearly interpolated."""
+        # Test multiple points to verify linear progression
+        results = [map_sensitivity_to_params(i) for i in range(1, 11)]
+
+        var_thresholds = [r[0] for r in results]
+        min_areas = [r[1] for r in results]
+
+        # Verify var_threshold increases with sensitivity
+        for i in range(len(var_thresholds) - 1):
+            assert var_thresholds[i] < var_thresholds[i + 1], \
+                f"varThreshold should increase: {var_thresholds[i]} >= {var_thresholds[i + 1]}"
+
+        # Verify min_area increases with sensitivity
+        for i in range(len(min_areas) - 1):
+            assert min_areas[i] < min_areas[i + 1], \
+                f"min_area should increase: {min_areas[i]} >= {min_areas[i + 1]}"
+
+    def test_sensitivity_mid_range_values(self):
+        """Test specific mid-range sensitivity values for consistency."""
+        # Test sensitivity 3
+        var_threshold_3, min_area_3 = map_sensitivity_to_params(3)
+        assert 8 < var_threshold_3 < 50
+        assert 100 < min_area_3 < 2000
+
+        # Test sensitivity 7
+        var_threshold_7, min_area_7 = map_sensitivity_to_params(7)
+        assert var_threshold_3 < var_threshold_7
+        assert min_area_3 < min_area_7
+
+    def test_sensitivity_consistent_mapping(self):
+        """Test that calling map_sensitivity_to_params multiple times returns same values."""
+        for sensitivity in [1, 5, 10]:
+            result1 = map_sensitivity_to_params(sensitivity)
+            result2 = map_sensitivity_to_params(sensitivity)
+            assert result1 == result2, f"Mapping should be consistent for sensitivity {sensitivity}"
 
 
 class TestMotionDetectorInit:
@@ -545,6 +582,136 @@ class TestMotionDetection:
 
         # Only the large contour should be returned
         assert len(contours) == 1
+
+    def test_detect_motion_high_sensitivity_detects_small_objects(self, mock_cv2, camera_config):
+        """Test that high sensitivity (low value) detects small objects."""
+        # Sensitivity 1 = most sensitive, min_area should be 100
+        config = MotionConfig(sensitivity=1, cooldown_seconds=1)
+        detector = MotionDetector(camera_config, config)
+
+        # Verify min_area was set correctly
+        assert detector.motion_config.min_area == 100
+
+        # Create contour with area between 100-500 (would be filtered at default sensitivity)
+        small_contour = np.array([[[0, 0]], [[15, 0]], [[15, 15]], [[0, 15]]])
+        mock_cv2.findContours.return_value = ([small_contour], None)
+        mock_cv2.contourArea.return_value = 150  # Above min_area for sensitivity 1
+
+        frame = np.zeros((480, 640, 3), dtype=np.uint8)
+        contours = detector._detect_motion(frame)
+
+        # Should detect the small object
+        assert len(contours) == 1
+
+    def test_detect_motion_low_sensitivity_filters_small_objects(self, mock_cv2, camera_config):
+        """Test that low sensitivity (high value) filters out small objects."""
+        # Sensitivity 10 = least sensitive, min_area should be 1999
+        config = MotionConfig(sensitivity=10, cooldown_seconds=1)
+        detector = MotionDetector(camera_config, config)
+
+        # Verify min_area was set correctly
+        assert detector.motion_config.min_area == 1999  # int(100 + 9 * 211.11) = 1999
+
+        # Create contour with area below 1999
+        small_contour = np.array([[[0, 0]], [[40, 0]], [[40, 40]], [[0, 40]]])
+        mock_cv2.findContours.return_value = ([small_contour], None)
+        mock_cv2.contourArea.return_value = 1500  # Below min_area for sensitivity 10
+
+        frame = np.zeros((480, 640, 3), dtype=np.uint8)
+        contours = detector._detect_motion(frame)
+
+        # Should NOT detect the small object
+        assert len(contours) == 0
+
+    def test_detect_motion_sensitivity_boundary_case(self, mock_cv2, camera_config):
+        """Test motion detection at exact min_area boundary."""
+        config = MotionConfig(sensitivity=5, cooldown_seconds=1)
+        detector = MotionDetector(camera_config, config)
+
+        min_area = detector.motion_config.min_area
+
+        # Test with contour exactly at min_area
+        boundary_contour = np.array([[[0, 0]], [[20, 0]], [[20, 20]], [[0, 20]]])
+        mock_cv2.findContours.return_value = ([boundary_contour], None)
+        mock_cv2.contourArea.return_value = min_area  # Exactly at threshold
+
+        frame = np.zeros((480, 640, 3), dtype=np.uint8)
+        contours = detector._detect_motion(frame)
+
+        # Should detect (>= threshold)
+        assert len(contours) == 1
+
+        # Test with contour just below min_area
+        mock_cv2.contourArea.return_value = min_area - 1
+        contours = detector._detect_motion(frame)
+
+        # Should NOT detect (< threshold)
+        assert len(contours) == 0
+
+    def test_detect_motion_multiple_contours_different_sizes(self, mock_cv2, camera_config):
+        """Test motion detection with multiple contours of varying sizes."""
+        config = MotionConfig(sensitivity=5, cooldown_seconds=1)
+        detector = MotionDetector(camera_config, config)
+
+        min_area = detector.motion_config.min_area
+
+        # Create multiple contours: too small, at boundary, large
+        contour1 = np.array([[[0, 0]], [[10, 0]], [[10, 10]], [[0, 10]]])
+        contour2 = np.array([[[50, 50]], [[100, 50]], [[100, 100]], [[50, 100]]])
+        contour3 = np.array([[[200, 200]], [[400, 200]], [[400, 400]], [[200, 400]]])
+
+        mock_cv2.findContours.return_value = ([contour1, contour2, contour3], None)
+        # Areas: too small, at boundary, large
+        mock_cv2.contourArea.side_effect = [min_area - 50, min_area, min_area + 1000]
+
+        frame = np.zeros((480, 640, 3), dtype=np.uint8)
+        contours = detector._detect_motion(frame)
+
+        # Should detect 2 contours (boundary and large, not the small one)
+        assert len(contours) == 2
+
+    def test_detect_motion_sensitivity_affects_var_threshold(self, mock_cv2, camera_config):
+        """Test that sensitivity affects background subtractor varThreshold."""
+        # Test with high sensitivity (low varThreshold)
+        config_high = MotionConfig(sensitivity=1, cooldown_seconds=1)
+        detector_high = MotionDetector(camera_config, config_high)
+
+        # Test with low sensitivity (high varThreshold)
+        config_low = MotionConfig(sensitivity=10, cooldown_seconds=1)
+        detector_low = MotionDetector(camera_config, config_low)
+
+        # Verify that background subtractors were created with different varThresholds
+        calls = mock_cv2.createBackgroundSubtractorMOG2.call_args_list
+        assert len(calls) >= 2
+
+        # Extract varThreshold from the last two calls
+        var_threshold_high = calls[-2][1]['varThreshold']
+        var_threshold_low = calls[-1][1]['varThreshold']
+
+        # High sensitivity should have lower varThreshold
+        assert var_threshold_high < var_threshold_low
+        assert var_threshold_high == 8  # Sensitivity 1
+        assert var_threshold_low == 50  # Sensitivity 10
+
+    def test_detect_motion_respects_custom_min_area_over_sensitivity(self, mock_cv2, camera_config):
+        """Test that explicit min_area overrides sensitivity mapping."""
+        # Set sensitivity=1 (would map to min_area=100) but override with custom value
+        config = MotionConfig(sensitivity=1, min_area=1000, cooldown_seconds=1)
+        detector = MotionDetector(camera_config, config)
+
+        # Custom min_area should be used
+        assert detector.motion_config.min_area == 1000
+
+        # Contour with area 150 (would pass sensitivity 1 default, but not custom min_area)
+        contour = np.array([[[0, 0]], [[15, 0]], [[15, 15]], [[0, 15]]])
+        mock_cv2.findContours.return_value = ([contour], None)
+        mock_cv2.contourArea.return_value = 150
+
+        frame = np.zeros((480, 640, 3), dtype=np.uint8)
+        contours = detector._detect_motion(frame)
+
+        # Should NOT detect (below custom min_area)
+        assert len(contours) == 0
 
 
 class TestCooldownTimer:
