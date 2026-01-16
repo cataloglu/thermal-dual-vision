@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 
 import numpy as np
+from aiohttp import web
 
 from src.config import Config
 from src.logger import get_logger
@@ -71,6 +72,10 @@ class SmartMotionDetector:
         self.llm_analyzer: Optional[LLMAnalyzer] = None
         self.mqtt_client: Optional[MQTTClient] = None
         self.telegram_bot: Optional[TelegramBot] = None
+
+        # HTTP health check server
+        self._web_app: Optional[web.Application] = None
+        self._web_runner: Optional[web.AppRunner] = None
 
         logger.info("Smart Motion Detector initialized")
 
@@ -166,6 +171,26 @@ class SmartMotionDetector:
 
         return health
 
+    async def _health_endpoint(self, request: web.Request) -> web.Response:
+        """
+        HTTP endpoint handler for health check.
+
+        Args:
+            request: aiohttp request object
+
+        Returns:
+            JSON response with health check data
+        """
+        try:
+            health_data = await self.health_check()
+            return web.json_response(health_data)
+        except Exception as e:
+            logger.error(f"Health check endpoint error: {e}")
+            return web.json_response(
+                {"status": "error", "message": str(e)},
+                status=500
+            )
+
     async def start(self) -> None:
         """
         Start Smart Motion Detector and initialize all modules.
@@ -228,6 +253,20 @@ class SmartMotionDetector:
             else:
                 logger.warning("MotionDetector not available")
 
+            # Initialize and start HTTP health check server
+            try:
+                self._web_app = web.Application()
+                self._web_app.router.add_get('/health', self._health_endpoint)
+                self._web_runner = web.AppRunner(self._web_app)
+                await self._web_runner.setup()
+                site = web.TCPSite(self._web_runner, '0.0.0.0', 8099)
+                await site.start()
+                logger.info("Health check HTTP server started on port 8099")
+            except Exception as e:
+                logger.warning(f"Failed to start health check server: {e}")
+                self._web_runner = None
+                self._web_app = None
+
             logger.info("Smart Motion Detector started successfully")
 
         except Exception as e:
@@ -242,6 +281,17 @@ class SmartMotionDetector:
         """
         try:
             logger.info("Stopping Smart Motion Detector")
+
+            # Stop HTTP health check server
+            if self._web_runner:
+                try:
+                    await self._web_runner.cleanup()
+                    logger.info("Health check HTTP server stopped")
+                except Exception as e:
+                    logger.warning(f"Error stopping health check server: {e}")
+                finally:
+                    self._web_runner = None
+                    self._web_app = None
 
             # Stop modules in reverse order of initialization
             # Motion detector
