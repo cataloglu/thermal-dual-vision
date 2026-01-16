@@ -262,7 +262,9 @@
             "command": "python -c \"from src.motion_detector import MotionDetector; from src.config import CameraConfig, MotionConfig; md = MotionDetector(CameraConfig(), MotionConfig()); print('is_running' in dir(md) and 'get_frame' in dir(md))\"",
             "expected": "True"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Successfully implemented is_running property and get_frame() method. Both methods follow thread-safety best practices with proper locking and return appropriate types.",
+          "updated_at": "2026-01-16T01:06:33.536075+00:00"
         },
         {
           "id": "subtask-4-4",
@@ -478,6 +480,6 @@
   "qa_signoff": null,
   "status": "in_progress",
   "planStatus": "in_progress",
-  "updated_at": "2026-01-16T01:05:30.413Z",
-  "last_updated": "2026-01-16T01:05:06.483182+00:00"
+  "updated_at": "2026-01-16T01:06:48.744Z",
+  "last_updated": "2026-01-16T01:06:33.536086+00:00"
 }

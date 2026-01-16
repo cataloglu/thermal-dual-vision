@@ -333,6 +333,48 @@ class MotionDetector:
 
         logger.info("Motion detector stopped successfully")
 
+    def __enter__(self):
+        """
+        Context manager entry point.
+
+        Starts motion detection when entering a 'with' statement block.
+        This enables convenient resource management:
+
+            with MotionDetector(camera_config, motion_config) as detector:
+                detector.on_motion(callback)
+                # Motion detection runs automatically
+                time.sleep(60)
+            # Automatically stopped when exiting the with block
+
+        Returns:
+            self: The MotionDetector instance
+
+        Raises:
+            RuntimeError: If detector is already running
+        """
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """
+        Context manager exit point.
+
+        Stops motion detection and cleans up resources when exiting
+        a 'with' statement block. This ensures proper cleanup even
+        if an exception occurs within the with block.
+
+        Args:
+            exc_type: Exception type if an exception was raised, None otherwise
+            exc_val: Exception value if an exception was raised, None otherwise
+            exc_tb: Exception traceback if an exception was raised, None otherwise
+
+        Returns:
+            None: Does not suppress exceptions (returns None/False)
+        """
+        self.stop()
+        # Return None to propagate any exceptions that occurred
+        return None
+
     @property
     def is_running(self) -> bool:
         """
