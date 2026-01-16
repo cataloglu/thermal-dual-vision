@@ -1,7 +1,7 @@
 """Telegram bot for Smart Motion Detector."""
 
 from datetime import datetime
-from typing import Optional
+from typing import Callable, Optional
 
 try:
     from telegram.ext import Application
@@ -31,6 +31,10 @@ class TelegramBot:
         self._armed = False
         self._last_detection_time: Optional[datetime] = None
         self._start_time = datetime.now()
+
+        # Callbacks
+        self._arm_callback: Optional[Callable[[], None]] = None
+        self._disarm_callback: Optional[Callable[[], None]] = None
 
         # Build Application
         self.application: Optional[Application] = None
@@ -171,3 +175,69 @@ class TelegramBot:
             f"⏱️ *Çalışma Süresi:* {uptime_str}"
         )
         return status_text
+
+    def _handle_arm(self) -> str:
+        """
+        Handle /arm command to activate motion detection.
+
+        Returns:
+            Formatted message confirming armed state
+        """
+        if self._armed:
+            self.logger.info("System already armed")
+            return "⚠️ *Sistem zaten aktif*\n\nHareket algılama çalışıyor."
+
+        self._armed = True
+        self.logger.info("System armed via Telegram command")
+
+        # Call the arm callback if registered
+        if self._arm_callback:
+            try:
+                self._arm_callback()
+            except Exception as e:
+                self.logger.error(f"Error calling arm callback: {e}")
+
+        return "✅ *Sistem aktif edildi*\n\nHareket algılama başlatıldı."
+
+    def _handle_disarm(self) -> str:
+        """
+        Handle /disarm command to deactivate motion detection.
+
+        Returns:
+            Formatted message confirming disarmed state
+        """
+        if not self._armed:
+            self.logger.info("System already disarmed")
+            return "⚠️ *Sistem zaten pasif*\n\nHareket algılama çalışmıyor."
+
+        self._armed = False
+        self.logger.info("System disarmed via Telegram command")
+
+        # Call the disarm callback if registered
+        if self._disarm_callback:
+            try:
+                self._disarm_callback()
+            except Exception as e:
+                self.logger.error(f"Error calling disarm callback: {e}")
+
+        return "🔴 *Sistem pasif edildi*\n\nHareket algılama durduruldu."
+
+    def set_arm_callback(self, callback: Callable[[], None]) -> None:
+        """
+        Set callback function to be called when system is armed.
+
+        Args:
+            callback: Function to call when /arm command is executed
+        """
+        self._arm_callback = callback
+        self.logger.debug("Arm callback registered")
+
+    def set_disarm_callback(self, callback: Callable[[], None]) -> None:
+        """
+        Set callback function to be called when system is disarmed.
+
+        Args:
+            callback: Function to call when /disarm command is executed
+        """
+        self._disarm_callback = callback
+        self.logger.debug("Disarm callback registered")
