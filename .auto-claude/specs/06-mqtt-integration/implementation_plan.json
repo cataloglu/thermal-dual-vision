@@ -178,8 +178,9 @@
             "type": "manual",
             "instructions": "Verify publish_state() can publish arbitrary JSON to topic_prefix/topic"
           },
-          "status": "pending",
-          "notes": "Generic method for publishing any state dict. Use for custom topics beyond standard entities."
+          "status": "completed",
+          "notes": "Implemented async publish_state() method for publishing arbitrary JSON state to custom MQTT topics. Features: accepts topic (relative to topic_prefix) and state dictionary parameters, JSON serialization with error handling, publishes to {topic_prefix}/{topic} with configured QoS, connection state validation, comprehensive error handling and logging. Verified with manual test covering simple/complex/nested states, QoS, retain flag, and error conditions. Committed successfully.",
+          "updated_at": "2026-01-16T06:52:31.830204+00:00"
         },
         {
           "id": "subtask-3-3",
@@ -356,6 +357,6 @@
   "qa_signoff": null,
   "status": "in_progress",
   "planStatus": "in_progress",
-  "updated_at": "2026-01-16T06:51:00.273Z",
-  "last_updated": "2026-01-16T06:50:41.562710+00:00"
+  "updated_at": "2026-01-16T06:52:47.114Z",
+  "last_updated": "2026-01-16T06:52:31.830214+00:00"
 }
