@@ -110,6 +110,36 @@ class TelegramBot:
             self.logger.error(f"Failed to stop Telegram bot: {e}")
             raise
 
+    async def send_message(self, text: str) -> None:
+        """
+        Send a text message to all configured chat IDs.
+
+        Args:
+            text: Message text to send
+        """
+        if not TELEGRAM_AVAILABLE:
+            self.logger.warning("Cannot send message: python-telegram-bot not installed")
+            return
+
+        if not self.application:
+            self.logger.warning("Cannot send message: Application not initialized")
+            return
+
+        if not self.config.chat_ids:
+            self.logger.warning("Cannot send message: No chat IDs configured")
+            return
+
+        for chat_id in self.config.chat_ids:
+            try:
+                await self.application.bot.send_message(
+                    chat_id=int(chat_id),
+                    text=text,
+                    parse_mode="Markdown"
+                )
+                self.logger.debug(f"Message sent to chat_id: {chat_id}")
+            except Exception as e:
+                self.logger.error(f"Failed to send message to chat_id {chat_id}: {e}")
+
     def _check_authorization(self, chat_id: int) -> bool:
         """
         Check if a chat ID is authorized to use the bot.
