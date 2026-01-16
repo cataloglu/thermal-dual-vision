@@ -47,7 +47,9 @@
             "command": "python -c \"from src.llm_analyzer import ScreenshotSet; print('OK')\"",
             "expected": "OK"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Created ScreenshotSet dataclass with before, now, after (Optional) numpy array fields and timestamp. Used TYPE_CHECKING for numpy imports to avoid runtime issues.",
+          "updated_at": "2026-01-16T06:42:10.285849+00:00"
         }
       ]
     },
@@ -79,7 +81,9 @@
             "command": "python -c \"from src.llm_analyzer import LLMAnalyzer; from src.config import LLMConfig; config = LLMConfig(api_key='test-key'); analyzer = LLMAnalyzer(config); print('OK')\"",
             "expected": "OK"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Created LLMAnalyzer class with __init__(config: LLMConfig). Initialized AsyncOpenAI client, RateLimiter (1s min interval), and Turkish system prompt from LLM_PROMPTS.md. Verified with mocked tests - syntax OK and structure correct.",
+          "updated_at": "2026-01-16T06:44:35.013548+00:00"
         },
         {
           "id": "subtask-2-2",
@@ -97,7 +101,9 @@
             "command": "python -c \"from src.llm_analyzer import LLMAnalyzer; import inspect; sig = inspect.signature(LLMAnalyzer.analyze); params = list(sig.parameters.keys()); print('OK' if 'screenshots' in params else 'FAIL')\"",
             "expected": "OK"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Implemented async analyze method with: base64 image encoding, OpenAI API vision call with labeled images (before/now/after), JSON response parsing, AnalysisResult dataclass creation, processing time tracking, rate limiting",
+          "updated_at": "2026-01-16T06:46:38.695496+00:00"
         },
         {
           "id": "subtask-2-3",
@@ -278,6 +284,6 @@
   "description": "OpenAI GPT-4 Vision API entegrasyonu. 3 ekran goruntusunu karsilastirmali analiz et.",
   "status": "in_progress",
   "planStatus": "in_progress",
-  "updated_at": "2026-01-16T06:41:13.126Z",
-  "last_updated": "2026-01-16T06:40:51.108579+00:00"
+  "updated_at": "2026-01-16T06:44:53.743Z",
+  "last_updated": "2026-01-16T06:46:38.695507+00:00"
 }

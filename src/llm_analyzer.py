@@ -1,5 +1,6 @@
 """LLM Vision Analyzer for Smart Motion Detector."""
 
+import asyncio
 import json
 import time
 from dataclasses import dataclass, field
@@ -186,3 +187,37 @@ class LLMAnalyzer:
             raw_response=raw_response,
             processing_time=processing_time
         )
+
+    async def analyze_with_retry(
+        self,
+        screenshots: ScreenshotSet,
+        max_retries: int = 3
+    ) -> AnalysisResult:
+        """
+        Analyze motion screenshots with retry logic and exponential backoff.
+
+        Args:
+            screenshots: Set of before, now, and after screenshots
+            max_retries: Maximum number of retry attempts (default: 3)
+
+        Returns:
+            AnalysisResult with LLM analysis
+
+        Raises:
+            Exception: If all retry attempts fail
+        """
+        delay = 1.0  # Initial delay in seconds
+        backoff = 2.0  # Exponential backoff multiplier
+        last_exception: Optional[Exception] = None
+
+        for attempt in range(max_retries):
+            try:
+                return await self.analyze(screenshots)
+            except Exception as e:
+                last_exception = e
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(delay)
+                    delay *= backoff
+
+        # All retries exhausted, raise the last exception
+        raise last_exception  # type: ignore[misc]
