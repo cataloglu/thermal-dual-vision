@@ -36,6 +36,7 @@ class MQTTClient:
         self._client: Optional[Any] = None  # aiomqtt.Client when available
         self._connected = False
         self._reconnect_task: Optional[asyncio.Task] = None
+        self._should_reconnect = True
         self._on_connect_callbacks: List[Callable] = []
         self._on_disconnect_callbacks: List[Callable] = []
 
@@ -107,7 +108,13 @@ class MQTTClient:
             logger.error(f"Failed to connect to MQTT broker: {e}")
             self._connected = False
             self._client = None
-            raise
+
+            # Start reconnect task if auto-reconnect is enabled
+            if self._should_reconnect and not self._reconnect_task:
+                logger.info("Scheduling automatic reconnection")
+                self._reconnect_task = asyncio.create_task(self._reconnect_loop())
+            else:
+                raise
 
     async def disconnect(self) -> None:
         """
@@ -115,6 +122,9 @@ class MQTTClient:
 
         Cleanly closes connection and cancels reconnection attempts.
         """
+        # Disable auto-reconnect for intentional disconnections
+        self._should_reconnect = False
+
         if not self._connected:
             logger.debug("Already disconnected from MQTT broker")
             return
@@ -211,22 +221,66 @@ class MQTTClient:
         Register callback for connection events.
 
         Args:
-            callback: Function to call when connected
+            callback: Function to call when connected (can be sync or async)
         """
-        raise NotImplementedError(
-            "on_connect() will be implemented in subtask-1-3"
-        )
+        if callback not in self._on_connect_callbacks:
+            self._on_connect_callbacks.append(callback)
+            logger.debug("Registered on_connect callback")
 
     def on_disconnect(self, callback: Callable) -> None:
         """
         Register callback for disconnection events.
 
         Args:
-            callback: Function to call when disconnected
+            callback: Function to call when disconnected (can be sync or async)
         """
-        raise NotImplementedError(
-            "on_disconnect() will be implemented in subtask-1-3"
-        )
+        if callback not in self._on_disconnect_callbacks:
+            self._on_disconnect_callbacks.append(callback)
+            logger.debug("Registered on_disconnect callback")
+
+    async def _reconnect_loop(self) -> None:
+        """
+        Automatic reconnection loop with exponential backoff.
+
+        Attempts to reconnect to MQTT broker with increasing delays
+        between attempts until successful or cancelled.
+        """
+        delay = 1.0  # Initial delay in seconds
+        max_delay = 60.0  # Maximum delay in seconds
+        backoff = 2.0  # Backoff multiplier
+        attempt = 1
+
+        logger.info("Starting automatic reconnection loop")
+
+        while self._should_reconnect and not self._connected:
+            try:
+                logger.info(
+                    f"Reconnection attempt {attempt} in {delay:.1f} seconds..."
+                )
+                await asyncio.sleep(delay)
+
+                # Attempt to reconnect
+                logger.info(f"Attempting to reconnect to MQTT broker...")
+                await self.connect()
+
+                if self._connected:
+                    logger.info("Successfully reconnected to MQTT broker")
+                    self._reconnect_task = None
+                    return
+
+            except asyncio.CancelledError:
+                logger.info("Reconnection loop cancelled")
+                raise
+            except Exception as e:
+                logger.warning(
+                    f"Reconnection attempt {attempt} failed: {e}"
+                )
+                # Increase delay with exponential backoff
+                delay = min(delay * backoff, max_delay)
+                attempt += 1
+
+        logger.info("Reconnection loop ended")
+        self._reconnect_task = None
 
     @property
     def is_connected(self) -> bool:
