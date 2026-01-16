@@ -1,8 +1,10 @@
 """Tests for YOLO object detection module."""
 
 import asyncio
+import gc
 import sys
 import time
+import tracemalloc
 from unittest.mock import MagicMock, patch, PropertyMock
 
 import cv2
@@ -315,6 +317,47 @@ class TestYoloDetectorDetection:
         # Assert inference time is below 500ms
         assert avg_inference_time_ms < 500, \
             f"Inference time {avg_inference_time_ms:.2f}ms exceeds 500ms threshold"
+
+    @patch('ultralytics.YOLO')
+    def test_memory_leak(self, mock_yolo_class, yolo_config, sample_frame, mock_yolo_model):
+        """Test that repeated inference does not leak memory."""
+        mock_yolo_class.return_value = mock_yolo_model
+        detector = YoloDetector(yolo_config)
+
+        # Pre-load the model and warm up
+        detector.detect(sample_frame)
+
+        # Force garbage collection before measuring
+        gc.collect()
+
+        # Start memory tracking
+        tracemalloc.start()
+
+        # Record initial memory
+        initial_memory = tracemalloc.get_traced_memory()[0]
+
+        # Run 1000 inferences
+        for _ in range(1000):
+            detections = detector.detect(sample_frame)
+            # Ensure detections are used to prevent optimization
+            assert isinstance(detections, list)
+
+        # Force garbage collection after test
+        gc.collect()
+
+        # Record final memory
+        final_memory = tracemalloc.get_traced_memory()[0]
+
+        # Stop tracking
+        tracemalloc.stop()
+
+        # Calculate memory growth in MB
+        memory_growth_bytes = final_memory - initial_memory
+        memory_growth_mb = memory_growth_bytes / (1024 * 1024)
+
+        # Assert memory growth is less than 10MB
+        assert memory_growth_mb < 10, \
+            f"Memory growth {memory_growth_mb:.2f}MB exceeds 10MB threshold"
 
 
 class TestYoloDetectorAsyncDetection:
