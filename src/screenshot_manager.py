@@ -1,5 +1,6 @@
 """Screenshot management for Smart Motion Detector."""
 
+import asyncio
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -9,6 +10,7 @@ import numpy as np
 
 from .config import ScreenshotConfig
 from .logger import get_logger
+from .utils import encode_frame_to_base64, encode_frame_to_bytes
 
 
 @dataclass
@@ -108,3 +110,99 @@ class ScreenshotManager:
         # Return the frame closest to target_time (most recent before target)
         closest_frame, _ = max(candidates, key=lambda x: x[1])
         return closest_frame
+
+    def _get_frame_after(self, timestamp: datetime, seconds: float) -> Optional[np.ndarray]:
+        """
+        Find frame closest to N seconds after the given timestamp.
+
+        Searches the ring buffer for frames at or after the target time
+        (timestamp + seconds) and returns the one closest to the target.
+
+        Args:
+            timestamp: Reference timestamp
+            seconds: Number of seconds after timestamp to look for
+
+        Returns:
+            Frame closest to target time, or None if no suitable frame found
+        """
+        if not self._buffer:
+            return None
+
+        target_time = timestamp + timedelta(seconds=seconds)
+
+        # Find frames that are at or after the target time
+        candidates = [
+            (frame, frame_time)
+            for frame, frame_time in self._buffer
+            if frame_time >= target_time
+        ]
+
+        if not candidates:
+            return None
+
+        # Return the frame closest to target_time (earliest after target)
+        closest_frame, _ = min(candidates, key=lambda x: x[1])
+        return closest_frame
+
+    async def capture_sequence(self, current_frame: np.ndarray) -> ScreenshotSet:
+        """
+        Capture a sequence of three screenshots around a motion event.
+
+        Gets a frame from before the event (from buffer), uses the provided
+        current frame, and gets a frame from after the event (from buffer).
+
+        Args:
+            current_frame: The current frame at the moment of motion detection
+
+        Returns:
+            ScreenshotSet containing before/current/after frames with metadata
+
+        Raises:
+            ValueError: If unable to capture all three required frames
+        """
+        timestamp = datetime.now()
+
+        # Get frame from before the event
+        before_frame = self._get_frame_before(timestamp, self.config.before_seconds)
+        if before_frame is None:
+            raise ValueError(
+                f"No frame found from {self.config.before_seconds}s before event. "
+                f"Buffer size: {self.get_buffer_size()}"
+            )
+
+        # Wait for after_seconds to allow buffer to fill with post-event frames
+        await asyncio.sleep(self.config.after_seconds)
+
+        # Get frame from after the event
+        after_frame = self._get_frame_after(timestamp, self.config.after_seconds)
+        if after_frame is None:
+            raise ValueError(
+                f"No frame found from {self.config.after_seconds}s after event. "
+                f"Buffer size: {self.get_buffer_size()}"
+            )
+
+        # Encode all frames to bytes and base64
+        before_bytes = encode_frame_to_bytes(before_frame, self.config.quality)
+        current_bytes = encode_frame_to_bytes(current_frame, self.config.quality)
+        after_bytes = encode_frame_to_bytes(after_frame, self.config.quality)
+
+        before_base64 = encode_frame_to_base64(before_frame, self.config.quality)
+        current_base64 = encode_frame_to_base64(current_frame, self.config.quality)
+        after_base64 = encode_frame_to_base64(after_frame, self.config.quality)
+
+        self.logger.info(
+            f"Captured screenshot sequence at {timestamp.isoformat()}: "
+            f"before={len(before_bytes)} bytes, "
+            f"current={len(current_bytes)} bytes, "
+            f"after={len(after_bytes)} bytes"
+        )
+
+        return ScreenshotSet(
+            before=before_bytes,
+            current=current_bytes,
+            after=after_bytes,
+            timestamp=timestamp,
+            before_base64=before_base64,
+            current_base64=current_base64,
+            after_base64=after_base64,
+        )
