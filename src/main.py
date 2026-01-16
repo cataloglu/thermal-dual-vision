@@ -138,3 +138,87 @@ class SmartMotionDetector:
         except Exception as e:
             logger.error(f"Failed to start Smart Motion Detector: {e}")
             raise
+
+    async def stop(self) -> None:
+        """
+        Stop Smart Motion Detector and cleanup all modules.
+
+        Stops and cleans up all modules in reverse order of initialization.
+        """
+        try:
+            logger.info("Stopping Smart Motion Detector")
+
+            # Stop modules in reverse order of initialization
+            # Motion detector
+            if self.motion_detector:
+                try:
+                    if hasattr(self.motion_detector, 'stop'):
+                        await self.motion_detector.stop()
+                    logger.info("Motion detector stopped")
+                except Exception as e:
+                    logger.warning(f"Error stopping motion detector: {e}")
+                finally:
+                    self.motion_detector = None
+
+            # Screenshot manager
+            if self.screenshot_manager:
+                try:
+                    if hasattr(self.screenshot_manager, 'cleanup'):
+                        await self.screenshot_manager.cleanup()
+                    logger.info("Screenshot manager cleaned up")
+                except Exception as e:
+                    logger.warning(f"Error cleaning up screenshot manager: {e}")
+                finally:
+                    self.screenshot_manager = None
+
+            # YOLO detector
+            if self.yolo_detector:
+                try:
+                    if hasattr(self.yolo_detector, 'cleanup'):
+                        self.yolo_detector.cleanup()
+                    logger.info("YOLO detector cleaned up")
+                except Exception as e:
+                    logger.warning(f"Error cleaning up YOLO detector: {e}")
+                finally:
+                    self.yolo_detector = None
+
+            # LLM analyzer
+            if self.llm_analyzer:
+                try:
+                    if hasattr(self.llm_analyzer, 'cleanup'):
+                        await self.llm_analyzer.cleanup()
+                    logger.info("LLM analyzer cleaned up")
+                except Exception as e:
+                    logger.warning(f"Error cleaning up LLM analyzer: {e}")
+                finally:
+                    self.llm_analyzer = None
+
+            # Telegram bot
+            if self.telegram_bot:
+                try:
+                    await self.telegram_bot.stop()
+                    logger.info("Telegram bot stopped")
+                except Exception as e:
+                    logger.warning(f"Error stopping Telegram bot: {e}")
+                finally:
+                    self.telegram_bot = None
+
+            # MQTT client
+            if self.mqtt_client:
+                try:
+                    await self.mqtt_client.disconnect()
+                    logger.info("MQTT client disconnected")
+                except Exception as e:
+                    logger.warning(f"Error disconnecting MQTT client: {e}")
+                finally:
+                    self.mqtt_client = None
+
+            # Reset state
+            self._armed = False
+            self._last_detection_time = None
+
+            logger.info("Smart Motion Detector stopped successfully")
+
+        except Exception as e:
+            logger.error(f"Error during shutdown: {e}")
+            raise
