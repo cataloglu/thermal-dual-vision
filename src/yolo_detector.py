@@ -182,6 +182,8 @@ class YOLODetector:
             scale_factors = (1.0, 1.0)
 
         # Run inference (this triggers lazy model loading via property)
+        # stream=True enables memory-efficient batch processing
+        # verbose=False disables unnecessary logging for performance
         results = self.model.predict(
             resized_frame,
             conf=self.confidence_threshold,
@@ -216,6 +218,84 @@ class YOLODetector:
             detections = scale_detections(detections, scale_factors)
 
         return detections
+
+    def detect_batch(
+        self,
+        frames: List[np.ndarray],
+        resize: bool = True
+    ) -> List[List[dict]]:
+        """
+        Detect objects in multiple frames using batch inference.
+
+        Batch processing improves throughput when processing multiple frames
+        by reducing per-frame overhead. Useful when queue builds up.
+
+        Args:
+            frames: List of input frames (BGR format)
+            resize: Whether to resize frames for faster inference (default: True)
+
+        Returns:
+            List of detection lists, one per frame. Each detection has format:
+                [{"bbox": [x, y, w, h], "class": str, "confidence": float}, ...]
+        """
+        if not frames:
+            return []
+
+        # Prepare frames for batch inference
+        batch_frames = []
+        batch_scale_factors = []
+
+        for frame in frames:
+            if resize:
+                resized_frame, scale_factors = resize_for_inference(frame, self.max_size)
+            else:
+                resized_frame = frame
+                scale_factors = (1.0, 1.0)
+
+            batch_frames.append(resized_frame)
+            batch_scale_factors.append(scale_factors)
+
+        # Run batch inference with stream=True for memory efficiency
+        # verbose=False disables per-frame logging
+        results = self.model.predict(
+            batch_frames,
+            conf=self.confidence_threshold,
+            stream=True,
+            verbose=False
+        )
+
+        # Parse detections for each frame
+        all_detections: List[List[dict]] = []
+
+        for result, scale_factors in zip(results, batch_scale_factors):
+            frame_detections: List[dict] = []
+            boxes = result.boxes
+
+            for box in boxes:
+                # Extract bounding box in xyxy format
+                xyxy = box.xyxy[0].cpu().numpy()
+                x1, y1, x2, y2 = xyxy
+                w = x2 - x1
+                h = y2 - y1
+
+                # Extract class and confidence
+                cls_id = int(box.cls[0])
+                cls_name = result.names[cls_id]
+                confidence = float(box.conf[0])
+
+                frame_detections.append({
+                    "bbox": [float(x1), float(y1), float(w), float(h)],
+                    "class": cls_name,
+                    "confidence": confidence
+                })
+
+            # Scale detections back to original frame size if resized
+            if resize:
+                frame_detections = scale_detections(frame_detections, scale_factors)
+
+            all_detections.append(frame_detections)
+
+        return all_detections
 
     def is_loaded(self) -> bool:
         """
