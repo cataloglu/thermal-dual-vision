@@ -298,3 +298,59 @@ async def test_capture_sequence(screenshot_manager, test_frame):
     # Verify timestamp is recent
     time_diff = (datetime.now() - screenshot_set.timestamp).total_seconds()
     assert time_diff < 10  # Should be captured within last 10 seconds
+
+
+def test_memory_stability(screenshot_manager, test_frame):
+    """Test memory stability during continuous buffering to detect memory leaks."""
+    # Simulate continuous buffering over extended period
+    # Buffer capacity is 50 frames (10 seconds * 5 fps)
+    max_capacity = 50
+    frame_size = test_frame.nbytes
+    expected_max_memory = max_capacity * frame_size
+
+    # Phase 1: Fill buffer to capacity
+    base_time = datetime.now()
+    for i in range(max_capacity):
+        timestamp = base_time + timedelta(seconds=i * 0.2)
+        screenshot_manager.add_frame(test_frame.copy(), timestamp)
+
+    # Record memory after filling buffer
+    memory_at_capacity = screenshot_manager.get_buffer_memory_usage()
+    assert memory_at_capacity == expected_max_memory
+
+    # Phase 2: Continue adding frames (simulating continuous operation)
+    # Add 200 more frames - this should trigger ring buffer rotation
+    # Memory should stay stable as old frames are discarded
+    for i in range(200):
+        timestamp = base_time + timedelta(seconds=(max_capacity + i) * 0.2)
+        screenshot_manager.add_frame(test_frame.copy(), timestamp)
+
+    # Memory should remain stable at capacity
+    memory_after_continuous = screenshot_manager.get_buffer_memory_usage()
+    assert memory_after_continuous == expected_max_memory
+    assert screenshot_manager.get_buffer_size() == max_capacity
+
+    # Phase 3: Add more frames with checkpoints to verify no gradual leak
+    memory_checkpoints = []
+    for batch in range(5):
+        for i in range(50):
+            idx = max_capacity + 200 + (batch * 50) + i
+            timestamp = base_time + timedelta(seconds=idx * 0.2)
+            screenshot_manager.add_frame(test_frame.copy(), timestamp)
+
+        # Record memory at checkpoint
+        checkpoint_memory = screenshot_manager.get_buffer_memory_usage()
+        memory_checkpoints.append(checkpoint_memory)
+
+    # Verify all checkpoints show stable memory
+    for checkpoint_memory in memory_checkpoints:
+        assert checkpoint_memory == expected_max_memory
+
+    # Verify buffer size remains at capacity
+    assert screenshot_manager.get_buffer_size() == max_capacity
+
+    # Verify statistics are consistent
+    stats = screenshot_manager.get_buffer_statistics()
+    assert stats["frame_count"] == max_capacity
+    assert stats["memory_bytes"] == expected_max_memory
+    assert stats["utilization"] == 100.0  # Buffer at full capacity
