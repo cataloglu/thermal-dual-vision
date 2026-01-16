@@ -19,8 +19,7 @@ class TestTelegramBotInitialization:
         config = TelegramConfig(
             bot_token="test_token_123",
             chat_ids=["123456789", "987654321"],
-            rate_limit_seconds=5,
-            send_images=True
+            rate_limit_seconds=5
         )
 
         bot = TelegramBot(config)
@@ -706,8 +705,9 @@ class TestTelegramBotRateLimiting:
                 assert first_alert_time - start_time < 0.05
 
                 # Second alert should be delayed by at least the rate limit
+                # Allow small tolerance for timing precision (< 1ms)
                 elapsed = second_alert_time - first_alert_time
-                assert elapsed >= config.rate_limit_seconds
+                assert elapsed >= config.rate_limit_seconds - 0.001
 
     @pytest.mark.asyncio
     async def test_rate_limiting_allows_alerts_after_interval(self):
