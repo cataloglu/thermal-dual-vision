@@ -658,3 +658,210 @@ class TestTelegramBotRateLimiting:
 
         assert bot._alert_rate_limiter is not None
         assert bot._alert_rate_limiter.min_interval == 10
+
+    @pytest.mark.asyncio
+    async def test_rate_limiting_blocks_rapid_alerts(self):
+        """Test rate limiting blocks alerts sent too rapidly."""
+        config = TelegramConfig(
+            bot_token="test_token_123",
+            chat_ids=["123456789"],
+            rate_limit_seconds=0.1  # 100ms for fast test
+        )
+
+        with patch("src.telegram_bot.TELEGRAM_AVAILABLE", True):
+            bot = TelegramBot(config)
+
+            # Mock the application and bot
+            bot.application = Mock()
+            bot.application.bot.send_media_group = AsyncMock()
+
+            # Create mock screenshots
+            screenshots = Mock()
+            screenshots.timestamp = datetime.now()
+            screenshots.before_frame = Mock()
+            screenshots.now_frame = Mock()
+            screenshots.after_frame = Mock()
+
+            # Create mock analysis
+            analysis = Mock()
+            analysis.tehdit_seviyesi = "orta"
+            analysis.guven_skoru = 0.85
+            analysis.detayli_analiz = "Test analysis"
+            analysis.tespit_edilen_nesneler = ["test"]
+
+            # Mock encode_frame_to_bytes to return test bytes
+            with patch("src.telegram_bot.encode_frame_to_bytes", return_value=b"test_image"):
+                # Record start time
+                start_time = asyncio.get_event_loop().time()
+
+                # Send first alert (should be immediate)
+                await bot.send_alert(screenshots, analysis)
+                first_alert_time = asyncio.get_event_loop().time()
+
+                # Send second alert (should be rate limited)
+                await bot.send_alert(screenshots, analysis)
+                second_alert_time = asyncio.get_event_loop().time()
+
+                # First alert should be immediate (within 50ms)
+                assert first_alert_time - start_time < 0.05
+
+                # Second alert should be delayed by at least the rate limit
+                elapsed = second_alert_time - first_alert_time
+                assert elapsed >= config.rate_limit_seconds
+
+    @pytest.mark.asyncio
+    async def test_rate_limiting_allows_alerts_after_interval(self):
+        """Test rate limiting allows alerts after min_interval has passed."""
+        config = TelegramConfig(
+            bot_token="test_token_123",
+            chat_ids=["123456789"],
+            rate_limit_seconds=0.05  # 50ms for fast test
+        )
+
+        with patch("src.telegram_bot.TELEGRAM_AVAILABLE", True):
+            bot = TelegramBot(config)
+
+            # Mock the application and bot
+            bot.application = Mock()
+            bot.application.bot.send_media_group = AsyncMock()
+
+            # Create mock screenshots
+            screenshots = Mock()
+            screenshots.timestamp = datetime.now()
+            screenshots.before_frame = Mock()
+            screenshots.now_frame = Mock()
+            screenshots.after_frame = Mock()
+
+            # Create mock analysis
+            analysis = Mock()
+            analysis.tehdit_seviyesi = "orta"
+            analysis.guven_skoru = 0.85
+            analysis.detayli_analiz = "Test analysis"
+            analysis.tespit_edilen_nesneler = ["test"]
+
+            # Mock encode_frame_to_bytes to return test bytes
+            with patch("src.telegram_bot.encode_frame_to_bytes", return_value=b"test_image"):
+                # Send first alert
+                await bot.send_alert(screenshots, analysis)
+
+                # Wait for rate limit to pass
+                await asyncio.sleep(0.06)
+
+                # Send second alert (should not be blocked)
+                start_time = asyncio.get_event_loop().time()
+                await bot.send_alert(screenshots, analysis)
+                end_time = asyncio.get_event_loop().time()
+
+                # Second alert should be immediate since interval passed
+                elapsed = end_time - start_time
+                assert elapsed < 0.05  # Should be much less than rate limit
+
+                # Both alerts should have been sent
+                assert bot.application.bot.send_media_group.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_rate_limiting_updates_last_detection_time(self):
+        """Test send_alert updates last detection time after rate limiting."""
+        config = TelegramConfig(
+            bot_token="test_token_123",
+            chat_ids=["123456789"],
+            rate_limit_seconds=0.05
+        )
+
+        with patch("src.telegram_bot.TELEGRAM_AVAILABLE", True):
+            bot = TelegramBot(config)
+
+            # Mock the application and bot
+            bot.application = Mock()
+            bot.application.bot.send_media_group = AsyncMock()
+
+            # Create mock screenshots with specific timestamp
+            test_timestamp = datetime(2024, 1, 15, 14, 30, 25)
+            screenshots = Mock()
+            screenshots.timestamp = test_timestamp
+            screenshots.before_frame = Mock()
+            screenshots.now_frame = Mock()
+            screenshots.after_frame = Mock()
+
+            # Create mock analysis
+            analysis = Mock()
+            analysis.tehdit_seviyesi = "yuksek"
+            analysis.guven_skoru = 0.95
+            analysis.detayli_analiz = "Critical alert"
+            analysis.tespit_edilen_nesneler = ["person"]
+
+            # Mock encode_frame_to_bytes
+            with patch("src.telegram_bot.encode_frame_to_bytes", return_value=b"test_image"):
+                # Initially no detection time
+                assert bot._last_detection_time is None
+
+                # Send alert
+                await bot.send_alert(screenshots, analysis)
+
+                # Last detection time should be updated to screenshot timestamp
+                assert bot._last_detection_time == test_timestamp
+
+
+def test_alerts():
+    """Comprehensive test for alert formatting and rate limiting.
+
+    This test function serves as an entry point for the verification command
+    and ensures all alert-related functionality works correctly.
+    """
+    # Test 1: Alert message formatting
+    config = TelegramConfig(
+        bot_token="test_token_123",
+        chat_ids=["123456789"],
+        rate_limit_seconds=5
+    )
+
+    bot = TelegramBot(config)
+
+    # Create mock data
+    screenshots = Mock()
+    screenshots.timestamp = datetime(2024, 1, 15, 14, 30, 25)
+
+    analysis = Mock()
+    analysis.tehdit_seviyesi = "yuksek"
+    analysis.guven_skoru = 0.92
+    analysis.detayli_analiz = "Bahçede hareket eden bir kişi tespit edildi"
+    analysis.tespit_edilen_nesneler = ["insan", "araba"]
+
+    # Format alert message
+    alert_text = bot._format_alert_message(screenshots, analysis)
+
+    # Verify formatting
+    assert "HAREKET ALGILANDI" in alert_text
+    assert "2024-01-15 14:30:25" in alert_text
+    assert "Yüksek" in alert_text  # Threat level should be capitalized
+    assert "%92" in alert_text  # Confidence as percentage
+    assert "Bahçede hareket eden bir kişi tespit edildi" in alert_text
+    assert "insan, araba" in alert_text  # Objects as comma-separated
+
+    # Test 2: Threat level mapping
+    threat_levels = {
+        "yok": "Yok",
+        "dusuk": "Düşük",
+        "orta": "Orta",
+        "yuksek": "Yüksek"
+    }
+
+    for level_input, level_output in threat_levels.items():
+        analysis.tehdit_seviyesi = level_input
+        alert_text = bot._format_alert_message(screenshots, analysis)
+        assert level_output in alert_text, f"Expected {level_output} for threat level {level_input}"
+
+    # Test 3: Rate limiter initialization
+    assert bot._alert_rate_limiter is not None
+    assert bot._alert_rate_limiter.min_interval == config.rate_limit_seconds
+
+    # Test 4: Alert formatting with empty objects list
+    analysis.tespit_edilen_nesneler = []
+    alert_text = bot._format_alert_message(screenshots, analysis)
+    assert "🏷️ *Tespit:*" in alert_text  # Should still include label
+
+    # Test 5: Alert formatting with single object
+    analysis.tespit_edilen_nesneler = ["kedi"]
+    alert_text = bot._format_alert_message(screenshots, analysis)
+    assert "kedi" in alert_text
+    assert "," not in alert_text.split("🏷️ *Tespit:*")[1]  # No comma for single item
