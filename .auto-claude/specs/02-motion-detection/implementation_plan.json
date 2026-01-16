@@ -1,110 +1,460 @@
 {
   "feature": "02 - Motion Detection",
   "workflow_type": "feature",
+  "workflow_rationale": "New module development requiring RTSP camera connection, OpenCV motion detection algorithm, and thread-safe callback system. Feature workflow ensures proper dependency order: connection -> algorithm -> threading -> lifecycle.",
   "phases": [
     {
-      "phase": 1,
+      "id": "phase-1-camera-connection",
       "name": "Camera Connection",
-      "chunks": [
+      "type": "implementation",
+      "description": "Establish RTSP stream connection using OpenCV VideoCapture with retry and timeout logic",
+      "depends_on": [],
+      "parallel_safe": true,
+      "subtasks": [
         {
-          "id": "02-01",
-          "description": "RTSP stream bağlantısı için VideoCapture wrapper oluştur",
-          "status": "pending",
-          "files": [
+          "id": "subtask-1-1",
+          "description": "Create MotionDetector class skeleton with __init__, basic properties, and VideoCapture setup",
+          "service": "backend",
+          "files_to_modify": [],
+          "files_to_create": [
             "src/motion_detector.py"
-          ]
+          ],
+          "patterns_from": [
+            "src/config.py",
+            "src/logger.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "python -c \"from src.motion_detector import MotionDetector; from src.config import CameraConfig, MotionConfig; md = MotionDetector(CameraConfig(), MotionConfig()); print('OK')\"",
+            "expected": "OK"
+          },
+          "status": "pending"
         },
         {
-          "id": "02-02",
-          "description": "Connection retry ve timeout mekanizması ekle",
-          "status": "pending",
-          "files": [
+          "id": "subtask-1-2",
+          "description": "Implement RTSP connection logic with cv2.VideoCapture including connection timeout handling",
+          "service": "backend",
+          "files_to_modify": [
             "src/motion_detector.py"
-          ]
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/logger.py"
+          ],
+          "verification": {
+            "type": "manual",
+            "instructions": "Code review: Verify VideoCapture initialization with proper timeout and error handling"
+          },
+          "status": "pending"
+        },
+        {
+          "id": "subtask-1-3",
+          "description": "Add connection retry mechanism with exponential backoff (max 3 attempts, configurable delays)",
+          "service": "backend",
+          "files_to_modify": [
+            "src/motion_detector.py"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/utils.py"
+          ],
+          "verification": {
+            "type": "manual",
+            "instructions": "Code review: Verify retry logic with backoff, max attempts, and proper logging"
+          },
+          "status": "pending"
         }
       ]
     },
     {
-      "phase": 2,
-      "name": "Motion Algorithm",
-      "chunks": [
+      "id": "phase-2-motion-algorithm",
+      "name": "Motion Detection Algorithm",
+      "type": "implementation",
+      "description": "Implement background subtraction using MOG2, contour detection, and sensitivity-based filtering",
+      "depends_on": [
+        "phase-1-camera-connection"
+      ],
+      "parallel_safe": true,
+      "subtasks": [
         {
-          "id": "02-03",
-          "description": "BackgroundSubtractorMOG2 ile motion detection implementasyonu",
-          "status": "pending",
-          "files": [
+          "id": "subtask-2-1",
+          "description": "Initialize cv2.createBackgroundSubtractorMOG2 with appropriate parameters",
+          "service": "backend",
+          "files_to_modify": [
             "src/motion_detector.py"
-          ]
+          ],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "manual",
+            "instructions": "Code review: BackgroundSubtractorMOG2 created with sensible defaults"
+          },
+          "status": "pending"
         },
         {
-          "id": "02-04",
-          "description": "Contour detection ve minimum area filtresi",
-          "status": "pending",
-          "files": [
+          "id": "subtask-2-2",
+          "description": "Implement contour detection logic with cv2.findContours and area calculation",
+          "service": "backend",
+          "files_to_modify": [
             "src/motion_detector.py"
-          ]
+          ],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "manual",
+            "instructions": "Code review: Contour detection with proper morphological operations and area filtering"
+          },
+          "status": "pending"
         },
         {
-          "id": "02-05",
-          "description": "Sensitivity parametresi ile eşik ayarlama",
-          "status": "pending",
-          "files": [
+          "id": "subtask-2-3",
+          "description": "Map sensitivity (1-10) to MOG2 threshold and min_area parameters",
+          "service": "backend",
+          "files_to_modify": [
             "src/motion_detector.py"
-          ]
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/config.py"
+          ],
+          "verification": {
+            "type": "manual",
+            "instructions": "Code review: Sensitivity mapping function with clear documentation"
+          },
+          "status": "pending"
         }
       ]
     },
     {
-      "phase": 3,
+      "id": "phase-3-threading-callbacks",
       "name": "Threading & Callbacks",
-      "chunks": [
+      "type": "implementation",
+      "description": "Build thread-safe frame capture loop, callback system, and cooldown timer",
+      "depends_on": [
+        "phase-2-motion-algorithm"
+      ],
+      "parallel_safe": true,
+      "subtasks": [
         {
-          "id": "02-06",
-          "description": "Frame capture thread oluştur",
-          "status": "pending",
-          "files": [
+          "id": "subtask-3-1",
+          "description": "Create frame capture thread with continuous loop reading from VideoCapture",
+          "service": "backend",
+          "files_to_modify": [
             "src/motion_detector.py"
-          ]
+          ],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "manual",
+            "instructions": "Code review: Threading.Thread with proper daemon flag and loop logic"
+          },
+          "status": "pending"
         },
         {
-          "id": "02-07",
-          "description": "Thread-safe callback mekanizması",
-          "status": "pending",
-          "files": [
+          "id": "subtask-3-2",
+          "description": "Implement thread-safe callback registration system with on_motion(callback) method",
+          "service": "backend",
+          "files_to_modify": [
             "src/motion_detector.py"
-          ]
+          ],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "manual",
+            "instructions": "Code review: Thread-safe callback storage (Lock) and invocation"
+          },
+          "status": "pending"
         },
         {
-          "id": "02-08",
-          "description": "Cooldown timer implementasyonu",
-          "status": "pending",
-          "files": [
+          "id": "subtask-3-3",
+          "description": "Add cooldown timer to prevent callback spam (using last_motion_time + cooldown_seconds check)",
+          "service": "backend",
+          "files_to_modify": [
             "src/motion_detector.py"
-          ]
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/config.py"
+          ],
+          "verification": {
+            "type": "manual",
+            "instructions": "Code review: Cooldown logic with time.time() comparison"
+          },
+          "status": "pending"
         }
       ]
     },
     {
-      "phase": 4,
+      "id": "phase-4-lifecycle",
       "name": "Lifecycle Management",
-      "chunks": [
+      "type": "implementation",
+      "description": "Implement start/stop methods, graceful shutdown, and proper resource cleanup",
+      "depends_on": [
+        "phase-3-threading-callbacks"
+      ],
+      "parallel_safe": true,
+      "subtasks": [
         {
-          "id": "02-09",
-          "description": "start() ve stop() metodları",
-          "status": "pending",
-          "files": [
+          "id": "subtask-4-1",
+          "description": "Implement start() method to launch capture thread and initialize resources",
+          "service": "backend",
+          "files_to_modify": [
             "src/motion_detector.py"
-          ]
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/logger.py"
+          ],
+          "verification": {
+            "type": "manual",
+            "instructions": "Code review: start() method initializes thread and sets running flag"
+          },
+          "status": "pending"
         },
         {
-          "id": "02-10",
-          "description": "Graceful shutdown ve resource cleanup",
-          "status": "pending",
-          "files": [
+          "id": "subtask-4-2",
+          "description": "Implement stop() method with thread join and resource cleanup",
+          "service": "backend",
+          "files_to_modify": [
             "src/motion_detector.py"
-          ]
+          ],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "manual",
+            "instructions": "Code review: stop() sets running=False, joins thread, releases VideoCapture"
+          },
+          "status": "pending"
+        },
+        {
+          "id": "subtask-4-3",
+          "description": "Add is_running() property and get_frame() method for external frame access",
+          "service": "backend",
+          "files_to_modify": [
+            "src/motion_detector.py"
+          ],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "python -c \"from src.motion_detector import MotionDetector; from src.config import CameraConfig, MotionConfig; md = MotionDetector(CameraConfig(), MotionConfig()); print('is_running' in dir(md) and 'get_frame' in dir(md))\"",
+            "expected": "True"
+          },
+          "status": "pending"
+        },
+        {
+          "id": "subtask-4-4",
+          "description": "Add __enter__ and __exit__ for context manager support (with statement)",
+          "service": "backend",
+          "files_to_modify": [
+            "src/motion_detector.py"
+          ],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "manual",
+            "instructions": "Code review: Context manager methods call start() and stop()"
+          },
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "phase-5-testing",
+      "name": "Testing & Verification",
+      "type": "integration",
+      "description": "Create unit tests with mock camera and integration tests for verification",
+      "depends_on": [
+        "phase-4-lifecycle"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-5-1",
+          "description": "Create unit test file tests/test_motion_detector.py with mock VideoCapture",
+          "service": "backend",
+          "files_to_modify": [],
+          "files_to_create": [
+            "tests/test_motion_detector.py"
+          ],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "python -c \"import os; print('OK' if os.path.exists('tests/test_motion_detector.py') else 'FAIL')\"",
+            "expected": "OK"
+          },
+          "status": "pending"
+        },
+        {
+          "id": "subtask-5-2",
+          "description": "Write unit tests for lifecycle methods (start, stop, is_running)",
+          "service": "backend",
+          "files_to_modify": [
+            "tests/test_motion_detector.py"
+          ],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "pytest tests/test_motion_detector.py -v -k lifecycle",
+            "expected": "All tests pass"
+          },
+          "status": "pending"
+        },
+        {
+          "id": "subtask-5-3",
+          "description": "Write unit tests for callback mechanism and cooldown timer",
+          "service": "backend",
+          "files_to_modify": [
+            "tests/test_motion_detector.py"
+          ],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "pytest tests/test_motion_detector.py -v -k callback",
+            "expected": "All tests pass"
+          },
+          "status": "pending"
+        },
+        {
+          "id": "subtask-5-4",
+          "description": "Write unit tests for sensitivity parameter and motion detection logic",
+          "service": "backend",
+          "files_to_modify": [
+            "tests/test_motion_detector.py"
+          ],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "pytest tests/test_motion_detector.py -v -k sensitivity",
+            "expected": "All tests pass"
+          },
+          "status": "pending"
+        },
+        {
+          "id": "subtask-5-5",
+          "description": "Run full test suite and verify all tests pass",
+          "service": "backend",
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "pytest tests/ -v --tb=short",
+            "expected": "All tests pass"
+          },
+          "status": "pending"
         }
       ]
     }
-  ]
+  ],
+  "summary": {
+    "total_phases": 5,
+    "total_subtasks": 17,
+    "services_involved": [
+      "backend"
+    ],
+    "parallelism": {
+      "max_parallel_phases": 1,
+      "parallel_groups": [],
+      "recommended_workers": 1,
+      "speedup_estimate": "Sequential execution required due to dependencies",
+      "rationale": "Each phase builds upon the previous: connection -> algorithm -> threading -> lifecycle -> testing. No parallel opportunities."
+    },
+    "startup_command": "python -m src.main"
+  },
+  "verification_strategy": {
+    "risk_level": "medium",
+    "skip_validation": false,
+    "test_creation_phase": "post_implementation",
+    "test_types_required": [
+      "unit",
+      "integration"
+    ],
+    "security_scanning_required": false,
+    "staging_deployment_required": false,
+    "acceptance_criteria": [
+      "RTSP stream connection works with retry logic",
+      "Motion detection triggers callback when motion detected",
+      "Sensitivity parameter correctly adjusts detection threshold",
+      "Cooldown timer prevents callback spam",
+      "Frame capture maintains >= 5 FPS performance",
+      "Graceful shutdown releases all resources",
+      "All unit tests pass",
+      "Memory leak check passes (verify with longer run)"
+    ],
+    "verification_steps": [
+      {
+        "name": "Unit Tests",
+        "command": "pytest tests/ -v",
+        "expected_outcome": "All tests pass",
+        "type": "test",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "Mock Camera Test",
+        "command": "pytest tests/test_motion_detector.py -v -k mock",
+        "expected_outcome": "Mock camera simulation passes",
+        "type": "test",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "Code Quality",
+        "command": "ruff check src/motion_detector.py",
+        "expected_outcome": "No linting errors",
+        "type": "lint",
+        "required": true,
+        "blocking": false
+      }
+    ],
+    "reasoning": "Medium risk: Threading complexity, external RTSP connection, real-time performance requirements. Requires thorough unit testing with mocked camera and integration testing with real stream. Memory leak monitoring recommended for production deployment."
+  },
+  "qa_acceptance": {
+    "unit_tests": {
+      "required": true,
+      "commands": [
+        "pytest tests/test_motion_detector.py -v"
+      ],
+      "minimum_coverage": null
+    },
+    "integration_tests": {
+      "required": true,
+      "commands": [
+        "pytest tests/ -v --integration"
+      ],
+      "services_to_test": [
+        "motion_detector"
+      ],
+      "manual_steps": [
+        "Test with real RTSP stream (provide test URL)",
+        "Monitor memory usage for 1 hour continuous operation",
+        "Verify FPS >= 5 with logging output"
+      ]
+    },
+    "e2e_tests": {
+      "required": false,
+      "commands": [],
+      "flows": []
+    },
+    "browser_verification": {
+      "required": false,
+      "pages": []
+    },
+    "performance_verification": {
+      "required": true,
+      "checks": [
+        "Frame capture rate >= 5 FPS",
+        "Memory usage stable over 1 hour",
+        "CPU usage reasonable for continuous video processing"
+      ]
+    }
+  },
+  "qa_signoff": null,
+  "status": "in_progress",
+  "planStatus": "in_progress",
+  "updated_at": "2026-01-16T00:50:45.293Z"
 }
