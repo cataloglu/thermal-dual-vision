@@ -230,3 +230,71 @@ def test_memory_calculation_different_frame_sizes(screenshot_config):
     manager.add_frame(large_frame, datetime.now())
     total_memory = manager.get_buffer_memory_usage()
     assert total_memory == small_frame.nbytes + large_frame.nbytes
+
+
+@pytest.mark.asyncio
+async def test_capture_sequence(screenshot_manager, test_frame):
+    """Integration test for full capture sequence with before/current/after frames."""
+    # Build up buffer with frames spanning from past through future
+    # This simulates a continuous capture stream
+    frame_interval = 0.2  # 5 fps = 0.2 seconds per frame
+    reference_time = datetime.now()
+
+    # Add 50 frames: 20 in the past, current, and 29 in the future
+    # This gives us frames from (now - 4s) to (now + 5.8s)
+    for i in range(50):
+        # Timestamps span from -4s to +5.8s relative to reference_time
+        offset = (i - 20) * frame_interval
+        timestamp = reference_time + timedelta(seconds=offset)
+        frame = test_frame.copy()
+        # Mark each frame with a unique value for verification
+        frame[0, 0, 0] = i % 256
+        screenshot_manager.add_frame(frame, timestamp)
+
+    # Verify buffer is at capacity
+    assert screenshot_manager.get_buffer_size() == 50
+
+    # Create a distinct current frame for capture
+    current_frame = test_frame.copy()
+    current_frame[0, 0, 0] = 255  # Distinct marker
+
+    # Capture the sequence (will wait for after_seconds)
+    # The buffer already contains frames for before and after
+    screenshot_set = await screenshot_manager.capture_sequence(current_frame)
+
+    # Verify ScreenshotSet structure
+    assert screenshot_set is not None
+    assert isinstance(screenshot_set, ScreenshotSet)
+
+    # Verify all required fields are present
+    assert screenshot_set.before is not None
+    assert screenshot_set.current is not None
+    assert screenshot_set.after is not None
+    assert screenshot_set.timestamp is not None
+    assert screenshot_set.before_base64 is not None
+    assert screenshot_set.current_base64 is not None
+    assert screenshot_set.after_base64 is not None
+
+    # Verify bytes encoding (JPEG format should have proper headers)
+    assert isinstance(screenshot_set.before, bytes)
+    assert isinstance(screenshot_set.current, bytes)
+    assert isinstance(screenshot_set.after, bytes)
+    assert len(screenshot_set.before) > 0
+    assert len(screenshot_set.current) > 0
+    assert len(screenshot_set.after) > 0
+
+    # Verify base64 encoding
+    assert isinstance(screenshot_set.before_base64, str)
+    assert isinstance(screenshot_set.current_base64, str)
+    assert isinstance(screenshot_set.after_base64, str)
+    assert len(screenshot_set.before_base64) > 0
+    assert len(screenshot_set.current_base64) > 0
+    assert len(screenshot_set.after_base64) > 0
+
+    # Verify screenshot set was stored
+    assert len(screenshot_manager._screenshot_sets) == 1
+    assert screenshot_manager._screenshot_sets[0] == screenshot_set
+
+    # Verify timestamp is recent
+    time_diff = (datetime.now() - screenshot_set.timestamp).total_seconds()
+    assert time_diff < 10  # Should be captured within last 10 seconds
