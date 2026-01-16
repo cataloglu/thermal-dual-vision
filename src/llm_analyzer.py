@@ -1,5 +1,7 @@
 """LLM Vision Analyzer for Smart Motion Detector."""
 
+import json
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
@@ -7,7 +9,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from openai import AsyncOpenAI
 
 from src.config import LLMConfig
-from src.utils import RateLimiter
+from src.utils import RateLimiter, encode_frame_to_base64
 
 if TYPE_CHECKING:
     import numpy as np
@@ -84,3 +86,103 @@ class LLMAnalyzer:
 
         # Initialize rate limiter (1 request per second minimum)
         self.rate_limiter = RateLimiter(min_interval=1.0)
+
+    async def analyze(self, screenshots: ScreenshotSet) -> AnalysisResult:
+        """
+        Analyze motion screenshots using LLM vision.
+
+        Args:
+            screenshots: Set of before, now, and after screenshots
+
+        Returns:
+            AnalysisResult with LLM analysis
+
+        Raises:
+            Exception: If API call fails or response parsing fails
+        """
+        start_time = time.time()
+
+        # Encode images to base64
+        before_b64 = encode_frame_to_base64(screenshots.before)
+        now_b64 = encode_frame_to_base64(screenshots.now)
+
+        # Build image content list
+        image_content: List[Dict[str, Any]] = [
+            {
+                "type": "text",
+                "text": "ÖNCE (Hareket algılanmadan önce):"
+            },
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:image/jpeg;base64,{before_b64}",
+                    "detail": "low"
+                }
+            },
+            {
+                "type": "text",
+                "text": "ŞİMDİ (Hareket algılandığı an):"
+            },
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:image/jpeg;base64,{now_b64}",
+                    "detail": "low"
+                }
+            }
+        ]
+
+        # Add after screenshot if available
+        if screenshots.after is not None:
+            after_b64 = encode_frame_to_base64(screenshots.after)
+            image_content.extend([
+                {
+                    "type": "text",
+                    "text": "SONRA (Hareket algılandıktan sonra):"
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/jpeg;base64,{after_b64}",
+                        "detail": "low"
+                    }
+                }
+            ])
+
+        # Wait for rate limiter
+        async with self.rate_limiter:
+            # Call OpenAI API
+            response = await self.client.chat.completions.create(
+                model=self.config.model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": self.system_prompt
+                    },
+                    {
+                        "role": "user",
+                        "content": image_content
+                    }
+                ],
+                max_tokens=self.config.max_tokens,
+                response_format={"type": "json_object"}
+            )
+
+        # Parse response
+        response_text = response.choices[0].message.content or "{}"
+        raw_response = json.loads(response_text)
+
+        processing_time = time.time() - start_time
+
+        # Create AnalysisResult from parsed response
+        return AnalysisResult(
+            gercek_hareket=raw_response.get("gercek_hareket", False),
+            guven_skoru=float(raw_response.get("guven_skoru", 0.0)),
+            degisiklik_aciklamasi=raw_response.get("degisiklik_aciklamasi", ""),
+            tespit_edilen_nesneler=raw_response.get("tespit_edilen_nesneler", []),
+            tehdit_seviyesi=raw_response.get("tehdit_seviyesi", "yok"),
+            onerilen_aksiyon=raw_response.get("onerilen_aksiyon", ""),
+            detayli_analiz=raw_response.get("detayli_analiz", ""),
+            raw_response=raw_response,
+            processing_time=processing_time
+        )
