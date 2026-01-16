@@ -121,8 +121,9 @@
             "command": "grep -q 'quality.*[0-9]' src/utils.py && echo 'OK' || echo 'FAIL'",
             "expected": "OK"
           },
-          "status": "pending",
-          "notes": "Already has quality parameter. Add config option for quality (default 75 for storage, 85 for LLM). Lower quality = less memory"
+          "status": "completed",
+          "notes": "Optimized JPEG compression quality in utils.py. Lowered storage quality from 85 to 75 (memory optimization). Added llm_quality config (85) for LLM vision analysis. Updated encode_frame_to_bytes default to 75, kept encode_frame_to_base64 at 85. Verification passes. Commit: 48bd2d4",
+          "updated_at": "2026-01-16T13:35:46.407493+00:00"
         },
         {
           "id": "subtask-2-3",
@@ -140,8 +141,9 @@
             "command": "grep -q 'cv2.resize\\|resize_for_inference' src/yolo_detector.py && echo 'OK' || echo 'FAIL'",
             "expected": "OK"
           },
-          "status": "pending",
-          "notes": "Resize frames to max 640x640 for YOLO inference (yolov8n native size). Use cv2.resize() with INTER_LINEAR"
+          "status": "completed",
+          "notes": "Created src/yolo_detector.py with resize_for_inference() function that resizes frames to max 640x640 for YOLO inference (yolov8n native size). Uses cv2.resize() with INTER_LINEAR for optimal quality/speed balance. Maintains aspect ratio and returns scale factors for mapping detections back to original frame size. Also added scale_detections() helper function. Follows code patterns from utils.py with type hints and comprehensive docstrings. Verification passes. Commit: 7101218",
+          "updated_at": "2026-01-16T13:36:56.570309+00:00"
         },
         {
           "id": "subtask-2-4",
@@ -159,8 +161,9 @@
             "command": "grep -q 'preallocate\\|reuse\\|np.zeros_like' src/motion_detector.py && echo 'OK' || echo 'FAIL'",
             "expected": "OK"
           },
-          "status": "pending",
-          "notes": "Pre-allocate arrays for motion detection (background subtractor result, thresholding). Reuse instead of creating new arrays each frame"
+          "status": "completed",
+          "notes": "Created src/motion_detector.py with MotionDetector class. Implements pre-allocated numpy arrays (_gray_frame, _fg_mask, _thresh, _blur) that are reused across frames using cv2 functions with dst parameter. Background subtractor with configurable sensitivity. Includes detect(), reset(), get_debug_frame() methods and memory_usage_bytes property. Verification passes successfully. Commit: 78be3f6",
+          "updated_at": "2026-01-16T13:38:40.475998+00:00"
         }
       ]
     },
@@ -587,6 +590,6 @@
   "qa_signoff": null,
   "status": "in_progress",
   "planStatus": "in_progress",
-  "updated_at": "2026-01-16T13:34:45.062Z",
-  "last_updated": "2026-01-16T13:34:24.921622+00:00"
+  "updated_at": "2026-01-16T13:38:57.865Z",
+  "last_updated": "2026-01-16T13:38:40.476009+00:00"
 }

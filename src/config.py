@@ -19,6 +19,7 @@ class MotionConfig:
     sensitivity: int = 7
     min_area: int = 500
     cooldown_seconds: int = 5
+    frame_skip_threshold: int = 70  # Skip frames when CPU usage > this percentage
 
 
 @dataclass
@@ -96,6 +97,7 @@ class Config:
         config.motion.sensitivity = int(os.getenv("MOTION_SENSITIVITY", "7"))
         config.motion.min_area = int(os.getenv("MOTION_MIN_AREA", "500"))
         config.motion.cooldown_seconds = int(os.getenv("MOTION_COOLDOWN", "5"))
+        config.motion.frame_skip_threshold = int(os.getenv("MOTION_FRAME_SKIP_THRESHOLD", "70"))
 
         # YOLO
         config.yolo.model = os.getenv("YOLO_MODEL", "yolov8n")
