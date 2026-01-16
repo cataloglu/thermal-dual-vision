@@ -114,6 +114,9 @@ class MotionDetector:
         # Frame storage
         self._current_frame: Optional[np.ndarray] = None
 
+        # Cooldown tracking
+        self._last_motion_time: float = 0.0
+
         logger.info(
             f"MotionDetector initialized - "
             f"sensitivity={self.motion_config.sensitivity}, "
@@ -393,10 +396,38 @@ class MotionDetector:
                 # Detect motion in frame
                 motion_contours = self._detect_motion(frame)
 
-                # If motion detected, invoke callbacks
+                # If motion detected, invoke callbacks (with cooldown)
                 if motion_contours:
-                    # TODO: Implement callback invocation with cooldown in subtask-3-2 and 3-3
-                    pass
+                    current_time = time.time()
+                    time_since_last_motion = current_time - self._last_motion_time
+
+                    # Only invoke callbacks if cooldown period has passed
+                    if time_since_last_motion >= self.motion_config.cooldown_seconds:
+                        logger.debug(
+                            f"Cooldown passed ({time_since_last_motion:.1f}s >= "
+                            f"{self.motion_config.cooldown_seconds}s), invoking callbacks"
+                        )
+
+                        # Invoke all registered callbacks with thread safety
+                        with self._lock:
+                            callbacks = self._callbacks.copy()
+
+                        for callback in callbacks:
+                            try:
+                                callback(frame.copy(), motion_contours)
+                            except Exception as e:
+                                logger.error(
+                                    f"Error in motion callback {callback.__name__}: {e}"
+                                )
+
+                        # Update last motion time after invoking callbacks
+                        self._last_motion_time = current_time
+                    else:
+                        logger.debug(
+                            f"Motion detected but cooldown active "
+                            f"({time_since_last_motion:.1f}s < "
+                            f"{self.motion_config.cooldown_seconds}s)"
+                        )
 
                 # Sleep to maintain configured FPS
                 time.sleep(frame_delay)
