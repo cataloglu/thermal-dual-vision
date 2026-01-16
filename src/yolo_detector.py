@@ -4,6 +4,8 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
+
+import cv2
 import numpy as np
 
 from src.config import YoloConfig
@@ -163,3 +165,53 @@ class YoloDetector:
                 executor, self.detect, frame
             )
         return detections
+
+    def draw_detections(self, frame: np.ndarray, detections: List[Detection]) -> np.ndarray:
+        """
+        Draw bounding boxes and labels on detected objects.
+
+        Args:
+            frame: Input image as numpy array (BGR format)
+            detections: List of Detection objects to draw
+
+        Returns:
+            Frame with drawn detections (BGR format)
+        """
+        # Make a copy to avoid modifying the original frame
+        annotated_frame = frame.copy()
+
+        for detection in detections:
+            x1, y1, x2, y2 = detection.bbox
+
+            # Draw bounding box
+            cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+
+            # Prepare label text
+            label = f"{detection.class_name}: {detection.confidence:.2f}"
+
+            # Get text size for background rectangle
+            (text_width, text_height), baseline = cv2.getTextSize(
+                label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1
+            )
+
+            # Draw background rectangle for text
+            cv2.rectangle(
+                annotated_frame,
+                (x1, y1 - text_height - baseline - 5),
+                (x1 + text_width, y1),
+                (0, 255, 0),
+                -1
+            )
+
+            # Draw text
+            cv2.putText(
+                annotated_frame,
+                label,
+                (x1, y1 - baseline - 5),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                (0, 0, 0),
+                1
+            )
+
+        return annotated_frame
