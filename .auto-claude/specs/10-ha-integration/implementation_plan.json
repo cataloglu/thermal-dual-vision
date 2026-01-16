@@ -1,89 +1,380 @@
 {
-  "feature": "10 - Home Assistant Integration",
+  "feature": "Home Assistant Add-on Integration",
   "workflow_type": "feature",
+  "workflow_rationale": "Adding complete Home Assistant Add-on support with s6-overlay service management, ingress UI, supervisor API integration, and proper HA add-on structure. This is a multi-component feature requiring Docker updates, service scripts, and documentation.",
   "phases": [
     {
-      "phase": 1,
-      "name": "Add-on Config",
-      "chunks": [
+      "id": "phase-1-s6-overlay",
+      "name": "S6-Overlay Integration",
+      "type": "implementation",
+      "description": "Update Dockerfile to use s6-overlay for proper Home Assistant Add-on service management",
+      "depends_on": [],
+      "parallel_safe": true,
+      "subtasks": [
         {
-          "id": "10-01",
-          "description": "config.yaml schema güncellemesi",
-          "status": "pending",
-          "files": [
-            "config.yaml"
-          ]
-        },
-        {
-          "id": "10-02",
-          "description": "Dockerfile s6-overlay eklenmesi",
-          "status": "pending",
-          "files": [
+          "id": "subtask-1-1",
+          "description": "Update Dockerfile with s6-overlay installation",
+          "service": "addon",
+          "files_to_modify": [
             "Dockerfile"
-          ]
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "Dockerfile"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "grep -q 's6-overlay' Dockerfile && echo 'OK'",
+            "expected": "OK"
+          },
+          "status": "completed",
+          "notes": "Successfully added s6-overlay v3.1.5.0 installation to Dockerfile. Added ARG for version, downloaded and extracted both noarch and x86_64 archives, added bash and bashio dependencies, included rootfs/ copy for service scripts, and changed CMD to ENTRYPOINT [\"/init\"] to use s6-overlay init system. Verification passed.",
+          "updated_at": "2026-01-16T13:24:39.672686+00:00"
         }
       ]
     },
     {
-      "phase": 2,
-      "name": "S6-Overlay Services",
-      "chunks": [
+      "id": "phase-2-service-structure",
+      "name": "S6 Service Structure",
+      "type": "implementation",
+      "description": "Create s6-overlay service directory structure and scripts for service management",
+      "depends_on": [
+        "phase-1-s6-overlay"
+      ],
+      "parallel_safe": true,
+      "subtasks": [
         {
-          "id": "10-03",
-          "description": "Service run script",
-          "status": "pending",
-          "files": [
-            "rootfs/etc/services.d/smart-motion/run"
-          ]
-        },
-        {
-          "id": "10-04",
-          "description": "Service finish script",
-          "status": "pending",
-          "files": [
-            "rootfs/etc/services.d/smart-motion/finish"
-          ]
-        },
-        {
-          "id": "10-05",
-          "description": "Container init script",
-          "status": "pending",
-          "files": [
+          "id": "subtask-2-1",
+          "description": "Create container init script (01-init.sh)",
+          "service": "addon",
+          "files_to_modify": [],
+          "files_to_create": [
             "rootfs/etc/cont-init.d/01-init.sh"
-          ]
+          ],
+          "patterns_from": [
+            "run.sh"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "test -f rootfs/etc/cont-init.d/01-init.sh && test -x rootfs/etc/cont-init.d/01-init.sh && echo 'OK'",
+            "expected": "OK"
+          },
+          "status": "pending",
+          "notes": "Init script validates config and prepares environment. Uses bashio for HA config reading."
+        },
+        {
+          "id": "subtask-2-2",
+          "description": "Create s6 service run script",
+          "service": "addon",
+          "files_to_modify": [],
+          "files_to_create": [
+            "rootfs/etc/services.d/smart-motion/run"
+          ],
+          "patterns_from": [
+            "run.sh"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "test -f rootfs/etc/services.d/smart-motion/run && test -x rootfs/etc/services.d/smart-motion/run && echo 'OK'",
+            "expected": "OK"
+          },
+          "status": "pending",
+          "notes": "Service run script starts the Python application. Must have #!/usr/bin/with-contenv bashio shebang."
+        },
+        {
+          "id": "subtask-2-3",
+          "description": "Create s6 service finish script",
+          "service": "addon",
+          "files_to_modify": [],
+          "files_to_create": [
+            "rootfs/etc/services.d/smart-motion/finish"
+          ],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "test -f rootfs/etc/services.d/smart-motion/finish && test -x rootfs/etc/services.d/smart-motion/finish && echo 'OK'",
+            "expected": "OK"
+          },
+          "status": "pending",
+          "notes": "Cleanup script for graceful shutdown. Logs exit status and signals."
         }
       ]
     },
     {
-      "phase": 3,
-      "name": "Documentation & Assets",
-      "chunks": [
+      "id": "phase-3-config-update",
+      "name": "Configuration Updates",
+      "type": "implementation",
+      "description": "Update config.yaml with final HA add-on metadata and verify schema",
+      "depends_on": [
+        "phase-1-s6-overlay"
+      ],
+      "parallel_safe": true,
+      "subtasks": [
         {
-          "id": "10-06",
-          "description": "DOCS.md add-on dokümantasyonu",
+          "id": "subtask-3-1",
+          "description": "Verify and finalize config.yaml schema",
+          "service": "addon",
+          "files_to_modify": [
+            "config.yaml"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "config.yaml"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "python3 -c \"import yaml; yaml.safe_load(open('config.yaml'))\" && echo 'OK'",
+            "expected": "OK"
+          },
           "status": "pending",
-          "files": [
+          "notes": "Ensure all required HA add-on fields are present: name, version, slug, arch, startup, boot, init, options, schema, ingress, ports"
+        }
+      ]
+    },
+    {
+      "id": "phase-4-documentation",
+      "name": "Add-on Documentation",
+      "type": "implementation",
+      "description": "Create comprehensive DOCS.md for Home Assistant Add-on store and user guidance",
+      "depends_on": [],
+      "parallel_safe": true,
+      "subtasks": [
+        {
+          "id": "subtask-4-1",
+          "description": "Create DOCS.md with installation and configuration guide",
+          "service": "addon",
+          "files_to_modify": [],
+          "files_to_create": [
             "DOCS.md"
-          ]
+          ],
+          "patterns_from": [
+            "config.yaml",
+            "src/config.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "test -f DOCS.md && grep -q 'Installation' DOCS.md && grep -q 'Configuration' DOCS.md && echo 'OK'",
+            "expected": "OK"
+          },
+          "status": "pending",
+          "notes": "DOCS.md should include: overview, installation steps, configuration options, ingress access, MQTT integration, troubleshooting"
         },
         {
-          "id": "10-07",
-          "description": "CHANGELOG.md",
-          "status": "pending",
-          "files": [
+          "id": "subtask-4-2",
+          "description": "Update CHANGELOG.md with HA integration",
+          "service": "addon",
+          "files_to_modify": [
             "CHANGELOG.md"
-          ]
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "CHANGELOG.md"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "grep -q 'Home Assistant' CHANGELOG.md && echo 'OK'",
+            "expected": "OK"
+          },
+          "status": "pending",
+          "notes": "Add version 1.0.0 entry documenting HA add-on integration features"
+        }
+      ]
+    },
+    {
+      "id": "phase-5-assets",
+      "name": "Visual Assets",
+      "type": "implementation",
+      "description": "Create or document requirements for add-on icon and logo",
+      "depends_on": [],
+      "parallel_safe": true,
+      "subtasks": [
+        {
+          "id": "subtask-5-1",
+          "description": "Create placeholder/documentation for icon.png and logo.png",
+          "service": "addon",
+          "files_to_modify": [],
+          "files_to_create": [
+            "ASSETS.md"
+          ],
+          "patterns_from": [],
+          "verification": {
+            "type": "manual",
+            "instructions": "Verify ASSETS.md documents icon.png (128x128) and logo.png (256x256) requirements"
+          },
+          "status": "pending",
+          "notes": "Document HA add-on asset requirements: icon.png (128x128), logo.png (256x256). User can create actual images later."
+        }
+      ]
+    },
+    {
+      "id": "phase-6-integration",
+      "name": "Integration Testing",
+      "type": "integration",
+      "description": "Verify complete Home Assistant Add-on integration",
+      "depends_on": [
+        "phase-2-service-structure",
+        "phase-3-config-update",
+        "phase-4-documentation"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-6-1",
+          "description": "Verify all add-on files are in place",
+          "all_services": true,
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "test -f config.yaml && test -f Dockerfile && test -f DOCS.md && test -d rootfs/etc/services.d/smart-motion && test -d rootfs/etc/cont-init.d && echo 'OK'",
+            "expected": "OK"
+          },
+          "status": "pending",
+          "notes": "Verify complete add-on structure meets HA requirements"
         },
         {
-          "id": "10-08",
-          "description": "icon.png ve logo.png",
+          "id": "subtask-6-2",
+          "description": "Create integration verification checklist",
+          "all_services": true,
+          "files_to_modify": [],
+          "files_to_create": [
+            "HA_INTEGRATION_CHECKLIST.md"
+          ],
+          "patterns_from": [],
+          "verification": {
+            "type": "manual",
+            "instructions": "Review HA_INTEGRATION_CHECKLIST.md for manual verification steps"
+          },
           "status": "pending",
-          "files": [
-            "icon.png",
-            "logo.png"
-          ]
+          "notes": "Document manual verification steps: build add-on, install in HA, test options UI, verify ingress, check MQTT, view logs"
         }
       ]
     }
-  ]
+  ],
+  "summary": {
+    "total_phases": 6,
+    "total_subtasks": 10,
+    "services_involved": [
+      "addon",
+      "home-assistant"
+    ],
+    "parallelism": {
+      "max_parallel_phases": 3,
+      "parallel_groups": [
+        {
+          "phases": [
+            "phase-1-s6-overlay",
+            "phase-3-config-update",
+            "phase-4-documentation",
+            "phase-5-assets"
+          ],
+          "reason": "No dependencies, different file sets - can work in parallel"
+        }
+      ],
+      "recommended_workers": 2,
+      "speedup_estimate": "1.5x faster than sequential"
+    },
+    "startup_command": "source auto-claude/.venv/bin/activate && python auto-claude/run.py --spec 10 --parallel 2"
+  },
+  "verification_strategy": {
+    "risk_level": "medium",
+    "skip_validation": false,
+    "test_creation_phase": "post_implementation",
+    "test_types_required": [
+      "integration",
+      "manual"
+    ],
+    "security_scanning_required": false,
+    "staging_deployment_required": false,
+    "acceptance_criteria": [
+      "All required add-on files present (config.yaml, Dockerfile, DOCS.md, rootfs/)",
+      "S6-overlay properly integrated in Dockerfile",
+      "Service scripts are executable and use correct shebangs",
+      "DOCS.md provides complete user guidance",
+      "Config.yaml schema is valid YAML"
+    ],
+    "verification_steps": [
+      {
+        "name": "File Structure Check",
+        "command": "test -f config.yaml && test -f Dockerfile && test -f DOCS.md && test -d rootfs && echo 'OK'",
+        "expected_outcome": "OK",
+        "type": "test",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "YAML Validation",
+        "command": "python3 -c \"import yaml; yaml.safe_load(open('config.yaml'))\"",
+        "expected_outcome": "No errors",
+        "type": "test",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "Script Permissions",
+        "command": "find rootfs -type f -name '*.sh' -o -name 'run' -o -name 'finish' | xargs -I {} test -x {} && echo 'OK'",
+        "expected_outcome": "All scripts executable",
+        "type": "test",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "Manual HA Installation Test",
+        "command": "N/A - requires Home Assistant Supervisor",
+        "expected_outcome": "Add-on builds, installs, and runs in HA",
+        "type": "manual",
+        "required": true,
+        "blocking": false
+      }
+    ],
+    "reasoning": "Medium risk - modifying Docker build and adding service management. Requires integration testing but no automated tests for HA-specific features. Manual verification in real HA environment recommended."
+  },
+  "qa_acceptance": {
+    "unit_tests": {
+      "required": false,
+      "commands": [],
+      "minimum_coverage": null
+    },
+    "integration_tests": {
+      "required": false,
+      "commands": [],
+      "services_to_test": []
+    },
+    "e2e_tests": {
+      "required": false,
+      "commands": [],
+      "flows": []
+    },
+    "browser_verification": {
+      "required": true,
+      "pages": [
+        {
+          "url": "http://homeassistant.local:8123/hassio/ingress/[slug]",
+          "checks": [
+            "Ingress panel loads",
+            "Web UI accessible",
+            "No console errors"
+          ]
+        }
+      ]
+    },
+    "manual_verification": {
+      "required": true,
+      "checks": [
+        "Add-on appears in HA Supervisor",
+        "Options UI allows configuration changes",
+        "Add-on starts and shows in logs",
+        "Ingress panel is accessible",
+        "MQTT auto-discovery works",
+        "Config changes trigger restart",
+        "Logs visible in HA Supervisor"
+      ]
+    }
+  },
+  "qa_signoff": null,
+  "status": "in_progress",
+  "planStatus": "in_progress",
+  "updated_at": "2026-01-16T13:24:57.631Z",
+  "last_updated": "2026-01-16T13:24:39.672700+00:00"
 }
