@@ -1,18 +1,28 @@
 ARG BUILD_FROM
 FROM ${BUILD_FROM}
 
-# Install s6-overlay
+# Install s6-overlay with multi-arch support
 ARG S6_OVERLAY_VERSION="3.1.5.0"
-ADD https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-noarch.tar.xz /tmp
-ADD https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-x86_64.tar.xz /tmp
-RUN tar -C / -Jxpf /tmp/s6-overlay-noarch.tar.xz \
-    && tar -C / -Jxpf /tmp/s6-overlay-x86_64.tar.xz \
+ARG TARGETARCH
+RUN case "${TARGETARCH}" in \
+        amd64) S6_ARCH="x86_64" ;; \
+        arm64) S6_ARCH="aarch64" ;; \
+        *) echo "Unsupported architecture: ${TARGETARCH}" && exit 1 ;; \
+    esac \
+    && curl -L -o /tmp/s6-overlay-noarch.tar.xz \
+        https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-noarch.tar.xz \
+    && curl -L -o /tmp/s6-overlay-arch.tar.xz \
+        https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-${S6_ARCH}.tar.xz \
+    && tar -C / -Jxpf /tmp/s6-overlay-noarch.tar.xz \
+    && tar -C / -Jxpf /tmp/s6-overlay-arch.tar.xz \
     && rm -f /tmp/s6-overlay-*.tar.xz
 
 # Install system dependencies
 RUN apk add --no-cache \
     bash \
     bashio \
+    curl \
+    jq \
     python3 \
     py3-pip \
     py3-numpy \

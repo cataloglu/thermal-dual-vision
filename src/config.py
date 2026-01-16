@@ -99,6 +99,10 @@ class Config:
         # YOLO
         config.yolo.model = os.getenv("YOLO_MODEL", "yolov8n")
         config.yolo.confidence = float(os.getenv("YOLO_CONFIDENCE", "0.5"))
+        # YOLO classes
+        yolo_classes_str = os.getenv("YOLO_CLASSES", "")
+        if yolo_classes_str:
+            config.yolo.classes = [cls.strip() for cls in yolo_classes_str.split(",")]
 
         # LLM
         config.llm.api_key = os.getenv("OPENAI_API_KEY", "")
