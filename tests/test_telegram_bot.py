@@ -144,6 +144,54 @@ class TestTelegramBotAuthorization:
 
         assert bot._check_authorization(123456789) is False
 
+    @pytest.mark.asyncio
+    async def test_authorization(self):
+        """Test authorization whitelist for command handlers."""
+        config = TelegramConfig(
+            bot_token="test_token_123",
+            chat_ids=["123456789", "987654321"]
+        )
+
+        bot = TelegramBot(config)
+
+        # Create mock update with authorized chat ID
+        authorized_update = Mock()
+        authorized_update.effective_chat.id = 123456789
+        authorized_update.message = AsyncMock()
+
+        # Create mock update with unauthorized chat ID
+        unauthorized_update = Mock()
+        unauthorized_update.effective_chat.id = 999999999
+        unauthorized_update.message = AsyncMock()
+
+        # Mock context
+        context = Mock()
+
+        # Test authorized chat ID can execute command
+        await bot._cmd_status(authorized_update, context)
+        authorized_update.message.reply_text.assert_called_once()
+        call_args = authorized_update.message.reply_text.call_args
+        assert "Yetkisiz Erişim" not in call_args[0][0]
+        assert "Sistem Durumu" in call_args[0][0]
+
+        # Test unauthorized chat ID is blocked
+        await bot._cmd_status(unauthorized_update, context)
+        unauthorized_update.message.reply_text.assert_called_once()
+        call_args = unauthorized_update.message.reply_text.call_args
+        assert "Yetkisiz Erişim" in call_args[0][0]
+        assert "Sistem Durumu" not in call_args[0][0]
+
+        # Test second authorized chat ID
+        second_authorized_update = Mock()
+        second_authorized_update.effective_chat.id = 987654321
+        second_authorized_update.message = AsyncMock()
+
+        await bot._cmd_help(second_authorized_update, context)
+        second_authorized_update.message.reply_text.assert_called_once()
+        call_args = second_authorized_update.message.reply_text.call_args
+        assert "Yetkisiz Erişim" not in call_args[0][0]
+        assert "Smart Motion Detector Bot" in call_args[0][0]
+
 
 class TestTelegramBotCommands:
     """Test command handlers."""
