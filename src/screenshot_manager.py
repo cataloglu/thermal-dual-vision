@@ -4,7 +4,7 @@ import asyncio
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Deque, Optional, Tuple
+from typing import Deque, List, Optional, Tuple
 
 import numpy as np
 
@@ -51,9 +51,12 @@ class ScreenshotManager:
         # Initialize ring buffer to store (frame, timestamp) tuples
         self._buffer: Deque[Tuple[np.ndarray, datetime]] = deque(maxlen=buffer_size)
 
+        # Initialize storage for captured screenshot sets
+        self._screenshot_sets: List[ScreenshotSet] = []
+
         self.logger.info(
             f"ScreenshotManager initialized with buffer size: {buffer_size} "
-            f"({config.buffer_seconds}s at {fps} fps)"
+            f"({config.buffer_seconds}s at {fps} fps), max_stored: {config.max_stored}"
         )
 
     def add_frame(self, frame: np.ndarray, timestamp: datetime) -> None:
@@ -197,7 +200,7 @@ class ScreenshotManager:
             f"after={len(after_bytes)} bytes"
         )
 
-        return ScreenshotSet(
+        screenshot_set = ScreenshotSet(
             before=before_bytes,
             current=current_bytes,
             after=after_bytes,
@@ -206,3 +209,39 @@ class ScreenshotManager:
             current_base64=current_base64,
             after_base64=after_base64,
         )
+
+        # Store the screenshot set
+        self._screenshot_sets.append(screenshot_set)
+
+        return screenshot_set
+
+    def cleanup_old(self, max_count: int) -> int:
+        """
+        Remove old screenshot sets to keep only the most recent max_count.
+
+        Keeps the most recent screenshot sets and removes older ones
+        to prevent unbounded memory growth.
+
+        Args:
+            max_count: Maximum number of screenshot sets to keep
+
+        Returns:
+            Number of screenshot sets removed
+        """
+        current_count = len(self._screenshot_sets)
+
+        if current_count <= max_count:
+            return 0
+
+        # Calculate how many to remove
+        remove_count = current_count - max_count
+
+        # Remove the oldest screenshot sets (first in list)
+        self._screenshot_sets = self._screenshot_sets[remove_count:]
+
+        self.logger.info(
+            f"Cleaned up {remove_count} old screenshot sets. "
+            f"Retained {len(self._screenshot_sets)} most recent sets."
+        )
+
+        return remove_count
