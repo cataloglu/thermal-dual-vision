@@ -1,14 +1,36 @@
 {
-  "task_description": "Telegram bot ile bildirim ve komut sistemi",
+  "task_description": "Telegram bot implementation for motion detection alerts and remote control",
   "files_to_create": [
     "src/telegram_bot.py"
   ],
-  "files_to_modify": [],
+  "files_to_modify": [
+    "src/config.py"
+  ],
   "files_to_reference": [
     "src/config.py",
     "src/logger.py",
-    "src/screenshot_manager.py",
-    "src/llm_analyzer.py"
+    "src/utils.py"
   ],
-  "scoped_services": ["telegram"]
+  "patterns": {
+    "config_pattern": "Dataclass with @dataclass decorator, default_factory for complex types",
+    "async_service_pattern": "Class with async start() and stop() lifecycle methods",
+    "logging_pattern": "from src.logger import get_logger; logger = get_logger('module_name')",
+    "rate_limiting_pattern": "RateLimiter class from utils.py with async context manager",
+    "retry_pattern": "@retry_async decorator from utils.py for error handling"
+  },
+  "existing_implementations": {
+    "description": "RateLimiter utility already exists in src/utils.py for rate limiting",
+    "relevant_files": ["src/utils.py", "src/config.py", "src/logger.py"],
+    "similar_services": "MQTT client implementation (task 06) follows same lifecycle pattern"
+  },
+  "external_dependencies": {
+    "screenshot_manager": "Will be implemented in task 04 - for now use type hints",
+    "llm_analyzer": "Will be implemented in task 05 - for now use type hints"
+  },
+  "technical_notes": {
+    "telegram_api": "Using python-telegram-bot v20+ with async Application pattern",
+    "authorization": "Chat ID whitelist from config - unauthorized chats rejected",
+    "media_group": "3 images sent as InputMediaPhoto array",
+    "commands": ["/status", "/arm", "/disarm", "/snapshot", "/help"]
+  }
 }

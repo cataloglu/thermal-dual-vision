@@ -1,104 +1,545 @@
 {
-  "feature": "07 - Telegram Bot",
+  "feature": "07 - Telegram Bot Integration",
   "workflow_type": "feature",
+  "workflow_rationale": "New module development with multiple implementation phases. The Telegram bot requires bot setup, command handling, alert system, and integration testing in sequence.",
   "phases": [
     {
-      "phase": 1,
-      "name": "Bot Setup",
-      "chunks": [
+      "id": "phase-1-bot-setup",
+      "name": "Bot Setup & Lifecycle",
+      "type": "implementation",
+      "description": "Create TelegramBot class with Application setup, lifecycle management, and authorization middleware",
+      "depends_on": [],
+      "parallel_safe": true,
+      "subtasks": [
         {
-          "id": "07-01",
-          "description": "TelegramBot sınıfı ve Application setup",
-          "status": "pending",
-          "files": [
-            "src/telegram_bot.py"
-          ]
+          "id": "subtask-1-1",
+          "description": "Update TelegramConfig to support chat_ids list",
+          "service": "backend",
+          "files_to_modify": [
+            "src/config.py"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/config.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "python -c \"from src.config import TelegramConfig; cfg = TelegramConfig(chat_ids=['123']); assert hasattr(cfg, 'chat_ids'); print('OK')\"",
+            "expected": "OK"
+          },
+          "status": "completed",
+          "notes": "Updated TelegramConfig to use chat_ids list instead of single chat_id. Updated from_env to parse comma-separated chat IDs and validate to check for non-empty list.",
+          "updated_at": "2026-01-16T06:49:19.186698+00:00"
         },
         {
-          "id": "07-02",
-          "description": "start() ve stop() lifecycle metodları",
-          "status": "pending",
-          "files": [
+          "id": "subtask-1-2",
+          "description": "Create TelegramBot class with __init__ and Application setup",
+          "service": "backend",
+          "files_to_modify": [],
+          "files_to_create": [
             "src/telegram_bot.py"
-          ]
+          ],
+          "patterns_from": [
+            "src/config.py",
+            "src/logger.py",
+            "src/utils.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "python -c \"from src.telegram_bot import TelegramBot; from src.config import TelegramConfig; cfg = TelegramConfig(bot_token='test', chat_ids=['123']); bot = TelegramBot(cfg); print('OK')\"",
+            "expected": "OK"
+          },
+          "status": "completed",
+          "notes": "Created TelegramBot class with __init__ method and Application setup. Implementation includes graceful handling of missing python-telegram-bot dependency. Application is built using telegram.ext.Application.builder() pattern. Follows coding patterns from logger.py and config.py. Verification passes successfully.",
+          "updated_at": "2026-01-16T06:51:11.965233+00:00"
         },
         {
-          "id": "07-03",
-          "description": "Chat ID authorization middleware",
-          "status": "pending",
-          "files": [
+          "id": "subtask-1-3",
+          "description": "Implement async start() and stop() lifecycle methods",
+          "service": "backend",
+          "files_to_modify": [
             "src/telegram_bot.py"
-          ]
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/utils.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "python -c \"import asyncio; from src.telegram_bot import TelegramBot; from src.config import TelegramConfig; cfg = TelegramConfig(bot_token='test', chat_ids=['123']); bot = TelegramBot(cfg); assert hasattr(bot, 'start'); assert hasattr(bot, 'stop'); print('OK')\"",
+            "expected": "OK"
+          },
+          "status": "pending"
+        },
+        {
+          "id": "subtask-1-4",
+          "description": "Add chat ID authorization middleware",
+          "service": "backend",
+          "files_to_modify": [
+            "src/telegram_bot.py"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/config.py"
+          ],
+          "verification": {
+            "type": "manual",
+            "instructions": "Review telegram_bot.py and verify _check_authorization() method exists and validates chat_id against config.chat_ids list"
+          },
+          "status": "pending"
         }
       ]
     },
     {
-      "phase": 2,
+      "id": "phase-2-commands",
       "name": "Command Handlers",
-      "chunks": [
+      "type": "implementation",
+      "description": "Implement all bot commands: /status, /arm, /disarm, /snapshot, /help",
+      "depends_on": [
+        "phase-1-bot-setup"
+      ],
+      "parallel_safe": true,
+      "subtasks": [
         {
-          "id": "07-04",
-          "description": "/status komutu handler",
-          "status": "pending",
-          "files": [
+          "id": "subtask-2-1",
+          "description": "Implement /help command handler",
+          "service": "backend",
+          "files_to_modify": [
             "src/telegram_bot.py"
-          ]
+          ],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "manual",
+            "instructions": "Review _handle_help() method and verify it returns formatted help text with all available commands"
+          },
+          "status": "pending"
         },
         {
-          "id": "07-05",
-          "description": "/arm ve /disarm komutları",
-          "status": "pending",
-          "files": [
+          "id": "subtask-2-2",
+          "description": "Implement /status command handler",
+          "service": "backend",
+          "files_to_modify": [
             "src/telegram_bot.py"
-          ]
+          ],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "manual",
+            "instructions": "Review _handle_status() method and verify it reports armed state, last detection time, and uptime"
+          },
+          "status": "pending"
         },
         {
-          "id": "07-06",
-          "description": "/snapshot komutu",
-          "status": "pending",
-          "files": [
+          "id": "subtask-2-3",
+          "description": "Implement /arm and /disarm command handlers with callbacks",
+          "service": "backend",
+          "files_to_modify": [
             "src/telegram_bot.py"
-          ]
+          ],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "manual",
+            "instructions": "Review _handle_arm() and _handle_disarm() methods. Verify set_arm_callback() and set_disarm_callback() methods exist and are called when commands are executed"
+          },
+          "status": "pending"
         },
         {
-          "id": "07-07",
-          "description": "/help komutu",
-          "status": "pending",
-          "files": [
+          "id": "subtask-2-4",
+          "description": "Implement /snapshot command handler with callback",
+          "service": "backend",
+          "files_to_modify": [
             "src/telegram_bot.py"
-          ]
+          ],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "manual",
+            "instructions": "Review _handle_snapshot() method. Verify set_snapshot_callback() method exists and snapshot is requested and sent when command is executed"
+          },
+          "status": "pending"
+        },
+        {
+          "id": "subtask-2-5",
+          "description": "Register all command handlers with Application",
+          "service": "backend",
+          "files_to_modify": [
+            "src/telegram_bot.py"
+          ],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "manual",
+            "instructions": "Review start() method and verify all command handlers are registered via application.add_handler(CommandHandler(...))"
+          },
+          "status": "pending"
         }
       ]
     },
     {
-      "phase": 3,
+      "id": "phase-3-alerts",
       "name": "Alert System",
-      "chunks": [
+      "type": "implementation",
+      "description": "Implement motion detection alert notifications with images and rate limiting",
+      "depends_on": [
+        "phase-1-bot-setup"
+      ],
+      "parallel_safe": true,
+      "subtasks": [
         {
-          "id": "07-08",
-          "description": "send_alert() - analiz ve görüntü gönderme",
-          "status": "pending",
-          "files": [
+          "id": "subtask-3-1",
+          "description": "Implement send_message() method",
+          "service": "backend",
+          "files_to_modify": [
             "src/telegram_bot.py"
-          ]
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/utils.py"
+          ],
+          "verification": {
+            "type": "manual",
+            "instructions": "Review send_message() method and verify it sends text messages to all configured chat_ids"
+          },
+          "status": "pending"
         },
         {
-          "id": "07-09",
-          "description": "Media group (3 görüntü) gönderme",
-          "status": "pending",
-          "files": [
+          "id": "subtask-3-2",
+          "description": "Create format_alert_message() to format detection alerts",
+          "service": "backend",
+          "files_to_modify": [
             "src/telegram_bot.py"
-          ]
+          ],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "manual",
+            "instructions": "Review _format_alert_message() method and verify it formats alert with emoji, timestamp, threat level, confidence, analysis text, and detected objects"
+          },
+          "status": "pending"
         },
         {
-          "id": "07-10",
-          "description": "Rate limiting entegrasyonu",
-          "status": "pending",
-          "files": [
+          "id": "subtask-3-3",
+          "description": "Implement send_alert() with media group (3 images)",
+          "service": "backend",
+          "files_to_modify": [
             "src/telegram_bot.py"
-          ]
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/utils.py"
+          ],
+          "verification": {
+            "type": "manual",
+            "instructions": "Review send_alert() method and verify it sends formatted alert message plus 3 images as InputMediaPhoto media group"
+          },
+          "status": "pending"
+        },
+        {
+          "id": "subtask-3-4",
+          "description": "Integrate RateLimiter for alert rate limiting",
+          "service": "backend",
+          "files_to_modify": [
+            "src/telegram_bot.py"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/utils.py"
+          ],
+          "verification": {
+            "type": "manual",
+            "instructions": "Review send_alert() and verify it uses RateLimiter from utils.py to enforce rate_limit_seconds from config"
+          },
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "phase-4-error-handling",
+      "name": "Error Handling & Resilience",
+      "type": "implementation",
+      "description": "Add comprehensive error handling and retry logic for network issues",
+      "depends_on": [
+        "phase-2-commands",
+        "phase-3-alerts"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-4-1",
+          "description": "Add error handling to all command handlers",
+          "service": "backend",
+          "files_to_modify": [
+            "src/telegram_bot.py"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/utils.py"
+          ],
+          "verification": {
+            "type": "manual",
+            "instructions": "Review all command handlers and verify they have try/except blocks that catch and log exceptions"
+          },
+          "status": "pending"
+        },
+        {
+          "id": "subtask-4-2",
+          "description": "Add @retry_async decorator to network methods",
+          "service": "backend",
+          "files_to_modify": [
+            "src/telegram_bot.py"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/utils.py"
+          ],
+          "verification": {
+            "type": "manual",
+            "instructions": "Review send_alert() and send_message() methods and verify they use @retry_async decorator for automatic retries"
+          },
+          "status": "pending"
+        },
+        {
+          "id": "subtask-4-3",
+          "description": "Add error callback for Application",
+          "service": "backend",
+          "files_to_modify": [
+            "src/telegram_bot.py"
+          ],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "manual",
+            "instructions": "Review start() method and verify application.add_error_handler() is called to log uncaught errors"
+          },
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "phase-5-testing",
+      "name": "Unit Testing",
+      "type": "implementation",
+      "description": "Create unit tests for bot functionality with mocked Telegram API",
+      "depends_on": [
+        "phase-4-error-handling"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-5-1",
+          "description": "Create test_telegram_bot.py with test setup",
+          "service": "backend",
+          "files_to_modify": [],
+          "files_to_create": [
+            "tests/test_telegram_bot.py"
+          ],
+          "patterns_from": [
+            "tests/__init__.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "pytest tests/test_telegram_bot.py -v --tb=short -k 'test_bot' || echo 'Tests not yet passing'",
+            "expected": "Tests not yet passing or passing"
+          },
+          "status": "pending"
+        },
+        {
+          "id": "subtask-5-2",
+          "description": "Add tests for authorization (chat_ids whitelist)",
+          "service": "backend",
+          "files_to_modify": [
+            "tests/test_telegram_bot.py"
+          ],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "pytest tests/test_telegram_bot.py::test_authorization -v",
+            "expected": "PASSED"
+          },
+          "status": "pending"
+        },
+        {
+          "id": "subtask-5-3",
+          "description": "Add tests for command handlers",
+          "service": "backend",
+          "files_to_modify": [
+            "tests/test_telegram_bot.py"
+          ],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "pytest tests/test_telegram_bot.py::test_commands -v",
+            "expected": "PASSED"
+          },
+          "status": "pending"
+        },
+        {
+          "id": "subtask-5-4",
+          "description": "Add tests for alert formatting and rate limiting",
+          "service": "backend",
+          "files_to_modify": [
+            "tests/test_telegram_bot.py"
+          ],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "pytest tests/test_telegram_bot.py::test_alerts -v",
+            "expected": "PASSED"
+          },
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "phase-6-integration",
+      "name": "Integration Verification",
+      "type": "integration",
+      "description": "Manual integration testing with real bot to verify all functionality",
+      "depends_on": [
+        "phase-5-testing"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-6-1",
+          "description": "End-to-end verification of bot functionality",
+          "all_services": true,
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "e2e",
+            "steps": [
+              "Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_IDS in environment",
+              "Start bot with real token",
+              "Send /help command and verify response",
+              "Send /status command and verify response",
+              "Test /arm and /disarm commands",
+              "Test /snapshot command",
+              "Verify unauthorized chat is rejected",
+              "Trigger mock alert and verify message + 3 images received",
+              "Verify rate limiting prevents spam"
+            ]
+          },
+          "status": "pending"
         }
       ]
     }
-  ]
+  ],
+  "summary": {
+    "total_phases": 6,
+    "total_subtasks": 20,
+    "services_involved": [
+      "backend"
+    ],
+    "parallelism": {
+      "max_parallel_phases": 2,
+      "parallel_groups": [
+        {
+          "phases": [
+            "phase-2-commands",
+            "phase-3-alerts"
+          ],
+          "reason": "Both depend only on phase-1-bot-setup and work on different aspects of the bot"
+        }
+      ],
+      "recommended_workers": 1,
+      "speedup_estimate": "Sequential execution recommended due to shared file modifications"
+    },
+    "startup_command": "python src/telegram_bot.py"
+  },
+  "verification_strategy": {
+    "risk_level": "medium",
+    "skip_validation": false,
+    "test_creation_phase": "post_implementation",
+    "test_types_required": [
+      "unit",
+      "integration"
+    ],
+    "security_scanning_required": false,
+    "staging_deployment_required": false,
+    "acceptance_criteria": [
+      "Bot starts successfully and connects to Telegram",
+      "All command handlers respond correctly",
+      "Alert messages sent with 3 images as media group",
+      "Rate limiting prevents message spam",
+      "Unauthorized chat IDs are rejected",
+      "All unit tests pass",
+      "Integration test with real bot succeeds"
+    ],
+    "verification_steps": [
+      {
+        "name": "Unit Tests",
+        "command": "pytest tests/test_telegram_bot.py -v",
+        "expected_outcome": "All tests pass",
+        "type": "test",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "Import Check",
+        "command": "python -c 'from src.telegram_bot import TelegramBot; print(\"OK\")'",
+        "expected_outcome": "OK",
+        "type": "command",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "Integration Test",
+        "command": "Manual testing with real Telegram bot token",
+        "expected_outcome": "All commands work, alerts sent successfully",
+        "type": "manual",
+        "required": true,
+        "blocking": false
+      }
+    ],
+    "reasoning": "Medium risk change requires unit tests for command handling and authorization, plus integration tests with real bot for end-to-end verification"
+  },
+  "qa_acceptance": {
+    "unit_tests": {
+      "required": true,
+      "commands": [
+        "pytest tests/test_telegram_bot.py -v"
+      ],
+      "minimum_coverage": null
+    },
+    "integration_tests": {
+      "required": true,
+      "commands": [
+        "Manual testing with real bot"
+      ],
+      "services_to_test": [
+        "backend"
+      ]
+    },
+    "e2e_tests": {
+      "required": true,
+      "commands": [
+        "Manual E2E test"
+      ],
+      "flows": [
+        "bot-commands",
+        "alert-notifications",
+        "authorization"
+      ]
+    },
+    "browser_verification": {
+      "required": false,
+      "pages": []
+    },
+    "database_verification": {
+      "required": false,
+      "checks": []
+    }
+  },
+  "qa_signoff": null,
+  "status": "in_progress",
+  "planStatus": "in_progress",
+  "updated_at": "2026-01-16T06:51:27.231Z",
+  "last_updated": "2026-01-16T06:51:11.965244+00:00"
 }
