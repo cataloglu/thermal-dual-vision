@@ -211,3 +211,56 @@ class MotionDetector:
             True if connected, False otherwise
         """
         return self.capture is not None and self.capture.isOpened()
+
+    def _detect_motion(self, frame: np.ndarray) -> List[np.ndarray]:
+        """
+        Detect motion in a frame using background subtraction and contour detection.
+
+        Applies the following pipeline:
+        1. Background subtraction using MOG2 to get foreground mask
+        2. Morphological operations (erosion + dilation) to reduce noise
+        3. Contour detection using cv2.findContours
+        4. Area-based filtering using min_area from config
+
+        Args:
+            frame: Input frame as numpy array (BGR format)
+
+        Returns:
+            List of contours that exceed the minimum area threshold.
+            Each contour is a numpy array of points.
+        """
+        # Apply background subtraction to get foreground mask
+        # The mask will have white pixels (255) for foreground and black (0) for background
+        fg_mask = self._background_subtractor.apply(frame)
+
+        # Apply morphological operations to reduce noise
+        # Erosion removes small white noise
+        # Dilation restores the object size after erosion
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+        fg_mask = cv2.erode(fg_mask, kernel, iterations=1)
+        fg_mask = cv2.dilate(fg_mask, kernel, iterations=2)
+
+        # Find contours in the foreground mask
+        # RETR_EXTERNAL: only retrieve external contours (ignore holes)
+        # CHAIN_APPROX_SIMPLE: compress horizontal/vertical/diagonal segments
+        contours, _ = cv2.findContours(
+            fg_mask,
+            cv2.RETR_EXTERNAL,
+            cv2.CHAIN_APPROX_SIMPLE
+        )
+
+        # Filter contours by minimum area
+        motion_contours = []
+        for contour in contours:
+            area = cv2.contourArea(contour)
+            if area >= self.motion_config.min_area:
+                motion_contours.append(contour)
+
+        if motion_contours:
+            total_area = sum(cv2.contourArea(c) for c in motion_contours)
+            logger.debug(
+                f"Motion detected: {len(motion_contours)} contours, "
+                f"total area: {total_area:.0f} pixels"
+            )
+
+        return motion_contours
