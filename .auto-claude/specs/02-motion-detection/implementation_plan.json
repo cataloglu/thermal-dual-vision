@@ -160,7 +160,9 @@
             "type": "manual",
             "instructions": "Code review: Threading.Thread with proper daemon flag and loop logic"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Successfully implemented _capture_loop() method for continuous frame capture in background thread. Implementation includes:\n- Continuous while loop controlled by _running flag\n- Reads frames from VideoCapture at configured FPS (calculated frame_delay)\n- Thread-safe frame storage using threading.Lock (self._lock)\n- Integrated motion detection using _detect_motion() on each frame\n- Automatic reconnection handling if camera disconnects\n- Proper error handling with try/except and detailed logging\n- FPS timing control with time.sleep(frame_delay)\n- Placeholder for callback invocation (will be implemented in subtask-3-2 and 3-3)\n\nCode review verified: Threading.Thread compatible method with proper daemon flag support and loop logic. Ready for integration with start/stop lifecycle methods in phase 4.",
+          "updated_at": "2026-01-16T01:00:49.946778+00:00"
         },
         {
           "id": "subtask-3-2",
@@ -175,7 +177,9 @@
             "type": "manual",
             "instructions": "Code review: Thread-safe callback storage (Lock) and invocation"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Implemented thread-safe callback registration with on_motion(callback) method. Uses threading.Lock for safe concurrent access to callbacks list. Includes comprehensive documentation and debug logging.",
+          "updated_at": "2026-01-16T01:01:55.853734+00:00"
         },
         {
           "id": "subtask-3-3",
@@ -192,7 +196,9 @@
             "type": "manual",
             "instructions": "Code review: Cooldown logic with time.time() comparison"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Successfully implemented cooldown timer to prevent callback spam. Implementation includes:\n- Added _last_motion_time attribute initialized to 0.0 to track when motion was last detected\n- In capture loop, check if time.time() - _last_motion_time >= cooldown_seconds before invoking callbacks\n- Only invoke callbacks if cooldown period has passed\n- Update _last_motion_time after invoking callbacks\n- Added debug logging for cooldown status (both when passed and when still active)\n- Thread-safe callback copying and invocation with error handling\nCode review verified: Proper cooldown logic with time.time() comparison as specified.",
+          "updated_at": "2026-01-16T01:03:04.050154+00:00"
         }
       ]
     },
@@ -221,7 +227,9 @@
             "type": "manual",
             "instructions": "Code review: start() method initializes thread and sets running flag"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Implemented start() method that initializes and launches the capture thread with proper thread safety, error handling, and logging. Thread runs as daemon with _capture_loop as target.",
+          "updated_at": "2026-01-16T01:03:59.912060+00:00"
         },
         {
           "id": "subtask-4-2",
@@ -468,6 +476,6 @@
   "qa_signoff": null,
   "status": "in_progress",
   "planStatus": "in_progress",
-  "updated_at": "2026-01-16T00:57:46.415Z",
-  "last_updated": "2026-01-16T00:59:11.821620+00:00"
+  "updated_at": "2026-01-16T01:04:13.532Z",
+  "last_updated": "2026-01-16T01:03:59.912070+00:00"
 }

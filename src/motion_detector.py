@@ -279,6 +279,60 @@ class MotionDetector:
 
             logger.info("Motion detector started successfully")
 
+    def stop(self) -> None:
+        """
+        Stop motion detection and cleanup resources.
+
+        Gracefully shuts down the capture thread and releases all resources:
+        1. Sets _running flag to False to signal thread to stop
+        2. Waits for thread to complete using join()
+        3. Releases VideoCapture resources
+        4. Cleans up thread reference
+
+        Thread safety:
+        - Uses _lock to prevent race conditions during state checks
+        - Join is performed outside lock to avoid deadlock
+        - Idempotent: safe to call multiple times
+
+        Note:
+            This method blocks until the capture thread completes.
+            Typically completes within 1-2 frame intervals.
+        """
+        # Check if already stopped (thread-safe)
+        with self._lock:
+            if not self._running:
+                logger.debug("Motion detector is not running, nothing to stop")
+                return
+
+            logger.info("Stopping motion detector")
+
+            # Set running flag to False to signal thread to stop
+            self._running = False
+
+            # Get thread reference inside lock
+            thread = self._thread
+
+        # Join thread outside lock to avoid deadlock
+        # The capture loop checks _running flag and will exit gracefully
+        if thread is not None and thread.is_alive():
+            logger.debug("Waiting for capture thread to finish...")
+            thread.join(timeout=5.0)  # Wait up to 5 seconds
+
+            if thread.is_alive():
+                logger.warning(
+                    "Capture thread did not finish within timeout, "
+                    "but will exit when daemon thread terminates"
+                )
+
+        # Cleanup resources
+        self._disconnect()
+
+        # Clear thread reference
+        with self._lock:
+            self._thread = None
+
+        logger.info("Motion detector stopped successfully")
+
     @property
     def is_running(self) -> bool:
         """
