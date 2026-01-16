@@ -206,7 +206,9 @@
             "command": "test -f tests/unit/test_telegram_bot.py && pytest tests/unit/test_telegram_bot.py -v --tb=short | tail -1 | grep -E '(passed|OK)' && echo 'OK'",
             "expected": "OK"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Successfully moved test_telegram_bot.py from tests/ to tests/unit/. Git recognized this as a rename operation (100% match). File integrity verified.",
+          "updated_at": "2026-01-16T12:42:03.434173+00:00"
         }
       ]
     },
@@ -239,7 +241,9 @@
             "command": "python -c 'import sys; sys.path.insert(0, \"tests\"); import conftest; print(\"OK\")'",
             "expected": "OK"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Created tests/conftest.py with shared fixtures for all tests. Includes fixtures for:\n- llm_config: Test LLM configuration\n- mqtt_config: Test MQTT configuration  \n- telegram_config: Test Telegram configuration\n- sample_screenshot_set: Sample screenshot images for testing\n- valid_response_json: Valid LLM response JSON\n- mock_aiomqtt: Mock MQTT client\n- mock_openai_client: Mock OpenAI client\n- mock_telegram_bot: Mock Telegram bot\n- mock_camera_frame: Test camera frame\n- event_loop: Async event loop fixture\n\nAll fixtures follow patterns from existing test files (test_llm_analyzer.py, test_mqtt_client.py, test_telegram_bot.py). File syntax verified successfully with py_compile.",
+          "updated_at": "2026-01-16T12:44:02.655364+00:00"
         }
       ]
     },
@@ -270,7 +274,9 @@
             "command": "pytest tests/integration/test_motion_to_llm.py -v --tb=short -m integration && echo 'OK'",
             "expected": "OK"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Created comprehensive integration test suite for motion detection to LLM analysis flow. Test file includes 8 test cases covering:\n- Complete flow from camera capture through LLM analysis\n- False positive motion detection (LLM determines no real motion)\n- High threat level detection\n- Motion analysis without after screenshot\n- Multiple sequential motion events\n- Different camera resolutions (VGA, HD, Full HD)\n- Processing time tracking\n- Various object detection scenarios\n\nAll tests pass successfully. Uses MockCamera and MockOpenAI for controlled testing environment. Verification passed with all 8 tests passing in 7.49 seconds.",
+          "updated_at": "2026-01-16T12:53:56.152872+00:00"
         },
         {
           "id": "subtask-5-2",
@@ -443,6 +449,6 @@
   },
   "status": "in_progress",
   "planStatus": "in_progress",
-  "updated_at": "2026-01-16T12:41:22.447Z",
-  "last_updated": "2026-01-16T12:41:08.217534+00:00"
+  "updated_at": "2026-01-16T12:44:21.914Z",
+  "last_updated": "2026-01-16T12:53:56.152886+00:00"
 }
