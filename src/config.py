@@ -66,7 +66,7 @@ class TelegramConfig:
     """Telegram bot configuration."""
     enabled: bool = False
     bot_token: str = ""
-    chat_id: str = ""
+    chat_ids: List[str] = field(default_factory=list)
     rate_limit_seconds: int = 5
 
 
@@ -118,7 +118,9 @@ class Config:
         # Telegram
         config.telegram.enabled = os.getenv("TELEGRAM_ENABLED", "false").lower() == "true"
         config.telegram.bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "")
-        config.telegram.chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
+        chat_ids_str = os.getenv("TELEGRAM_CHAT_ID", "")
+        if chat_ids_str:
+            config.telegram.chat_ids = [cid.strip() for cid in chat_ids_str.split(",")]
 
         # Logging
         config.log_level = os.getenv("LOG_LEVEL", "INFO")
@@ -138,7 +140,7 @@ class Config:
         if self.telegram.enabled:
             if not self.telegram.bot_token:
                 errors.append("Telegram bot token is required when enabled")
-            if not self.telegram.chat_id:
+            if not self.telegram.chat_ids:
                 errors.append("Telegram chat ID is required when enabled")
 
         return errors

@@ -1,7 +1,33 @@
 {
   "project_type": "single",
   "name": "smart-motion-detector",
-  "language": "python",
-  "framework": "home-assistant-addon",
-  "root_path": "/home/ac/Documents/motion-detector/motion-detector"
+  "description": "AI-powered motion detection system with Telegram notifications",
+  "services": {
+    "backend": {
+      "path": ".",
+      "tech_stack": ["python", "asyncio", "opencv", "yolo", "openai"],
+      "port": 8099,
+      "dev_command": "python src/main.py",
+      "test_command": "pytest tests/"
+    }
+  },
+  "infrastructure": {
+    "docker": true,
+    "database": null,
+    "message_queue": "mqtt",
+    "deployment": "home-assistant-addon"
+  },
+  "conventions": {
+    "style": "PEP 8",
+    "async_pattern": "asyncio with async/await",
+    "config_pattern": "dataclasses with from_env()",
+    "logging_pattern": "get_logger(name)",
+    "testing": "pytest with async support"
+  },
+  "dependencies": {
+    "telegram": "python-telegram-bot>=20.0",
+    "vision": "openai>=1.0.0",
+    "detection": "ultralytics>=8.0.0",
+    "mqtt": "paho-mqtt>=2.0.0"
+  }
 }
