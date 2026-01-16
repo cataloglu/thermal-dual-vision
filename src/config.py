@@ -78,6 +78,15 @@ class TelegramConfig:
 
 
 @dataclass
+class OptimizationConfig:
+    """Performance optimization configuration."""
+    enabled: bool = True
+    cpu_monitoring: bool = True
+    memory_monitoring: bool = True
+    metrics_interval: int = 5  # Seconds between metrics collection
+
+
+@dataclass
 class Config:
     """Main application configuration."""
     camera: CameraConfig = field(default_factory=CameraConfig)
@@ -87,6 +96,7 @@ class Config:
     screenshots: ScreenshotConfig = field(default_factory=ScreenshotConfig)
     mqtt: MQTTConfig = field(default_factory=MQTTConfig)
     telegram: TelegramConfig = field(default_factory=TelegramConfig)
+    optimization: OptimizationConfig = field(default_factory=OptimizationConfig)
     log_level: str = "INFO"
 
     @classmethod
@@ -134,6 +144,12 @@ class Config:
         chat_ids_str = os.getenv("TELEGRAM_CHAT_ID", "")
         if chat_ids_str:
             config.telegram.chat_ids = [cid.strip() for cid in chat_ids_str.split(",")]
+
+        # Optimization
+        config.optimization.enabled = os.getenv("OPTIMIZATION_ENABLED", "true").lower() == "true"
+        config.optimization.cpu_monitoring = os.getenv("OPTIMIZATION_CPU_MONITORING", "true").lower() == "true"
+        config.optimization.memory_monitoring = os.getenv("OPTIMIZATION_MEMORY_MONITORING", "true").lower() == "true"
+        config.optimization.metrics_interval = int(os.getenv("OPTIMIZATION_METRICS_INTERVAL", "5"))
 
         # Logging
         config.log_level = os.getenv("LOG_LEVEL", "INFO")
