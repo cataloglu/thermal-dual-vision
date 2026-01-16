@@ -350,6 +350,159 @@ class TestCallbackMechanism:
         assert callback1 in detector._callbacks
         assert callback2 in detector._callbacks
 
+    def test_callback_invoked_on_motion(self, detector, mock_cv2):
+        """Test that callback is invoked when motion is detected."""
+        # Setup: Create contours that will trigger motion
+        mock_contour = np.array([[[0, 0]], [[100, 0]], [[100, 100]], [[0, 100]]])
+        mock_cv2.findContours.return_value = ([mock_contour], None)
+        mock_cv2.contourArea.return_value = 600  # Above min_area threshold
+
+        callback = Mock()
+        detector.on_motion(callback)
+
+        detector.connect()
+        detector.start()
+
+        # Wait for motion detection and callback
+        time.sleep(0.3)
+
+        detector.stop()
+
+        # Verify callback was invoked at least once
+        assert callback.call_count >= 1
+
+    def test_callback_receives_correct_parameters(self, detector, mock_cv2):
+        """Test that callback receives frame and contours."""
+        # Setup motion detection
+        mock_contour = np.array([[[0, 0]], [[100, 0]], [[100, 100]], [[0, 100]]])
+        mock_cv2.findContours.return_value = ([mock_contour], None)
+        mock_cv2.contourArea.return_value = 600
+
+        callback = Mock()
+        detector.on_motion(callback)
+
+        detector.connect()
+        detector.start()
+
+        # Wait for callback
+        time.sleep(0.3)
+
+        detector.stop()
+
+        # Verify callback was called with correct parameters
+        assert callback.call_count >= 1
+        call_args = callback.call_args[0]
+
+        # First argument should be a frame (numpy array)
+        assert isinstance(call_args[0], np.ndarray)
+        assert len(call_args[0].shape) == 3  # Should be a BGR image
+
+        # Second argument should be a list of contours
+        assert isinstance(call_args[1], list)
+
+    def test_multiple_callbacks_all_invoked(self, detector, mock_cv2):
+        """Test that all registered callbacks are invoked."""
+        # Setup motion detection
+        mock_contour = np.array([[[0, 0]], [[100, 0]], [[100, 100]], [[0, 100]]])
+        mock_cv2.findContours.return_value = ([mock_contour], None)
+        mock_cv2.contourArea.return_value = 600
+
+        callback1 = Mock()
+        callback2 = Mock()
+        callback3 = Mock()
+
+        detector.on_motion(callback1)
+        detector.on_motion(callback2)
+        detector.on_motion(callback3)
+
+        detector.connect()
+        detector.start()
+
+        # Wait for callbacks
+        time.sleep(0.3)
+
+        detector.stop()
+
+        # All callbacks should be invoked
+        assert callback1.call_count >= 1
+        assert callback2.call_count >= 1
+        assert callback3.call_count >= 1
+
+    def test_callback_error_doesnt_break_detection(self, detector, mock_cv2):
+        """Test that error in one callback doesn't prevent others from running."""
+        # Setup motion detection
+        mock_contour = np.array([[[0, 0]], [[100, 0]], [[100, 100]], [[0, 100]]])
+        mock_cv2.findContours.return_value = ([mock_contour], None)
+        mock_cv2.contourArea.return_value = 600
+
+        # First callback raises exception
+        callback1 = Mock(side_effect=RuntimeError("Test error"))
+        # Second callback should still run
+        callback2 = Mock()
+
+        detector.on_motion(callback1)
+        detector.on_motion(callback2)
+
+        detector.connect()
+        detector.start()
+
+        # Wait for callbacks
+        time.sleep(0.3)
+
+        detector.stop()
+
+        # Both callbacks should be invoked despite error in first one
+        assert callback1.call_count >= 1
+        assert callback2.call_count >= 1
+
+    def test_no_callback_when_no_motion(self, detector, mock_cv2):
+        """Test that callbacks are not invoked when no motion detected."""
+        # Setup: No motion (empty contours)
+        mock_cv2.findContours.return_value = ([], None)
+
+        callback = Mock()
+        detector.on_motion(callback)
+
+        detector.connect()
+        detector.start()
+
+        # Wait a bit
+        time.sleep(0.3)
+
+        detector.stop()
+
+        # Callback should not be invoked
+        assert callback.call_count == 0
+
+    def test_callback_receives_frame_copy(self, detector, mock_cv2):
+        """Test that callback receives a copy of the frame, not the original."""
+        # Setup motion detection
+        mock_contour = np.array([[[0, 0]], [[100, 0]], [[100, 100]], [[0, 100]]])
+        mock_cv2.findContours.return_value = ([mock_contour], None)
+        mock_cv2.contourArea.return_value = 600
+
+        received_frames = []
+
+        def callback(frame, contours):
+            received_frames.append(frame)
+
+        detector.on_motion(callback)
+
+        detector.connect()
+        detector.start()
+
+        # Wait for callbacks
+        time.sleep(0.4)
+
+        detector.stop()
+
+        # Should have received at least one frame
+        assert len(received_frames) >= 1
+
+        # If multiple frames received, they should be different objects
+        if len(received_frames) >= 2:
+            assert received_frames[0] is not received_frames[1]
+
 
 class TestMotionDetection:
     """Test motion detection logic."""
@@ -410,17 +563,200 @@ class TestCooldownTimer:
         detector.connect()
         detector.start()
 
-        # Wait for first callback
-        time.sleep(0.3)
+        # Wait for first callback (less than cooldown period)
+        time.sleep(0.5)
 
-        # Wait a bit more but less than cooldown
+        detector.stop()
+
+        # With 1 second cooldown and 0.5 second wait, callback should be called only once
+        # Even though motion is continuously detected
+        assert callback.call_count == 1
+
+    def test_callback_invoked_immediately_first_time(self, detector, mock_cv2):
+        """Test that callback is invoked immediately on first motion detection."""
+        # Setup motion detection
+        mock_contour = np.array([[[0, 0]], [[100, 0]], [[100, 100]], [[0, 100]]])
+        mock_cv2.findContours.return_value = ([mock_contour], None)
+        mock_cv2.contourArea.return_value = 600
+
+        callback = Mock()
+        detector.on_motion(callback)
+
+        # Verify last_motion_time is 0 (no cooldown active)
+        assert detector._last_motion_time == 0.0
+
+        detector.connect()
+        detector.start()
+
+        # Wait just enough for one frame
         time.sleep(0.3)
 
         detector.stop()
 
-        # Callback should only be called once due to cooldown
-        # (might be called more than once if cooldown passed, but should be limited)
-        assert callback.call_count >= 1
+        # Callback should be invoked immediately (not blocked by cooldown)
+        assert callback.call_count == 1
+
+    def test_cooldown_blocks_during_period(self, detector, mock_cv2):
+        """Test that callbacks are blocked during cooldown period."""
+        # Use shorter cooldown for faster testing
+        detector.motion_config.cooldown_seconds = 0.5
+
+        # Setup motion detection
+        mock_contour = np.array([[[0, 0]], [[100, 0]], [[100, 100]], [[0, 100]]])
+        mock_cv2.findContours.return_value = ([mock_contour], None)
+        mock_cv2.contourArea.return_value = 600
+
+        callback = Mock()
+        detector.on_motion(callback)
+
+        detector.connect()
+        detector.start()
+
+        # Wait for less than cooldown period
+        time.sleep(0.3)
+
+        detector.stop()
+
+        # Should only be called once (first motion), subsequent detections blocked
+        assert callback.call_count == 1
+
+    def test_cooldown_allows_after_expiry(self, detector, mock_cv2):
+        """Test that callbacks are invoked again after cooldown expires."""
+        # Use shorter cooldown for faster testing
+        detector.motion_config.cooldown_seconds = 0.5
+
+        # Setup motion detection
+        mock_contour = np.array([[[0, 0]], [[100, 0]], [[100, 100]], [[0, 100]]])
+        mock_cv2.findContours.return_value = ([mock_contour], None)
+        mock_cv2.contourArea.return_value = 600
+
+        callback = Mock()
+        detector.on_motion(callback)
+
+        detector.connect()
+        detector.start()
+
+        # Wait for cooldown to expire plus a bit more
+        time.sleep(1.0)
+
+        detector.stop()
+
+        # Should be called at least twice (first motion + after cooldown)
+        assert callback.call_count >= 2
+
+    def test_cooldown_timer_updates_after_callback(self, detector, mock_cv2):
+        """Test that cooldown timer is updated after callback invocation."""
+        # Setup motion detection
+        mock_contour = np.array([[[0, 0]], [[100, 0]], [[100, 100]], [[0, 100]]])
+        mock_cv2.findContours.return_value = ([mock_contour], None)
+        mock_cv2.contourArea.return_value = 600
+
+        callback = Mock()
+        detector.on_motion(callback)
+
+        initial_time = detector._last_motion_time
+        assert initial_time == 0.0
+
+        detector.connect()
+        detector.start()
+
+        # Wait for callback
+        time.sleep(0.3)
+
+        detector.stop()
+
+        # Last motion time should be updated
+        assert detector._last_motion_time > initial_time
+        assert detector._last_motion_time > 0.0
+
+    def test_cooldown_with_multiple_motion_events(self, detector, mock_cv2):
+        """Test cooldown behavior with multiple motion events."""
+        # Use shorter cooldown for testing
+        detector.motion_config.cooldown_seconds = 0.4
+
+        # Setup motion detection
+        mock_contour = np.array([[[0, 0]], [[100, 0]], [[100, 100]], [[0, 100]]])
+        mock_cv2.findContours.return_value = ([mock_contour], None)
+        mock_cv2.contourArea.return_value = 600
+
+        callback = Mock()
+        detector.on_motion(callback)
+
+        detector.connect()
+        detector.start()
+
+        # Let detector run for 1.2 seconds
+        # With 0.4s cooldown and ~0.2s frame delay:
+        # - t=0.0s: First callback
+        # - t=0.2-0.4s: Motion detected but blocked by cooldown
+        # - t=0.5s: Cooldown expired, second callback
+        # - t=0.7-0.9s: Motion detected but blocked by cooldown
+        # - t=1.0s: Cooldown expired, third callback potentially
+        time.sleep(1.2)
+
+        detector.stop()
+
+        # Should have multiple callbacks (at least 2, possibly 3)
+        assert callback.call_count >= 2
+
+    def test_zero_cooldown_allows_all_events(self, mock_cv2, camera_config):
+        """Test that zero cooldown allows all motion events through."""
+        # Create config with zero cooldown
+        motion_config = MotionConfig(
+            sensitivity=5,
+            min_area=500,
+            cooldown_seconds=0  # No cooldown
+        )
+        detector = MotionDetector(camera_config, motion_config)
+
+        # Setup motion detection
+        mock_contour = np.array([[[0, 0]], [[100, 0]], [[100, 100]], [[0, 100]]])
+        mock_cv2.findContours.return_value = ([mock_contour], None)
+        mock_cv2.contourArea.return_value = 600
+
+        callback = Mock()
+        detector.on_motion(callback)
+
+        detector.connect()
+        detector.start()
+
+        # Wait for multiple frames
+        time.sleep(0.5)
+
+        detector.stop()
+
+        # With no cooldown, callback should be invoked frequently
+        # At 5 FPS over 0.5 seconds, expect ~2-3 calls minimum
+        assert callback.call_count >= 2
+
+    def test_cooldown_respects_configured_value(self, mock_cv2, camera_config):
+        """Test that cooldown respects the configured value."""
+        # Test with custom cooldown value
+        motion_config = MotionConfig(
+            sensitivity=5,
+            min_area=500,
+            cooldown_seconds=2.0  # 2 second cooldown
+        )
+        detector = MotionDetector(camera_config, motion_config)
+
+        # Setup motion detection
+        mock_contour = np.array([[[0, 0]], [[100, 0]], [[100, 100]], [[0, 100]]])
+        mock_cv2.findContours.return_value = ([mock_contour], None)
+        mock_cv2.contourArea.return_value = 600
+
+        callback = Mock()
+        detector.on_motion(callback)
+
+        detector.connect()
+        detector.start()
+
+        # Wait less than cooldown period
+        time.sleep(1.0)
+
+        detector.stop()
+
+        # Should only be called once due to long cooldown
+        assert callback.call_count == 1
 
 
 class TestThreadSafety:
