@@ -21,7 +21,7 @@ except ImportError:
 
 from .config import TelegramConfig
 from .logger import get_logger
-from .utils import encode_frame_to_bytes
+from .utils import RateLimiter, encode_frame_to_bytes
 
 if TYPE_CHECKING:
     from .llm_analyzer import AnalysisResult, ScreenshotSet
@@ -44,6 +44,9 @@ class TelegramBot:
         self._armed = False
         self._last_detection_time: Optional[datetime] = None
         self._start_time = datetime.now()
+
+        # Rate limiting
+        self._alert_rate_limiter = RateLimiter(min_interval=config.rate_limit_seconds)
 
         # Callbacks
         self._arm_callback: Optional[Callable[[], None]] = None
@@ -169,38 +172,40 @@ class TelegramBot:
             self.logger.warning("Cannot send alert: No chat IDs configured")
             return
 
-        # Update last detection time
-        self._last_detection_time = screenshots.timestamp
+        # Apply rate limiting
+        async with self._alert_rate_limiter:
+            # Update last detection time
+            self._last_detection_time = screenshots.timestamp
 
-        # Format alert message
-        alert_text = self._format_alert_message(screenshots, analysis)
+            # Format alert message
+            alert_text = self._format_alert_message(screenshots, analysis)
 
-        # Convert frames to JPEG bytes
-        try:
-            before_bytes = encode_frame_to_bytes(screenshots.before_frame)
-            now_bytes = encode_frame_to_bytes(screenshots.now_frame)
-            after_bytes = encode_frame_to_bytes(screenshots.after_frame)
-        except Exception as e:
-            self.logger.error(f"Failed to encode frames: {e}")
-            return
-
-        # Create media group (first photo has caption with alert message)
-        media_group = [
-            InputMediaPhoto(media=before_bytes, caption=alert_text, parse_mode="Markdown"),
-            InputMediaPhoto(media=now_bytes),
-            InputMediaPhoto(media=after_bytes)
-        ]
-
-        # Send to all configured chat IDs
-        for chat_id in self.config.chat_ids:
+            # Convert frames to JPEG bytes
             try:
-                await self.application.bot.send_media_group(
-                    chat_id=int(chat_id),
-                    media=media_group
-                )
-                self.logger.info(f"Alert sent to chat_id: {chat_id}")
+                before_bytes = encode_frame_to_bytes(screenshots.before_frame)
+                now_bytes = encode_frame_to_bytes(screenshots.now_frame)
+                after_bytes = encode_frame_to_bytes(screenshots.after_frame)
             except Exception as e:
-                self.logger.error(f"Failed to send alert to chat_id {chat_id}: {e}")
+                self.logger.error(f"Failed to encode frames: {e}")
+                return
+
+            # Create media group (first photo has caption with alert message)
+            media_group = [
+                InputMediaPhoto(media=before_bytes, caption=alert_text, parse_mode="Markdown"),
+                InputMediaPhoto(media=now_bytes),
+                InputMediaPhoto(media=after_bytes)
+            ]
+
+            # Send to all configured chat IDs
+            for chat_id in self.config.chat_ids:
+                try:
+                    await self.application.bot.send_media_group(
+                        chat_id=int(chat_id),
+                        media=media_group
+                    )
+                    self.logger.info(f"Alert sent to chat_id: {chat_id}")
+                except Exception as e:
+                    self.logger.error(f"Failed to send alert to chat_id {chat_id}: {e}")
 
     def _format_alert_message(self, screenshots: Any, analysis: Any) -> str:
         """
