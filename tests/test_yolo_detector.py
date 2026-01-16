@@ -2,6 +2,7 @@
 
 import asyncio
 import sys
+import time
 from unittest.mock import MagicMock, patch, PropertyMock
 
 import cv2
@@ -290,6 +291,30 @@ class TestYoloDetectorDetection:
 
         with pytest.raises(Exception, match="Inference failed"):
             detector.detect(sample_frame)
+
+    @patch('ultralytics.YOLO')
+    def test_inference_performance(self, mock_yolo_class, yolo_config, sample_frame, mock_yolo_model):
+        """Test that inference completes within acceptable time threshold."""
+        mock_yolo_class.return_value = mock_yolo_model
+        detector = YoloDetector(yolo_config)
+
+        # Pre-load the model to exclude initialization time
+        detector.detect(sample_frame)
+
+        # Measure inference time over multiple runs
+        num_runs = 10
+        start_time = time.time()
+        for _ in range(num_runs):
+            detector.detect(sample_frame)
+        end_time = time.time()
+
+        # Calculate average inference time
+        avg_inference_time = (end_time - start_time) / num_runs
+        avg_inference_time_ms = avg_inference_time * 1000
+
+        # Assert inference time is below 500ms
+        assert avg_inference_time_ms < 500, \
+            f"Inference time {avg_inference_time_ms:.2f}ms exceeds 500ms threshold"
 
 
 class TestYoloDetectorAsyncDetection:
