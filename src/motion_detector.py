@@ -1,6 +1,8 @@
 """Motion detection with optimized numpy array reuse."""
 
 import logging
+import queue
+import threading
 from typing import List, Optional, Tuple
 
 import cv2
@@ -52,6 +54,12 @@ class MotionDetector:
         self._skip_count = 0
         self._total_frames = 0
         self._last_cpu_check = 0
+
+        # Threading for camera capture
+        self._frame_queue: queue.Queue = queue.Queue(maxsize=30)
+        self._capture_thread: Optional[threading.Thread] = None
+        self._capture_running = False
+        self._camera: Optional[cv2.VideoCapture] = None
 
         logger.info(
             f"MotionDetector initialized with pre-allocated arrays "
@@ -216,3 +224,144 @@ class MotionDetector:
         """
         skip_percentage = (self._skip_count / self._total_frames * 100) if self._total_frames > 0 else 0
         return self._total_frames, self._skip_count, skip_percentage
+
+    def start_capture_thread(self, camera_index: int = 0) -> bool:
+        """
+        Start background thread for camera capture.
+
+        Args:
+            camera_index: Camera device index (default 0)
+
+        Returns:
+            True if thread started successfully, False otherwise
+        """
+        if self._capture_running:
+            logger.warning("Capture thread already running")
+            return False
+
+        try:
+            # Initialize camera
+            self._camera = cv2.VideoCapture(camera_index)
+            if not self._camera.isOpened():
+                logger.error(f"Failed to open camera {camera_index}")
+                return False
+
+            # Start capture thread
+            self._capture_running = True
+            self._capture_thread = threading.Thread(
+                target=self._capture_worker,
+                daemon=True,
+                name="CameraCapture"
+            )
+            self._capture_thread.start()
+
+            logger.info(f"Camera capture thread started (camera_index={camera_index})")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to start capture thread: {e}")
+            self._capture_running = False
+            if self._camera:
+                self._camera.release()
+                self._camera = None
+            return False
+
+    def stop_capture_thread(self, timeout: float = 5.0) -> None:
+        """
+        Stop background camera capture thread.
+
+        Args:
+            timeout: Maximum seconds to wait for thread to stop
+        """
+        if not self._capture_running:
+            logger.debug("Capture thread not running")
+            return
+
+        logger.info("Stopping camera capture thread...")
+        self._capture_running = False
+
+        # Wait for thread to finish
+        if self._capture_thread and self._capture_thread.is_alive():
+            self._capture_thread.join(timeout=timeout)
+            if self._capture_thread.is_alive():
+                logger.warning("Capture thread did not stop within timeout")
+
+        # Release camera
+        if self._camera:
+            self._camera.release()
+            self._camera = None
+
+        # Clear queue
+        while not self._frame_queue.empty():
+            try:
+                self._frame_queue.get_nowait()
+            except queue.Empty:
+                break
+
+        logger.info("Camera capture thread stopped")
+
+    def _capture_worker(self) -> None:
+        """
+        Worker function for capture thread.
+
+        Continuously reads frames from camera and puts them in queue.
+        """
+        if not self._camera:
+            logger.error("Camera not initialized in capture worker")
+            return
+
+        logger.debug("Capture worker thread started")
+
+        while self._capture_running:
+            try:
+                ret, frame = self._camera.read()
+
+                if not ret:
+                    logger.error("Failed to read frame from camera")
+                    break
+
+                # Put frame in queue (non-blocking, drop if full)
+                try:
+                    self._frame_queue.put_nowait(frame)
+                except queue.Full:
+                    # Drop oldest frame and add new one
+                    try:
+                        self._frame_queue.get_nowait()
+                        self._frame_queue.put_nowait(frame)
+                    except (queue.Empty, queue.Full):
+                        pass
+
+            except Exception as e:
+                logger.error(f"Error in capture worker: {e}")
+                break
+
+        logger.debug("Capture worker thread finished")
+
+    def get_frame(self, timeout: float = 1.0) -> Optional[np.ndarray]:
+        """
+        Get latest frame from capture queue.
+
+        Args:
+            timeout: Maximum seconds to wait for frame
+
+        Returns:
+            Frame from queue, or None if timeout or error
+        """
+        try:
+            return self._frame_queue.get(timeout=timeout)
+        except queue.Empty:
+            logger.debug("Frame queue empty (timeout)")
+            return None
+        except Exception as e:
+            logger.error(f"Error getting frame from queue: {e}")
+            return None
+
+    @property
+    def queue_size(self) -> int:
+        """Get current size of frame queue."""
+        return self._frame_queue.qsize()
+
+    @property
+    def is_capturing(self) -> bool:
+        """Check if capture thread is running."""
+        return self._capture_running
