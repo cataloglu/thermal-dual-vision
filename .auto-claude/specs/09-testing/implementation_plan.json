@@ -186,7 +186,9 @@
             "command": "test -f tests/unit/test_mqtt_client.py && pytest tests/unit/test_mqtt_client.py -v --tb=short | tail -1 | grep -E '(passed|OK)' && echo 'OK'",
             "expected": "OK"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Successfully moved test_mqtt_client.py from tests/ to tests/unit/ using git mv to preserve file history. File verified at new location with 638 lines of content intact.",
+          "updated_at": "2026-01-16T12:41:08.217518+00:00"
         },
         {
           "id": "subtask-3-3",
@@ -441,6 +443,6 @@
   },
   "status": "in_progress",
   "planStatus": "in_progress",
-  "updated_at": "2026-01-16T12:40:04.456Z",
-  "last_updated": "2026-01-16T12:39:46.509871+00:00"
+  "updated_at": "2026-01-16T12:41:22.447Z",
+  "last_updated": "2026-01-16T12:41:08.217534+00:00"
 }
