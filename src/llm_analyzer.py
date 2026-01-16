@@ -17,6 +17,7 @@ from openai import (
 
 from src.config import LLMConfig
 from src.logger import get_logger
+from src.metrics import MetricsCollector
 from src.utils import RateLimiter, encode_frame_to_base64
 
 # Initialize logger
@@ -115,15 +116,21 @@ class AnalysisResult:
 class LLMAnalyzer:
     """LLM Vision Analyzer for analyzing motion detection screenshots."""
 
-    def __init__(self, config: LLMConfig) -> None:
+    def __init__(
+        self,
+        config: LLMConfig,
+        metrics_collector: Optional[MetricsCollector] = None
+    ) -> None:
         """
         Initialize LLM Analyzer.
 
         Args:
             config: LLM configuration with API key, model, and settings
+            metrics_collector: Optional metrics collector for performance tracking
         """
         self.config = config
         self.system_prompt = SYSTEM_PROMPT
+        self.metrics_collector = metrics_collector
 
         # Initialize AsyncOpenAI client
         self.client = AsyncOpenAI(
@@ -261,6 +268,10 @@ class LLMAnalyzer:
             "LLM analysis completed in %.2f seconds",
             processing_time
         )
+
+        # Record metrics if collector is available
+        if self.metrics_collector:
+            self.metrics_collector.record_inference_time(processing_time * 1000)  # Convert to milliseconds
 
         # Create AnalysisResult from parsed response
         return AnalysisResult(
