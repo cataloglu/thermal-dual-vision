@@ -21,7 +21,7 @@ except ImportError:
 
 from .config import TelegramConfig
 from .logger import get_logger
-from .utils import RateLimiter, encode_frame_to_bytes
+from .utils import RateLimiter, encode_frame_to_bytes, retry_async
 
 if TYPE_CHECKING:
     from .llm_analyzer import AnalysisResult, ScreenshotSet
@@ -122,6 +122,7 @@ class TelegramBot:
             self.logger.error(f"Failed to stop Telegram bot: {e}")
             raise
 
+    @retry_async(max_attempts=3, delay=1.0, backoff=2.0)
     async def send_message(self, text: str) -> None:
         """
         Send a text message to all configured chat IDs.
@@ -152,6 +153,7 @@ class TelegramBot:
             except Exception as e:
                 self.logger.error(f"Failed to send message to chat_id {chat_id}: {e}")
 
+    @retry_async(max_attempts=3, delay=1.0, backoff=2.0)
     async def send_alert(self, screenshots: "ScreenshotSet", analysis: "AnalysisResult") -> None:
         """
         Send motion detection alert with message and 3 images as media group.
