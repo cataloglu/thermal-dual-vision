@@ -3,6 +3,8 @@
 from datetime import datetime
 from typing import Optional
 
+import numpy as np
+
 from src.config import Config
 from src.logger import get_logger
 
@@ -222,3 +224,32 @@ class SmartMotionDetector:
         except Exception as e:
             logger.error(f"Error during shutdown: {e}")
             raise
+
+    async def _on_motion_detected(self, frame: np.ndarray, timestamp: datetime) -> None:
+        """
+        Motion detection callback handler.
+
+        Called by MotionDetector when motion is detected. Orchestrates the
+        full event pipeline: YOLO → Screenshots → LLM → Notifications.
+
+        Args:
+            frame: Current frame where motion was detected
+            timestamp: Time of motion detection
+        """
+        # Check if system is armed
+        if not self._armed:
+            logger.debug(f"Motion detected at {timestamp.isoformat()}, but system is disarmed - ignoring")
+            return
+
+        logger.info(f"Motion detected at {timestamp.isoformat()}, starting event pipeline")
+
+        # Update last detection time
+        self._last_detection_time = timestamp
+
+        # TODO: Implement full event pipeline (subtask-3-2):
+        # 1. Run YOLO detection on frame
+        # 2. Capture screenshots (before + now)
+        # 3. Wait for after_seconds
+        # 4. Capture after screenshot
+        # 5. Run LLM analysis
+        # 6. Publish to MQTT and send to Telegram (parallel)
