@@ -49,7 +49,65 @@ class MQTTClient:
 
         Establishes connection with configured broker and sets up Last Will Testament.
         """
-        raise NotImplementedError("connect() will be implemented in subtask-1-2")
+        if aiomqtt is None:
+            logger.error("asyncio-mqtt is not installed. Install with: pip install asyncio-mqtt")
+            raise RuntimeError("asyncio-mqtt is not installed")
+
+        if self._connected:
+            logger.warning("Already connected to MQTT broker")
+            return
+
+        try:
+            logger.info(f"Connecting to MQTT broker at {self.config.host}:{self.config.port}")
+
+            # Create LWT (Last Will Testament) for unavailable state
+            availability_topic = f"{self.config.topic_prefix}/availability"
+            will_message = aiomqtt.Will(
+                topic=availability_topic,
+                payload="offline",
+                qos=self.config.qos,
+                retain=True
+            )
+
+            # Create client with connection parameters
+            self._client = aiomqtt.Client(
+                hostname=self.config.host,
+                port=self.config.port,
+                username=self.config.username if self.config.username else None,
+                password=self.config.password if self.config.password else None,
+                will=will_message
+            )
+
+            # Connect to broker
+            await self._client.__aenter__()
+
+            # Update connection state
+            self._connected = True
+            logger.info("Successfully connected to MQTT broker")
+
+            # Publish online availability status
+            await self._client.publish(
+                availability_topic,
+                payload="online",
+                qos=self.config.qos,
+                retain=True
+            )
+
+            # Trigger on_connect callbacks
+            for callback in self._on_connect_callbacks:
+                try:
+                    if asyncio.iscoroutinefunction(callback):
+                        await callback()
+                    else:
+                        callback()
+                except Exception as e:
+                    logger.error(f"Error in on_connect callback: {e}")
+
+        except Exception as e:
+            logger.error(f"Failed to connect to MQTT broker: {e}")
+            self._connected = False
+            self._client = None
+            raise
 
     async def disconnect(self) -> None:
         """
@@ -57,7 +115,60 @@ class MQTTClient:
 
         Cleanly closes connection and cancels reconnection attempts.
         """
-        raise NotImplementedError("disconnect() will be implemented in subtask-1-2")
+        if not self._connected:
+            logger.debug("Already disconnected from MQTT broker")
+            return
+
+        try:
+            # Cancel any ongoing reconnection attempts
+            if self._reconnect_task and not self._reconnect_task.done():
+                logger.debug("Cancelling reconnect task")
+                self._reconnect_task.cancel()
+                try:
+                    await self._reconnect_task
+                except asyncio.CancelledError:
+                    pass
+                self._reconnect_task = None
+
+            # Publish offline status before disconnecting
+            if self._client:
+                try:
+                    availability_topic = f"{self.config.topic_prefix}/availability"
+                    await self._client.publish(
+                        availability_topic,
+                        payload="offline",
+                        qos=self.config.qos,
+                        retain=True
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to publish offline status: {e}")
+
+                # Disconnect from broker
+                try:
+                    await self._client.__aexit__(None, None, None)
+                except Exception as e:
+                    logger.warning(f"Error during client disconnect: {e}")
+
+            # Update connection state
+            self._connected = False
+            self._client = None
+            logger.info("Disconnected from MQTT broker")
+
+            # Trigger on_disconnect callbacks
+            for callback in self._on_disconnect_callbacks:
+                try:
+                    if asyncio.iscoroutinefunction(callback):
+                        await callback()
+                    else:
+                        callback()
+                except Exception as e:
+                    logger.error(f"Error in on_disconnect callback: {e}")
+
+        except Exception as e:
+            logger.error(f"Error during disconnect: {e}")
+            self._connected = False
+            self._client = None
+            raise
 
     async def publish_discovery(self) -> None:
         """
