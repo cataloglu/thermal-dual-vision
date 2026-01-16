@@ -559,3 +559,617 @@ class TestLLMAnalyzerRetry:
 
         # Should only be called once (no retries)
         assert mock_client.chat.completions.create.call_count == 1
+
+
+class TestLLMAnalyzerEdgeCases:
+    """Tests for LLMAnalyzer edge cases."""
+
+    @pytest.mark.asyncio
+    @patch("src.llm_analyzer.encode_frame_to_base64")
+    @patch("src.llm_analyzer.AsyncOpenAI")
+    async def test_empty_response_content(
+        self,
+        mock_openai_class,
+        mock_encode,
+        llm_config,
+        sample_screenshot_set
+    ):
+        """Test handling of empty response content from LLM."""
+        mock_encode.return_value = "base64encodedimage"
+
+        mock_message = MagicMock()
+        mock_message.content = ""  # Empty string response
+
+        mock_choice = MagicMock()
+        mock_choice.message = mock_message
+
+        mock_response = MagicMock()
+        mock_response.choices = [mock_choice]
+
+        mock_client = AsyncMock()
+        mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+        mock_openai_class.return_value = mock_client
+
+        analyzer = LLMAnalyzer(llm_config)
+
+        # Empty string gets converted to "{}" in the code (line 244)
+        # json.loads("{}") returns an empty dict, so defaults are used
+        result = await analyzer.analyze(sample_screenshot_set)
+
+        # All fields should have default values
+        assert result.gercek_hareket is False
+        assert result.guven_skoru == 0.0
+        assert result.degisiklik_aciklamasi == ""
+        assert result.tespit_edilen_nesneler == []
+        assert result.tehdit_seviyesi == "yok"
+        assert result.onerilen_aksiyon == ""
+        assert result.detayli_analiz == ""
+
+    @pytest.mark.asyncio
+    @patch("src.llm_analyzer.encode_frame_to_base64")
+    @patch("src.llm_analyzer.AsyncOpenAI")
+    async def test_none_response_content(
+        self,
+        mock_openai_class,
+        mock_encode,
+        llm_config,
+        sample_screenshot_set
+    ):
+        """Test handling of None response content from LLM."""
+        mock_encode.return_value = "base64encodedimage"
+
+        mock_message = MagicMock()
+        mock_message.content = None  # None response
+
+        mock_choice = MagicMock()
+        mock_choice.message = mock_message
+
+        mock_response = MagicMock()
+        mock_response.choices = [mock_choice]
+
+        mock_client = AsyncMock()
+        mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+        mock_openai_class.return_value = mock_client
+
+        analyzer = LLMAnalyzer(llm_config)
+
+        # None gets converted to "{}" in the code (line 244)
+        result = await analyzer.analyze(sample_screenshot_set)
+
+        # All fields should have default values
+        assert result.gercek_hareket is False
+        assert result.guven_skoru == 0.0
+        assert result.degisiklik_aciklamasi == ""
+        assert result.tespit_edilen_nesneler == []
+
+    @pytest.mark.asyncio
+    @patch("src.llm_analyzer.encode_frame_to_base64")
+    @patch("src.llm_analyzer.AsyncOpenAI")
+    async def test_malformed_json_truncated(
+        self,
+        mock_openai_class,
+        mock_encode,
+        llm_config,
+        sample_screenshot_set
+    ):
+        """Test JSONParseError for truncated JSON response."""
+        mock_encode.return_value = "base64encodedimage"
+
+        mock_message = MagicMock()
+        mock_message.content = '{"gercek_hareket": true, "guven_skoru":'  # Truncated
+
+        mock_choice = MagicMock()
+        mock_choice.message = mock_message
+
+        mock_response = MagicMock()
+        mock_response.choices = [mock_choice]
+
+        mock_client = AsyncMock()
+        mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+        mock_openai_class.return_value = mock_client
+
+        analyzer = LLMAnalyzer(llm_config)
+
+        with pytest.raises(JSONParseError) as exc_info:
+            await analyzer.analyze(sample_screenshot_set)
+
+        assert "gercek_hareket" in exc_info.value.response_text
+
+    @pytest.mark.asyncio
+    @patch("src.llm_analyzer.encode_frame_to_base64")
+    @patch("src.llm_analyzer.AsyncOpenAI")
+    async def test_malformed_json_with_markdown(
+        self,
+        mock_openai_class,
+        mock_encode,
+        llm_config,
+        sample_screenshot_set
+    ):
+        """Test JSONParseError when LLM wraps JSON in markdown code block."""
+        mock_encode.return_value = "base64encodedimage"
+
+        mock_message = MagicMock()
+        # Sometimes LLMs wrap JSON in markdown code blocks
+        mock_message.content = '```json\n{"gercek_hareket": true}\n```'
+
+        mock_choice = MagicMock()
+        mock_choice.message = mock_message
+
+        mock_response = MagicMock()
+        mock_response.choices = [mock_choice]
+
+        mock_client = AsyncMock()
+        mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+        mock_openai_class.return_value = mock_client
+
+        analyzer = LLMAnalyzer(llm_config)
+
+        with pytest.raises(JSONParseError) as exc_info:
+            await analyzer.analyze(sample_screenshot_set)
+
+        assert "```json" in exc_info.value.response_text
+
+    @pytest.mark.asyncio
+    @patch("src.llm_analyzer.encode_frame_to_base64")
+    @patch("src.llm_analyzer.AsyncOpenAI")
+    async def test_malformed_json_extra_text(
+        self,
+        mock_openai_class,
+        mock_encode,
+        llm_config,
+        sample_screenshot_set
+    ):
+        """Test JSONParseError when LLM adds extra text before JSON."""
+        mock_encode.return_value = "base64encodedimage"
+
+        mock_message = MagicMock()
+        mock_message.content = 'Here is my analysis:\n{"gercek_hareket": true}'
+
+        mock_choice = MagicMock()
+        mock_choice.message = mock_message
+
+        mock_response = MagicMock()
+        mock_response.choices = [mock_choice]
+
+        mock_client = AsyncMock()
+        mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+        mock_openai_class.return_value = mock_client
+
+        analyzer = LLMAnalyzer(llm_config)
+
+        with pytest.raises(JSONParseError) as exc_info:
+            await analyzer.analyze(sample_screenshot_set)
+
+        assert "Here is my analysis" in exc_info.value.response_text
+
+    @pytest.mark.asyncio
+    @patch("src.llm_analyzer.encode_frame_to_base64")
+    @patch("src.llm_analyzer.AsyncOpenAI")
+    async def test_missing_all_required_fields(
+        self,
+        mock_openai_class,
+        mock_encode,
+        llm_config,
+        sample_screenshot_set
+    ):
+        """Test handling when all required fields are missing."""
+        mock_encode.return_value = "base64encodedimage"
+
+        mock_message = MagicMock()
+        mock_message.content = '{"extra_field": "unexpected"}'
+
+        mock_choice = MagicMock()
+        mock_choice.message = mock_message
+
+        mock_response = MagicMock()
+        mock_response.choices = [mock_choice]
+
+        mock_client = AsyncMock()
+        mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+        mock_openai_class.return_value = mock_client
+
+        analyzer = LLMAnalyzer(llm_config)
+        result = await analyzer.analyze(sample_screenshot_set)
+
+        # Should use defaults for all missing fields
+        assert result.gercek_hareket is False
+        assert result.guven_skoru == 0.0
+        assert result.degisiklik_aciklamasi == ""
+        assert result.tespit_edilen_nesneler == []
+        assert result.tehdit_seviyesi == "yok"
+        assert result.onerilen_aksiyon == ""
+        assert result.detayli_analiz == ""
+        assert result.raw_response == {"extra_field": "unexpected"}
+
+    @pytest.mark.asyncio
+    @patch("src.llm_analyzer.encode_frame_to_base64")
+    @patch("src.llm_analyzer.AsyncOpenAI")
+    async def test_missing_some_required_fields(
+        self,
+        mock_openai_class,
+        mock_encode,
+        llm_config,
+        sample_screenshot_set
+    ):
+        """Test handling when some required fields are missing."""
+        mock_encode.return_value = "base64encodedimage"
+
+        partial_response = {
+            "gercek_hareket": True,
+            "guven_skoru": 0.7,
+            # Missing: degisiklik_aciklamasi, tespit_edilen_nesneler,
+            # tehdit_seviyesi, onerilen_aksiyon, detayli_analiz
+        }
+
+        mock_message = MagicMock()
+        mock_message.content = json.dumps(partial_response)
+
+        mock_choice = MagicMock()
+        mock_choice.message = mock_message
+
+        mock_response = MagicMock()
+        mock_response.choices = [mock_choice]
+
+        mock_client = AsyncMock()
+        mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+        mock_openai_class.return_value = mock_client
+
+        analyzer = LLMAnalyzer(llm_config)
+        result = await analyzer.analyze(sample_screenshot_set)
+
+        # Provided fields should be used
+        assert result.gercek_hareket is True
+        assert result.guven_skoru == 0.7
+        # Missing fields should use defaults
+        assert result.degisiklik_aciklamasi == ""
+        assert result.tespit_edilen_nesneler == []
+        assert result.tehdit_seviyesi == "yok"
+        assert result.onerilen_aksiyon == ""
+        assert result.detayli_analiz == ""
+
+    @pytest.mark.asyncio
+    @patch("src.llm_analyzer.encode_frame_to_base64")
+    @patch("src.llm_analyzer.AsyncOpenAI")
+    async def test_wrong_field_types_guven_skoru_raises(
+        self,
+        mock_openai_class,
+        mock_encode,
+        llm_config,
+        sample_screenshot_set
+    ):
+        """Test ValueError is raised when guven_skoru has wrong type."""
+        mock_encode.return_value = "base64encodedimage"
+
+        # guven_skoru should be float but is string "high"
+        wrong_types_response = {
+            "gercek_hareket": True,
+            "guven_skoru": "high",  # Should be float - this will raise ValueError
+        }
+
+        mock_message = MagicMock()
+        mock_message.content = json.dumps(wrong_types_response)
+
+        mock_choice = MagicMock()
+        mock_choice.message = mock_message
+
+        mock_response = MagicMock()
+        mock_response.choices = [mock_choice]
+
+        mock_client = AsyncMock()
+        mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+        mock_openai_class.return_value = mock_client
+
+        analyzer = LLMAnalyzer(llm_config)
+
+        # float("high") raises ValueError
+        with pytest.raises(ValueError):
+            await analyzer.analyze(sample_screenshot_set)
+
+    @pytest.mark.asyncio
+    @patch("src.llm_analyzer.encode_frame_to_base64")
+    @patch("src.llm_analyzer.AsyncOpenAI")
+    async def test_wrong_field_types_string_for_bool(
+        self,
+        mock_openai_class,
+        mock_encode,
+        llm_config,
+        sample_screenshot_set
+    ):
+        """Test handling when gercek_hareket is string instead of bool."""
+        mock_encode.return_value = "base64encodedimage"
+
+        # gercek_hareket should be bool but is string "yes"
+        wrong_types_response = {
+            "gercek_hareket": "yes",  # Should be bool
+            "guven_skoru": 0.8,
+        }
+
+        mock_message = MagicMock()
+        mock_message.content = json.dumps(wrong_types_response)
+
+        mock_choice = MagicMock()
+        mock_choice.message = mock_message
+
+        mock_response = MagicMock()
+        mock_response.choices = [mock_choice]
+
+        mock_client = AsyncMock()
+        mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+        mock_openai_class.return_value = mock_client
+
+        analyzer = LLMAnalyzer(llm_config)
+
+        # The code doesn't validate types strictly - it just uses the values
+        # "yes" is truthy string, assigned as-is
+        result = await analyzer.analyze(sample_screenshot_set)
+        assert result.gercek_hareket == "yes"
+
+    @pytest.mark.asyncio
+    @patch("src.llm_analyzer.encode_frame_to_base64")
+    @patch("src.llm_analyzer.AsyncOpenAI")
+    async def test_wrong_field_types_string_for_list(
+        self,
+        mock_openai_class,
+        mock_encode,
+        llm_config,
+        sample_screenshot_set
+    ):
+        """Test handling when tespit_edilen_nesneler is string instead of list."""
+        mock_encode.return_value = "base64encodedimage"
+
+        # tespit_edilen_nesneler should be list but is string
+        wrong_types_response = {
+            "gercek_hareket": True,
+            "guven_skoru": 0.8,
+            "tespit_edilen_nesneler": "insan, köpek",  # Should be list
+        }
+
+        mock_message = MagicMock()
+        mock_message.content = json.dumps(wrong_types_response)
+
+        mock_choice = MagicMock()
+        mock_choice.message = mock_message
+
+        mock_response = MagicMock()
+        mock_response.choices = [mock_choice]
+
+        mock_client = AsyncMock()
+        mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+        mock_openai_class.return_value = mock_client
+
+        analyzer = LLMAnalyzer(llm_config)
+
+        # The code doesn't validate types - string is assigned as-is
+        result = await analyzer.analyze(sample_screenshot_set)
+        assert result.tespit_edilen_nesneler == "insan, köpek"
+
+    @pytest.mark.asyncio
+    @patch("src.llm_analyzer.encode_frame_to_base64")
+    @patch("src.llm_analyzer.AsyncOpenAI")
+    async def test_turkish_characters_in_response(
+        self,
+        mock_openai_class,
+        mock_encode,
+        llm_config,
+        sample_screenshot_set
+    ):
+        """Test handling of Turkish special characters in response."""
+        mock_encode.return_value = "base64encodedimage"
+
+        # Response with various Turkish special characters
+        turkish_response = {
+            "gercek_hareket": True,
+            "guven_skoru": 0.95,
+            "degisiklik_aciklamasi": "Şüpheli bir kişi görüntüye girdi",
+            "tespit_edilen_nesneler": ["insan", "çanta", "şapka", "ğ", "ü", "ö", "ı"],
+            "tehdit_seviyesi": "düşük",  # Note: using ü instead of u
+            "onerilen_aksiyon": "İzlemeye devam edin, şüpheli aktiviteyi takip edin",
+            "detayli_analiz": "Görüntülerde şüpheli bir şahıs tespit edildi. Üzerinde siyah çanta ve şapka var. İlerleyen görüntülerde şahsın bahçeden çıktığı görülmektedir."
+        }
+
+        mock_message = MagicMock()
+        mock_message.content = json.dumps(turkish_response, ensure_ascii=False)
+
+        mock_choice = MagicMock()
+        mock_choice.message = mock_message
+
+        mock_response = MagicMock()
+        mock_response.choices = [mock_choice]
+
+        mock_client = AsyncMock()
+        mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+        mock_openai_class.return_value = mock_client
+
+        analyzer = LLMAnalyzer(llm_config)
+        result = await analyzer.analyze(sample_screenshot_set)
+
+        # Verify Turkish characters are preserved correctly
+        assert result.gercek_hareket is True
+        assert result.guven_skoru == 0.95
+        assert "Şüpheli" in result.degisiklik_aciklamasi
+        assert "çanta" in result.tespit_edilen_nesneler
+        assert "şapka" in result.tespit_edilen_nesneler
+        assert "ğ" in result.tespit_edilen_nesneler
+        assert "ü" in result.tespit_edilen_nesneler
+        assert "ö" in result.tespit_edilen_nesneler
+        assert "ı" in result.tespit_edilen_nesneler
+        assert "İzleme" in result.onerilen_aksiyon
+        assert "şüpheli" in result.onerilen_aksiyon
+        assert "şahıs" in result.detayli_analiz
+        assert "Üzerinde" in result.detayli_analiz
+
+    @pytest.mark.asyncio
+    @patch("src.llm_analyzer.encode_frame_to_base64")
+    @patch("src.llm_analyzer.AsyncOpenAI")
+    async def test_turkish_characters_unicode_escaped(
+        self,
+        mock_openai_class,
+        mock_encode,
+        llm_config,
+        sample_screenshot_set
+    ):
+        """Test handling of unicode-escaped Turkish characters."""
+        mock_encode.return_value = "base64encodedimage"
+
+        # Response with Turkish characters as unicode escapes
+        turkish_response = {
+            "gercek_hareket": True,
+            "guven_skoru": 0.8,
+            "degisiklik_aciklamasi": "Bir ki\u015fi g\u00f6r\u00fcnt\u00fcye girdi",  # kişi görüntüye
+            "tespit_edilen_nesneler": ["insan", "\u00e7anta"],  # çanta
+            "tehdit_seviyesi": "d\u00fc\u015f\u00fck",  # düşük
+            "onerilen_aksiyon": "\u0130zlemeye devam et",  # İzlemeye
+            "detayli_analiz": "G\u00f6r\u00fcnt\u00fclerde de\u011fi\u015fiklik var"  # Görüntülerde değişiklik
+        }
+
+        mock_message = MagicMock()
+        # Use ensure_ascii=True to keep unicode escapes
+        mock_message.content = json.dumps(turkish_response, ensure_ascii=True)
+
+        mock_choice = MagicMock()
+        mock_choice.message = mock_message
+
+        mock_response = MagicMock()
+        mock_response.choices = [mock_choice]
+
+        mock_client = AsyncMock()
+        mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+        mock_openai_class.return_value = mock_client
+
+        analyzer = LLMAnalyzer(llm_config)
+        result = await analyzer.analyze(sample_screenshot_set)
+
+        # JSON parsing should correctly decode unicode escapes
+        assert "kişi" in result.degisiklik_aciklamasi
+        assert "görüntüye" in result.degisiklik_aciklamasi
+        assert "çanta" in result.tespit_edilen_nesneler
+        assert result.tehdit_seviyesi == "düşük"
+        assert "İzleme" in result.onerilen_aksiyon
+        assert "Görüntülerde" in result.detayli_analiz
+        assert "değişiklik" in result.detayli_analiz
+
+    @pytest.mark.asyncio
+    @patch("src.llm_analyzer.encode_frame_to_base64")
+    @patch("src.llm_analyzer.AsyncOpenAI")
+    async def test_empty_objects_list(
+        self,
+        mock_openai_class,
+        mock_encode,
+        llm_config,
+        sample_screenshot_set
+    ):
+        """Test handling when tespit_edilen_nesneler is empty list."""
+        mock_encode.return_value = "base64encodedimage"
+
+        response_with_empty_list = {
+            "gercek_hareket": False,
+            "guven_skoru": 0.99,
+            "degisiklik_aciklamasi": "Hiçbir değişiklik yok",
+            "tespit_edilen_nesneler": [],
+            "tehdit_seviyesi": "yok",
+            "onerilen_aksiyon": "Bekle",
+            "detayli_analiz": "Sahnede herhangi bir hareket tespit edilmedi."
+        }
+
+        mock_message = MagicMock()
+        mock_message.content = json.dumps(response_with_empty_list)
+
+        mock_choice = MagicMock()
+        mock_choice.message = mock_message
+
+        mock_response = MagicMock()
+        mock_response.choices = [mock_choice]
+
+        mock_client = AsyncMock()
+        mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+        mock_openai_class.return_value = mock_client
+
+        analyzer = LLMAnalyzer(llm_config)
+        result = await analyzer.analyze(sample_screenshot_set)
+
+        assert result.gercek_hareket is False
+        assert result.tespit_edilen_nesneler == []
+        assert len(result.tespit_edilen_nesneler) == 0
+
+    @pytest.mark.asyncio
+    @patch("src.llm_analyzer.encode_frame_to_base64")
+    @patch("src.llm_analyzer.AsyncOpenAI")
+    async def test_guven_skoru_boundary_values(
+        self,
+        mock_openai_class,
+        mock_encode,
+        llm_config,
+        sample_screenshot_set
+    ):
+        """Test guven_skoru with boundary values 0.0 and 1.0."""
+        mock_encode.return_value = "base64encodedimage"
+
+        # Test with exactly 0.0
+        response_zero = {
+            "gercek_hareket": False,
+            "guven_skoru": 0.0,
+            "degisiklik_aciklamasi": "",
+            "tespit_edilen_nesneler": [],
+            "tehdit_seviyesi": "yok",
+            "onerilen_aksiyon": "",
+            "detayli_analiz": ""
+        }
+
+        mock_message = MagicMock()
+        mock_message.content = json.dumps(response_zero)
+
+        mock_choice = MagicMock()
+        mock_choice.message = mock_message
+
+        mock_response = MagicMock()
+        mock_response.choices = [mock_choice]
+
+        mock_client = AsyncMock()
+        mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+        mock_openai_class.return_value = mock_client
+
+        analyzer = LLMAnalyzer(llm_config)
+        result = await analyzer.analyze(sample_screenshot_set)
+
+        assert result.guven_skoru == 0.0
+
+    @pytest.mark.asyncio
+    @patch("src.llm_analyzer.encode_frame_to_base64")
+    @patch("src.llm_analyzer.AsyncOpenAI")
+    async def test_guven_skoru_max_value(
+        self,
+        mock_openai_class,
+        mock_encode,
+        llm_config,
+        sample_screenshot_set
+    ):
+        """Test guven_skoru with maximum value 1.0."""
+        mock_encode.return_value = "base64encodedimage"
+
+        response_max = {
+            "gercek_hareket": True,
+            "guven_skoru": 1.0,
+            "degisiklik_aciklamasi": "Kesin hareket",
+            "tespit_edilen_nesneler": ["insan"],
+            "tehdit_seviyesi": "yuksek",
+            "onerilen_aksiyon": "Alarm ver",
+            "detayli_analiz": "Çok net bir hareket tespit edildi."
+        }
+
+        mock_message = MagicMock()
+        mock_message.content = json.dumps(response_max)
+
+        mock_choice = MagicMock()
+        mock_choice.message = mock_message
+
+        mock_response = MagicMock()
+        mock_response.choices = [mock_choice]
+
+        mock_client = AsyncMock()
+        mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+        mock_openai_class.return_value = mock_client
+
+        analyzer = LLMAnalyzer(llm_config)
+        result = await analyzer.analyze(sample_screenshot_set)
+
+        assert result.guven_skoru == 1.0
