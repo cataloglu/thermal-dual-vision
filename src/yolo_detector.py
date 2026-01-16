@@ -68,6 +68,16 @@ class YoloDetector:
             logger.error(f"Failed to load YOLO model: {e}")
             raise
 
+    def set_classes(self, classes: Optional[List[str]]) -> None:
+        """
+        Update the list of classes to detect dynamically.
+
+        Args:
+            classes: List of class names to detect, or None to detect all classes
+        """
+        self.config.classes = classes
+        logger.info(f"Updated detection classes to: {classes}")
+
     def detect(self, frame: np.ndarray) -> List[Detection]:
         """
         Detect objects in the given frame.
