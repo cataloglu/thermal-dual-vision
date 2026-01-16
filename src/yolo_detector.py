@@ -67,3 +67,63 @@ class YoloDetector:
         except Exception as e:
             logger.error(f"Failed to load YOLO model: {e}")
             raise
+
+    def detect(self, frame: np.ndarray) -> List[Detection]:
+        """
+        Detect objects in the given frame.
+
+        Args:
+            frame: Input image as numpy array (BGR format)
+
+        Returns:
+            List of Detection objects containing detected objects
+
+        Raises:
+            Exception: If model loading or inference fails
+        """
+        # Ensure model is loaded
+        self._load_model()
+
+        try:
+            # Run inference
+            results = self._model(frame, verbose=False)
+
+            detections = []
+
+            # Process results
+            if len(results) > 0:
+                result = results[0]
+
+                # Extract boxes, confidences, and class IDs
+                if result.boxes is not None and len(result.boxes) > 0:
+                    boxes = result.boxes.xyxy.cpu().numpy()  # x1, y1, x2, y2
+                    confidences = result.boxes.conf.cpu().numpy()
+                    class_ids = result.boxes.cls.cpu().numpy().astype(int)
+
+                    for box, conf, class_id in zip(boxes, confidences, class_ids):
+                        # Filter by confidence threshold
+                        if conf < self.config.confidence:
+                            continue
+
+                        # Get class name
+                        class_name = self._class_names[class_id]
+
+                        # Filter by allowed classes if specified
+                        if self.config.classes and class_name not in self.config.classes:
+                            continue
+
+                        # Create Detection object
+                        detection = Detection(
+                            class_name=class_name,
+                            confidence=float(conf),
+                            bbox=(int(box[0]), int(box[1]), int(box[2]), int(box[3])),
+                            class_id=class_id
+                        )
+                        detections.append(detection)
+
+            logger.debug(f"Detected {len(detections)} objects in frame")
+            return detections
+
+        except Exception as e:
+            logger.error(f"Detection failed: {e}")
+            raise
