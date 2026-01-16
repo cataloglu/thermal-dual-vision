@@ -109,3 +109,22 @@ class TelegramBot:
             self.logger.warning(f"Unauthorized access attempt from chat_id: {chat_id}")
 
         return is_authorized
+
+    def _handle_help(self) -> str:
+        """
+        Generate formatted help message with all available bot commands.
+
+        Returns:
+            Formatted help text with command descriptions
+        """
+        help_text = (
+            "🤖 *Smart Motion Detector Bot*\n\n"
+            "📋 *Kullanılabilir Komutlar:*\n\n"
+            "/status - Sistem durumu (armed, son algılama, uptime)\n"
+            "/arm - Hareket algılamayı aktif et\n"
+            "/disarm - Hareket algılamayı pasif et\n"
+            "/snapshot - Anlık görüntü al ve gönder\n"
+            "/help - Bu yardım mesajını göster\n\n"
+            "💡 Bot sadece yetkili chat ID'ler tarafından kullanılabilir."
+        )
+        return help_text
