@@ -59,8 +59,9 @@
             "command": "test -f rootfs/etc/cont-init.d/01-init.sh && test -x rootfs/etc/cont-init.d/01-init.sh && echo 'OK'",
             "expected": "OK"
           },
-          "status": "pending",
-          "notes": "Init script validates config and prepares environment. Uses bashio for HA config reading."
+          "status": "completed",
+          "notes": "Created container init script at rootfs/etc/cont-init.d/01-init.sh with bashio logging, directory setup, permission handling, prerequisite validation, and MQTT service checking. Script follows patterns from run.sh and is executable. Verification passed.",
+          "updated_at": "2026-01-16T13:25:43.213406+00:00"
         },
         {
           "id": "subtask-2-2",
@@ -375,6 +376,6 @@
   "qa_signoff": null,
   "status": "in_progress",
   "planStatus": "in_progress",
-  "updated_at": "2026-01-16T13:24:57.631Z",
-  "last_updated": "2026-01-16T13:24:39.672700+00:00"
+  "updated_at": "2026-01-16T13:25:58.066Z",
+  "last_updated": "2026-01-16T13:25:43.213422+00:00"
 }

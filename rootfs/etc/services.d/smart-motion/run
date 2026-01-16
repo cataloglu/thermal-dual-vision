@@ -1,0 +1,10 @@
+#!/usr/bin/with-contenv bashio
+# ==============================================================================
+# Home Assistant Add-on: Smart Motion Detector
+# S6-Overlay service run script
+# ==============================================================================
+
+bashio::log.info "Starting Smart Motion Detector service..."
+
+# Execute the main run script
+exec /run.sh
