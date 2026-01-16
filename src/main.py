@@ -1,5 +1,6 @@
 """Main application orchestrator for Smart Motion Detector."""
 
+import asyncio
 from datetime import datetime
 from typing import Optional
 
@@ -246,10 +247,124 @@ class SmartMotionDetector:
         # Update last detection time
         self._last_detection_time = timestamp
 
-        # TODO: Implement full event pipeline (subtask-3-2):
-        # 1. Run YOLO detection on frame
-        # 2. Capture screenshots (before + now)
-        # 3. Wait for after_seconds
-        # 4. Capture after screenshot
-        # 5. Run LLM analysis
-        # 6. Publish to MQTT and send to Telegram (parallel)
+        try:
+            # Step 1: YOLO Detection (if available)
+            yolo_detections = None
+            if self.yolo_detector:
+                try:
+                    yolo_detections = self.yolo_detector.detect(frame)
+                    logger.info(f"YOLO detection completed: {len(yolo_detections)} objects detected")
+                except Exception as e:
+                    logger.error(f"YOLO detection failed: {e}")
+            else:
+                logger.debug("YOLO detector not available, skipping detection")
+
+            # Step 2: Screenshot Capture (before + now)
+            # For now, we'll use the current frame for both before and now
+            # until ScreenshotManager is implemented with buffering
+            before_frame = frame.copy()
+            now_frame = frame.copy()
+
+            logger.debug("Screenshots captured (before + now)")
+
+            # Step 3: Wait for after_seconds
+            after_seconds = self.config.screenshots.after_seconds
+            logger.debug(f"Waiting {after_seconds} seconds for 'after' screenshot")
+            await asyncio.sleep(after_seconds)
+
+            # Step 4: Screenshot Capture (after)
+            # For now, we'll use the same frame until camera integration is complete
+            # In production, this would capture a new frame from the camera
+            after_frame = frame.copy()
+            logger.debug("After screenshot captured")
+
+            # Step 5: Create ScreenshotSet for LLM analysis
+            if LLMAnalyzer:
+                # Import ScreenshotSet from llm_analyzer
+                from src.llm_analyzer import ScreenshotSet
+
+                screenshots = ScreenshotSet(
+                    before=before_frame,
+                    now=now_frame,
+                    after=after_frame,
+                    timestamp=timestamp
+                )
+                logger.debug("ScreenshotSet created")
+            else:
+                logger.warning("LLMAnalyzer not available, cannot create ScreenshotSet")
+                screenshots = None
+
+            # Step 6: LLM Analysis
+            analysis = None
+            if self.llm_analyzer and screenshots:
+                try:
+                    logger.info("Starting LLM analysis")
+                    analysis = await self.llm_analyzer.analyze(screenshots)
+                    logger.info(
+                        f"LLM analysis completed: gercek_hareket={analysis.gercek_hareket}, "
+                        f"guven_skoru={analysis.guven_skoru:.2f}, "
+                        f"tehdit_seviyesi={analysis.tehdit_seviyesi}"
+                    )
+                except Exception as e:
+                    logger.error(f"LLM analysis failed: {e}")
+            else:
+                if not self.llm_analyzer:
+                    logger.debug("LLM analyzer not available, skipping analysis")
+
+            # Step 7: Parallel MQTT publish and Telegram send
+            notification_tasks = []
+
+            # MQTT publish (if connected)
+            if self.mqtt_client and self.mqtt_client.is_connected:
+                try:
+                    mqtt_task = self.mqtt_client.publish_motion(
+                        detected=True,
+                        analysis=analysis
+                    )
+                    notification_tasks.append(mqtt_task)
+                    logger.debug("MQTT publish task scheduled")
+                except Exception as e:
+                    logger.error(f"Failed to schedule MQTT publish: {e}")
+            else:
+                logger.debug("MQTT client not connected, skipping publish")
+
+            # Telegram alert (if available and analysis succeeded)
+            if self.telegram_bot and analysis and screenshots:
+                try:
+                    telegram_task = self.telegram_bot.send_alert(
+                        screenshots=screenshots,
+                        analysis=analysis
+                    )
+                    notification_tasks.append(telegram_task)
+                    logger.debug("Telegram alert task scheduled")
+                except Exception as e:
+                    logger.error(f"Failed to schedule Telegram alert: {e}")
+            else:
+                if not self.telegram_bot:
+                    logger.debug("Telegram bot not available, skipping alert")
+                elif not analysis:
+                    logger.debug("No analysis result, skipping Telegram alert")
+
+            # Execute notification tasks in parallel
+            if notification_tasks:
+                try:
+                    logger.info(f"Executing {len(notification_tasks)} notification tasks in parallel")
+                    results = await asyncio.gather(*notification_tasks, return_exceptions=True)
+
+                    # Log results
+                    for idx, result in enumerate(results):
+                        if isinstance(result, Exception):
+                            logger.error(f"Notification task {idx} failed: {result}")
+                        else:
+                            logger.debug(f"Notification task {idx} completed successfully")
+
+                    logger.info("All notification tasks completed")
+                except Exception as e:
+                    logger.error(f"Error executing notification tasks: {e}")
+            else:
+                logger.debug("No notification tasks to execute")
+
+            logger.info(f"Event pipeline completed for detection at {timestamp.isoformat()}")
+
+        except Exception as e:
+            logger.error(f"Error in event pipeline: {e}", exc_info=True)
