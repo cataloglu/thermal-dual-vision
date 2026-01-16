@@ -1,15 +1,45 @@
 {
-  "task_description": "OpenAI GPT-4 Vision ile görüntü analizi",
+  "task_description": "OpenAI GPT-4 Vision ile görüntü analizi - 3 ekran görüntüsünü karşılaştırmalı analiz",
   "files_to_create": [
-    "src/llm_analyzer.py"
+    "src/llm_analyzer.py",
+    "tests/test_llm_analyzer.py"
   ],
   "files_to_modify": [],
   "files_to_reference": [
     "src/config.py",
     "src/logger.py",
     "src/utils.py",
-    "src/screenshot_manager.py",
     ".auto-claude/test_data/LLM_PROMPTS.md"
   ],
-  "scoped_services": ["llm"]
+  "scoped_services": ["backend"],
+  "patterns": {
+    "config_pattern": "Dataclass configuration - LLMConfig already defined in src/config.py with api_key, model, max_tokens, timeout fields",
+    "logger_pattern": "Use get_logger('llm_analyzer') from src/logger.py for child logger",
+    "utils_pattern": "Use RateLimiter and retry_async from src/utils.py, encode_frame_to_base64 for image encoding",
+    "async_pattern": "All async functions use 'async def' with 'await' for I/O operations"
+  },
+  "existing_implementations": {
+    "description": "Key utilities already exist: RateLimiter for rate limiting, retry_async for exponential backoff, encode_frame_to_base64 for base64 image encoding",
+    "relevant_files": [
+      "src/utils.py - Contains RateLimiter class, retry_async decorator, encode_frame_to_base64 function",
+      "src/config.py - Contains LLMConfig dataclass with api_key, model, max_tokens, timeout",
+      "src/logger.py - Contains get_logger function for creating child loggers"
+    ]
+  },
+  "technical_requirements": {
+    "openai_sdk": "openai>=1.0.0 with AsyncOpenAI client",
+    "image_encoding": "Base64 JPEG via utils.encode_frame_to_base64",
+    "rate_limiting": "utils.RateLimiter with configurable min_interval",
+    "retry_logic": "utils.retry_async with exponential backoff",
+    "response_format": "JSON parsing with AnalysisResult dataclass"
+  },
+  "prompt_template": {
+    "language": "Turkish",
+    "source": ".auto-claude/test_data/LLM_PROMPTS.md",
+    "format": "System prompt with 3-image comparison, JSON response expected"
+  },
+  "dependencies": {
+    "required_tasks": ["01-project-structure", "04-screenshot-system"],
+    "note": "ScreenshotSet type may not exist yet - define locally or as stub if needed"
+  }
 }

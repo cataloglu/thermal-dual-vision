@@ -1,7 +1,21 @@
 """LLM Vision Analyzer for Smart Motion Detector."""
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List
+from datetime import datetime
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+if TYPE_CHECKING:
+    import numpy as np
+    from numpy.typing import NDArray
+
+
+@dataclass
+class ScreenshotSet:
+    """Set of screenshots captured around a motion event."""
+    before: Any  # NDArray[np.uint8] - Screenshot before motion
+    now: Any  # NDArray[np.uint8] - Screenshot at motion detection
+    after: Optional[Any]  # NDArray[np.uint8] - Screenshot after motion (may be None initially)
+    timestamp: datetime  # When motion was detected
 
 
 @dataclass
