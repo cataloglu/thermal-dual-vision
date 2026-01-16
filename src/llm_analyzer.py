@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
+import httpx
 from openai import (
     AsyncOpenAI,
     APIError,
@@ -134,10 +135,19 @@ class LLMAnalyzer:
         self.system_prompt = SYSTEM_PROMPT
         self.metrics_collector = metrics_collector
 
-        # Initialize AsyncOpenAI client
+        # Configure httpx client with connection pooling and keep-alive
+        limits = httpx.Limits(
+            max_connections=10,
+            max_keepalive_connections=5,
+            keepalive_expiry=30.0
+        )
+        self.http_client = httpx.AsyncClient(limits=limits)
+
+        # Initialize AsyncOpenAI client with custom http client
         self.client = AsyncOpenAI(
             api_key=config.api_key,
-            timeout=config.timeout
+            timeout=config.timeout,
+            http_client=self.http_client
         )
 
         # Initialize rate limiter (1 request per second minimum)
@@ -448,3 +458,12 @@ class LLMAnalyzer:
 
         # All retries exhausted, raise the last exception
         raise last_exception  # type: ignore[misc]
+
+    async def close(self) -> None:
+        """
+        Close the HTTP client and release resources.
+
+        Should be called when the analyzer is no longer needed.
+        """
+        await self.http_client.aclose()
+        logger.debug("LLM Analyzer HTTP client closed")
