@@ -79,8 +79,9 @@
             "command": "test -f rootfs/etc/services.d/smart-motion/run && test -x rootfs/etc/services.d/smart-motion/run && echo 'OK'",
             "expected": "OK"
           },
-          "status": "pending",
-          "notes": "Service run script starts the Python application. Must have #!/usr/bin/with-contenv bashio shebang."
+          "status": "completed",
+          "notes": "Created s6 service run script at rootfs/etc/services.d/smart-motion/run. The script uses the standard Home Assistant add-on pattern with #!/usr/bin/with-contenv bashio shebang and executes the main run.sh script. File is executable and verification passes.",
+          "updated_at": "2026-01-16T13:26:53.460243+00:00"
         },
         {
           "id": "subtask-2-3",
@@ -376,6 +377,6 @@
   "qa_signoff": null,
   "status": "in_progress",
   "planStatus": "in_progress",
-  "updated_at": "2026-01-16T13:25:58.066Z",
-  "last_updated": "2026-01-16T13:25:43.213422+00:00"
+  "updated_at": "2026-01-16T13:27:09.695Z",
+  "last_updated": "2026-01-16T13:26:53.460258+00:00"
 }

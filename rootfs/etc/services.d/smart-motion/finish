@@ -1,0 +1,28 @@
+#!/usr/bin/with-contenv bashio
+# ==============================================================================
+# Home Assistant Add-on: Smart Motion Detector
+# S6-Overlay service finish script - handles graceful shutdown
+# ==============================================================================
+
+# The finish script receives:
+# $1 = exit code from the run script
+# $2 = signal number (if killed by signal, 0 otherwise)
+
+EXIT_CODE="${1}"
+SIGNAL="${2}"
+
+if [ "${SIGNAL}" -eq 0 ]; then
+    # Service exited normally
+    bashio::log.info "Smart Motion Detector service stopped with exit code: ${EXIT_CODE}"
+else
+    # Service was killed by signal
+    bashio::log.warning "Smart Motion Detector service terminated by signal: ${SIGNAL} (exit code: ${EXIT_CODE})"
+fi
+
+# Perform cleanup tasks
+bashio::log.info "Cleaning up resources..."
+
+# Allow cleanup to complete
+sleep 1
+
+bashio::log.info "Service cleanup complete"
