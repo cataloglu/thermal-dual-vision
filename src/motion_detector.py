@@ -242,6 +242,43 @@ class MotionDetector:
         logger.info("Disconnecting from camera")
         self._disconnect()
 
+    def start(self) -> None:
+        """
+        Start motion detection in a separate thread.
+
+        Launches the capture thread that will continuously read frames from
+        the camera and detect motion. This method is non-blocking - it returns
+        immediately while the capture loop runs in the background.
+
+        Thread safety:
+        - Uses _lock to prevent race conditions
+        - Sets _running flag before starting thread
+        - Thread runs as daemon for clean shutdown
+
+        Raises:
+            RuntimeError: If detector is already running
+        """
+        with self._lock:
+            if self._running:
+                logger.warning("Motion detector is already running")
+                raise RuntimeError("Motion detector is already running")
+
+            logger.info("Starting motion detector")
+
+            # Set running flag
+            self._running = True
+
+            # Create and start capture thread
+            # daemon=True ensures thread exits when main program exits
+            self._thread = threading.Thread(
+                target=self._capture_loop,
+                name="MotionDetectorThread",
+                daemon=True
+            )
+            self._thread.start()
+
+            logger.info("Motion detector started successfully")
+
     @property
     def is_running(self) -> bool:
         """
