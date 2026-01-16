@@ -74,6 +74,33 @@ class SmartMotionDetector:
 
         logger.info("Smart Motion Detector initialized")
 
+    def arm(self) -> None:
+        """
+        Arm the motion detector.
+
+        When armed, the detector will process motion events and send alerts.
+        """
+        self._armed = True
+        logger.info("Smart Motion Detector armed")
+
+    def disarm(self) -> None:
+        """
+        Disarm the motion detector.
+
+        When disarmed, motion events will be ignored and no alerts will be sent.
+        """
+        self._armed = False
+        logger.info("Smart Motion Detector disarmed")
+
+    def is_armed(self) -> bool:
+        """
+        Check if the motion detector is armed.
+
+        Returns:
+            True if armed, False otherwise
+        """
+        return self._armed
+
     async def start(self) -> None:
         """
         Start Smart Motion Detector and initialize all modules.

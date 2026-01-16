@@ -101,8 +101,9 @@
             "command": "python -c \"import asyncio; from src.main import SmartMotionDetector; from src.config import Config; app = SmartMotionDetector(Config()); asyncio.run(app.start()); asyncio.run(app.stop()); print('Stopped')\"",
             "expected": "Stopped"
           },
-          "status": "pending",
-          "notes": "Stop all modules in reverse order. Ensure resources are released. Log all shutdown steps."
+          "status": "completed",
+          "notes": "Implemented async stop() method with graceful shutdown of all modules in reverse order. Includes proper error handling, logging, and state cleanup. Verification passed successfully.",
+          "updated_at": "2026-01-16T10:30:12.518119+00:00"
         }
       ]
     },
@@ -131,8 +132,9 @@
             "type": "manual",
             "instructions": "Review code to verify callback signature matches motion detector requirements"
           },
-          "status": "pending",
-          "notes": "Callback receives frame and timestamp. Should check armed state before processing. Add logging for motion events."
+          "status": "completed",
+          "notes": "Created motion callback handler _on_motion_detected() that receives frame and timestamp, checks armed state, logs events, and updates last detection time. Callback signature matches motion detector requirements. Ready for pipeline implementation in subtask-3-2.",
+          "updated_at": "2026-01-16T10:32:01.679153+00:00"
         },
         {
           "id": "subtask-3-2",
@@ -151,8 +153,9 @@
             "type": "manual",
             "instructions": "Review pipeline: YOLO detection → Screenshot capture (before/now) → Wait after_seconds → Screenshot capture (after) → LLM analysis → Parallel MQTT publish and Telegram send"
           },
-          "status": "pending",
-          "notes": "Use asyncio.gather for parallel MQTT and Telegram notifications. Handle errors at each step. Respect cooldown period."
+          "status": "completed",
+          "notes": "Implemented full event pipeline in _on_motion_detected callback with all steps: YOLO detection → Screenshot capture (before/now) → Wait after_seconds → Screenshot capture (after) → LLM analysis → Parallel MQTT publish and Telegram send using asyncio.gather. Includes comprehensive error handling, graceful module availability checks, and detailed logging throughout. Pipeline follows patterns from llm_analyzer.py, mqtt_client.py, and telegram_bot.py.",
+          "updated_at": "2026-01-16T10:36:54.106351+00:00"
         }
       ]
     },
@@ -471,6 +474,6 @@
   "qa_signoff": null,
   "status": "in_progress",
   "planStatus": "in_progress",
-  "updated_at": "2026-01-16T10:29:15.198Z",
-  "last_updated": "2026-01-16T10:28:59.061053+00:00"
+  "updated_at": "2026-01-16T10:37:11.186Z",
+  "last_updated": "2026-01-16T10:36:54.106363+00:00"
 }
