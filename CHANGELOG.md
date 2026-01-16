@@ -1,12 +1,24 @@
-I don't have enough information about what specific features were implemented in version 1.0.1. The task description mentions "01-project-structure" as creating Home Assistant add-on format files, but I don't see those files in the current backend directory. Without access to actual changelog documentation, git history, or the specific implementation details of what was added/changed/fixed in this release, I cannot write accurate release notes.
+## [1.0.1] - 2026-01-16
 
-Could you provide:
-1. A summary of the actual changes implemented in version 1.0.1
-2. Any specific features that were added
-3. Bug fixes that were resolved
-4. Breaking changes or modifications to existing functionality
+### Added
+- Complete Home Assistant Add-on integration with s6-overlay service management
+- S6-overlay v3.1.5.0 for proper service lifecycle management
+- Container initialization script (01-init.sh) with bashio logging and prerequisite validation
+- Service run and finish scripts for graceful startup and shutdown
+- Comprehensive DOCS.md with installation, configuration, and troubleshooting guides
+- Ingress support for seamless Home Assistant UI integration
+- MQTT auto-discovery integration with Home Assistant
+- Options UI schema validation for all configuration parameters
+- Panel icon and title customization (mdi:motion-sensor)
 
-Alternatively, if there's a changelog file, git history, or documentation about this release, I can review that to write the release notes.
+### Changed
+- Dockerfile updated to use s6-overlay init system instead of direct CMD execution
+- Enhanced config.yaml with complete Home Assistant add-on metadata
+- Added bashio dependency for Home Assistant integration functions
+
+### Fixed
+- Proper service management with supervised process lifecycle
+- Enhanced error handling and logging for Home Assistant environment
 
 ## [1.0.0] - 2026-01-16
 
