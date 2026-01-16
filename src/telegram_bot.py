@@ -35,6 +35,7 @@ class TelegramBot:
         # Callbacks
         self._arm_callback: Optional[Callable[[], None]] = None
         self._disarm_callback: Optional[Callable[[], None]] = None
+        self._snapshot_callback: Optional[Callable[[], None]] = None
 
         # Build Application
         self.application: Optional[Application] = None
@@ -222,6 +223,25 @@ class TelegramBot:
 
         return "🔴 *Sistem pasif edildi*\n\nHareket algılama durduruldu."
 
+    def _handle_snapshot(self) -> str:
+        """
+        Handle /snapshot command to request and send a snapshot.
+
+        Returns:
+            Formatted message confirming snapshot request
+        """
+        self.logger.info("Snapshot requested via Telegram command")
+
+        # Call the snapshot callback if registered
+        if self._snapshot_callback:
+            try:
+                self._snapshot_callback()
+            except Exception as e:
+                self.logger.error(f"Error calling snapshot callback: {e}")
+                return "❌ *Hata*\n\nAnlık görüntü alınamadı. Lütfen tekrar deneyin."
+
+        return "📸 *Anlık görüntü alınıyor...*\n\nGörüntü hazırlanıyor ve gönderilecek."
+
     def set_arm_callback(self, callback: Callable[[], None]) -> None:
         """
         Set callback function to be called when system is armed.
@@ -241,3 +261,13 @@ class TelegramBot:
         """
         self._disarm_callback = callback
         self.logger.debug("Disarm callback registered")
+
+    def set_snapshot_callback(self, callback: Callable[[], None]) -> None:
+        """
+        Set callback function to be called when snapshot is requested.
+
+        Args:
+            callback: Function to call when /snapshot command is executed
+        """
+        self._snapshot_callback = callback
+        self.logger.debug("Snapshot callback registered")

@@ -69,7 +69,9 @@
             "command": "python -c \"import asyncio; from src.telegram_bot import TelegramBot; from src.config import TelegramConfig; cfg = TelegramConfig(bot_token='test', chat_ids=['123']); bot = TelegramBot(cfg); assert hasattr(bot, 'start'); assert hasattr(bot, 'stop'); print('OK')\"",
             "expected": "OK"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Implemented async start() and stop() lifecycle methods with proper error handling and logging. Methods initialize/start and stop/shutdown the Telegram Application gracefully.",
+          "updated_at": "2026-01-16T06:52:19.116465+00:00"
         },
         {
           "id": "subtask-1-4",
@@ -86,7 +88,9 @@
             "type": "manual",
             "instructions": "Review telegram_bot.py and verify _check_authorization() method exists and validates chat_id against config.chat_ids list"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Added _check_authorization() method to TelegramBot class. Method validates chat_id against config.chat_ids list, converts int chat_id to string for comparison, logs warnings for unauthorized access, and handles empty chat_ids configuration. Follows code patterns from config.py with comprehensive docstrings and type hints.",
+          "updated_at": "2026-01-16T06:53:20.756703+00:00"
         }
       ]
     },
@@ -113,7 +117,9 @@
             "type": "manual",
             "instructions": "Review _handle_help() method and verify it returns formatted help text with all available commands"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Implemented _handle_help() method that returns formatted help text with all available commands (/status, /arm, /disarm, /snapshot, /help). Uses emojis and Turkish text matching spec style. Follows existing code patterns with proper docstring and type hints.",
+          "updated_at": "2026-01-16T06:54:51.478700+00:00"
         },
         {
           "id": "subtask-2-2",
@@ -128,7 +134,9 @@
             "type": "manual",
             "instructions": "Review _handle_status() method and verify it reports armed state, last detection time, and uptime"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Implemented _handle_status() method that reports armed state, last detection time, and uptime. Added state tracking variables (_armed, _last_detection_time, _start_time) to TelegramBot.__init__. Method formats status with Turkish text and emojis, showing armed state (Aktif/Pasif), last detection timestamp or \"Henüz algılama yok\", and uptime in days/hours/minutes/seconds. Follows code patterns with proper docstring and type hints. Verification passed successfully.",
+          "updated_at": "2026-01-16T06:56:23.701099+00:00"
         },
         {
           "id": "subtask-2-3",
@@ -143,7 +151,9 @@
             "type": "manual",
             "instructions": "Review _handle_arm() and _handle_disarm() methods. Verify set_arm_callback() and set_disarm_callback() methods exist and are called when commands are executed"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Implemented _handle_arm() and _handle_disarm() methods with proper state management. Added set_arm_callback() and set_disarm_callback() methods for registering callbacks. Includes error handling and Turkish messaging consistent with existing code patterns.",
+          "updated_at": "2026-01-16T06:57:30.905735+00:00"
         },
         {
           "id": "subtask-2-4",
@@ -540,6 +550,6 @@
   "qa_signoff": null,
   "status": "in_progress",
   "planStatus": "in_progress",
-  "updated_at": "2026-01-16T06:51:27.231Z",
-  "last_updated": "2026-01-16T06:51:11.965244+00:00"
+  "updated_at": "2026-01-16T06:57:45.910Z",
+  "last_updated": "2026-01-16T06:57:30.905744+00:00"
 }
