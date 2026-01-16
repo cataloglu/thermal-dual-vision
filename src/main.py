@@ -1,6 +1,7 @@
 """Main application orchestrator for Smart Motion Detector."""
 
 import asyncio
+import signal
 from datetime import datetime
 from typing import Any, Dict, Optional
 
@@ -78,6 +79,33 @@ class SmartMotionDetector:
         self._web_runner: Optional[web.AppRunner] = None
 
         logger.info("Smart Motion Detector initialized")
+
+    def setup_signal_handlers(self) -> None:
+        """
+        Set up signal handlers for graceful shutdown.
+
+        Registers handlers for SIGTERM and SIGINT that trigger graceful
+        shutdown of the application.
+        """
+        def handle_shutdown(signum: int, frame: Any) -> None:
+            """Handle shutdown signals."""
+            sig_name = signal.Signals(signum).name
+            logger.info(f"Received signal {sig_name}, initiating graceful shutdown")
+
+            # Schedule stop() on the event loop
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    loop.create_task(self.stop())
+                else:
+                    logger.warning("Event loop not running, cannot schedule graceful shutdown")
+            except Exception as e:
+                logger.error(f"Error scheduling graceful shutdown: {e}")
+
+        # Register signal handlers
+        signal.signal(signal.SIGTERM, handle_shutdown)
+        signal.signal(signal.SIGINT, handle_shutdown)
+        logger.info("Signal handlers registered for SIGTERM and SIGINT")
 
     def arm(self) -> None:
         """
