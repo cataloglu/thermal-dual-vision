@@ -63,6 +63,9 @@ class MQTTConfig:
     discovery: bool = True
     discovery_prefix: str = "homeassistant"
     qos: int = 1
+    batch_enabled: bool = True
+    batch_size: int = 10  # Maximum messages per batch
+    batch_interval: float = 0.5  # Maximum seconds to wait before sending batch
 
 
 @dataclass
@@ -121,6 +124,9 @@ class Config:
         config.mqtt.password = os.getenv("MQTT_PASSWORD", "")
         config.mqtt.topic_prefix = os.getenv("MQTT_TOPIC_PREFIX", "smart_motion")
         config.mqtt.discovery = os.getenv("MQTT_DISCOVERY", "true").lower() == "true"
+        config.mqtt.batch_enabled = os.getenv("MQTT_BATCH_ENABLED", "true").lower() == "true"
+        config.mqtt.batch_size = int(os.getenv("MQTT_BATCH_SIZE", "10"))
+        config.mqtt.batch_interval = float(os.getenv("MQTT_BATCH_INTERVAL", "0.5"))
 
         # Telegram
         config.telegram.enabled = os.getenv("TELEGRAM_ENABLED", "false").lower() == "true"

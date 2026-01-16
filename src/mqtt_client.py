@@ -1,7 +1,7 @@
 """MQTT client for Home Assistant integration."""
 
 import asyncio
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
 if TYPE_CHECKING:
     import asyncio_mqtt as aiomqtt
@@ -40,9 +40,17 @@ class MQTTClient:
         self._on_connect_callbacks: List[Callable] = []
         self._on_disconnect_callbacks: List[Callable] = []
 
+        # Message batching
+        self._message_queue: asyncio.Queue[Tuple[str, str, int, bool]] = asyncio.Queue()
+        self._batch_task: Optional[asyncio.Task] = None
+
         logger.info(
             f"MQTT client initialized for broker {config.host}:{config.port}"
         )
+        if config.batch_enabled:
+            logger.info(
+                f"Message batching enabled: size={config.batch_size}, interval={config.batch_interval}s"
+            )
 
     async def connect(self) -> None:
         """
@@ -94,6 +102,11 @@ class MQTTClient:
                 retain=True
             )
 
+            # Start message batching task if enabled
+            if self.config.batch_enabled and not self._batch_task:
+                self._batch_task = asyncio.create_task(self._batch_publish_loop())
+                logger.debug("Started message batching task")
+
             # Trigger on_connect callbacks
             for callback in self._on_connect_callbacks:
                 try:
@@ -140,6 +153,16 @@ class MQTTClient:
                     pass
                 self._reconnect_task = None
 
+            # Stop batching task
+            if self._batch_task and not self._batch_task.done():
+                logger.debug("Stopping batch task")
+                self._batch_task.cancel()
+                try:
+                    await self._batch_task
+                except asyncio.CancelledError:
+                    pass
+                self._batch_task = None
+
             # Publish offline status before disconnecting
             if self._client:
                 try:
@@ -179,6 +202,121 @@ class MQTTClient:
             self._connected = False
             self._client = None
             raise
+
+    async def _batch_publish_loop(self) -> None:
+        """
+        Background task that batches and publishes queued messages.
+
+        Collects messages from the queue and publishes them in batches
+        based on batch_size or batch_interval configuration.
+        """
+        logger.info("Message batching loop started")
+        batch: List[Tuple[str, str, int, bool]] = []
+
+        try:
+            while True:
+                try:
+                    # Wait for next message with timeout
+                    message = await asyncio.wait_for(
+                        self._message_queue.get(),
+                        timeout=self.config.batch_interval
+                    )
+                    batch.append(message)
+
+                    # Collect more messages up to batch_size
+                    while len(batch) < self.config.batch_size:
+                        try:
+                            # Try to get more messages without blocking
+                            message = self._message_queue.get_nowait()
+                            batch.append(message)
+                        except asyncio.QueueEmpty:
+                            break
+
+                    # Publish batch
+                    if batch:
+                        await self._publish_batch(batch)
+                        batch = []
+
+                except asyncio.TimeoutError:
+                    # Timeout reached, publish any pending messages
+                    if batch:
+                        await self._publish_batch(batch)
+                        batch = []
+
+        except asyncio.CancelledError:
+            # Publish any remaining messages before stopping
+            if batch:
+                try:
+                    await self._publish_batch(batch)
+                except Exception as e:
+                    logger.error(f"Error publishing final batch: {e}")
+            logger.info("Message batching loop stopped")
+            raise
+
+    async def _publish_batch(self, batch: List[Tuple[str, str, int, bool]]) -> None:
+        """
+        Publish a batch of messages.
+
+        Args:
+            batch: List of (topic, payload, qos, retain) tuples
+        """
+        if not self._connected or not self._client:
+            logger.warning(f"Cannot publish batch: not connected (batch size: {len(batch)})")
+            return
+
+        logger.debug(f"Publishing batch of {len(batch)} messages")
+
+        for topic, payload, qos, retain in batch:
+            try:
+                await self._client.publish(
+                    topic,
+                    payload=payload,
+                    qos=qos,
+                    retain=retain
+                )
+            except Exception as e:
+                logger.error(f"Failed to publish message to {topic}: {e}")
+
+        logger.debug(f"Successfully published batch of {len(batch)} messages")
+
+    def _queue_message(self, topic: str, payload: str, qos: int, retain: bool) -> None:
+        """
+        Queue a message for batched publishing.
+
+        Args:
+            topic: MQTT topic
+            payload: Message payload
+            qos: Quality of Service level
+            retain: Retain flag
+        """
+        try:
+            self._message_queue.put_nowait((topic, payload, qos, retain))
+            logger.debug(f"Queued message for topic: {topic}")
+        except asyncio.QueueFull:
+            logger.warning(f"Message queue full, dropping message for topic: {topic}")
+
+    async def _publish_direct(self, topic: str, payload: str, qos: int, retain: bool) -> None:
+        """
+        Publish message directly without batching.
+
+        Used for high-priority messages or when batching is disabled.
+
+        Args:
+            topic: MQTT topic
+            payload: Message payload
+            qos: Quality of Service level
+            retain: Retain flag
+        """
+        if not self._connected or not self._client:
+            logger.error(f"Cannot publish to {topic}: not connected")
+            raise RuntimeError("Not connected to MQTT broker")
+
+        await self._client.publish(
+            topic,
+            payload=payload,
+            qos=qos,
+            retain=retain
+        )
 
     def _build_binary_sensor_discovery(self) -> Dict[str, Any]:
         """
@@ -357,12 +495,12 @@ class MQTTClient:
             # Publish motion state (ON/OFF)
             motion_topic = f"{self.config.topic_prefix}/motion/state"
             motion_payload = "ON" if detected else "OFF"
-            await self._client.publish(
-                motion_topic,
-                payload=motion_payload,
-                qos=self.config.qos,
-                retain=False
-            )
+
+            if self.config.batch_enabled:
+                self._queue_message(motion_topic, motion_payload, self.config.qos, False)
+            else:
+                await self._publish_direct(motion_topic, motion_payload, self.config.qos, False)
+
             logger.debug(f"Published motion state: {motion_payload}")
 
             # Publish analysis results if available
@@ -370,12 +508,13 @@ class MQTTClient:
                 # Publish threat level
                 if hasattr(analysis, 'threat_level'):
                     threat_topic = f"{self.config.topic_prefix}/threat_level/state"
-                    await self._client.publish(
-                        threat_topic,
-                        payload=str(analysis.threat_level),
-                        qos=self.config.qos,
-                        retain=False
-                    )
+                    threat_payload = str(analysis.threat_level)
+
+                    if self.config.batch_enabled:
+                        self._queue_message(threat_topic, threat_payload, self.config.qos, False)
+                    else:
+                        await self._publish_direct(threat_topic, threat_payload, self.config.qos, False)
+
                     logger.debug(f"Published threat level: {analysis.threat_level}")
 
                 # Publish confidence
@@ -385,23 +524,25 @@ class MQTTClient:
                     confidence_value = analysis.confidence
                     if isinstance(confidence_value, float) and confidence_value <= 1.0:
                         confidence_value = int(confidence_value * 100)
-                    await self._client.publish(
-                        confidence_topic,
-                        payload=str(confidence_value),
-                        qos=self.config.qos,
-                        retain=False
-                    )
+                    confidence_payload = str(confidence_value)
+
+                    if self.config.batch_enabled:
+                        self._queue_message(confidence_topic, confidence_payload, self.config.qos, False)
+                    else:
+                        await self._publish_direct(confidence_topic, confidence_payload, self.config.qos, False)
+
                     logger.debug(f"Published confidence: {confidence_value}%")
 
                 # Publish last analysis timestamp
                 if hasattr(analysis, 'timestamp'):
                     analysis_topic = f"{self.config.topic_prefix}/last_analysis/state"
-                    await self._client.publish(
-                        analysis_topic,
-                        payload=str(analysis.timestamp),
-                        qos=self.config.qos,
-                        retain=False
-                    )
+                    analysis_payload = str(analysis.timestamp)
+
+                    if self.config.batch_enabled:
+                        self._queue_message(analysis_topic, analysis_payload, self.config.qos, False)
+                    else:
+                        await self._publish_direct(analysis_topic, analysis_payload, self.config.qos, False)
+
                     logger.debug(f"Published last analysis timestamp: {analysis.timestamp}")
 
             logger.info(f"Successfully published motion event (detected={detected})")
@@ -438,12 +579,10 @@ class MQTTClient:
             payload = json.dumps(state)
 
             # Publish to MQTT
-            await self._client.publish(
-                full_topic,
-                payload=payload,
-                qos=self.config.qos,
-                retain=False
-            )
+            if self.config.batch_enabled:
+                self._queue_message(full_topic, payload, self.config.qos, False)
+            else:
+                await self._publish_direct(full_topic, payload, self.config.qos, False)
 
             logger.debug(f"Published state to {full_topic}: {payload}")
             logger.info(f"Successfully published state to {topic}")

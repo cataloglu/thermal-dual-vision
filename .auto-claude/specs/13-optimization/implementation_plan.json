@@ -194,8 +194,9 @@
             "command": "grep -q 'frame_skip\\|skip_count\\|high_load' src/motion_detector.py && echo 'OK' || echo 'FAIL'",
             "expected": "OK"
           },
-          "status": "pending",
-          "notes": "Skip frames when CPU > 70% or queue size > threshold. Add frame_skip_threshold config parameter"
+          "status": "completed",
+          "notes": "Implemented frame skip mechanism in motion_detector.py. Added frame_skip_threshold config (default 70%), psutil CPU monitoring, should_skip_frame() method checking CPU and queue size, updated detect() to skip frames during high load, added skip counters and skip_stats property. Verification passes. Commit: 5299be4",
+          "updated_at": "2026-01-16T13:40:46.939642+00:00"
         },
         {
           "id": "subtask-3-2",
@@ -213,8 +214,9 @@
             "command": "grep -q '_model.*None\\|_lazy_load\\|@property' src/yolo_detector.py && echo 'OK' || echo 'FAIL'",
             "expected": "OK"
           },
-          "status": "pending",
-          "notes": "Don't load YOLO model in __init__, load on first detect() call. Use @property pattern with _model = None initially"
+          "status": "completed",
+          "notes": "Created YOLODetector class with lazy initialization. Model is initialized as _model = None in __init__ and loaded on first access via @property pattern. Added _lazy_load_model() method that loads ultralytics YOLO model on first detect() call. Includes proper error handling, logging, and follows patterns from llm_analyzer.py. Verification passes. Commit: b0ebbeb",
+          "updated_at": "2026-01-16T13:42:15.274326+00:00"
         },
         {
           "id": "subtask-3-3",
@@ -232,8 +234,9 @@
             "command": "grep -q 'batch\\|stream.*True\\|verbose.*False' src/yolo_detector.py && echo 'OK' || echo 'FAIL'",
             "expected": "OK"
           },
-          "status": "pending",
-          "notes": "Use model.predict() with stream=True and verbose=False. Disable unnecessary logging. Consider batch processing if queue builds up"
+          "status": "completed",
+          "notes": "Added detect_batch() method for processing multiple frames efficiently. Enhanced detect() method with stream=True for memory-efficient batch processing and verbose=False to disable unnecessary logging. Batch processing improves throughput when queue builds up by reducing per-frame overhead. Verification passes. Commit: be1a088",
+          "updated_at": "2026-01-16T13:43:29.313850+00:00"
         },
         {
           "id": "subtask-3-4",
@@ -251,8 +254,9 @@
             "command": "grep -q 'threading.Thread\\|queue.Queue\\|_capture_thread' src/motion_detector.py && echo 'OK' || echo 'FAIL'",
             "expected": "OK"
           },
-          "status": "pending",
-          "notes": "Move camera capture to separate thread with queue.Queue for frame buffering. Non-blocking frame retrieval"
+          "status": "completed",
+          "notes": "Added threading support for camera capture with queue.Queue for thread-safe frame communication. Implemented start_capture_thread(), stop_capture_thread(), _capture_worker(), get_frame(), and properties for queue_size and is_capturing. Includes proper error handling, logging, and graceful shutdown.",
+          "updated_at": "2026-01-16T13:44:42.609638+00:00"
         }
       ]
     },
@@ -284,8 +288,9 @@
             "command": "grep -q 'cache\\|hashlib\\|_cache_key\\|functools.lru_cache' src/llm_analyzer.py && echo 'OK' || echo 'FAIL'",
             "expected": "OK"
           },
-          "status": "pending",
-          "notes": "Cache LLM responses using image content hash (hashlib.md5 of base64). Use dict with TTL or functools.lru_cache. Add cache_enabled config option"
+          "status": "completed",
+          "notes": "Implemented LLM response caching with SHA256-based cache keys, LRU eviction policy using OrderedDict, and configurable cache size. Added cache configuration options to LLMConfig with environment variable support. Verification passed successfully.",
+          "updated_at": "2026-01-16T13:46:39.375550+00:00"
         },
         {
           "id": "subtask-4-2",
@@ -590,6 +595,6 @@
   "qa_signoff": null,
   "status": "in_progress",
   "planStatus": "in_progress",
-  "updated_at": "2026-01-16T13:38:57.865Z",
-  "last_updated": "2026-01-16T13:38:40.476009+00:00"
+  "updated_at": "2026-01-16T13:47:09.534Z",
+  "last_updated": "2026-01-16T13:46:39.375563+00:00"
 }
