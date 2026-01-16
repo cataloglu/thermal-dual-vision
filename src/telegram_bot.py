@@ -1,5 +1,6 @@
 """Telegram bot for Smart Motion Detector."""
 
+from datetime import datetime
 from typing import Optional
 
 try:
@@ -25,6 +26,11 @@ class TelegramBot:
         """
         self.config = config
         self.logger = get_logger("telegram_bot")
+
+        # State tracking
+        self._armed = False
+        self._last_detection_time: Optional[datetime] = None
+        self._start_time = datetime.now()
 
         # Build Application
         self.application: Optional[Application] = None
@@ -128,3 +134,40 @@ class TelegramBot:
             "💡 Bot sadece yetkili chat ID'ler tarafından kullanılabilir."
         )
         return help_text
+
+    def _handle_status(self) -> str:
+        """
+        Generate formatted status message with system state.
+
+        Returns:
+            Formatted status text with armed state, last detection, and uptime
+        """
+        # Armed state
+        armed_status = "🟢 Aktif" if self._armed else "🔴 Pasif"
+
+        # Last detection
+        if self._last_detection_time:
+            detection_str = self._last_detection_time.strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            detection_str = "Henüz algılama yok"
+
+        # Uptime calculation
+        uptime_delta = datetime.now() - self._start_time
+        days = uptime_delta.days
+        hours, remainder = divmod(uptime_delta.seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+
+        if days > 0:
+            uptime_str = f"{days} gün, {hours} saat, {minutes} dakika"
+        elif hours > 0:
+            uptime_str = f"{hours} saat, {minutes} dakika"
+        else:
+            uptime_str = f"{minutes} dakika, {seconds} saniye"
+
+        status_text = (
+            "📊 *Sistem Durumu*\n\n"
+            f"🛡️ *Durum:* {armed_status}\n"
+            f"🕐 *Son Algılama:* {detection_str}\n"
+            f"⏱️ *Çalışma Süresi:* {uptime_str}"
+        )
+        return status_text
