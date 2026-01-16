@@ -1,7 +1,7 @@
 """Telegram bot for Smart Motion Detector."""
 
 from datetime import datetime
-from typing import Callable, Optional
+from typing import TYPE_CHECKING, Any, Callable, Optional
 
 try:
     from telegram import Update
@@ -12,10 +12,17 @@ except ImportError:
     Application = None
     Update = None
     CommandHandler = None
-    ContextTypes = None
+
+    # Create mock ContextTypes for type hints when telegram is not available
+    class _MockContextTypes:
+        DEFAULT_TYPE = Any
+    ContextTypes = _MockContextTypes()
 
 from .config import TelegramConfig
 from .logger import get_logger
+
+if TYPE_CHECKING:
+    from .llm_analyzer import AnalysisResult, ScreenshotSet
 
 
 class TelegramBot:
@@ -139,6 +146,50 @@ class TelegramBot:
                 self.logger.debug(f"Message sent to chat_id: {chat_id}")
             except Exception as e:
                 self.logger.error(f"Failed to send message to chat_id {chat_id}: {e}")
+
+    def _format_alert_message(self, screenshots: Any, analysis: Any) -> str:
+        """
+        Format motion detection alert message.
+
+        Args:
+            screenshots: ScreenshotSet containing before/now/after images and timestamp
+            analysis: AnalysisResult containing analysis details
+
+        Returns:
+            Formatted alert message with emoji, timestamp, threat level, confidence, analysis, and detected objects
+        """
+        # Format timestamp
+        timestamp_str = screenshots.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+
+        # Format threat level (capitalize first letter for display)
+        threat_level_map = {
+            "yok": "Yok",
+            "dusuk": "Düşük",
+            "orta": "Orta",
+            "yuksek": "Yüksek"
+        }
+        threat_level = threat_level_map.get(
+            analysis.tehdit_seviyesi.lower(),
+            analysis.tehdit_seviyesi.capitalize()
+        )
+
+        # Format confidence as percentage
+        confidence_percent = int(analysis.guven_skoru * 100)
+
+        # Format detected objects as comma-separated list
+        detected_objects = ", ".join(analysis.tespit_edilen_nesneler)
+
+        # Build alert message
+        alert_text = (
+            "🚨 *HAREKET ALGILANDI*\n\n"
+            f"📅 *Zaman:* {timestamp_str}\n"
+            f"⚠️ *Tehdit:* {threat_level}\n"
+            f"🎯 *Güven:* %{confidence_percent}\n\n"
+            f"📝 *Analiz:*\n{analysis.detayli_analiz}\n\n"
+            f"🏷️ *Tespit:* {detected_objects}"
+        )
+
+        return alert_text
 
     def _check_authorization(self, chat_id: int) -> bool:
         """

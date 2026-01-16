@@ -168,7 +168,9 @@
             "type": "manual",
             "instructions": "Review _handle_snapshot() method. Verify set_snapshot_callback() method exists and snapshot is requested and sent when command is executed"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Implemented /snapshot command handler with callback. Added _snapshot_callback attribute, _handle_snapshot() method with error handling, and set_snapshot_callback() method following existing patterns from arm/disarm commands.",
+          "updated_at": "2026-01-16T06:58:36.658335+00:00"
         },
         {
           "id": "subtask-2-5",
@@ -183,7 +185,9 @@
             "type": "manual",
             "instructions": "Review start() method and verify all command handlers are registered via application.add_handler(CommandHandler(...))"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Registered all command handlers with Application. Added async command wrapper methods (_cmd_help, _cmd_status, _cmd_arm, _cmd_disarm, _cmd_snapshot) that check authorization and call handler methods. Imported Update, CommandHandler, and ContextTypes from telegram.ext. All five command handlers are registered in start() method via application.add_handler(). Each wrapper checks authorization before processing and returns appropriate messages.",
+          "updated_at": "2026-01-16T06:59:59.287189+00:00"
         }
       ]
     },
@@ -212,7 +216,9 @@
             "type": "manual",
             "instructions": "Review send_message() method and verify it sends text messages to all configured chat_ids"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Implemented send_message() method that sends text messages to all configured chat_ids with proper error handling, logging, and Markdown support",
+          "updated_at": "2026-01-16T07:01:25.412525+00:00"
         },
         {
           "id": "subtask-3-2",
@@ -550,6 +556,6 @@
   "qa_signoff": null,
   "status": "in_progress",
   "planStatus": "in_progress",
-  "updated_at": "2026-01-16T06:57:45.910Z",
-  "last_updated": "2026-01-16T06:57:30.905744+00:00"
+  "updated_at": "2026-01-16T07:01:51.678Z",
+  "last_updated": "2026-01-16T07:01:25.412538+00:00"
 }
