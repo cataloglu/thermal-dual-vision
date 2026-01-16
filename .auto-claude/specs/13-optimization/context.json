@@ -1,5 +1,5 @@
 {
-  "task_description": "Performans optimizasyonu ve kaynak yönetimi",
+  "task_description": "Performance optimization and resource management - memory, CPU, and network optimizations",
   "files_to_create": [
     "src/metrics.py"
   ],
@@ -10,7 +10,35 @@
     "src/llm_analyzer.py"
   ],
   "files_to_reference": [
-    "src/"
+    "src/config.py",
+    "src/utils.py",
+    "src/llm_analyzer.py"
   ],
+  "patterns": {
+    "config_pattern": "Dataclass with @dataclass decorator and field(default_factory=...) for lists/dicts",
+    "async_pattern": "AsyncOpenAI client, async/await throughout, rate limiting with RateLimiter context manager",
+    "error_handling": "Custom exception classes inheriting from base error, storing original_error for debugging",
+    "retry_pattern": "analyze_with_retry() with exponential backoff (delay * backoff), max_retries parameter",
+    "logging_pattern": "get_logger(__name__) per module, logger.debug/info/warning/error with structured messages",
+    "encoding_pattern": "encode_frame_to_base64() and encode_frame_to_bytes() in utils.py with configurable quality"
+  },
+  "existing_implementations": {
+    "description": "Found comprehensive async LLM analyzer with rate limiting, retry logic, and error handling",
+    "relevant_files": [
+      "src/llm_analyzer.py",
+      "src/utils.py",
+      "src/config.py"
+    ],
+    "rate_limiting": "RateLimiter class in utils.py with async context manager pattern",
+    "retry_logic": "analyze_with_retry() with exponential backoff already implemented",
+    "caching_opportunity": "LLM responses could be cached based on image content hash"
+  },
+  "optimization_targets": {
+    "fps": ">=5",
+    "memory": "<512MB",
+    "cpu": "<50% single core",
+    "yolo_inference": "<500ms",
+    "llm_response": "<10s"
+  },
   "scoped_services": ["performance", "optimization"]
 }

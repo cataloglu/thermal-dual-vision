@@ -43,7 +43,8 @@ class ScreenshotConfig:
     """Screenshot configuration."""
     before_seconds: int = 3
     after_seconds: int = 3
-    quality: int = 85
+    quality: int = 75  # JPEG quality for storage (lower = less memory)
+    llm_quality: int = 85  # Higher quality for LLM vision analysis
     max_stored: int = 100
     buffer_seconds: int = 10
 

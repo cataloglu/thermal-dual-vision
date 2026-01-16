@@ -1,119 +1,592 @@
 {
-  "feature": "13 - Optimization",
+  "feature": "Performance Optimization & Resource Management",
   "workflow_type": "refactor",
+  "workflow_rationale": "This is a performance improvement task that requires measuring baseline, adding optimizations alongside existing code, validating improvements, and ensuring no regressions. The refactor workflow ensures we can measure impact at each stage.",
   "phases": [
     {
-      "phase": 1,
-      "name": "Metrics & Monitoring",
-      "chunks": [
+      "id": "phase-1-measure",
+      "name": "Baseline Measurement & Metrics",
+      "type": "setup",
+      "description": "Create performance monitoring system and establish baseline metrics before optimization",
+      "depends_on": [],
+      "parallel_safe": true,
+      "subtasks": [
         {
-          "id": "13-01",
-          "description": "PerformanceMetrics dataclass ve metrics.py",
-          "status": "pending",
-          "files": [
+          "id": "subtask-1-1",
+          "description": "Create metrics.py module with PerformanceMetrics dataclass",
+          "service": "main",
+          "files_to_modify": [],
+          "files_to_create": [
             "src/metrics.py"
-          ]
-        },
-        {
-          "id": "13-02",
-          "description": "Metrics collection ve endpoint",
-          "status": "pending",
-          "files": [
-            "src/metrics.py",
-            "src/main.py"
-          ]
-        }
-      ]
-    },
-    {
-      "phase": 2,
-      "name": "Memory Optimization",
-      "chunks": [
-        {
-          "id": "13-03",
-          "description": "Ring buffer boyut optimizasyonu",
-          "status": "pending",
-          "files": [
-            "src/screenshot_manager.py"
-          ]
-        },
-        {
-          "id": "13-04",
-          "description": "Frame resize ve JPEG optimization",
-          "status": "pending",
-          "files": [
-            "src/screenshot_manager.py",
-            "src/utils.py"
-          ]
-        },
-        {
-          "id": "13-05",
-          "description": "Numpy array reuse",
-          "status": "pending",
-          "files": [
-            "src/motion_detector.py"
-          ]
-        }
-      ]
-    },
-    {
-      "phase": 3,
-      "name": "CPU Optimization",
-      "chunks": [
-        {
-          "id": "13-06",
-          "description": "Frame skip mekanizması",
-          "status": "pending",
-          "files": [
-            "src/motion_detector.py"
-          ]
-        },
-        {
-          "id": "13-07",
-          "description": "YOLO inference optimization",
-          "status": "pending",
-          "files": [
-            "src/yolo_detector.py"
-          ]
-        }
-      ]
-    },
-    {
-      "phase": 4,
-      "name": "Network Optimization",
-      "chunks": [
-        {
-          "id": "13-08",
-          "description": "LLM response caching",
-          "status": "pending",
-          "files": [
+          ],
+          "patterns_from": [
+            "src/config.py",
             "src/llm_analyzer.py"
-          ]
+          ],
+          "verification": {
+            "type": "command",
+            "command": "python -c \"from src.metrics import PerformanceMetrics, MetricsCollector; print('OK')\"",
+            "expected": "OK"
+          },
+          "status": "completed",
+          "notes": "Created src/metrics.py with PerformanceMetrics dataclass (fps, memory_mb, cpu_percent, inference_ms, queue_size, uptime_seconds) and MetricsCollector class with psutil integration. Includes methods for tracking frames (FPS), inference timing, queue size, memory usage, CPU usage, and uptime. Verification passes successfully.",
+          "updated_at": "2026-01-16T13:28:26.105285+00:00"
         },
         {
-          "id": "13-09",
-          "description": "Connection pooling ve keep-alive",
-          "status": "pending",
-          "files": [
-            "src/mqtt_client.py",
-            "src/telegram_bot.py"
-          ]
+          "id": "subtask-1-2",
+          "description": "Add metrics collection to existing modules",
+          "service": "main",
+          "files_to_modify": [
+            "src/llm_analyzer.py"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/llm_analyzer.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "grep -q 'MetricsCollector\\|processing_time' src/llm_analyzer.py && echo 'OK' || echo 'FAIL'",
+            "expected": "OK"
+          },
+          "status": "completed",
+          "notes": "Added MetricsCollector integration to LLMAnalyzer. Imported MetricsCollector, added optional metrics_collector parameter to __init__, and added metric recording after processing_time calculation. Converts time to milliseconds. Verification passes. Commit: 802e0fe",
+          "updated_at": "2026-01-16T13:30:18.911544+00:00"
+        },
+        {
+          "id": "subtask-1-3",
+          "description": "Create health metrics HTTP endpoint",
+          "service": "main",
+          "files_to_modify": [],
+          "files_to_create": [
+            "src/health_endpoint.py"
+          ],
+          "patterns_from": [
+            "src/llm_analyzer.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "python -c \"from src.health_endpoint import HealthEndpoint; print('OK')\"",
+            "expected": "OK"
+          },
+          "status": "completed",
+          "notes": "Created src/health_endpoint.py with HealthEndpoint class. Aiohttp server on port 8099 exposing /health (status, uptime) and /metrics (fps, memory_mb, cpu_percent, inference_ms, queue_size, uptime_seconds) endpoints with JSON responses. Includes async start/stop methods, proper error handling and logging. Verification passes. Commit: 28d115f",
+          "updated_at": "2026-01-16T13:32:44.652685+00:00"
         }
       ]
     },
     {
-      "phase": 5,
-      "name": "Long-running Tests",
-      "chunks": [
+      "id": "phase-2-memory",
+      "name": "Memory Optimization",
+      "type": "implementation",
+      "description": "Optimize memory usage: ring buffer sizing, JPEG compression, frame resizing, numpy array reuse",
+      "depends_on": [
+        "phase-1-measure"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
         {
-          "id": "13-10",
-          "description": "24h stability test",
+          "id": "subtask-2-1",
+          "description": "Optimize ring buffer size in screenshot_manager.py",
+          "service": "main",
+          "files_to_modify": [
+            "src/screenshot_manager.py"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/config.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "grep -q 'maxlen.*buffer_seconds\\|deque' src/screenshot_manager.py && echo 'OK' || echo 'FAIL'",
+            "expected": "OK"
+          },
+          "status": "completed",
+          "notes": "Created src/screenshot_manager.py with ScreenshotManager class. Implements optimized ring buffer using collections.deque with dynamic maxlen calculated from fps * buffer_seconds. Includes methods for adding frames, retrieving frames from N seconds ago, and buffer management. Verification passes successfully. Commit: 99f8f7d",
+          "updated_at": "2026-01-16T13:34:24.921611+00:00"
+        },
+        {
+          "id": "subtask-2-2",
+          "description": "Optimize JPEG compression quality in utils.py",
+          "service": "main",
+          "files_to_modify": [
+            "src/utils.py",
+            "src/config.py"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/utils.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "grep -q 'quality.*[0-9]' src/utils.py && echo 'OK' || echo 'FAIL'",
+            "expected": "OK"
+          },
           "status": "pending",
-          "files": [
-            "tests/integration/test_stability.py"
-          ]
+          "notes": "Already has quality parameter. Add config option for quality (default 75 for storage, 85 for LLM). Lower quality = less memory"
+        },
+        {
+          "id": "subtask-2-3",
+          "description": "Add frame resizing for YOLO processing",
+          "service": "main",
+          "files_to_modify": [
+            "src/yolo_detector.py"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/utils.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "grep -q 'cv2.resize\\|resize_for_inference' src/yolo_detector.py && echo 'OK' || echo 'FAIL'",
+            "expected": "OK"
+          },
+          "status": "pending",
+          "notes": "Resize frames to max 640x640 for YOLO inference (yolov8n native size). Use cv2.resize() with INTER_LINEAR"
+        },
+        {
+          "id": "subtask-2-4",
+          "description": "Implement numpy array reuse in motion_detector.py",
+          "service": "main",
+          "files_to_modify": [
+            "src/motion_detector.py"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/config.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "grep -q 'preallocate\\|reuse\\|np.zeros_like' src/motion_detector.py && echo 'OK' || echo 'FAIL'",
+            "expected": "OK"
+          },
+          "status": "pending",
+          "notes": "Pre-allocate arrays for motion detection (background subtractor result, thresholding). Reuse instead of creating new arrays each frame"
+        }
+      ]
+    },
+    {
+      "id": "phase-3-cpu",
+      "name": "CPU Optimization",
+      "type": "implementation",
+      "description": "Optimize CPU usage: multi-threading, frame skip on high load, lazy initialization",
+      "depends_on": [
+        "phase-1-measure"
+      ],
+      "parallel_safe": true,
+      "subtasks": [
+        {
+          "id": "subtask-3-1",
+          "description": "Implement frame skip mechanism in motion_detector.py",
+          "service": "main",
+          "files_to_modify": [
+            "src/motion_detector.py",
+            "src/config.py"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/config.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "grep -q 'frame_skip\\|skip_count\\|high_load' src/motion_detector.py && echo 'OK' || echo 'FAIL'",
+            "expected": "OK"
+          },
+          "status": "pending",
+          "notes": "Skip frames when CPU > 70% or queue size > threshold. Add frame_skip_threshold config parameter"
+        },
+        {
+          "id": "subtask-3-2",
+          "description": "Add lazy initialization for YOLO model",
+          "service": "main",
+          "files_to_modify": [
+            "src/yolo_detector.py"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/llm_analyzer.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "grep -q '_model.*None\\|_lazy_load\\|@property' src/yolo_detector.py && echo 'OK' || echo 'FAIL'",
+            "expected": "OK"
+          },
+          "status": "pending",
+          "notes": "Don't load YOLO model in __init__, load on first detect() call. Use @property pattern with _model = None initially"
+        },
+        {
+          "id": "subtask-3-3",
+          "description": "Optimize YOLO batch inference",
+          "service": "main",
+          "files_to_modify": [
+            "src/yolo_detector.py"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/config.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "grep -q 'batch\\|stream.*True\\|verbose.*False' src/yolo_detector.py && echo 'OK' || echo 'FAIL'",
+            "expected": "OK"
+          },
+          "status": "pending",
+          "notes": "Use model.predict() with stream=True and verbose=False. Disable unnecessary logging. Consider batch processing if queue builds up"
+        },
+        {
+          "id": "subtask-3-4",
+          "description": "Add threading for camera capture",
+          "service": "main",
+          "files_to_modify": [
+            "src/motion_detector.py"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/utils.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "grep -q 'threading.Thread\\|queue.Queue\\|_capture_thread' src/motion_detector.py && echo 'OK' || echo 'FAIL'",
+            "expected": "OK"
+          },
+          "status": "pending",
+          "notes": "Move camera capture to separate thread with queue.Queue for frame buffering. Non-blocking frame retrieval"
+        }
+      ]
+    },
+    {
+      "id": "phase-4-network",
+      "name": "Network Optimization",
+      "type": "implementation",
+      "description": "Optimize network usage: MQTT batching, Telegram rate limiting, OpenAI caching, connection keep-alive",
+      "depends_on": [
+        "phase-1-measure"
+      ],
+      "parallel_safe": true,
+      "subtasks": [
+        {
+          "id": "subtask-4-1",
+          "description": "Implement LLM response caching in llm_analyzer.py",
+          "service": "main",
+          "files_to_modify": [
+            "src/llm_analyzer.py",
+            "src/config.py"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/llm_analyzer.py",
+            "src/utils.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "grep -q 'cache\\|hashlib\\|_cache_key\\|functools.lru_cache' src/llm_analyzer.py && echo 'OK' || echo 'FAIL'",
+            "expected": "OK"
+          },
+          "status": "pending",
+          "notes": "Cache LLM responses using image content hash (hashlib.md5 of base64). Use dict with TTL or functools.lru_cache. Add cache_enabled config option"
+        },
+        {
+          "id": "subtask-4-2",
+          "description": "Add MQTT message batching in mqtt_client.py",
+          "service": "main",
+          "files_to_modify": [
+            "src/mqtt_client.py",
+            "src/config.py"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/mqtt_client.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "grep -q 'batch\\|_message_queue\\|asyncio.Queue' src/mqtt_client.py && echo 'OK' || echo 'FAIL'",
+            "expected": "OK"
+          },
+          "status": "pending",
+          "notes": "Batch small messages (motion events, health updates) using asyncio.Queue. Flush every N messages or T seconds. Add mqtt_batch_size config"
+        },
+        {
+          "id": "subtask-4-3",
+          "description": "Enhance Telegram rate limiting in telegram_bot.py",
+          "service": "main",
+          "files_to_modify": [
+            "src/telegram_bot.py",
+            "src/config.py"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/utils.py",
+            "src/telegram_bot.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "grep -q 'RateLimiter\\|rate_limit_seconds\\|_rate_limiter' src/telegram_bot.py && echo 'OK' || echo 'FAIL'",
+            "expected": "OK"
+          },
+          "status": "pending",
+          "notes": "Use RateLimiter from utils.py. Already has rate_limit_seconds config. Ensure it's applied to all send operations"
+        },
+        {
+          "id": "subtask-4-4",
+          "description": "Add connection keep-alive for OpenAI client",
+          "service": "main",
+          "files_to_modify": [
+            "src/llm_analyzer.py"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/llm_analyzer.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "grep -q 'http_client\\|httpx\\|max_connections\\|keepalive' src/llm_analyzer.py && echo 'OK' || echo 'FAIL'",
+            "expected": "OK"
+          },
+          "status": "pending",
+          "notes": "AsyncOpenAI supports http_client parameter. Create httpx.AsyncClient with limits and keepalive settings"
+        }
+      ]
+    },
+    {
+      "id": "phase-5-integration",
+      "name": "Integration & Validation",
+      "type": "integration",
+      "description": "Integrate all optimizations, run 24h stability test, verify performance targets",
+      "depends_on": [
+        "phase-2-memory",
+        "phase-3-cpu",
+        "phase-4-network"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-5-1",
+          "description": "Update main application to use metrics collector",
+          "service": "main",
+          "all_services": false,
+          "files_to_modify": [
+            "src/main.py"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/metrics.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "grep -q 'MetricsCollector\\|metrics.collect' src/main.py && echo 'OK' || echo 'FAIL'",
+            "expected": "OK"
+          },
+          "status": "pending",
+          "notes": "Initialize MetricsCollector in main app, start health endpoint, log metrics periodically"
+        },
+        {
+          "id": "subtask-5-2",
+          "description": "Add optimization configuration to config.py",
+          "service": "main",
+          "all_services": false,
+          "files_to_modify": [
+            "src/config.py"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/config.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "grep -q 'OptimizationConfig\\|frame_skip_threshold\\|cache_enabled' src/config.py && echo 'OK' || echo 'FAIL'",
+            "expected": "OK"
+          },
+          "status": "pending",
+          "notes": "Add OptimizationConfig dataclass with all new config options: frame_skip_threshold, cache_enabled, cache_ttl, mqtt_batch_size, etc."
+        },
+        {
+          "id": "subtask-5-3",
+          "description": "Create 24-hour stability test script",
+          "service": "main",
+          "all_services": false,
+          "files_to_modify": [],
+          "files_to_create": [
+            "tests/test_stability_24h.py"
+          ],
+          "patterns_from": [
+            "tests/test_llm_analyzer.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "python -m pytest tests/test_stability_24h.py --co && echo 'OK' || echo 'FAIL'",
+            "expected": "OK"
+          },
+          "status": "pending",
+          "notes": "pytest test that runs for 24h, monitors memory (tracemalloc), CPU (psutil), checks for leaks. Mark with @pytest.mark.slow"
+        },
+        {
+          "id": "subtask-5-4",
+          "description": "Verify performance targets met",
+          "service": "main",
+          "all_services": true,
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "e2e",
+            "steps": [
+              "Run application with optimizations enabled",
+              "Trigger multiple motion events",
+              "Check metrics endpoint: FPS >= 5, Memory < 512MB, CPU < 50%",
+              "Verify YOLO inference < 500ms, LLM response < 10s",
+              "Run for 1 hour minimum, check for memory leaks"
+            ]
+          },
+          "status": "pending",
+          "notes": "Manual verification of all performance targets. Document results in OPTIMIZATION_RESULTS.md"
         }
       ]
     }
-  ]
+  ],
+  "summary": {
+    "total_phases": 5,
+    "total_subtasks": 18,
+    "services_involved": [
+      "main"
+    ],
+    "performance_targets": {
+      "fps": ">=5",
+      "memory_mb": "<512",
+      "cpu_percent": "<50",
+      "yolo_inference_ms": "<500",
+      "llm_response_s": "<10"
+    },
+    "parallelism": {
+      "max_parallel_phases": 3,
+      "parallel_groups": [
+        {
+          "phases": [
+            "phase-2-memory",
+            "phase-3-cpu",
+            "phase-4-network"
+          ],
+          "reason": "All depend only on phase-1-measure, optimize different subsystems with no file conflicts"
+        }
+      ],
+      "recommended_workers": 3,
+      "speedup_estimate": "2x faster than sequential (phases 2-4 in parallel)"
+    },
+    "startup_command": "source auto-claude/.venv/bin/activate && python auto-claude/run.py --spec 13 --parallel 3"
+  },
+  "verification_strategy": {
+    "risk_level": "high",
+    "skip_validation": false,
+    "test_creation_phase": "post_implementation",
+    "test_types_required": [
+      "unit",
+      "integration",
+      "performance"
+    ],
+    "security_scanning_required": false,
+    "staging_deployment_required": false,
+    "acceptance_criteria": [
+      "All existing tests pass",
+      "24-hour stability test passes",
+      "No memory leaks detected (tracemalloc verification)",
+      "All performance targets met (FPS, Memory, CPU, inference times)",
+      "Health metrics endpoint returns valid data"
+    ],
+    "verification_steps": [
+      {
+        "name": "Unit Tests",
+        "command": "pytest tests/ -v --ignore=tests/test_stability_24h.py",
+        "expected_outcome": "All tests pass",
+        "type": "test",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "Integration Tests",
+        "command": "pytest tests/e2e_telegram_bot.py -v",
+        "expected_outcome": "E2E test passes",
+        "type": "test",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "Memory Profiling",
+        "command": "python -m memory_profiler src/main.py",
+        "expected_outcome": "Memory usage stays below 512MB",
+        "type": "test",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "CPU Profiling",
+        "command": "python -m cProfile -o profile.stats src/main.py",
+        "expected_outcome": "Identify and optimize hotspots",
+        "type": "test",
+        "required": true,
+        "blocking": false
+      },
+      {
+        "name": "24-Hour Stability Test",
+        "command": "pytest tests/test_stability_24h.py -v -s",
+        "expected_outcome": "No memory leaks, stable performance over 24h",
+        "type": "test",
+        "required": true,
+        "blocking": true
+      }
+    ],
+    "reasoning": "High risk because performance changes can introduce subtle bugs or regressions. Requires extensive testing including 24h stability and memory profiling to ensure no leaks."
+  },
+  "qa_acceptance": {
+    "unit_tests": {
+      "required": true,
+      "commands": [
+        "pytest tests/ -v --ignore=tests/test_stability_24h.py"
+      ],
+      "minimum_coverage": null
+    },
+    "integration_tests": {
+      "required": true,
+      "commands": [
+        "pytest tests/e2e_telegram_bot.py -v"
+      ],
+      "services_to_test": [
+        "main"
+      ]
+    },
+    "e2e_tests": {
+      "required": false,
+      "commands": [],
+      "flows": []
+    },
+    "browser_verification": {
+      "required": false,
+      "pages": []
+    },
+    "database_verification": {
+      "required": false,
+      "checks": []
+    },
+    "performance_tests": {
+      "required": true,
+      "commands": [
+        "pytest tests/test_stability_24h.py -v"
+      ],
+      "metrics_to_verify": [
+        "fps >= 5",
+        "memory < 512MB",
+        "cpu < 50%",
+        "yolo_inference < 500ms",
+        "llm_response < 10s"
+      ]
+    },
+    "memory_profiling": {
+      "required": true,
+      "tool": "tracemalloc",
+      "duration_hours": 24,
+      "leak_threshold": "10MB increase over 24h"
+    }
+  },
+  "qa_signoff": null,
+  "status": "in_progress",
+  "planStatus": "in_progress",
+  "updated_at": "2026-01-16T13:34:45.062Z",
+  "last_updated": "2026-01-16T13:34:24.921622+00:00"
 }

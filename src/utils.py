@@ -18,9 +18,11 @@ def encode_frame_to_base64(frame: np.ndarray, quality: int = 85) -> str:
     """
     Encode a numpy frame to base64 JPEG string.
 
+    Used primarily for LLM vision analysis, defaults to higher quality.
+
     Args:
         frame: OpenCV frame (BGR format)
-        quality: JPEG quality (1-100)
+        quality: JPEG quality (1-100), default 85 for LLM
 
     Returns:
         Base64 encoded string
@@ -39,13 +41,15 @@ def encode_frame_to_base64(frame: np.ndarray, quality: int = 85) -> str:
     return base64.b64encode(buffer.getvalue()).decode("utf-8")
 
 
-def encode_frame_to_bytes(frame: np.ndarray, quality: int = 85) -> bytes:
+def encode_frame_to_bytes(frame: np.ndarray, quality: int = 75) -> bytes:
     """
     Encode a numpy frame to JPEG bytes.
 
+    Used for storage and transmission, defaults to lower quality for memory optimization.
+
     Args:
         frame: OpenCV frame (BGR format)
-        quality: JPEG quality (1-100)
+        quality: JPEG quality (1-100), default 75 for storage
 
     Returns:
         JPEG bytes
