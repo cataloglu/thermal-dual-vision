@@ -11,6 +11,9 @@ class CameraConfig:
     url: str = ""
     fps: int = 5
     resolution: tuple = (1280, 720)
+    retry_max_attempts: int = 3
+    retry_initial_delay: float = 1.0
+    retry_backoff: float = 2.0
 
 
 @dataclass

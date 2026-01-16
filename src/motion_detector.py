@@ -54,26 +54,15 @@ class MotionDetector:
 
         logger.info("MotionDetector initialized")
 
-    def connect(self) -> bool:
+    def _attempt_connection(self) -> bool:
         """
-        Connect to RTSP camera stream.
+        Attempt a single connection to the camera.
 
-        Establishes connection to the camera using cv2.VideoCapture with
-        timeout handling. Validates connection by attempting to read a
-        test frame.
+        Internal method that performs one connection attempt without retry logic.
 
         Returns:
             True if connection successful, False otherwise
-
-        Raises:
-            ValueError: If camera URL is not configured
         """
-        if not self.camera_config.url:
-            logger.error("Camera URL is not configured")
-            raise ValueError("Camera URL is required")
-
-        logger.info(f"Connecting to camera: {self.camera_config.url}")
-
         try:
             # Close existing connection if any
             if self.capture is not None:
@@ -88,14 +77,14 @@ class MotionDetector:
 
             # Attempt to open the stream
             if not self.capture.isOpened():
-                logger.error(f"Failed to open camera stream: {self.camera_config.url}")
+                logger.warning(f"Failed to open camera stream: {self.camera_config.url}")
                 self._disconnect()
                 return False
 
             # Validate connection by reading a test frame
             ret, frame = self.capture.read()
             if not ret or frame is None:
-                logger.error("Failed to read test frame from camera")
+                logger.warning("Failed to read test frame from camera")
                 self._disconnect()
                 return False
 
@@ -108,9 +97,55 @@ class MotionDetector:
             return True
 
         except Exception as e:
-            logger.error(f"Error connecting to camera: {e}")
+            logger.warning(f"Connection attempt failed: {e}")
             self._disconnect()
             return False
+
+    def connect(self) -> bool:
+        """
+        Connect to RTSP camera stream with retry mechanism.
+
+        Establishes connection to the camera using cv2.VideoCapture with
+        timeout handling and exponential backoff retry logic. Validates
+        connection by attempting to read a test frame.
+
+        Uses configurable retry parameters:
+        - retry_max_attempts: Maximum number of connection attempts
+        - retry_initial_delay: Initial delay between attempts (seconds)
+        - retry_backoff: Multiplier for delay after each attempt
+
+        Returns:
+            True if connection successful, False otherwise
+
+        Raises:
+            ValueError: If camera URL is not configured
+        """
+        if not self.camera_config.url:
+            logger.error("Camera URL is not configured")
+            raise ValueError("Camera URL is required")
+
+        logger.info(f"Connecting to camera: {self.camera_config.url}")
+
+        max_attempts = self.camera_config.retry_max_attempts
+        current_delay = self.camera_config.retry_initial_delay
+        backoff = self.camera_config.retry_backoff
+
+        for attempt in range(1, max_attempts + 1):
+            logger.info(f"Connection attempt {attempt}/{max_attempts}")
+
+            if self._attempt_connection():
+                return True
+
+            # If not the last attempt, wait before retrying
+            if attempt < max_attempts:
+                logger.info(f"Retrying in {current_delay:.1f} seconds...")
+                time.sleep(current_delay)
+                current_delay *= backoff
+
+        logger.error(
+            f"Failed to connect to camera after {max_attempts} attempts"
+        )
+        return False
 
     def _disconnect(self) -> None:
         """
