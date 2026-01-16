@@ -111,7 +111,7 @@
       "id": "phase-3-event-pipeline",
       "name": "Event Flow Pipeline",
       "type": "implementation",
-      "description": "Implement the full motion detection pipeline: Motion → YOLO → Screenshots → LLM → Notifications",
+      "description": "Implement the full motion detection pipeline: Motion \u2192 YOLO \u2192 Screenshots \u2192 LLM \u2192 Notifications",
       "depends_on": [
         "phase-2-module-lifecycle"
       ],
@@ -151,10 +151,10 @@
           ],
           "verification": {
             "type": "manual",
-            "instructions": "Review pipeline: YOLO detection → Screenshot capture (before/now) → Wait after_seconds → Screenshot capture (after) → LLM analysis → Parallel MQTT publish and Telegram send"
+            "instructions": "Review pipeline: YOLO detection \u2192 Screenshot capture (before/now) \u2192 Wait after_seconds \u2192 Screenshot capture (after) \u2192 LLM analysis \u2192 Parallel MQTT publish and Telegram send"
           },
           "status": "completed",
-          "notes": "Implemented full event pipeline in _on_motion_detected callback with all steps: YOLO detection → Screenshot capture (before/now) → Wait after_seconds → Screenshot capture (after) → LLM analysis → Parallel MQTT publish and Telegram send using asyncio.gather. Includes comprehensive error handling, graceful module availability checks, and detailed logging throughout. Pipeline follows patterns from llm_analyzer.py, mqtt_client.py, and telegram_bot.py.",
+          "notes": "Implemented full event pipeline in _on_motion_detected callback with all steps: YOLO detection \u2192 Screenshot capture (before/now) \u2192 Wait after_seconds \u2192 Screenshot capture (after) \u2192 LLM analysis \u2192 Parallel MQTT publish and Telegram send using asyncio.gather. Includes comprehensive error handling, graceful module availability checks, and detailed logging throughout. Pipeline follows patterns from llm_analyzer.py, mqtt_client.py, and telegram_bot.py.",
           "updated_at": "2026-01-16T10:36:54.106351+00:00"
         }
       ]
@@ -205,8 +205,9 @@
             "command": "python -c \"import asyncio; from src.main import SmartMotionDetector; from src.config import Config; app = SmartMotionDetector(Config()); health = asyncio.run(app.health_check()); assert 'status' in health; print('OK')\"",
             "expected": "OK"
           },
-          "status": "pending",
-          "notes": "Return dict with status, uptime, armed state, last_detection, component health. Query each module for connection status."
+          "status": "completed",
+          "notes": "Implemented health_check() method that returns a comprehensive status dictionary including overall status, armed state, timestamps, and module availability/status for all components (MQTT, Telegram, LLM, YOLO, Screenshots, Motion). Method follows async pattern and includes proper type hints.",
+          "updated_at": "2026-01-16T10:40:34.835223+00:00"
         },
         {
           "id": "subtask-4-3",
@@ -223,8 +224,9 @@
             "url": "http://localhost:8099/health",
             "expected_status": 200
           },
-          "status": "pending",
-          "notes": "Simple aiohttp web server with /health endpoint. Return JSON from health_check() method. Start server in start() method."
+          "status": "completed",
+          "notes": "Added aiohttp health check HTTP endpoint on port 8099. The endpoint uses the existing health_check() method and returns JSON response with module status. Server starts in start() and cleans up in stop().",
+          "updated_at": "2026-01-16T10:43:26.209067+00:00"
         }
       ]
     },
@@ -251,8 +253,9 @@
             "type": "manual",
             "instructions": "Review code for signal.signal() calls with SIGTERM and SIGINT handlers"
           },
-          "status": "pending",
-          "notes": "Signal handlers should trigger graceful shutdown. Use asyncio event loop to schedule stop(). Log signal reception."
+          "status": "completed",
+          "notes": "Added signal handlers for SIGTERM and SIGINT in SmartMotionDetector class. The setup_signal_handlers() method registers handlers that trigger graceful shutdown by scheduling the stop() coroutine on the event loop.",
+          "updated_at": "2026-01-16T10:44:30.278973+00:00"
         },
         {
           "id": "subtask-5-2",
@@ -271,8 +274,9 @@
             "command": "timeout 5 python -m src.main || test $? -eq 124",
             "expected": ""
           },
-          "status": "pending",
-          "notes": "Load config from env using Config.from_env(). Validate config. Setup logger. Create app instance. Call start(). Keep running until signal received. Call stop() on shutdown."
+          "status": "completed",
+          "notes": "Implemented async main() entry point following patterns from config.py and logger.py. The main() function loads configuration from environment, validates it, sets up logging, creates SmartMotionDetector instance, sets up signal handlers, starts the detector, arms it by default, and keeps running until interrupted. Includes proper cleanup in finally block. Also implemented if __name__ == '__main__' block that runs asyncio.run(main()) with KeyboardInterrupt handling. Syntax validation passed. Note: Full verification requires Docker environment due to numpy compatibility.",
+          "updated_at": "2026-01-16T10:46:07.201599+00:00"
         },
         {
           "id": "subtask-5-3",
@@ -288,8 +292,9 @@
             "command": "timeout 5 python src/main.py || test $? -eq 124",
             "expected": ""
           },
-          "status": "pending",
-          "notes": "Use asyncio.run(main()) to run the async entry point. Handle KeyboardInterrupt for clean exit."
+          "status": "completed",
+          "notes": "The if __name__ == '__main__' block was already implemented correctly at the end of src/main.py (lines 601-605). It uses asyncio.run(main()) to run the async entry point and includes KeyboardInterrupt handling for clean exit. The implementation follows Python best practices and matches the specification.",
+          "updated_at": "2026-01-16T10:47:16.750840+00:00"
         }
       ]
     },
@@ -475,6 +480,6 @@
   "qa_signoff": null,
   "status": "in_progress",
   "planStatus": "in_progress",
-  "updated_at": "2026-01-16T10:38:49.331Z",
-  "last_updated": "2026-01-16T10:38:30.545716+00:00"
+  "updated_at": "2026-01-16T10:46:23.434Z",
+  "last_updated": "2026-01-16T10:47:16.750853+00:00"
 }
