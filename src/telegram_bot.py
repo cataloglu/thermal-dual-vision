@@ -47,6 +47,7 @@ class TelegramBot:
 
         # Rate limiting
         self._alert_rate_limiter = RateLimiter(min_interval=config.rate_limit_seconds)
+        self._message_rate_limiter = RateLimiter(min_interval=config.rate_limit_seconds)
 
         # Callbacks
         self._arm_callback: Optional[Callable[[], None]] = None
@@ -146,16 +147,18 @@ class TelegramBot:
             self.logger.warning("Cannot send message: No chat IDs configured")
             return
 
-        for chat_id in self.config.chat_ids:
-            try:
-                await self.application.bot.send_message(
-                    chat_id=int(chat_id),
-                    text=text,
-                    parse_mode="Markdown"
-                )
-                self.logger.debug(f"Message sent to chat_id: {chat_id}")
-            except Exception as e:
-                self.logger.error(f"Failed to send message to chat_id {chat_id}: {e}")
+        # Apply rate limiting
+        async with self._message_rate_limiter:
+            for chat_id in self.config.chat_ids:
+                try:
+                    await self.application.bot.send_message(
+                        chat_id=int(chat_id),
+                        text=text,
+                        parse_mode="Markdown"
+                    )
+                    self.logger.debug(f"Message sent to chat_id: {chat_id}")
+                except Exception as e:
+                    self.logger.error(f"Failed to send message to chat_id {chat_id}: {e}")
 
     @retry_async(max_attempts=3, delay=1.0, backoff=2.0)
     async def send_alert(self, screenshots: "ScreenshotSet", analysis: "AnalysisResult") -> None:
