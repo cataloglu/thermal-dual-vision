@@ -2,7 +2,7 @@
 
 from collections import deque
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Deque, Optional, Tuple
 
 import numpy as np
@@ -75,3 +75,36 @@ class ScreenshotManager:
             Current buffer size (0 to maxlen)
         """
         return len(self._buffer)
+
+    def _get_frame_before(self, timestamp: datetime, seconds: float) -> Optional[np.ndarray]:
+        """
+        Find frame closest to N seconds before the given timestamp.
+
+        Searches the ring buffer for frames at or before the target time
+        (timestamp - seconds) and returns the one closest to the target.
+
+        Args:
+            timestamp: Reference timestamp
+            seconds: Number of seconds before timestamp to look for
+
+        Returns:
+            Frame closest to target time, or None if no suitable frame found
+        """
+        if not self._buffer:
+            return None
+
+        target_time = timestamp - timedelta(seconds=seconds)
+
+        # Find frames that are at or before the target time
+        candidates = [
+            (frame, frame_time)
+            for frame, frame_time in self._buffer
+            if frame_time <= target_time
+        ]
+
+        if not candidates:
+            return None
+
+        # Return the frame closest to target_time (most recent before target)
+        closest_frame, _ = max(candidates, key=lambda x: x[1])
+        return closest_frame
