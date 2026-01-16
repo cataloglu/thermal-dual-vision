@@ -1,7 +1,25 @@
 {
   "project_type": "single",
-  "name": "smart-motion-detector",
-  "language": "python",
-  "framework": "home-assistant-addon",
-  "root_path": "/home/ac/Documents/motion-detector/motion-detector"
+  "services": {
+    "backend": {
+      "path": ".",
+      "tech_stack": ["python", "asyncio", "opencv", "ultralytics", "openai"],
+      "port": 8099,
+      "dev_command": "python src/main.py",
+      "test_command": "pytest tests/"
+    }
+  },
+  "infrastructure": {
+    "docker": true,
+    "database": null,
+    "message_queue": "mqtt"
+  },
+  "conventions": {
+    "linter": null,
+    "formatter": null,
+    "testing": "pytest",
+    "async_framework": "asyncio",
+    "config_pattern": "dataclasses",
+    "logging_pattern": "get_logger"
+  }
 }
