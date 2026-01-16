@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any, Callable, Optional
 
 try:
-    from telegram import Update
+    from telegram import InputMediaPhoto, Update
     from telegram.ext import Application, CommandHandler, ContextTypes
     TELEGRAM_AVAILABLE = True
 except ImportError:
@@ -12,6 +12,7 @@ except ImportError:
     Application = None
     Update = None
     CommandHandler = None
+    InputMediaPhoto = None
 
     # Create mock ContextTypes for type hints when telegram is not available
     class _MockContextTypes:
@@ -20,6 +21,7 @@ except ImportError:
 
 from .config import TelegramConfig
 from .logger import get_logger
+from .utils import encode_frame_to_bytes
 
 if TYPE_CHECKING:
     from .llm_analyzer import AnalysisResult, ScreenshotSet
@@ -146,6 +148,59 @@ class TelegramBot:
                 self.logger.debug(f"Message sent to chat_id: {chat_id}")
             except Exception as e:
                 self.logger.error(f"Failed to send message to chat_id {chat_id}: {e}")
+
+    async def send_alert(self, screenshots: "ScreenshotSet", analysis: "AnalysisResult") -> None:
+        """
+        Send motion detection alert with message and 3 images as media group.
+
+        Args:
+            screenshots: ScreenshotSet containing before/now/after images and timestamp
+            analysis: AnalysisResult containing analysis details
+        """
+        if not TELEGRAM_AVAILABLE:
+            self.logger.warning("Cannot send alert: python-telegram-bot not installed")
+            return
+
+        if not self.application:
+            self.logger.warning("Cannot send alert: Application not initialized")
+            return
+
+        if not self.config.chat_ids:
+            self.logger.warning("Cannot send alert: No chat IDs configured")
+            return
+
+        # Update last detection time
+        self._last_detection_time = screenshots.timestamp
+
+        # Format alert message
+        alert_text = self._format_alert_message(screenshots, analysis)
+
+        # Convert frames to JPEG bytes
+        try:
+            before_bytes = encode_frame_to_bytes(screenshots.before_frame)
+            now_bytes = encode_frame_to_bytes(screenshots.now_frame)
+            after_bytes = encode_frame_to_bytes(screenshots.after_frame)
+        except Exception as e:
+            self.logger.error(f"Failed to encode frames: {e}")
+            return
+
+        # Create media group (first photo has caption with alert message)
+        media_group = [
+            InputMediaPhoto(media=before_bytes, caption=alert_text, parse_mode="Markdown"),
+            InputMediaPhoto(media=now_bytes),
+            InputMediaPhoto(media=after_bytes)
+        ]
+
+        # Send to all configured chat IDs
+        for chat_id in self.config.chat_ids:
+            try:
+                await self.application.bot.send_media_group(
+                    chat_id=int(chat_id),
+                    media=media_group
+                )
+                self.logger.info(f"Alert sent to chat_id: {chat_id}")
+            except Exception as e:
+                self.logger.error(f"Failed to send alert to chat_id {chat_id}: {e}")
 
     def _format_alert_message(self, screenshots: Any, analysis: Any) -> str:
         """
