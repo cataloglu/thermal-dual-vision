@@ -54,6 +54,19 @@ class ScreenshotManager:
             f"({config.buffer_seconds}s at {fps} fps)"
         )
 
+    def add_frame(self, frame: np.ndarray, timestamp: datetime) -> None:
+        """
+        Add a frame with timestamp to the ring buffer.
+
+        The ring buffer automatically discards the oldest frame when full (maxlen).
+        Deque operations are thread-safe for append operations.
+
+        Args:
+            frame: OpenCV frame (BGR format numpy array)
+            timestamp: Timestamp when frame was captured
+        """
+        self._buffer.append((frame, timestamp))
+
     def get_buffer_size(self) -> int:
         """
         Get current number of frames in the buffer.
