@@ -70,3 +70,71 @@ class SmartMotionDetector:
         self.telegram_bot: Optional[TelegramBot] = None
 
         logger.info("Smart Motion Detector initialized")
+
+    async def start(self) -> None:
+        """
+        Start Smart Motion Detector and initialize all modules.
+
+        Initializes and starts all available modules in the correct order.
+        """
+        try:
+            logger.info("Starting Smart Motion Detector")
+            self._start_time = datetime.now()
+
+            # Initialize MQTT client
+            if MQTTClient:
+                try:
+                    self.mqtt_client = MQTTClient(self.config.mqtt)
+                    await self.mqtt_client.connect()
+                    logger.info("MQTT client started")
+                except Exception as e:
+                    logger.warning(f"MQTT client not started: {e}")
+                    self.mqtt_client = None
+            else:
+                logger.warning("MQTTClient not available")
+
+            # Initialize Telegram bot
+            if TelegramBot and self.config.telegram.enabled:
+                try:
+                    self.telegram_bot = TelegramBot(self.config.telegram)
+                    await self.telegram_bot.start()
+                    logger.info("Telegram bot started")
+                except Exception as e:
+                    logger.warning(f"Telegram bot not started: {e}")
+                    self.telegram_bot = None
+            elif self.config.telegram.enabled:
+                logger.warning("Telegram enabled but TelegramBot not available")
+
+            # Initialize LLM analyzer
+            if LLMAnalyzer:
+                self.llm_analyzer = LLMAnalyzer(self.config.llm)
+                logger.info("LLM analyzer initialized")
+            else:
+                logger.warning("LLMAnalyzer not available")
+
+            # Initialize YOLO detector
+            if YOLODetector:
+                self.yolo_detector = YOLODetector(self.config.yolo)
+                logger.info("YOLO detector initialized")
+            else:
+                logger.warning("YOLODetector not available")
+
+            # Initialize Screenshot manager
+            if ScreenshotManager:
+                self.screenshot_manager = ScreenshotManager(self.config.screenshots)
+                logger.info("Screenshot manager initialized")
+            else:
+                logger.warning("ScreenshotManager not available")
+
+            # Initialize Motion detector
+            if MotionDetector:
+                self.motion_detector = MotionDetector(self.config.motion)
+                logger.info("Motion detector initialized")
+            else:
+                logger.warning("MotionDetector not available")
+
+            logger.info("Smart Motion Detector started successfully")
+
+        except Exception as e:
+            logger.error(f"Failed to start Smart Motion Detector: {e}")
+            raise
