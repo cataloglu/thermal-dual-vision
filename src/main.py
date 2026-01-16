@@ -538,3 +538,68 @@ class SmartMotionDetector:
 
         except Exception as e:
             logger.error(f"Error in event pipeline: {e}", exc_info=True)
+
+
+async def main() -> None:
+    """
+    Main entry point for Smart Motion Detector application.
+
+    Loads configuration, validates it, initializes the detector,
+    and runs it until interrupted.
+    """
+    # Load configuration from environment
+    config = Config.from_env()
+
+    # Setup logging with configured level
+    from src.logger import setup_logger
+    setup_logger(level=config.log_level)
+
+    logger.info("Smart Motion Detector starting up")
+
+    # Validate configuration
+    errors = config.validate()
+    if errors:
+        logger.error("Configuration validation failed:")
+        for error in errors:
+            logger.error(f"  - {error}")
+        return
+
+    logger.info("Configuration validated successfully")
+
+    # Create detector instance
+    detector = SmartMotionDetector(config)
+
+    # Setup signal handlers for graceful shutdown
+    detector.setup_signal_handlers()
+
+    try:
+        # Start the detector
+        await detector.start()
+
+        # Arm the detector by default
+        detector.arm()
+
+        # Keep running until interrupted
+        logger.info("Smart Motion Detector is running. Press Ctrl+C to stop.")
+        while True:
+            await asyncio.sleep(1)
+
+    except asyncio.CancelledError:
+        logger.info("Application cancelled")
+    except KeyboardInterrupt:
+        logger.info("Received keyboard interrupt")
+    except Exception as e:
+        logger.error(f"Unexpected error in main: {e}", exc_info=True)
+    finally:
+        # Ensure cleanup happens
+        try:
+            await detector.stop()
+        except Exception as e:
+            logger.error(f"Error during final cleanup: {e}")
+
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass
