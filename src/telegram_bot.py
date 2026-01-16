@@ -188,9 +188,9 @@ class TelegramBot:
 
             # Convert frames to JPEG bytes
             try:
-                before_bytes = encode_frame_to_bytes(screenshots.before_frame)
-                now_bytes = encode_frame_to_bytes(screenshots.now_frame)
-                after_bytes = encode_frame_to_bytes(screenshots.after_frame)
+                before_bytes = encode_frame_to_bytes(screenshots.before)
+                now_bytes = encode_frame_to_bytes(screenshots.now)
+                after_bytes = encode_frame_to_bytes(screenshots.after)
             except Exception as e:
                 self.logger.error(f"Failed to encode frames: {e}")
                 return

@@ -43,8 +43,7 @@ def telegram_config():
     return TelegramConfig(
         bot_token="test_token_123",
         chat_ids=["123456789", "987654321"],
-        rate_limit_seconds=5,
-        send_images=True
+        rate_limit_seconds=5
     )
 
 

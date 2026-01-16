@@ -677,9 +677,9 @@ class TestTelegramBotRateLimiting:
             # Create mock screenshots
             screenshots = Mock()
             screenshots.timestamp = datetime.now()
-            screenshots.before_frame = Mock()
-            screenshots.now_frame = Mock()
-            screenshots.after_frame = Mock()
+            screenshots.before = Mock()
+            screenshots.now = Mock()
+            screenshots.after = Mock()
 
             # Create mock analysis
             analysis = Mock()
@@ -728,9 +728,9 @@ class TestTelegramBotRateLimiting:
             # Create mock screenshots
             screenshots = Mock()
             screenshots.timestamp = datetime.now()
-            screenshots.before_frame = Mock()
-            screenshots.now_frame = Mock()
-            screenshots.after_frame = Mock()
+            screenshots.before = Mock()
+            screenshots.now = Mock()
+            screenshots.after = Mock()
 
             # Create mock analysis
             analysis = Mock()
@@ -779,9 +779,9 @@ class TestTelegramBotRateLimiting:
             test_timestamp = datetime(2024, 1, 15, 14, 30, 25)
             screenshots = Mock()
             screenshots.timestamp = test_timestamp
-            screenshots.before_frame = Mock()
-            screenshots.now_frame = Mock()
-            screenshots.after_frame = Mock()
+            screenshots.before = Mock()
+            screenshots.now = Mock()
+            screenshots.after = Mock()
 
             # Create mock analysis
             analysis = Mock()
