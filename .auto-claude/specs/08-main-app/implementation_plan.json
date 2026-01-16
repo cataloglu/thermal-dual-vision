@@ -1,132 +1,472 @@
 {
-  "feature": "08 - Main Application",
+  "feature": "Main Application Orchestration",
   "workflow_type": "feature",
+  "workflow_rationale": "Creating the main application that orchestrates all modules (motion detection, YOLO, screenshots, LLM, MQTT, Telegram) with async event loop, signal handling, and health check endpoint. This is a single-service feature workflow.",
   "phases": [
     {
-      "phase": 1,
-      "name": "App Structure",
-      "chunks": [
+      "id": "phase-1-core-structure",
+      "name": "Core Application Structure",
+      "type": "implementation",
+      "description": "Create SmartMotionDetector class with configuration loading, initialization, and basic structure",
+      "depends_on": [],
+      "parallel_safe": true,
+      "subtasks": [
         {
-          "id": "08-01",
-          "description": "SmartMotionDetector sınıfı ve __init__",
-          "status": "pending",
-          "files": [
+          "id": "subtask-1-1",
+          "description": "Create SmartMotionDetector class with __init__ and configuration",
+          "service": "main",
+          "files_to_modify": [],
+          "files_to_create": [
             "src/main.py"
-          ]
+          ],
+          "patterns_from": [
+            "src/mqtt_client.py",
+            "src/telegram_bot.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "python -c \"from src.main import SmartMotionDetector; print('OK')\"",
+            "expected": "OK"
+          },
+          "status": "pending",
+          "notes": "Follow pattern from MQTTClient and TelegramBot - use Config dataclass, setup logger, initialize state variables"
         },
         {
-          "id": "08-02",
-          "description": "Config loading ve validation",
-          "status": "pending",
-          "files": [
+          "id": "subtask-1-2",
+          "description": "Add module instance variables and placeholder imports",
+          "service": "main",
+          "files_to_modify": [
             "src/main.py"
-          ]
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/config.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "python -c \"from src.main import SmartMotionDetector; from src.config import Config; app = SmartMotionDetector(Config()); print('OK')\"",
+            "expected": "OK"
+          },
+          "status": "pending",
+          "notes": "Create placeholders for MotionDetector, YOLODetector, ScreenshotManager instances. Handle import errors gracefully if modules don't exist yet."
         }
       ]
     },
     {
-      "phase": 2,
-      "name": "Module Initialization",
-      "chunks": [
+      "id": "phase-2-module-lifecycle",
+      "name": "Module Lifecycle Management",
+      "type": "implementation",
+      "description": "Implement start() and stop() methods to initialize and cleanup all modules",
+      "depends_on": [
+        "phase-1-core-structure"
+      ],
+      "parallel_safe": true,
+      "subtasks": [
         {
-          "id": "08-03",
-          "description": "Modül instance'larını oluştur",
-          "status": "pending",
-          "files": [
+          "id": "subtask-2-1",
+          "description": "Implement async start() method to initialize all modules",
+          "service": "main",
+          "files_to_modify": [
             "src/main.py"
-          ]
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/mqtt_client.py",
+            "src/telegram_bot.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "python -c \"import asyncio; from src.main import SmartMotionDetector; from src.config import Config; asyncio.run(SmartMotionDetector(Config()).start()); print('Started')\"",
+            "expected": "Started"
+          },
+          "status": "pending",
+          "notes": "Initialize MQTT, Telegram, and other modules. Use asyncio.gather for parallel initialization. Handle initialization failures gracefully."
         },
         {
-          "id": "08-04",
-          "description": "start() - tüm modülleri başlat",
-          "status": "pending",
-          "files": [
+          "id": "subtask-2-2",
+          "description": "Implement async stop() method for graceful shutdown",
+          "service": "main",
+          "files_to_modify": [
             "src/main.py"
-          ]
-        },
-        {
-          "id": "08-05",
-          "description": "stop() - graceful shutdown",
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/mqtt_client.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "python -c \"import asyncio; from src.main import SmartMotionDetector; from src.config import Config; app = SmartMotionDetector(Config()); asyncio.run(app.start()); asyncio.run(app.stop()); print('Stopped')\"",
+            "expected": "Stopped"
+          },
           "status": "pending",
-          "files": [
-            "src/main.py"
-          ]
+          "notes": "Stop all modules in reverse order. Ensure resources are released. Log all shutdown steps."
         }
       ]
     },
     {
-      "phase": 3,
-      "name": "Event Flow",
-      "chunks": [
+      "id": "phase-3-event-pipeline",
+      "name": "Event Flow Pipeline",
+      "type": "implementation",
+      "description": "Implement the full motion detection pipeline: Motion → YOLO → Screenshots → LLM → Notifications",
+      "depends_on": [
+        "phase-2-module-lifecycle"
+      ],
+      "parallel_safe": true,
+      "subtasks": [
         {
-          "id": "08-06",
-          "description": "Motion callback handler",
-          "status": "pending",
-          "files": [
+          "id": "subtask-3-1",
+          "description": "Create motion callback handler",
+          "service": "main",
+          "files_to_modify": [
             "src/main.py"
-          ]
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/telegram_bot.py"
+          ],
+          "verification": {
+            "type": "manual",
+            "instructions": "Review code to verify callback signature matches motion detector requirements"
+          },
+          "status": "pending",
+          "notes": "Callback receives frame and timestamp. Should check armed state before processing. Add logging for motion events."
         },
         {
-          "id": "08-07",
-          "description": "Full pipeline: YOLO -> Screenshot -> LLM -> Notify",
-          "status": "pending",
-          "files": [
+          "id": "subtask-3-2",
+          "description": "Implement full event pipeline in callback",
+          "service": "main",
+          "files_to_modify": [
             "src/main.py"
-          ]
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/llm_analyzer.py",
+            "src/mqtt_client.py",
+            "src/telegram_bot.py"
+          ],
+          "verification": {
+            "type": "manual",
+            "instructions": "Review pipeline: YOLO detection → Screenshot capture (before/now) → Wait after_seconds → Screenshot capture (after) → LLM analysis → Parallel MQTT publish and Telegram send"
+          },
+          "status": "pending",
+          "notes": "Use asyncio.gather for parallel MQTT and Telegram notifications. Handle errors at each step. Respect cooldown period."
         }
       ]
     },
     {
-      "phase": 4,
+      "id": "phase-4-control-monitoring",
       "name": "Control & Monitoring",
-      "chunks": [
+      "type": "implementation",
+      "description": "Implement arm/disarm controls and health check HTTP endpoint",
+      "depends_on": [
+        "phase-3-event-pipeline"
+      ],
+      "parallel_safe": true,
+      "subtasks": [
         {
-          "id": "08-08",
-          "description": "arm() ve disarm() metodları",
-          "status": "pending",
-          "files": [
+          "id": "subtask-4-1",
+          "description": "Implement arm(), disarm(), and is_armed() methods",
+          "service": "main",
+          "files_to_modify": [
             "src/main.py"
-          ]
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/telegram_bot.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "python -c \"from src.main import SmartMotionDetector; from src.config import Config; app = SmartMotionDetector(Config()); app.arm(); assert app.is_armed(); app.disarm(); assert not app.is_armed(); print('OK')\"",
+            "expected": "OK"
+          },
+          "status": "pending",
+          "notes": "Thread-safe state management. Log state changes. Notify modules (MQTT, Telegram) of state changes."
         },
         {
-          "id": "08-09",
-          "description": "health_check() endpoint",
-          "status": "pending",
-          "files": [
+          "id": "subtask-4-2",
+          "description": "Implement health_check() method returning status dict",
+          "service": "main",
+          "files_to_modify": [
             "src/main.py"
-          ]
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/mqtt_client.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "python -c \"import asyncio; from src.main import SmartMotionDetector; from src.config import Config; app = SmartMotionDetector(Config()); health = asyncio.run(app.health_check()); assert 'status' in health; print('OK')\"",
+            "expected": "OK"
+          },
+          "status": "pending",
+          "notes": "Return dict with status, uptime, armed state, last_detection, component health. Query each module for connection status."
         },
         {
-          "id": "08-10",
-          "description": "Signal handlers (SIGTERM, SIGINT)",
-          "status": "pending",
-          "files": [
+          "id": "subtask-4-3",
+          "description": "Create aiohttp health check HTTP endpoint on port 8099",
+          "service": "main",
+          "files_to_modify": [
             "src/main.py"
-          ]
+          ],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "api",
+            "method": "GET",
+            "url": "http://localhost:8099/health",
+            "expected_status": 200
+          },
+          "status": "pending",
+          "notes": "Simple aiohttp web server with /health endpoint. Return JSON from health_check() method. Start server in start() method."
         }
       ]
     },
     {
-      "phase": 5,
-      "name": "Entry Point",
-      "chunks": [
+      "id": "phase-5-entry-point",
+      "name": "Entry Point & Signal Handling",
+      "type": "implementation",
+      "description": "Implement signal handlers for graceful shutdown and main() entry point",
+      "depends_on": [
+        "phase-4-control-monitoring"
+      ],
+      "parallel_safe": true,
+      "subtasks": [
         {
-          "id": "08-11",
-          "description": "main() async entry point",
-          "status": "pending",
-          "files": [
+          "id": "subtask-5-1",
+          "description": "Add signal handlers for SIGTERM and SIGINT",
+          "service": "main",
+          "files_to_modify": [
             "src/main.py"
-          ]
+          ],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "manual",
+            "instructions": "Review code for signal.signal() calls with SIGTERM and SIGINT handlers"
+          },
+          "status": "pending",
+          "notes": "Signal handlers should trigger graceful shutdown. Use asyncio event loop to schedule stop(). Log signal reception."
         },
         {
-          "id": "08-12",
-          "description": "if __name__ == '__main__' block",
-          "status": "pending",
-          "files": [
+          "id": "subtask-5-2",
+          "description": "Implement async main() entry point",
+          "service": "main",
+          "files_to_modify": [
             "src/main.py"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/config.py",
+            "src/logger.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "timeout 5 python -m src.main || test $? -eq 124",
+            "expected": ""
+          },
+          "status": "pending",
+          "notes": "Load config from env using Config.from_env(). Validate config. Setup logger. Create app instance. Call start(). Keep running until signal received. Call stop() on shutdown."
+        },
+        {
+          "id": "subtask-5-3",
+          "description": "Add if __name__ == '__main__' block",
+          "service": "main",
+          "files_to_modify": [
+            "src/main.py"
+          ],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "timeout 5 python src/main.py || test $? -eq 124",
+            "expected": ""
+          },
+          "status": "pending",
+          "notes": "Use asyncio.run(main()) to run the async entry point. Handle KeyboardInterrupt for clean exit."
+        }
+      ]
+    },
+    {
+      "id": "phase-6-integration",
+      "name": "Integration Testing",
+      "type": "integration",
+      "description": "Verify end-to-end functionality of the main application with all modules",
+      "depends_on": [
+        "phase-5-entry-point"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-6-1",
+          "description": "Create integration test for full startup/shutdown cycle",
+          "all_services": false,
+          "service": "main",
+          "files_to_modify": [],
+          "files_to_create": [
+            "tests/test_main_app.py"
+          ],
+          "patterns_from": [
+            "tests/test_telegram_bot.py",
+            "tests/test_mqtt_client.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "pytest tests/test_main_app.py -v",
+            "expected": "tests pass"
+          },
+          "status": "pending",
+          "notes": "Test app initialization, module startup, health check, arm/disarm, and graceful shutdown. Mock module dependencies if needed."
+        },
+        {
+          "id": "subtask-6-2",
+          "description": "End-to-end manual verification",
+          "all_services": true,
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "e2e",
+            "steps": [
+              "Start application with python -m src.main",
+              "Verify health check responds on http://localhost:8099/health",
+              "Check logs for successful module initialization",
+              "Send SIGTERM and verify graceful shutdown with cleanup logs",
+              "Verify no resource leaks or errors in shutdown"
+            ]
+          },
+          "status": "pending",
+          "notes": "Full system test with real or mocked camera. Verify event pipeline works end-to-end."
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "total_phases": 6,
+    "total_subtasks": 13,
+    "services_involved": [
+      "main"
+    ],
+    "parallelism": {
+      "max_parallel_phases": 1,
+      "parallel_groups": [],
+      "recommended_workers": 1,
+      "speedup_estimate": "N/A - sequential phases due to dependencies",
+      "reasoning": "Each phase depends on the previous one completing. Phase 1 creates structure, Phase 2 adds lifecycle, Phase 3 adds pipeline, Phase 4 adds control, Phase 5 adds entry point, Phase 6 tests integration."
+    },
+    "startup_command": "source auto-claude/.venv/bin/activate && python auto-claude/run.py --spec 08 --parallel 1"
+  },
+  "verification_strategy": {
+    "risk_level": "high",
+    "skip_validation": false,
+    "test_creation_phase": "post_implementation",
+    "test_types_required": [
+      "unit",
+      "integration",
+      "e2e"
+    ],
+    "security_scanning_required": false,
+    "staging_deployment_required": false,
+    "acceptance_criteria": [
+      "All modules start successfully",
+      "Event pipeline executes correctly",
+      "Graceful shutdown works with signal handlers",
+      "Health check endpoint responds correctly",
+      "Arm/disarm state management works",
+      "No resource leaks during shutdown",
+      "Integration tests pass"
+    ],
+    "verification_steps": [
+      {
+        "name": "Unit Tests",
+        "command": "pytest tests/test_main_app.py -v",
+        "expected_outcome": "All unit tests pass",
+        "type": "test",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "Integration Tests",
+        "command": "pytest tests/test_main_app.py::TestIntegration -v",
+        "expected_outcome": "Integration tests pass with all modules",
+        "type": "test",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "Health Check Verification",
+        "command": "timeout 10 bash -c 'python -m src.main & sleep 3 && curl http://localhost:8099/health && kill %1'",
+        "expected_outcome": "Health endpoint returns valid JSON",
+        "type": "api",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "Graceful Shutdown Test",
+        "command": "timeout 10 bash -c 'python -m src.main & sleep 3 && kill -SIGTERM %1 && wait'",
+        "expected_outcome": "Application shuts down cleanly without errors",
+        "type": "test",
+        "required": true,
+        "blocking": true
+      }
+    ],
+    "reasoning": "High risk because this is the main orchestration layer that integrates all modules. Failure here affects the entire system. Requires unit, integration, and e2e testing to ensure reliability."
+  },
+  "qa_acceptance": {
+    "unit_tests": {
+      "required": true,
+      "commands": [
+        "pytest tests/test_main_app.py -v"
+      ],
+      "minimum_coverage": null
+    },
+    "integration_tests": {
+      "required": true,
+      "commands": [
+        "pytest tests/test_main_app.py::TestIntegration -v"
+      ],
+      "services_to_test": [
+        "main"
+      ]
+    },
+    "e2e_tests": {
+      "required": true,
+      "commands": [
+        "timeout 30 python -m src.main"
+      ],
+      "flows": [
+        "startup",
+        "health-check",
+        "arm-disarm",
+        "graceful-shutdown"
+      ]
+    },
+    "browser_verification": {
+      "required": false,
+      "pages": []
+    },
+    "database_verification": {
+      "required": false,
+      "checks": []
+    },
+    "api_verification": {
+      "required": true,
+      "endpoints": [
+        {
+          "url": "http://localhost:8099/health",
+          "method": "GET",
+          "expected_status": 200,
+          "expected_fields": [
+            "status",
+            "uptime",
+            "armed",
+            "components"
           ]
         }
       ]
     }
-  ]
+  },
+  "qa_signoff": null,
+  "status": "in_progress",
+  "planStatus": "in_progress",
+  "updated_at": "2026-01-16T10:24:02.933Z"
 }

@@ -1,18 +1,71 @@
 {
-  "task_description": "Tüm modülleri birleştiren ana uygulama",
+  "task_description": "Tüm modülleri birleştiren ana uygulama. Event loop, orchestration, graceful shutdown ve health check.",
   "files_to_create": [
-    "src/main.py"
+    "src/main.py",
+    "tests/test_main_app.py"
   ],
   "files_to_modify": [],
   "files_to_reference": [
     "src/config.py",
     "src/logger.py",
-    "src/motion_detector.py",
-    "src/yolo_detector.py",
-    "src/screenshot_manager.py",
-    "src/llm_analyzer.py",
     "src/mqtt_client.py",
-    "src/telegram_bot.py"
+    "src/telegram_bot.py",
+    "src/llm_analyzer.py",
+    "tests/test_telegram_bot.py",
+    "tests/test_mqtt_client.py",
+    "run.sh",
+    "config.yaml"
   ],
-  "scoped_services": ["main", "app"]
+  "scoped_services": ["main", "app"],
+  "patterns": {
+    "async_lifecycle": "Classes use async start() and stop() methods for lifecycle management. See MQTTClient and TelegramBot for examples.",
+    "configuration": "Use dataclasses with from_env() class method to load configuration from environment variables. See Config class in src/config.py.",
+    "logging": "Use get_logger(name) from src/logger.py to create module-specific loggers. Log all important lifecycle events.",
+    "error_handling": "Graceful error handling with try/except blocks. Log errors and continue operation when possible.",
+    "optional_imports": "Handle optional dependencies gracefully with try/except and availability flags (e.g., TELEGRAM_AVAILABLE).",
+    "signal_handling": "Use signal.signal() to register handlers for SIGTERM and SIGINT for graceful shutdown.",
+    "health_check": "aiohttp web server on port 8099 with /health endpoint returning JSON status.",
+    "testing": "pytest with async support (pytest-asyncio). Mock external dependencies. Test initialization, operations, and cleanup."
+  },
+  "existing_implementations": {
+    "description": "Found existing module implementations for MQTT, Telegram, and LLM Analyzer. These follow async patterns and provide lifecycle methods.",
+    "relevant_files": [
+      "src/mqtt_client.py",
+      "src/telegram_bot.py",
+      "src/llm_analyzer.py",
+      "src/config.py",
+      "src/logger.py",
+      "src/utils.py"
+    ],
+    "missing_dependencies": [
+      "src/motion_detector.py (task 02)",
+      "src/yolo_detector.py (task 03)",
+      "src/screenshot_manager.py (task 04)"
+    ],
+    "notes": "The main application should handle missing module dependencies gracefully during development. Use try/except for imports and provide informative error messages if required modules are not yet implemented."
+  },
+  "dependencies": {
+    "upstream_tasks": [
+      "01-project-structure",
+      "02-motion-detection",
+      "03-yolo-integration",
+      "04-screenshot-system",
+      "05-llm-vision",
+      "06-mqtt-integration",
+      "07-telegram-bot"
+    ],
+    "external_services": [
+      "MQTT broker (mosquitto)",
+      "OpenAI API",
+      "Telegram Bot API"
+    ]
+  },
+  "technical_details": {
+    "entry_point": "python -m src.main (as specified in run.sh)",
+    "health_check_port": 8099,
+    "event_flow": "Motion → YOLO → Screenshot (before/now) → Wait → Screenshot (after) → LLM → Parallel (MQTT + Telegram)",
+    "signal_handlers": ["SIGTERM", "SIGINT"],
+    "state_management": "Armed/disarmed state with thread-safe access",
+    "module_initialization": "Use asyncio.gather for parallel initialization of independent modules"
+  }
 }
