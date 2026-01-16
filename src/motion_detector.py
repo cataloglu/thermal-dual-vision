@@ -261,6 +261,31 @@ class MotionDetector:
                 return self._current_frame.copy()
             return None
 
+    def on_motion(self, callback: Callable[[np.ndarray, List], None]) -> None:
+        """
+        Register a callback to be invoked when motion is detected.
+
+        The callback will be called with two arguments:
+        - frame: The current frame as numpy array (BGR format)
+        - contours: List of detected motion contours
+
+        Callbacks are stored in a thread-safe manner and will be invoked
+        sequentially when motion is detected.
+
+        Args:
+            callback: Function to call when motion is detected.
+                     Signature: callback(frame: np.ndarray, contours: List) -> None
+
+        Example:
+            def handle_motion(frame, contours):
+                print(f"Motion detected! {len(contours)} contours found")
+
+            detector.on_motion(handle_motion)
+        """
+        with self._lock:
+            self._callbacks.append(callback)
+            logger.debug(f"Registered motion callback: {callback.__name__}")
+
     @property
     def is_connected(self) -> bool:
         """
