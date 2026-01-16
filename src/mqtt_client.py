@@ -205,6 +205,77 @@ class MQTTClient:
             }
         }
 
+    def _build_threat_sensor_discovery(self) -> Dict[str, Any]:
+        """
+        Build Home Assistant discovery payload for threat_level sensor.
+
+        Returns:
+            Discovery configuration dictionary for threat level sensor
+        """
+        device_id = f"{self.config.topic_prefix}_detector"
+
+        return {
+            "name": "Threat Level",
+            "unique_id": f"{device_id}_threat_level",
+            "state_topic": f"{self.config.topic_prefix}/threat_level/state",
+            "availability_topic": f"{self.config.topic_prefix}/availability",
+            "icon": "mdi:shield-alert",
+            "device": {
+                "identifiers": [device_id],
+                "name": "Smart Motion Detector",
+                "model": "v1.0",
+                "manufacturer": "Custom"
+            }
+        }
+
+    def _build_confidence_sensor_discovery(self) -> Dict[str, Any]:
+        """
+        Build Home Assistant discovery payload for confidence sensor.
+
+        Returns:
+            Discovery configuration dictionary for confidence sensor
+        """
+        device_id = f"{self.config.topic_prefix}_detector"
+
+        return {
+            "name": "Confidence",
+            "unique_id": f"{device_id}_confidence",
+            "state_topic": f"{self.config.topic_prefix}/confidence/state",
+            "availability_topic": f"{self.config.topic_prefix}/availability",
+            "unit_of_measurement": "%",
+            "icon": "mdi:percent",
+            "device": {
+                "identifiers": [device_id],
+                "name": "Smart Motion Detector",
+                "model": "v1.0",
+                "manufacturer": "Custom"
+            }
+        }
+
+    def _build_analysis_sensor_discovery(self) -> Dict[str, Any]:
+        """
+        Build Home Assistant discovery payload for last_analysis sensor.
+
+        Returns:
+            Discovery configuration dictionary for last analysis timestamp sensor
+        """
+        device_id = f"{self.config.topic_prefix}_detector"
+
+        return {
+            "name": "Last Analysis",
+            "unique_id": f"{device_id}_last_analysis",
+            "state_topic": f"{self.config.topic_prefix}/last_analysis/state",
+            "availability_topic": f"{self.config.topic_prefix}/availability",
+            "device_class": "timestamp",
+            "icon": "mdi:clock-outline",
+            "device": {
+                "identifiers": [device_id],
+                "name": "Smart Motion Detector",
+                "model": "v1.0",
+                "manufacturer": "Custom"
+            }
+        }
+
     async def publish_discovery(self) -> None:
         """
         Publish Home Assistant auto-discovery messages.

@@ -1,7 +1,7 @@
 {
   "feature": "MQTT Integration with Home Assistant Auto-Discovery",
   "workflow_type": "feature",
-  "workflow_rationale": "New module development for MQTT integration. Follows feature workflow: Core implementation \u2192 Discovery \u2192 Publishing \u2192 Testing",
+  "workflow_rationale": "New module development for MQTT integration. Follows feature workflow: Core implementation → Discovery → Publishing → Testing",
   "phases": [
     {
       "id": "phase-1-core",
@@ -97,8 +97,9 @@
             "command": "python -c \"from src.mqtt_client import MQTTClient; c = MQTTClient.__new__(MQTTClient); import json; p = c._build_binary_sensor_discovery(); assert 'device_class' in p and p['device_class'] == 'motion'; print('OK')\"",
             "expected": "OK"
           },
-          "status": "pending",
-          "notes": "Follow HA MQTT discovery format: {name, unique_id, state_topic, device_class, device}. Use spec.md discovery payload as reference."
+          "status": "completed",
+          "notes": "Implemented _build_binary_sensor_discovery() method that returns Home Assistant MQTT discovery payload for binary_sensor (motion). Payload includes: device_class='motion', unique_id, state_topic, availability_topic, payload_on/off, and device metadata (identifiers, name, model, manufacturer). Follows HA MQTT discovery protocol exactly as specified in spec.md. Verification passed successfully.",
+          "updated_at": "2026-01-16T06:45:37.483278+00:00"
         },
         {
           "id": "subtask-2-2",
@@ -352,6 +353,6 @@
   "qa_signoff": null,
   "status": "in_progress",
   "planStatus": "in_progress",
-  "updated_at": "2026-01-16T06:42:10.727Z",
-  "last_updated": "2026-01-16T06:43:42.035022+00:00"
+  "updated_at": "2026-01-16T06:46:12.537Z",
+  "last_updated": "2026-01-16T06:45:37.483288+00:00"
 }
