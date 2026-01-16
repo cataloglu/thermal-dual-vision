@@ -403,13 +403,20 @@ class TelegramBot:
             update: Telegram update object
             context: Telegram context object
         """
-        if not self._check_authorization(update.effective_chat.id):
-            await update.message.reply_text("⛔ *Yetkisiz Erişim*\n\nBu botu kullanma yetkiniz yok.", parse_mode="Markdown")
-            return
+        try:
+            if not self._check_authorization(update.effective_chat.id):
+                await update.message.reply_text("⛔ *Yetkisiz Erişim*\n\nBu botu kullanma yetkiniz yok.", parse_mode="Markdown")
+                return
 
-        help_text = self._handle_help()
-        await update.message.reply_text(help_text, parse_mode="Markdown")
-        self.logger.info(f"Help command processed for chat_id: {update.effective_chat.id}")
+            help_text = self._handle_help()
+            await update.message.reply_text(help_text, parse_mode="Markdown")
+            self.logger.info(f"Help command processed for chat_id: {update.effective_chat.id}")
+        except Exception as e:
+            self.logger.error(f"Error handling /help command: {e}")
+            try:
+                await update.message.reply_text("❌ *Hata*\n\nKomut işlenirken bir hata oluştu.", parse_mode="Markdown")
+            except Exception:
+                pass
 
     async def _cmd_status(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """
@@ -419,13 +426,20 @@ class TelegramBot:
             update: Telegram update object
             context: Telegram context object
         """
-        if not self._check_authorization(update.effective_chat.id):
-            await update.message.reply_text("⛔ *Yetkisiz Erişim*\n\nBu botu kullanma yetkiniz yok.", parse_mode="Markdown")
-            return
+        try:
+            if not self._check_authorization(update.effective_chat.id):
+                await update.message.reply_text("⛔ *Yetkisiz Erişim*\n\nBu botu kullanma yetkiniz yok.", parse_mode="Markdown")
+                return
 
-        status_text = self._handle_status()
-        await update.message.reply_text(status_text, parse_mode="Markdown")
-        self.logger.info(f"Status command processed for chat_id: {update.effective_chat.id}")
+            status_text = self._handle_status()
+            await update.message.reply_text(status_text, parse_mode="Markdown")
+            self.logger.info(f"Status command processed for chat_id: {update.effective_chat.id}")
+        except Exception as e:
+            self.logger.error(f"Error handling /status command: {e}")
+            try:
+                await update.message.reply_text("❌ *Hata*\n\nDurum bilgisi alınırken bir hata oluştu.", parse_mode="Markdown")
+            except Exception:
+                pass
 
     async def _cmd_arm(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """
@@ -435,13 +449,20 @@ class TelegramBot:
             update: Telegram update object
             context: Telegram context object
         """
-        if not self._check_authorization(update.effective_chat.id):
-            await update.message.reply_text("⛔ *Yetkisiz Erişim*\n\nBu botu kullanma yetkiniz yok.", parse_mode="Markdown")
-            return
+        try:
+            if not self._check_authorization(update.effective_chat.id):
+                await update.message.reply_text("⛔ *Yetkisiz Erişim*\n\nBu botu kullanma yetkiniz yok.", parse_mode="Markdown")
+                return
 
-        arm_text = self._handle_arm()
-        await update.message.reply_text(arm_text, parse_mode="Markdown")
-        self.logger.info(f"Arm command processed for chat_id: {update.effective_chat.id}")
+            arm_text = self._handle_arm()
+            await update.message.reply_text(arm_text, parse_mode="Markdown")
+            self.logger.info(f"Arm command processed for chat_id: {update.effective_chat.id}")
+        except Exception as e:
+            self.logger.error(f"Error handling /arm command: {e}")
+            try:
+                await update.message.reply_text("❌ *Hata*\n\nSistem aktif edilirken bir hata oluştu.", parse_mode="Markdown")
+            except Exception:
+                pass
 
     async def _cmd_disarm(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """
@@ -451,13 +472,20 @@ class TelegramBot:
             update: Telegram update object
             context: Telegram context object
         """
-        if not self._check_authorization(update.effective_chat.id):
-            await update.message.reply_text("⛔ *Yetkisiz Erişim*\n\nBu botu kullanma yetkiniz yok.", parse_mode="Markdown")
-            return
+        try:
+            if not self._check_authorization(update.effective_chat.id):
+                await update.message.reply_text("⛔ *Yetkisiz Erişim*\n\nBu botu kullanma yetkiniz yok.", parse_mode="Markdown")
+                return
 
-        disarm_text = self._handle_disarm()
-        await update.message.reply_text(disarm_text, parse_mode="Markdown")
-        self.logger.info(f"Disarm command processed for chat_id: {update.effective_chat.id}")
+            disarm_text = self._handle_disarm()
+            await update.message.reply_text(disarm_text, parse_mode="Markdown")
+            self.logger.info(f"Disarm command processed for chat_id: {update.effective_chat.id}")
+        except Exception as e:
+            self.logger.error(f"Error handling /disarm command: {e}")
+            try:
+                await update.message.reply_text("❌ *Hata*\n\nSistem pasif edilirken bir hata oluştu.", parse_mode="Markdown")
+            except Exception:
+                pass
 
     async def _cmd_snapshot(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """
@@ -467,13 +495,20 @@ class TelegramBot:
             update: Telegram update object
             context: Telegram context object
         """
-        if not self._check_authorization(update.effective_chat.id):
-            await update.message.reply_text("⛔ *Yetkisiz Erişim*\n\nBu botu kullanma yetkiniz yok.", parse_mode="Markdown")
-            return
+        try:
+            if not self._check_authorization(update.effective_chat.id):
+                await update.message.reply_text("⛔ *Yetkisiz Erişim*\n\nBu botu kullanma yetkiniz yok.", parse_mode="Markdown")
+                return
 
-        snapshot_text = self._handle_snapshot()
-        await update.message.reply_text(snapshot_text, parse_mode="Markdown")
-        self.logger.info(f"Snapshot command processed for chat_id: {update.effective_chat.id}")
+            snapshot_text = self._handle_snapshot()
+            await update.message.reply_text(snapshot_text, parse_mode="Markdown")
+            self.logger.info(f"Snapshot command processed for chat_id: {update.effective_chat.id}")
+        except Exception as e:
+            self.logger.error(f"Error handling /snapshot command: {e}")
+            try:
+                await update.message.reply_text("❌ *Hata*\n\nAnlık görüntü alınırken bir hata oluştu.", parse_mode="Markdown")
+            except Exception:
+                pass
 
     def set_arm_callback(self, callback: Callable[[], None]) -> None:
         """
