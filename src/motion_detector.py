@@ -420,7 +420,8 @@ class MotionDetector:
         """
         with self._lock:
             self._callbacks.append(callback)
-            logger.debug(f"Registered motion callback: {callback.__name__}")
+            callback_name = getattr(callback, '__name__', repr(callback))
+            logger.debug(f"Registered motion callback: {callback_name}")
 
     @property
     def is_connected(self) -> bool:
@@ -549,8 +550,9 @@ class MotionDetector:
                             try:
                                 callback(frame.copy(), motion_contours)
                             except Exception as e:
+                                callback_name = getattr(callback, '__name__', repr(callback))
                                 logger.error(
-                                    f"Error in motion callback {callback.__name__}: {e}"
+                                    f"Error in motion callback {callback_name}: {e}"
                                 )
 
                         # Update last motion time after invoking callbacks

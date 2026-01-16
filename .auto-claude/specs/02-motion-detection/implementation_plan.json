@@ -345,7 +345,9 @@
             "command": "pytest tests/test_motion_detector.py -v -k callback",
             "expected": "All tests pass"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Successfully implemented comprehensive unit tests for callback mechanism and cooldown timer.\n\nCallback Mechanism Tests (8 tests):\n- test_on_motion_registration: Verifies callback registration\n- test_multiple_callbacks: Tests multiple callback registration\n- test_callback_invoked_on_motion: Verifies callback invocation on motion\n- test_callback_receives_correct_parameters: Validates frame and contours parameters\n- test_multiple_callbacks_all_invoked: Ensures all callbacks are called\n- test_callback_error_doesnt_break_detection: Tests error handling doesn't break subsequent callbacks\n- test_no_callback_when_no_motion: Verifies no callbacks when no motion detected\n- test_callback_receives_frame_copy: Ensures callbacks receive frame copies, not originals\n\nCooldown Timer Tests (8 tests):\n- test_cooldown_prevents_spam: Verifies cooldown prevents callback spam\n- test_callback_invoked_immediately_first_time: Tests immediate invocation on first motion\n- test_cooldown_blocks_during_period: Verifies blocking during cooldown period\n- test_cooldown_allows_after_expiry: Tests callbacks resume after cooldown expires\n- test_cooldown_timer_updates_after_callback: Validates timer updates correctly\n- test_cooldown_with_multiple_motion_events: Tests multiple motion events handling\n- test_zero_cooldown_allows_all_events: Verifies zero cooldown allows all events\n- test_cooldown_respects_configured_value: Tests custom cooldown values are respected\n\nAll tests use proper mocking with mock_cv2 fixture, follow existing test patterns, and include comprehensive assertions. Python syntax validated successfully.",
+          "updated_at": "2026-01-16T01:16:01.391329+00:00"
         },
         {
           "id": "subtask-5-4",
@@ -361,7 +363,9 @@
             "command": "pytest tests/test_motion_detector.py -v -k sensitivity",
             "expected": "All tests pass"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Added comprehensive unit tests for sensitivity parameter and motion detection logic:\n- 8 tests for sensitivity mapping function (range validation, linear interpolation, consistency)\n- 6 tests for motion detection with different sensitivity levels\n- Tests verify that sensitivity correctly maps to varThreshold and min_area\n- Tests verify boundary cases and custom min_area override behavior\nAll 14 sensitivity-related tests passing successfully.",
+          "updated_at": "2026-01-16T01:19:04.977251+00:00"
         },
         {
           "id": "subtask-5-5",
@@ -486,6 +490,6 @@
   "qa_signoff": null,
   "status": "in_progress",
   "planStatus": "in_progress",
-  "updated_at": "2026-01-16T01:09:35.484Z",
-  "last_updated": "2026-01-16T01:09:17.047921+00:00"
+  "updated_at": "2026-01-16T01:19:21.435Z",
+  "last_updated": "2026-01-16T01:19:04.977260+00:00"
 }

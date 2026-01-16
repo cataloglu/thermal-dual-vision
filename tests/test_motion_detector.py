@@ -392,7 +392,7 @@ class TestCallbackMechanism:
         # Setup: Create contours that will trigger motion
         mock_contour = np.array([[[0, 0]], [[100, 0]], [[100, 100]], [[0, 100]]])
         mock_cv2.findContours.return_value = ([mock_contour], None)
-        mock_cv2.contourArea.return_value = 600  # Above min_area threshold
+        mock_cv2.contourArea.return_value = 1000  # Above min_area threshold (944 for sensitivity 5)
 
         callback = Mock()
         detector.on_motion(callback)
@@ -413,7 +413,7 @@ class TestCallbackMechanism:
         # Setup motion detection
         mock_contour = np.array([[[0, 0]], [[100, 0]], [[100, 100]], [[0, 100]]])
         mock_cv2.findContours.return_value = ([mock_contour], None)
-        mock_cv2.contourArea.return_value = 600
+        mock_cv2.contourArea.return_value = 1000
 
         callback = Mock()
         detector.on_motion(callback)
@@ -442,7 +442,7 @@ class TestCallbackMechanism:
         # Setup motion detection
         mock_contour = np.array([[[0, 0]], [[100, 0]], [[100, 100]], [[0, 100]]])
         mock_cv2.findContours.return_value = ([mock_contour], None)
-        mock_cv2.contourArea.return_value = 600
+        mock_cv2.contourArea.return_value = 1000
 
         callback1 = Mock()
         callback2 = Mock()
@@ -470,7 +470,7 @@ class TestCallbackMechanism:
         # Setup motion detection
         mock_contour = np.array([[[0, 0]], [[100, 0]], [[100, 100]], [[0, 100]]])
         mock_cv2.findContours.return_value = ([mock_contour], None)
-        mock_cv2.contourArea.return_value = 600
+        mock_cv2.contourArea.return_value = 1000
 
         # First callback raises exception
         callback1 = Mock(side_effect=RuntimeError("Test error"))
@@ -516,7 +516,7 @@ class TestCallbackMechanism:
         # Setup motion detection
         mock_contour = np.array([[[0, 0]], [[100, 0]], [[100, 100]], [[0, 100]]])
         mock_cv2.findContours.return_value = ([mock_contour], None)
-        mock_cv2.contourArea.return_value = 600
+        mock_cv2.contourArea.return_value = 1000
 
         received_frames = []
 
@@ -561,7 +561,8 @@ class TestMotionDetection:
         mock_contour2 = np.array([[[200, 200]], [[300, 200]], [[300, 300]], [[200, 300]]])
 
         mock_cv2.findContours.return_value = ([mock_contour1, mock_contour2], None)
-        mock_cv2.contourArea.side_effect = [600, 700]  # Both above min_area
+        # Called twice per contour: once for filtering, once for total area calculation
+        mock_cv2.contourArea.side_effect = [1000, 1100, 1000, 1100]  # Both above min_area (944)
 
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
         contours = detector._detect_motion(frame)
@@ -574,8 +575,8 @@ class TestMotionDetection:
         mock_contour2 = np.array([[[200, 200]], [[300, 200]], [[300, 300]], [[200, 300]]])
 
         mock_cv2.findContours.return_value = ([mock_contour1, mock_contour2], None)
-        # First contour too small, second one OK
-        mock_cv2.contourArea.side_effect = [50, 700]
+        # First contour too small, second one OK (called once for filtering, once for total area)
+        mock_cv2.contourArea.side_effect = [50, 1000, 1000]  # First below 944, second above
 
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
         contours = detector._detect_motion(frame)
@@ -661,8 +662,9 @@ class TestMotionDetection:
         contour3 = np.array([[[200, 200]], [[400, 200]], [[400, 400]], [[200, 400]]])
 
         mock_cv2.findContours.return_value = ([contour1, contour2, contour3], None)
-        # Areas: too small, at boundary, large
-        mock_cv2.contourArea.side_effect = [min_area - 50, min_area, min_area + 1000]
+        # Areas: too small, at boundary, large (called once for filtering, then again for total area calculation)
+        # First 3 calls are for filtering, next 2 are for calculating total area of passed contours
+        mock_cv2.contourArea.side_effect = [min_area - 50, min_area, min_area + 1000, min_area, min_area + 1000]
 
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
         contours = detector._detect_motion(frame)
@@ -722,7 +724,7 @@ class TestCooldownTimer:
         # Setup: Create contours that will trigger motion
         mock_contour = np.array([[[0, 0]], [[100, 0]], [[100, 100]], [[0, 100]]])
         mock_cv2.findContours.return_value = ([mock_contour], None)
-        mock_cv2.contourArea.return_value = 600
+        mock_cv2.contourArea.return_value = 1000
 
         callback = Mock()
         detector.on_motion(callback)
@@ -744,7 +746,7 @@ class TestCooldownTimer:
         # Setup motion detection
         mock_contour = np.array([[[0, 0]], [[100, 0]], [[100, 100]], [[0, 100]]])
         mock_cv2.findContours.return_value = ([mock_contour], None)
-        mock_cv2.contourArea.return_value = 600
+        mock_cv2.contourArea.return_value = 1000
 
         callback = Mock()
         detector.on_motion(callback)
@@ -771,7 +773,7 @@ class TestCooldownTimer:
         # Setup motion detection
         mock_contour = np.array([[[0, 0]], [[100, 0]], [[100, 100]], [[0, 100]]])
         mock_cv2.findContours.return_value = ([mock_contour], None)
-        mock_cv2.contourArea.return_value = 600
+        mock_cv2.contourArea.return_value = 1000
 
         callback = Mock()
         detector.on_motion(callback)
@@ -795,7 +797,7 @@ class TestCooldownTimer:
         # Setup motion detection
         mock_contour = np.array([[[0, 0]], [[100, 0]], [[100, 100]], [[0, 100]]])
         mock_cv2.findContours.return_value = ([mock_contour], None)
-        mock_cv2.contourArea.return_value = 600
+        mock_cv2.contourArea.return_value = 1000
 
         callback = Mock()
         detector.on_motion(callback)
@@ -816,7 +818,7 @@ class TestCooldownTimer:
         # Setup motion detection
         mock_contour = np.array([[[0, 0]], [[100, 0]], [[100, 100]], [[0, 100]]])
         mock_cv2.findContours.return_value = ([mock_contour], None)
-        mock_cv2.contourArea.return_value = 600
+        mock_cv2.contourArea.return_value = 1000
 
         callback = Mock()
         detector.on_motion(callback)
@@ -844,7 +846,7 @@ class TestCooldownTimer:
         # Setup motion detection
         mock_contour = np.array([[[0, 0]], [[100, 0]], [[100, 100]], [[0, 100]]])
         mock_cv2.findContours.return_value = ([mock_contour], None)
-        mock_cv2.contourArea.return_value = 600
+        mock_cv2.contourArea.return_value = 1000
 
         callback = Mock()
         detector.on_motion(callback)
@@ -879,7 +881,7 @@ class TestCooldownTimer:
         # Setup motion detection
         mock_contour = np.array([[[0, 0]], [[100, 0]], [[100, 100]], [[0, 100]]])
         mock_cv2.findContours.return_value = ([mock_contour], None)
-        mock_cv2.contourArea.return_value = 600
+        mock_cv2.contourArea.return_value = 1000
 
         callback = Mock()
         detector.on_motion(callback)
@@ -909,7 +911,7 @@ class TestCooldownTimer:
         # Setup motion detection
         mock_contour = np.array([[[0, 0]], [[100, 0]], [[100, 100]], [[0, 100]]])
         mock_cv2.findContours.return_value = ([mock_contour], None)
-        mock_cv2.contourArea.return_value = 600
+        mock_cv2.contourArea.return_value = 1000
 
         callback = Mock()
         detector.on_motion(callback)
