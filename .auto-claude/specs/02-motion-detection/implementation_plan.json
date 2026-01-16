@@ -112,7 +112,9 @@
             "type": "manual",
             "instructions": "Code review: Contour detection with proper morphological operations and area filtering"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Successfully implemented contour detection logic with cv2.findContours and area calculation. Implementation includes:\n- Background subtraction using MOG2 algorithm\n- Morphological operations (erosion + dilation with elliptical kernel) to reduce noise\n- Contour detection with cv2.findContours using RETR_EXTERNAL and CHAIN_APPROX_SIMPLE\n- Area-based filtering using min_area from config\n- Debug logging for motion detection events\nCode review verified: proper morphological operations and area filtering in place.",
+          "updated_at": "2026-01-16T00:57:21.374031+00:00"
         },
         {
           "id": "subtask-2-3",
@@ -129,7 +131,9 @@
             "type": "manual",
             "instructions": "Code review: Sensitivity mapping function with clear documentation"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Implemented map_sensitivity_to_params() function that maps sensitivity (1-10) to MOG2 varThreshold (8-50) and min_area (100-2000) parameters. Updated MotionDetector.__init__ to use the mapping function. Includes comprehensive documentation and input validation.",
+          "updated_at": "2026-01-16T00:59:11.821610+00:00"
         }
       ]
     },
@@ -464,6 +468,6 @@
   "qa_signoff": null,
   "status": "in_progress",
   "planStatus": "in_progress",
-  "updated_at": "2026-01-16T00:56:36.079Z",
-  "last_updated": "2026-01-16T00:56:18.581952+00:00"
+  "updated_at": "2026-01-16T00:57:46.415Z",
+  "last_updated": "2026-01-16T00:59:11.821620+00:00"
 }

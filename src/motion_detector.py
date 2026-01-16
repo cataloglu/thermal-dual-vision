@@ -323,3 +323,61 @@ class MotionDetector:
             )
 
         return motion_contours
+
+    def _capture_loop(self) -> None:
+        """
+        Continuous frame capture loop running in separate thread.
+
+        This method runs in a background thread and performs the following:
+        1. Reads frames from VideoCapture at configured FPS
+        2. Stores current frame in thread-safe manner
+        3. Performs motion detection on each frame
+        4. Invokes callbacks when motion is detected
+        5. Handles errors and reconnection attempts
+
+        The loop continues until _running flag is set to False.
+        """
+        logger.info("Frame capture loop started")
+
+        # Calculate frame delay based on configured FPS
+        # frame_delay is in seconds (e.g., 5 FPS = 0.2 seconds between frames)
+        frame_delay = 1.0 / self.camera_config.fps if self.camera_config.fps > 0 else 0.2
+
+        while self._running:
+            try:
+                # Check if camera is connected
+                if not self.is_connected:
+                    logger.warning("Camera disconnected, attempting reconnection...")
+                    if not self.connect():
+                        logger.error("Reconnection failed, waiting before retry...")
+                        time.sleep(5.0)  # Wait 5 seconds before retry
+                        continue
+
+                # Read frame from camera
+                ret, frame = self.capture.read()
+
+                if not ret or frame is None:
+                    logger.warning("Failed to read frame from camera")
+                    time.sleep(frame_delay)
+                    continue
+
+                # Store current frame (thread-safe)
+                with self._lock:
+                    self._current_frame = frame.copy()
+
+                # Detect motion in frame
+                motion_contours = self._detect_motion(frame)
+
+                # If motion detected, invoke callbacks
+                if motion_contours:
+                    # TODO: Implement callback invocation with cooldown in subtask-3-2 and 3-3
+                    pass
+
+                # Sleep to maintain configured FPS
+                time.sleep(frame_delay)
+
+            except Exception as e:
+                logger.error(f"Error in capture loop: {e}")
+                time.sleep(frame_delay)
+
+        logger.info("Frame capture loop stopped")
