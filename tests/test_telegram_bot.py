@@ -196,6 +196,114 @@ class TestTelegramBotAuthorization:
 class TestTelegramBotCommands:
     """Test command handlers."""
 
+    @pytest.mark.asyncio
+    async def test_commands(self):
+        """Test all command handlers with authorization and error handling."""
+        config = TelegramConfig(
+            bot_token="test_token_123",
+            chat_ids=["123456789"]
+        )
+
+        bot = TelegramBot(config)
+
+        # Create mock update with authorized chat ID
+        authorized_update = Mock()
+        authorized_update.effective_chat.id = 123456789
+        authorized_update.message = AsyncMock()
+
+        # Create mock update with unauthorized chat ID
+        unauthorized_update = Mock()
+        unauthorized_update.effective_chat.id = 999999999
+        unauthorized_update.message = AsyncMock()
+
+        # Mock context
+        context = Mock()
+
+        # Test /help command
+        await bot._cmd_help(authorized_update, context)
+        authorized_update.message.reply_text.assert_called_once()
+        call_args = authorized_update.message.reply_text.call_args[0][0]
+        assert "Smart Motion Detector Bot" in call_args
+        assert "Yetkisiz Erişim" not in call_args
+
+        # Test /help command unauthorized
+        await bot._cmd_help(unauthorized_update, context)
+        unauthorized_update.message.reply_text.assert_called_once()
+        call_args = unauthorized_update.message.reply_text.call_args[0][0]
+        assert "Yetkisiz Erişim" in call_args
+
+        # Reset mocks
+        authorized_update.message.reset_mock()
+        unauthorized_update.message.reset_mock()
+
+        # Test /status command
+        await bot._cmd_status(authorized_update, context)
+        authorized_update.message.reply_text.assert_called_once()
+        call_args = authorized_update.message.reply_text.call_args[0][0]
+        assert "Sistem Durumu" in call_args
+        assert "Yetkisiz Erişim" not in call_args
+
+        # Test /status command unauthorized
+        await bot._cmd_status(unauthorized_update, context)
+        unauthorized_update.message.reply_text.assert_called_once()
+        call_args = unauthorized_update.message.reply_text.call_args[0][0]
+        assert "Yetkisiz Erişim" in call_args
+
+        # Reset mocks
+        authorized_update.message.reset_mock()
+        unauthorized_update.message.reset_mock()
+
+        # Test /arm command
+        assert bot._armed is False
+        await bot._cmd_arm(authorized_update, context)
+        authorized_update.message.reply_text.assert_called_once()
+        call_args = authorized_update.message.reply_text.call_args[0][0]
+        assert "Sistem aktif edildi" in call_args
+        assert bot._armed is True
+
+        # Test /arm command unauthorized
+        await bot._cmd_arm(unauthorized_update, context)
+        unauthorized_update.message.reply_text.assert_called_once()
+        call_args = unauthorized_update.message.reply_text.call_args[0][0]
+        assert "Yetkisiz Erişim" in call_args
+
+        # Reset mocks
+        authorized_update.message.reset_mock()
+        unauthorized_update.message.reset_mock()
+
+        # Test /disarm command
+        assert bot._armed is True
+        await bot._cmd_disarm(authorized_update, context)
+        authorized_update.message.reply_text.assert_called_once()
+        call_args = authorized_update.message.reply_text.call_args[0][0]
+        assert "Sistem pasif edildi" in call_args
+        assert bot._armed is False
+
+        # Test /disarm command unauthorized
+        await bot._cmd_disarm(unauthorized_update, context)
+        unauthorized_update.message.reply_text.assert_called_once()
+        call_args = unauthorized_update.message.reply_text.call_args[0][0]
+        assert "Yetkisiz Erişim" in call_args
+
+        # Reset mocks
+        authorized_update.message.reset_mock()
+        unauthorized_update.message.reset_mock()
+
+        # Test /snapshot command with callback
+        callback_mock = Mock()
+        bot.set_snapshot_callback(callback_mock)
+        await bot._cmd_snapshot(authorized_update, context)
+        authorized_update.message.reply_text.assert_called_once()
+        call_args = authorized_update.message.reply_text.call_args[0][0]
+        assert "Anlık görüntü alınıyor" in call_args
+        callback_mock.assert_called_once()
+
+        # Test /snapshot command unauthorized
+        await bot._cmd_snapshot(unauthorized_update, context)
+        unauthorized_update.message.reply_text.assert_called_once()
+        call_args = unauthorized_update.message.reply_text.call_args[0][0]
+        assert "Yetkisiz Erişim" in call_args
+
     def test_handle_help_returns_help_text(self):
         """Test /help command returns formatted help text."""
         config = TelegramConfig(
