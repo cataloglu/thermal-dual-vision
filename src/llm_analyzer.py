@@ -1,8 +1,10 @@
 """LLM Vision Analyzer for Smart Motion Detector."""
 
 import asyncio
+import hashlib
 import json
 import time
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
@@ -141,6 +143,78 @@ class LLMAnalyzer:
         # Initialize rate limiter (1 request per second minimum)
         self.rate_limiter = RateLimiter(min_interval=1.0)
 
+        # Initialize response cache (LRU-style using OrderedDict)
+        self._response_cache: OrderedDict[str, Dict[str, Any]] = OrderedDict()
+
+    def _generate_cache_key(
+        self,
+        before_b64: str,
+        now_b64: str,
+        after_b64: Optional[str] = None
+    ) -> str:
+        """
+        Generate cache key from image base64 strings.
+
+        Args:
+            before_b64: Base64 encoded before image
+            now_b64: Base64 encoded now image
+            after_b64: Optional base64 encoded after image
+
+        Returns:
+            SHA256 hash string as cache key
+        """
+        # Combine all images and hash them
+        combined = before_b64 + now_b64
+        if after_b64:
+            combined += after_b64
+
+        # Generate SHA256 hash
+        hash_obj = hashlib.sha256(combined.encode("utf-8"))
+        return hash_obj.hexdigest()
+
+    def _get_cached_response(self, cache_key: str) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve cached response if available.
+
+        Args:
+            cache_key: Cache key to lookup
+
+        Returns:
+            Cached response dict or None if not found
+        """
+        if not self.config.cache_enabled:
+            return None
+
+        if cache_key in self._response_cache:
+            # Move to end (most recently used)
+            self._response_cache.move_to_end(cache_key)
+            logger.debug("Cache hit for key: %s", cache_key[:16])
+            return self._response_cache[cache_key]
+
+        logger.debug("Cache miss for key: %s", cache_key[:16])
+        return None
+
+    def _store_cached_response(self, cache_key: str, response: Dict[str, Any]) -> None:
+        """
+        Store response in cache with LRU eviction.
+
+        Args:
+            cache_key: Cache key
+            response: Response dict to cache
+        """
+        if not self.config.cache_enabled:
+            return
+
+        # Add to cache
+        self._response_cache[cache_key] = response
+        self._response_cache.move_to_end(cache_key)
+
+        # Evict oldest if over limit
+        while len(self._response_cache) > self.config.cache_max_size:
+            oldest_key = next(iter(self._response_cache))
+            self._response_cache.pop(oldest_key)
+            logger.debug("Evicted cache entry: %s", oldest_key[:16])
+
     async def analyze(self, screenshots: ScreenshotSet) -> AnalysisResult:
         """
         Analyze motion screenshots using LLM vision.
@@ -160,6 +234,31 @@ class LLMAnalyzer:
         # Encode images to base64
         before_b64 = encode_frame_to_base64(screenshots.before)
         now_b64 = encode_frame_to_base64(screenshots.now)
+        after_b64: Optional[str] = None
+        if screenshots.after is not None:
+            after_b64 = encode_frame_to_base64(screenshots.after)
+
+        # Generate cache key
+        cache_key = self._generate_cache_key(before_b64, now_b64, after_b64)
+
+        # Check cache
+        cached_response = self._get_cached_response(cache_key)
+        if cached_response is not None:
+            processing_time = time.time() - start_time
+            logger.info("Using cached LLM response (retrieved in %.3f seconds)", processing_time)
+
+            # Return cached result with current processing time
+            return AnalysisResult(
+                gercek_hareket=cached_response.get("gercek_hareket", False),
+                guven_skoru=float(cached_response.get("guven_skoru", 0.0)),
+                degisiklik_aciklamasi=cached_response.get("degisiklik_aciklamasi", ""),
+                tespit_edilen_nesneler=cached_response.get("tespit_edilen_nesneler", []),
+                tehdit_seviyesi=cached_response.get("tehdit_seviyesi", "yok"),
+                onerilen_aksiyon=cached_response.get("onerilen_aksiyon", ""),
+                detayli_analiz=cached_response.get("detayli_analiz", ""),
+                raw_response=cached_response,
+                processing_time=processing_time
+            )
 
         # Build image content list
         image_content: List[Dict[str, Any]] = [
@@ -188,8 +287,7 @@ class LLMAnalyzer:
         ]
 
         # Add after screenshot if available
-        if screenshots.after is not None:
-            after_b64 = encode_frame_to_base64(screenshots.after)
+        if after_b64 is not None:
             image_content.extend([
                 {
                     "type": "text",
@@ -272,6 +370,9 @@ class LLMAnalyzer:
         # Record metrics if collector is available
         if self.metrics_collector:
             self.metrics_collector.record_inference_time(processing_time * 1000)  # Convert to milliseconds
+
+        # Store response in cache
+        self._store_cached_response(cache_key, raw_response)
 
         # Create AnalysisResult from parsed response
         return AnalysisResult(

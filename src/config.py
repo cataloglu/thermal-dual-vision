@@ -37,6 +37,8 @@ class LLMConfig:
     model: str = "gpt-4-vision-preview"
     max_tokens: int = 1000
     timeout: int = 30
+    cache_enabled: bool = True
+    cache_max_size: int = 100  # Maximum number of cached responses
 
 
 @dataclass
@@ -105,6 +107,8 @@ class Config:
 
         # LLM
         config.llm.api_key = os.getenv("OPENAI_API_KEY", "")
+        config.llm.cache_enabled = os.getenv("LLM_CACHE_ENABLED", "true").lower() == "true"
+        config.llm.cache_max_size = int(os.getenv("LLM_CACHE_MAX_SIZE", "100"))
 
         # Screenshots
         config.screenshots.before_seconds = int(os.getenv("SCREENSHOT_BEFORE", "3"))
