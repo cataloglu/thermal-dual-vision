@@ -180,6 +180,31 @@ class MQTTClient:
             self._client = None
             raise
 
+    def _build_binary_sensor_discovery(self) -> Dict[str, Any]:
+        """
+        Build Home Assistant discovery payload for binary_sensor (motion).
+
+        Returns:
+            Discovery configuration dictionary for motion binary sensor
+        """
+        device_id = f"{self.config.topic_prefix}_detector"
+
+        return {
+            "name": "Smart Motion",
+            "unique_id": f"{device_id}_motion",
+            "state_topic": f"{self.config.topic_prefix}/motion/state",
+            "device_class": "motion",
+            "availability_topic": f"{self.config.topic_prefix}/availability",
+            "payload_on": "ON",
+            "payload_off": "OFF",
+            "device": {
+                "identifiers": [device_id],
+                "name": "Smart Motion Detector",
+                "model": "v1.0",
+                "manufacturer": "Custom"
+            }
+        }
+
     async def publish_discovery(self) -> None:
         """
         Publish Home Assistant auto-discovery messages.

@@ -1,7 +1,7 @@
 {
   "feature": "MQTT Integration with Home Assistant Auto-Discovery",
   "workflow_type": "feature",
-  "workflow_rationale": "New module development for MQTT integration. Follows feature workflow: Core implementation → Discovery → Publishing → Testing",
+  "workflow_rationale": "New module development for MQTT integration. Follows feature workflow: Core implementation \u2192 Discovery \u2192 Publishing \u2192 Testing",
   "phases": [
     {
       "id": "phase-1-core",
@@ -49,8 +49,8 @@
             "instructions": "Verify connect() and disconnect() methods are async and handle connection state properly. Code review to ensure proper error handling."
           },
           "status": "completed",
-          "notes": "Implemented async connect() and disconnect() methods with proper connection state tracking. Features: LWT (Last Will Testament) for offline state, online/offline availability publishing with retain flag, graceful disconnect with reconnection task cancellation, callback trigger support, comprehensive error handling and logging. Connection state tracked via _connected flag.",
-          "updated_at": "2026-01-16T06:45:00.000000+00:00"
+          "notes": "Implemented async connect() and disconnect() methods with proper connection state tracking. Features include: LWT (Last Will Testament) for offline state, online/offline availability publishing with retain flag, graceful disconnect with reconnection task cancellation, callback trigger support (sync/async), comprehensive error handling and logging. Connection state tracked via _connected flag. Verified with manual code review and syntax check.",
+          "updated_at": "2026-01-16T06:41:51.223244+00:00"
         },
         {
           "id": "subtask-1-3",
@@ -67,8 +67,9 @@
             "type": "manual",
             "instructions": "Verify callback registration works and reconnect logic triggers on disconnect"
           },
-          "status": "pending",
-          "notes": "Support multiple callbacks. Implement automatic reconnection with exponential backoff."
+          "status": "completed",
+          "notes": "Implemented callback registration system and automatic reconnect logic. Features: on_connect() and on_disconnect() methods for callback registration with duplicate prevention, automatic reconnection with exponential backoff (1s to 60s max), _should_reconnect flag to control auto-reconnect behavior, support for both sync and async callbacks, reconnect task cancellation on intentional disconnect. Verified with comprehensive test suite covering callback registration, invocation, and reconnect logic structure.",
+          "updated_at": "2026-01-16T06:43:42.035004+00:00"
         }
       ]
     },
@@ -351,6 +352,6 @@
   "qa_signoff": null,
   "status": "in_progress",
   "planStatus": "in_progress",
-  "updated_at": "2026-01-16T06:39:46.406Z",
-  "last_updated": "2026-01-16T06:39:15.827347+00:00"
+  "updated_at": "2026-01-16T06:42:10.727Z",
+  "last_updated": "2026-01-16T06:43:42.035022+00:00"
 }
