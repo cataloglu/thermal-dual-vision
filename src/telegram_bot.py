@@ -93,6 +93,10 @@ class TelegramBot:
             self.application.add_handler(CommandHandler("snapshot", self._cmd_snapshot))
             self.logger.debug("Command handlers registered")
 
+            # Register error handler for uncaught exceptions
+            self.application.add_error_handler(self._error_handler)
+            self.logger.debug("Error handler registered")
+
             await self.application.initialize()
             await self.application.start()
             self.logger.info("Telegram bot started")
@@ -541,3 +545,16 @@ class TelegramBot:
         """
         self._snapshot_callback = callback
         self.logger.debug("Snapshot callback registered")
+
+    async def _error_handler(self, update: Optional[Update], context: ContextTypes.DEFAULT_TYPE) -> None:
+        """
+        Handle uncaught errors from the Telegram bot.
+
+        Args:
+            update: Telegram update object (may be None for some errors)
+            context: Telegram context object containing the error
+        """
+        self.logger.error(
+            f"Telegram bot error: {context.error}",
+            exc_info=context.error
+        )
