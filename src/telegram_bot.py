@@ -4,11 +4,15 @@ from datetime import datetime
 from typing import Callable, Optional
 
 try:
-    from telegram.ext import Application
+    from telegram import Update
+    from telegram.ext import Application, CommandHandler, ContextTypes
     TELEGRAM_AVAILABLE = True
 except ImportError:
     TELEGRAM_AVAILABLE = False
     Application = None
+    Update = None
+    CommandHandler = None
+    ContextTypes = None
 
 from .config import TelegramConfig
 from .logger import get_logger
@@ -69,6 +73,14 @@ class TelegramBot:
             return
 
         try:
+            # Register command handlers
+            self.application.add_handler(CommandHandler("help", self._cmd_help))
+            self.application.add_handler(CommandHandler("status", self._cmd_status))
+            self.application.add_handler(CommandHandler("arm", self._cmd_arm))
+            self.application.add_handler(CommandHandler("disarm", self._cmd_disarm))
+            self.application.add_handler(CommandHandler("snapshot", self._cmd_snapshot))
+            self.logger.debug("Command handlers registered")
+
             await self.application.initialize()
             await self.application.start()
             self.logger.info("Telegram bot started")
@@ -241,6 +253,86 @@ class TelegramBot:
                 return "❌ *Hata*\n\nAnlık görüntü alınamadı. Lütfen tekrar deneyin."
 
         return "📸 *Anlık görüntü alınıyor...*\n\nGörüntü hazırlanıyor ve gönderilecek."
+
+    async def _cmd_help(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """
+        Handle /help command.
+
+        Args:
+            update: Telegram update object
+            context: Telegram context object
+        """
+        if not self._check_authorization(update.effective_chat.id):
+            await update.message.reply_text("⛔ *Yetkisiz Erişim*\n\nBu botu kullanma yetkiniz yok.", parse_mode="Markdown")
+            return
+
+        help_text = self._handle_help()
+        await update.message.reply_text(help_text, parse_mode="Markdown")
+        self.logger.info(f"Help command processed for chat_id: {update.effective_chat.id}")
+
+    async def _cmd_status(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """
+        Handle /status command.
+
+        Args:
+            update: Telegram update object
+            context: Telegram context object
+        """
+        if not self._check_authorization(update.effective_chat.id):
+            await update.message.reply_text("⛔ *Yetkisiz Erişim*\n\nBu botu kullanma yetkiniz yok.", parse_mode="Markdown")
+            return
+
+        status_text = self._handle_status()
+        await update.message.reply_text(status_text, parse_mode="Markdown")
+        self.logger.info(f"Status command processed for chat_id: {update.effective_chat.id}")
+
+    async def _cmd_arm(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """
+        Handle /arm command.
+
+        Args:
+            update: Telegram update object
+            context: Telegram context object
+        """
+        if not self._check_authorization(update.effective_chat.id):
+            await update.message.reply_text("⛔ *Yetkisiz Erişim*\n\nBu botu kullanma yetkiniz yok.", parse_mode="Markdown")
+            return
+
+        arm_text = self._handle_arm()
+        await update.message.reply_text(arm_text, parse_mode="Markdown")
+        self.logger.info(f"Arm command processed for chat_id: {update.effective_chat.id}")
+
+    async def _cmd_disarm(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """
+        Handle /disarm command.
+
+        Args:
+            update: Telegram update object
+            context: Telegram context object
+        """
+        if not self._check_authorization(update.effective_chat.id):
+            await update.message.reply_text("⛔ *Yetkisiz Erişim*\n\nBu botu kullanma yetkiniz yok.", parse_mode="Markdown")
+            return
+
+        disarm_text = self._handle_disarm()
+        await update.message.reply_text(disarm_text, parse_mode="Markdown")
+        self.logger.info(f"Disarm command processed for chat_id: {update.effective_chat.id}")
+
+    async def _cmd_snapshot(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """
+        Handle /snapshot command.
+
+        Args:
+            update: Telegram update object
+            context: Telegram context object
+        """
+        if not self._check_authorization(update.effective_chat.id):
+            await update.message.reply_text("⛔ *Yetkisiz Erişim*\n\nBu botu kullanma yetkiniz yok.", parse_mode="Markdown")
+            return
+
+        snapshot_text = self._handle_snapshot()
+        await update.message.reply_text(snapshot_text, parse_mode="Markdown")
+        self.logger.info(f"Snapshot command processed for chat_id: {update.effective_chat.id}")
 
     def set_arm_callback(self, callback: Callable[[], None]) -> None:
         """
