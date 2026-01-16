@@ -283,9 +283,61 @@ class MQTTClient:
         Sends discovery configuration for all entities (binary sensor and sensors)
         to enable automatic entity creation in Home Assistant.
         """
-        raise NotImplementedError(
-            "publish_discovery() will be implemented in phase-2-discovery"
-        )
+        if not self._connected:
+            logger.error("Cannot publish discovery: Not connected to MQTT broker")
+            raise RuntimeError("Not connected to MQTT broker")
+
+        if not self.config.discovery:
+            logger.debug("Discovery disabled in configuration, skipping")
+            return
+
+        import json
+
+        device_id = f"{self.config.topic_prefix}_detector"
+        discovery_prefix = self.config.discovery_prefix
+
+        # Define all entities to publish
+        entities = [
+            {
+                "component": "binary_sensor",
+                "entity": "motion",
+                "payload": self._build_binary_sensor_discovery()
+            },
+            {
+                "component": "sensor",
+                "entity": "threat_level",
+                "payload": self._build_threat_sensor_discovery()
+            },
+            {
+                "component": "sensor",
+                "entity": "confidence",
+                "payload": self._build_confidence_sensor_discovery()
+            },
+            {
+                "component": "sensor",
+                "entity": "last_analysis",
+                "payload": self._build_analysis_sensor_discovery()
+            }
+        ]
+
+        # Publish discovery config for each entity
+        for entity_config in entities:
+            topic = f"{discovery_prefix}/{entity_config['component']}/{device_id}/{entity_config['entity']}/config"
+            payload = json.dumps(entity_config['payload'])
+
+            try:
+                await self._client.publish(
+                    topic,
+                    payload=payload,
+                    qos=self.config.qos,
+                    retain=True
+                )
+                logger.info(f"Published discovery config to {topic}")
+            except Exception as e:
+                logger.error(f"Failed to publish discovery to {topic}: {e}")
+                raise
+
+        logger.info("Successfully published all discovery configurations")
 
     async def publish_motion(
         self, detected: bool, analysis: Optional[Any] = None
