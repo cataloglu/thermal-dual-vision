@@ -7,10 +7,20 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from openai import AsyncOpenAI
+from openai import (
+    AsyncOpenAI,
+    APIError,
+    APIConnectionError,
+    APITimeoutError,
+    RateLimitError,
+)
 
 from src.config import LLMConfig
+from src.logger import get_logger
 from src.utils import RateLimiter, encode_frame_to_base64
+
+# Initialize logger
+logger = get_logger("llm_analyzer")
 
 if TYPE_CHECKING:
     import numpy as np
@@ -41,6 +51,42 @@ Yanıtını şu JSON formatında ver:
   "onerilen_aksiyon": "...",
   "detayli_analiz": "..."
 }"""
+
+
+class LLMAnalyzerError(Exception):
+    """Base exception for LLM Analyzer errors."""
+
+    def __init__(self, message: str, original_error: Optional[Exception] = None) -> None:
+        """
+        Initialize LLM Analyzer error.
+
+        Args:
+            message: Error message
+            original_error: Original exception that caused this error
+        """
+        super().__init__(message)
+        self.original_error = original_error
+
+
+class JSONParseError(LLMAnalyzerError):
+    """Exception raised when JSON parsing fails."""
+
+    def __init__(
+        self,
+        message: str,
+        response_text: str,
+        original_error: Optional[Exception] = None
+    ) -> None:
+        """
+        Initialize JSON parse error.
+
+        Args:
+            message: Error message
+            response_text: The raw response text that failed to parse
+            original_error: Original JSON decode exception
+        """
+        super().__init__(message, original_error)
+        self.response_text = response_text
 
 
 @dataclass
@@ -99,7 +145,8 @@ class LLMAnalyzer:
             AnalysisResult with LLM analysis
 
         Raises:
-            Exception: If API call fails or response parsing fails
+            LLMAnalyzerError: If API call fails (rate limit, timeout, connection error)
+            JSONParseError: If response JSON parsing fails
         """
         start_time = time.time()
 
@@ -150,30 +197,70 @@ class LLMAnalyzer:
                 }
             ])
 
-        # Wait for rate limiter
-        async with self.rate_limiter:
-            # Call OpenAI API
-            response = await self.client.chat.completions.create(
-                model=self.config.model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": self.system_prompt
-                    },
-                    {
-                        "role": "user",
-                        "content": image_content
-                    }
-                ],
-                max_tokens=self.config.max_tokens,
-                response_format={"type": "json_object"}
-            )
+        # Wait for rate limiter and call OpenAI API with error handling
+        try:
+            async with self.rate_limiter:
+                response = await self.client.chat.completions.create(
+                    model=self.config.model,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": self.system_prompt
+                        },
+                        {
+                            "role": "user",
+                            "content": image_content
+                        }
+                    ],
+                    max_tokens=self.config.max_tokens,
+                    response_format={"type": "json_object"}
+                )
+        except RateLimitError as e:
+            logger.error("OpenAI rate limit exceeded: %s", str(e))
+            raise LLMAnalyzerError(
+                f"Rate limit exceeded: {e}",
+                original_error=e
+            ) from e
+        except APITimeoutError as e:
+            logger.error("OpenAI API timeout: %s", str(e))
+            raise LLMAnalyzerError(
+                f"API request timed out: {e}",
+                original_error=e
+            ) from e
+        except APIConnectionError as e:
+            logger.error("OpenAI API connection error: %s", str(e))
+            raise LLMAnalyzerError(
+                f"API connection error: {e}",
+                original_error=e
+            ) from e
+        except APIError as e:
+            logger.error("OpenAI API error: %s", str(e))
+            raise LLMAnalyzerError(
+                f"API error: {e}",
+                original_error=e
+            ) from e
 
-        # Parse response
+        # Parse response with error handling
         response_text = response.choices[0].message.content or "{}"
-        raw_response = json.loads(response_text)
+        try:
+            raw_response = json.loads(response_text)
+        except json.JSONDecodeError as e:
+            logger.error(
+                "Failed to parse LLM response as JSON: %s. Response: %s",
+                str(e),
+                response_text[:200]
+            )
+            raise JSONParseError(
+                f"Failed to parse response as JSON: {e}",
+                response_text=response_text,
+                original_error=e
+            ) from e
 
         processing_time = time.time() - start_time
+        logger.debug(
+            "LLM analysis completed in %.2f seconds",
+            processing_time
+        )
 
         # Create AnalysisResult from parsed response
         return AnalysisResult(
@@ -204,7 +291,8 @@ class LLMAnalyzer:
             AnalysisResult with LLM analysis
 
         Raises:
-            Exception: If all retry attempts fail
+            LLMAnalyzerError: If all retry attempts fail due to API errors
+            JSONParseError: If response JSON parsing fails (not retried)
         """
         delay = 1.0  # Initial delay in seconds
         backoff = 2.0  # Exponential backoff multiplier
@@ -213,8 +301,35 @@ class LLMAnalyzer:
         for attempt in range(max_retries):
             try:
                 return await self.analyze(screenshots)
-            except Exception as e:
+            except JSONParseError:
+                # JSON parsing errors should not be retried
+                logger.error("JSON parsing failed, not retrying")
+                raise
+            except LLMAnalyzerError as e:
                 last_exception = e
+                if attempt < max_retries - 1:
+                    logger.warning(
+                        "LLM analysis attempt %d/%d failed: %s. Retrying in %.1f seconds...",
+                        attempt + 1,
+                        max_retries,
+                        str(e),
+                        delay
+                    )
+                    await asyncio.sleep(delay)
+                    delay *= backoff
+                else:
+                    logger.error(
+                        "LLM analysis failed after %d attempts: %s",
+                        max_retries,
+                        str(e)
+                    )
+            except Exception as e:
+                # Catch any unexpected exceptions
+                last_exception = LLMAnalyzerError(
+                    f"Unexpected error during analysis: {e}",
+                    original_error=e
+                )
+                logger.error("Unexpected error in LLM analysis: %s", str(e))
                 if attempt < max_retries - 1:
                     await asyncio.sleep(delay)
                     delay *= backoff
