@@ -17,6 +17,47 @@ OPEN_TIMEOUT_MS = 10000  # 10 seconds to open connection
 READ_TIMEOUT_MS = 5000   # 5 seconds to read frame
 
 
+def map_sensitivity_to_params(sensitivity: int) -> tuple[int, int]:
+    """
+    Map sensitivity level (1-10) to motion detection parameters.
+
+    The sensitivity scale works as follows:
+    - 1 = Most sensitive: Detects subtle movements, small objects
+    - 5 = Balanced: Good for general use cases
+    - 10 = Least sensitive: Only detects significant movements, large objects
+
+    Parameters mapped:
+    - varThreshold: MOG2 background subtraction threshold
+      Lower values = more pixels classified as foreground = more sensitive
+      Range: 8 (sensitivity 1) to 50 (sensitivity 10)
+
+    - min_area: Minimum contour area in pixels to trigger motion
+      Lower values = smaller objects detected = more sensitive
+      Range: 100 (sensitivity 1) to 2000 (sensitivity 10)
+
+    Args:
+        sensitivity: Sensitivity level from 1 (most sensitive) to 10 (least sensitive)
+
+    Returns:
+        Tuple of (var_threshold, min_area)
+
+    Raises:
+        ValueError: If sensitivity is not in range 1-10
+    """
+    if not 1 <= sensitivity <= 10:
+        raise ValueError(f"Sensitivity must be between 1 and 10, got {sensitivity}")
+
+    # Map sensitivity (1-10) to varThreshold (8-50)
+    # Linear interpolation: threshold = 8 + (sensitivity - 1) * (50 - 8) / 9
+    var_threshold = int(8 + (sensitivity - 1) * 4.67)
+
+    # Map sensitivity (1-10) to min_area (100-2000)
+    # Linear interpolation: min_area = 100 + (sensitivity - 1) * (2000 - 100) / 9
+    min_area = int(100 + (sensitivity - 1) * 211.11)
+
+    return var_threshold, min_area
+
+
 class MotionDetector:
     """
     Motion detector using OpenCV background subtraction.
@@ -46,13 +87,26 @@ class MotionDetector:
         self._lock = threading.Lock()
 
         # Motion detection
-        # Initialize BackgroundSubtractorMOG2 with sensible defaults
+        # Map sensitivity to detection parameters
+        var_threshold, mapped_min_area = map_sensitivity_to_params(
+            self.motion_config.sensitivity
+        )
+
+        # Override min_area if explicitly configured (not default)
+        if self.motion_config.min_area != 500:
+            # User has explicitly set min_area, use it instead of mapped value
+            mapped_min_area = self.motion_config.min_area
+
+        # Update config with mapped value for use in detection
+        self.motion_config.min_area = mapped_min_area
+
+        # Initialize BackgroundSubtractorMOG2 with sensitivity-based parameters
         # history: Number of frames for background model (500 frames ~= 100s at 5fps)
-        # varThreshold: Threshold for pixel-model match (lower = more sensitive)
+        # varThreshold: Threshold for pixel-model match (mapped from sensitivity)
         # detectShadows: Detect and mark shadows (reduces false positives)
         self._background_subtractor = cv2.createBackgroundSubtractorMOG2(
             history=500,
-            varThreshold=16,
+            varThreshold=var_threshold,
             detectShadows=True
         )
         self._callbacks: List[Callable[[np.ndarray, List], None]] = []
@@ -60,7 +114,12 @@ class MotionDetector:
         # Frame storage
         self._current_frame: Optional[np.ndarray] = None
 
-        logger.info("MotionDetector initialized")
+        logger.info(
+            f"MotionDetector initialized - "
+            f"sensitivity={self.motion_config.sensitivity}, "
+            f"varThreshold={var_threshold}, "
+            f"min_area={mapped_min_area}"
+        )
 
     def _attempt_connection(self) -> bool:
         """
