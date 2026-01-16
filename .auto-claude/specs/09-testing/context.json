@@ -1,23 +1,56 @@
 {
-  "task_description": "Unit test, integration test ve mock sistemleri",
+  "task_description": "Organize comprehensive test infrastructure with pytest, including unit tests, integration tests, mock systems, and coverage reporting",
   "files_to_create": [
+    "pytest.ini",
     "tests/conftest.py",
-    "tests/unit/test_motion_detector.py",
-    "tests/unit/test_yolo_detector.py",
-    "tests/unit/test_screenshot_manager.py",
-    "tests/unit/test_llm_analyzer.py",
-    "tests/unit/test_mqtt_client.py",
-    "tests/unit/test_telegram_bot.py",
-    "tests/integration/test_pipeline.py",
+    "tests/unit/__init__.py",
     "tests/mocks/__init__.py",
     "tests/mocks/mock_camera.py",
     "tests/mocks/mock_openai.py",
-    "pytest.ini"
+    "tests/mocks/mock_mqtt.py",
+    "tests/integration/test_motion_to_llm.py",
+    "tests/integration/test_mqtt_to_telegram.py",
+    "tests/integration/test_full_pipeline.py"
   ],
-  "files_to_modify": [],
+  "files_to_modify": [
+    "requirements.txt"
+  ],
+  "files_to_reorganize": [
+    "tests/test_llm_analyzer.py -> tests/unit/test_llm_analyzer.py",
+    "tests/test_mqtt_client.py -> tests/unit/test_mqtt_client.py",
+    "tests/test_telegram_bot.py -> tests/unit/test_telegram_bot.py"
+  ],
   "files_to_reference": [
-    "src/",
-    ".auto-claude/test_data/"
+    "tests/test_llm_analyzer.py",
+    "tests/test_mqtt_client.py",
+    "tests/test_telegram_bot.py",
+    "src/llm_analyzer.py",
+    "src/mqtt_client.py",
+    "src/telegram_bot.py",
+    "src/config.py",
+    "src/utils.py"
   ],
+  "patterns": {
+    "test_structure": "Existing tests use pytest with fixtures, AsyncMock for async code, and comprehensive mocking",
+    "fixture_pattern": "Tests use @pytest.fixture for reusable test data and mock objects",
+    "mock_pattern": "Tests use unittest.mock.patch for mocking external dependencies like OpenAI and MQTT",
+    "async_pattern": "Async tests marked with @pytest.mark.asyncio and use AsyncMock"
+  },
+  "existing_implementations": {
+    "description": "Comprehensive unit tests already exist for llm_analyzer, mqtt_client, and telegram_bot modules",
+    "test_files": [
+      "tests/test_llm_analyzer.py",
+      "tests/test_mqtt_client.py",
+      "tests/test_telegram_bot.py"
+    ],
+    "missing": [
+      "pytest.ini configuration",
+      "tests/conftest.py for shared fixtures",
+      "tests/unit/ directory structure",
+      "tests/mocks/ directory with reusable mock classes",
+      "Integration tests",
+      "pytest and pytest-cov in requirements.txt"
+    ]
+  },
   "scoped_services": ["testing"]
 }

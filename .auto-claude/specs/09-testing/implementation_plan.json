@@ -1,178 +1,444 @@
 {
-  "feature": "09 - Testing",
+  "feature": "Comprehensive pytest test infrastructure with unit tests, integration tests, and mock systems",
   "workflow_type": "feature",
+  "workflow_rationale": "Building test infrastructure from scratch requires multiple phases: setup, mock extraction, test reorganization, shared fixtures, integration tests, and verification. Each phase depends on previous phases completing successfully.",
   "phases": [
     {
-      "phase": 1,
-      "name": "Test Infrastructure",
-      "chunks": [
+      "id": "phase-1-setup",
+      "name": "Setup & Configuration",
+      "type": "setup",
+      "description": "Create pytest configuration, update dependencies, and create directory structure",
+      "depends_on": [],
+      "parallel_safe": true,
+      "subtasks": [
         {
-          "id": "09-01",
-          "description": "pytest.ini konfigürasyonu",
-          "status": "pending",
-          "files": [
+          "id": "subtask-1-1",
+          "description": "Add pytest dependencies to requirements.txt",
+          "service": "main",
+          "files_to_modify": [
+            "requirements.txt"
+          ],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "grep -q 'pytest' requirements.txt && grep -q 'pytest-asyncio' requirements.txt && grep -q 'pytest-cov' requirements.txt && echo 'OK'",
+            "expected": "OK"
+          },
+          "status": "completed",
+          "notes": "Added pytest>=7.4.0, pytest-asyncio>=0.21.0, and pytest-cov>=4.1.0 to requirements.txt. Verification passed successfully.",
+          "updated_at": "2026-01-16T12:31:30.205057+00:00"
+        },
+        {
+          "id": "subtask-1-2",
+          "description": "Create pytest.ini configuration file",
+          "service": "main",
+          "files_to_modify": [],
+          "files_to_create": [
             "pytest.ini"
-          ]
+          ],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "test -f pytest.ini && echo 'OK'",
+            "expected": "OK"
+          },
+          "status": "completed",
+          "notes": "Created pytest.ini configuration file with asyncio_mode, testpaths, coverage options, and test markers (unit, integration, slow). Verification passed successfully.",
+          "updated_at": "2026-01-16T12:32:19.102201+00:00"
         },
         {
-          "id": "09-02",
-          "description": "conftest.py shared fixtures",
-          "status": "pending",
-          "files": [
-            "tests/conftest.py"
-          ]
-        }
-      ]
-    },
-    {
-      "phase": 2,
-      "name": "Mock Classes",
-      "chunks": [
-        {
-          "id": "09-03",
-          "description": "MockCamera - fake RTSP stream",
-          "status": "pending",
-          "files": [
-            "tests/mocks/mock_camera.py"
-          ]
-        },
-        {
-          "id": "09-04",
-          "description": "MockOpenAI - fake GPT-4V responses",
-          "status": "pending",
-          "files": [
-            "tests/mocks/mock_openai.py"
-          ]
-        },
-        {
-          "id": "09-05",
-          "description": "MockMQTT - fake broker",
-          "status": "pending",
-          "files": [
+          "id": "subtask-1-3",
+          "description": "Create test directory structure (unit/, mocks/, integration/)",
+          "service": "main",
+          "files_to_modify": [],
+          "files_to_create": [
+            "tests/unit/__init__.py",
             "tests/mocks/__init__.py"
-          ]
+          ],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "test -d tests/unit && test -d tests/mocks && test -d tests/integration && echo 'OK'",
+            "expected": "OK"
+          },
+          "status": "completed",
+          "notes": "Successfully created test directory structure with unit/, mocks/, and integration/ directories. Created __init__.py files in unit/ and mocks/. Verification passed.",
+          "updated_at": "2026-01-16T12:33:11.617419+00:00"
         }
       ]
     },
     {
-      "phase": 3,
-      "name": "Unit Tests",
-      "chunks": [
+      "id": "phase-2-mocks",
+      "name": "Create Mock Classes",
+      "type": "implementation",
+      "description": "Extract and create reusable mock classes for external dependencies",
+      "depends_on": [
+        "phase-1-setup"
+      ],
+      "parallel_safe": true,
+      "subtasks": [
         {
-          "id": "09-06",
-          "description": "test_motion_detector.py",
-          "status": "pending",
-          "files": [
-            "tests/unit/test_motion_detector.py"
-          ]
+          "id": "subtask-2-1",
+          "description": "Create MockCamera class for fake video feed",
+          "service": "main",
+          "files_to_modify": [],
+          "files_to_create": [
+            "tests/mocks/mock_camera.py"
+          ],
+          "patterns_from": [
+            "tests/test_llm_analyzer.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "python -c 'from tests.mocks.mock_camera import MockCamera; print(\"OK\")'",
+            "expected": "OK"
+          },
+          "status": "completed",
+          "notes": "Created MockCamera class with read() method returning Tuple[bool, np.ndarray] and generate_motion_frame() method. The class simulates an RTSP video stream for testing with support for multiple motion types (rectangle, person, gradient), configurable resolution and FPS, error conditions, and mimics cv2.VideoCapture interface. Class structure verified using AST parsing - all required methods are present and properly typed.",
+          "updated_at": "2026-01-16T12:35:33.239328+00:00"
         },
         {
-          "id": "09-07",
-          "description": "test_yolo_detector.py",
-          "status": "pending",
-          "files": [
-            "tests/unit/test_yolo_detector.py"
-          ]
+          "id": "subtask-2-2",
+          "description": "Create MockOpenAI class for fake LLM responses",
+          "service": "main",
+          "files_to_modify": [],
+          "files_to_create": [
+            "tests/mocks/mock_openai.py"
+          ],
+          "patterns_from": [
+            "tests/test_llm_analyzer.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "python -c 'from tests.mocks.mock_openai import MockOpenAI; print(\"OK\")'",
+            "expected": "OK"
+          },
+          "status": "completed",
+          "notes": "Created MockOpenAI class in tests/mocks/mock_openai.py with full async support. Includes methods for simulating various response types (valid motion, no motion, custom responses) and error conditions (rate limit, timeout, connection errors, API errors). Follows the same pattern as MockCamera. Verification passed successfully.",
+          "updated_at": "2026-01-16T12:37:00.837632+00:00"
         },
         {
-          "id": "09-08",
-          "description": "test_screenshot_manager.py",
-          "status": "pending",
-          "files": [
-            "tests/unit/test_screenshot_manager.py"
-          ]
-        },
+          "id": "subtask-2-3",
+          "description": "Create MockMQTT class for fake MQTT broker",
+          "service": "main",
+          "files_to_modify": [],
+          "files_to_create": [
+            "tests/mocks/mock_mqtt.py"
+          ],
+          "patterns_from": [
+            "tests/test_mqtt_client.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "python -c 'from tests.mocks.mock_mqtt import MockMQTT; print(\"OK\")'",
+            "expected": "OK"
+          },
+          "status": "completed",
+          "notes": "Created MockMQTT class with MockMQTTClient, MockMQTTMessage, and MockMQTTWill. Provides async context manager protocol, tracks published messages, and supports error simulation.",
+          "updated_at": "2026-01-16T12:38:24.748351+00:00"
+        }
+      ]
+    },
+    {
+      "id": "phase-3-reorganize",
+      "name": "Reorganize Unit Tests",
+      "type": "implementation",
+      "description": "Move existing test files to tests/unit/ and update imports",
+      "depends_on": [
+        "phase-1-setup"
+      ],
+      "parallel_safe": true,
+      "subtasks": [
         {
-          "id": "09-09",
-          "description": "test_llm_analyzer.py",
-          "status": "pending",
-          "files": [
+          "id": "subtask-3-1",
+          "description": "Move test_llm_analyzer.py to tests/unit/",
+          "service": "main",
+          "files_to_modify": [],
+          "files_to_create": [
             "tests/unit/test_llm_analyzer.py"
-          ]
+          ],
+          "patterns_from": [
+            "tests/test_llm_analyzer.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "test -f tests/unit/test_llm_analyzer.py && pytest tests/unit/test_llm_analyzer.py -v --tb=short | tail -1 | grep -E '(passed|OK)' && echo 'OK'",
+            "expected": "OK"
+          },
+          "status": "pending"
         },
         {
-          "id": "09-10",
-          "description": "test_mqtt_client.py",
-          "status": "pending",
-          "files": [
+          "id": "subtask-3-2",
+          "description": "Move test_mqtt_client.py to tests/unit/",
+          "service": "main",
+          "files_to_modify": [],
+          "files_to_create": [
             "tests/unit/test_mqtt_client.py"
-          ]
+          ],
+          "patterns_from": [
+            "tests/test_mqtt_client.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "test -f tests/unit/test_mqtt_client.py && pytest tests/unit/test_mqtt_client.py -v --tb=short | tail -1 | grep -E '(passed|OK)' && echo 'OK'",
+            "expected": "OK"
+          },
+          "status": "pending"
         },
         {
-          "id": "09-11",
-          "description": "test_telegram_bot.py",
-          "status": "pending",
-          "files": [
+          "id": "subtask-3-3",
+          "description": "Move test_telegram_bot.py to tests/unit/",
+          "service": "main",
+          "files_to_modify": [],
+          "files_to_create": [
             "tests/unit/test_telegram_bot.py"
-          ]
+          ],
+          "patterns_from": [
+            "tests/test_telegram_bot.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "test -f tests/unit/test_telegram_bot.py && pytest tests/unit/test_telegram_bot.py -v --tb=short | tail -1 | grep -E '(passed|OK)' && echo 'OK'",
+            "expected": "OK"
+          },
+          "status": "pending"
         }
       ]
     },
     {
-      "phase": 4,
-      "name": "Integration Tests",
-      "chunks": [
+      "id": "phase-4-fixtures",
+      "name": "Create Shared Fixtures",
+      "type": "implementation",
+      "description": "Create tests/conftest.py with shared fixtures for all tests",
+      "depends_on": [
+        "phase-2-mocks",
+        "phase-3-reorganize"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
         {
-          "id": "09-12",
-          "description": "test_pipeline.py - full flow test",
-          "status": "pending",
-          "files": [
-            "tests/integration/test_pipeline.py"
-          ]
+          "id": "subtask-4-1",
+          "description": "Create conftest.py with common fixtures",
+          "service": "main",
+          "files_to_modify": [],
+          "files_to_create": [
+            "tests/conftest.py"
+          ],
+          "patterns_from": [
+            "tests/test_llm_analyzer.py",
+            "tests/test_mqtt_client.py",
+            "tests/test_telegram_bot.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "python -c 'import sys; sys.path.insert(0, \"tests\"); import conftest; print(\"OK\")'",
+            "expected": "OK"
+          },
+          "status": "pending"
         }
       ]
     },
     {
-      "phase": 5,
-      "name": "UI Tests (Puppeteer)",
-      "chunks": [
+      "id": "phase-5-integration",
+      "name": "Create Integration Tests",
+      "type": "implementation",
+      "description": "Create integration tests for cross-module interactions",
+      "depends_on": [
+        "phase-4-fixtures"
+      ],
+      "parallel_safe": true,
+      "subtasks": [
         {
-          "id": "09-13",
-          "description": "HA dashboard MQTT entity testi",
-          "status": "pending",
-          "files": [
-            "tests/ui/test_ha_dashboard.py"
-          ]
+          "id": "subtask-5-1",
+          "description": "Create integration test for motion detection to LLM analysis",
+          "service": "main",
+          "files_to_modify": [],
+          "files_to_create": [
+            "tests/integration/test_motion_to_llm.py"
+          ],
+          "patterns_from": [
+            "tests/unit/test_llm_analyzer.py",
+            "src/llm_analyzer.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "pytest tests/integration/test_motion_to_llm.py -v --tb=short -m integration && echo 'OK'",
+            "expected": "OK"
+          },
+          "status": "pending"
         },
         {
-          "id": "09-14",
-          "description": "Add-on config panel testi",
-          "status": "pending",
-          "files": [
-            "tests/ui/test_addon_config.py"
-          ]
+          "id": "subtask-5-2",
+          "description": "Create integration test for MQTT to Telegram notification flow",
+          "service": "main",
+          "files_to_modify": [],
+          "files_to_create": [
+            "tests/integration/test_mqtt_to_telegram.py"
+          ],
+          "patterns_from": [
+            "tests/unit/test_mqtt_client.py",
+            "tests/unit/test_telegram_bot.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "pytest tests/integration/test_mqtt_to_telegram.py -v --tb=short -m integration && echo 'OK'",
+            "expected": "OK"
+          },
+          "status": "pending"
+        },
+        {
+          "id": "subtask-5-3",
+          "description": "Create full pipeline integration test",
+          "service": "main",
+          "files_to_modify": [],
+          "files_to_create": [
+            "tests/integration/test_full_pipeline.py"
+          ],
+          "patterns_from": [
+            "src/llm_analyzer.py",
+            "src/mqtt_client.py",
+            "src/telegram_bot.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "pytest tests/integration/test_full_pipeline.py -v --tb=short -m integration && echo 'OK'",
+            "expected": "OK"
+          },
+          "status": "pending"
         }
       ]
     },
     {
-      "phase": 6,
-      "name": "Web UI Tests",
-      "chunks": [
+      "id": "phase-6-verification",
+      "name": "Coverage & Final Verification",
+      "type": "integration",
+      "description": "Run all tests with coverage reporting and verify >= 80% coverage",
+      "depends_on": [
+        "phase-5-integration"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
         {
-          "id": "09-15",
-          "description": "Web API endpoint testleri",
-          "status": "pending",
-          "files": [
-            "tests/unit/test_web_api.py"
-          ]
-        },
-        {
-          "id": "09-16",
-          "description": "WebSocket connection testi",
-          "status": "pending",
-          "files": [
-            "tests/unit/test_websocket.py"
-          ]
-        },
-        {
-          "id": "09-17",
-          "description": "Web UI E2E testleri (Puppeteer)",
-          "status": "pending",
-          "files": [
-            "tests/ui/test_web_ui.py"
-          ]
+          "id": "subtask-6-1",
+          "description": "Run all tests with coverage and verify >= 80%",
+          "service": "main",
+          "all_services": true,
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "pytest tests/ --cov=src --cov-report=term-missing --cov-report=html -v && echo 'All tests passed'",
+            "expected": "All tests passed"
+          },
+          "status": "pending"
         }
       ]
     }
-  ]
+  ],
+  "verification_strategy": {
+    "risk_level": "medium",
+    "skip_validation": false,
+    "test_creation_phase": "during_implementation",
+    "test_types_required": [
+      "unit",
+      "integration"
+    ],
+    "security_scanning_required": false,
+    "staging_deployment_required": false,
+    "acceptance_criteria": [
+      "All unit tests pass",
+      "All integration tests pass",
+      "Coverage >= 80%",
+      "pytest.ini properly configured",
+      "Mock classes are reusable",
+      "Tests run in CI/CD"
+    ],
+    "verification_steps": [
+      {
+        "name": "Unit Tests",
+        "command": "pytest tests/unit/ -v",
+        "expected_outcome": "All unit tests pass",
+        "type": "test",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "Integration Tests",
+        "command": "pytest tests/integration/ -v -m integration",
+        "expected_outcome": "All integration tests pass",
+        "type": "test",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "Coverage Report",
+        "command": "pytest tests/ --cov=src --cov-report=term-missing",
+        "expected_outcome": "Coverage >= 80%",
+        "type": "test",
+        "required": true,
+        "blocking": true
+      }
+    ],
+    "reasoning": "Test infrastructure is critical for code quality and must be verified thoroughly. Medium risk because tests themselves need testing."
+  },
+  "qa_acceptance": {
+    "unit_tests": {
+      "required": true,
+      "commands": [
+        "pytest tests/unit/ -v"
+      ],
+      "minimum_coverage": 80
+    },
+    "integration_tests": {
+      "required": true,
+      "commands": [
+        "pytest tests/integration/ -v -m integration"
+      ],
+      "services_to_test": [
+        "main"
+      ]
+    },
+    "e2e_tests": {
+      "required": false,
+      "commands": [],
+      "flows": []
+    },
+    "browser_verification": {
+      "required": false,
+      "pages": []
+    },
+    "database_verification": {
+      "required": false,
+      "checks": []
+    }
+  },
+  "qa_signoff": null,
+  "summary": {
+    "total_phases": 6,
+    "total_subtasks": 13,
+    "services_involved": [
+      "main"
+    ],
+    "parallelism": {
+      "max_parallel_phases": 2,
+      "parallel_groups": [
+        {
+          "phases": [
+            "phase-2-mocks",
+            "phase-3-reorganize"
+          ],
+          "reason": "Both depend only on phase-1-setup, work on different files"
+        }
+      ],
+      "recommended_workers": 1,
+      "speedup_estimate": "1.2x faster with parallelism in phases 2-3"
+    },
+    "startup_command": "cd /home/ac/Documents/motion-detector/motion-detector && pytest tests/ -v --cov=src --cov-report=html"
+  },
+  "status": "in_progress",
+  "planStatus": "in_progress",
+  "updated_at": "2026-01-16T12:38:44.691Z",
+  "last_updated": "2026-01-16T12:38:24.748362+00:00"
 }

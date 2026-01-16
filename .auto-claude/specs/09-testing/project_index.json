@@ -3,5 +3,26 @@
   "name": "smart-motion-detector",
   "language": "python",
   "framework": "home-assistant-addon",
-  "root_path": "/home/ac/Documents/motion-detector/motion-detector"
+  "root_path": "/home/ac/Documents/motion-detector/motion-detector",
+  "services": {
+    "main": {
+      "path": ".",
+      "tech_stack": ["python", "opencv", "openai", "mqtt", "telegram"],
+      "port": null,
+      "dev_command": "python src/main.py",
+      "test_command": "pytest tests/ -v --cov=src --cov-report=html --cov-report=term-missing"
+    }
+  },
+  "infrastructure": {
+    "docker": true,
+    "ci_cd": "github-actions",
+    "testing_framework": "pytest"
+  },
+  "conventions": {
+    "testing": "pytest",
+    "async_testing": "pytest-asyncio",
+    "mocking": "unittest.mock",
+    "coverage_tool": "pytest-cov",
+    "coverage_target": 80
+  }
 }
