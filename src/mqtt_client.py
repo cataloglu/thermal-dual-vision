@@ -349,9 +349,66 @@ class MQTTClient:
             detected: Motion detected flag
             analysis: Optional analysis result from LLM (AnalysisResult type when available)
         """
-        raise NotImplementedError(
-            "publish_motion() will be implemented in phase-3-publishing"
-        )
+        if not self._connected:
+            logger.error("Cannot publish motion: Not connected to MQTT broker")
+            raise RuntimeError("Not connected to MQTT broker")
+
+        try:
+            # Publish motion state (ON/OFF)
+            motion_topic = f"{self.config.topic_prefix}/motion/state"
+            motion_payload = "ON" if detected else "OFF"
+            await self._client.publish(
+                motion_topic,
+                payload=motion_payload,
+                qos=self.config.qos,
+                retain=False
+            )
+            logger.debug(f"Published motion state: {motion_payload}")
+
+            # Publish analysis results if available
+            if analysis is not None:
+                # Publish threat level
+                if hasattr(analysis, 'threat_level'):
+                    threat_topic = f"{self.config.topic_prefix}/threat_level/state"
+                    await self._client.publish(
+                        threat_topic,
+                        payload=str(analysis.threat_level),
+                        qos=self.config.qos,
+                        retain=False
+                    )
+                    logger.debug(f"Published threat level: {analysis.threat_level}")
+
+                # Publish confidence
+                if hasattr(analysis, 'confidence'):
+                    confidence_topic = f"{self.config.topic_prefix}/confidence/state"
+                    # Convert confidence to percentage if needed
+                    confidence_value = analysis.confidence
+                    if isinstance(confidence_value, float) and confidence_value <= 1.0:
+                        confidence_value = int(confidence_value * 100)
+                    await self._client.publish(
+                        confidence_topic,
+                        payload=str(confidence_value),
+                        qos=self.config.qos,
+                        retain=False
+                    )
+                    logger.debug(f"Published confidence: {confidence_value}%")
+
+                # Publish last analysis timestamp
+                if hasattr(analysis, 'timestamp'):
+                    analysis_topic = f"{self.config.topic_prefix}/last_analysis/state"
+                    await self._client.publish(
+                        analysis_topic,
+                        payload=str(analysis.timestamp),
+                        qos=self.config.qos,
+                        retain=False
+                    )
+                    logger.debug(f"Published last analysis timestamp: {analysis.timestamp}")
+
+            logger.info(f"Successfully published motion event (detected={detected})")
+
+        except Exception as e:
+            logger.error(f"Failed to publish motion state: {e}")
+            raise
 
     async def publish_state(self, state: Dict[str, Any]) -> None:
         """

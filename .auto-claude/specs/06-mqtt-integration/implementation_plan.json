@@ -1,7 +1,7 @@
 {
   "feature": "MQTT Integration with Home Assistant Auto-Discovery",
   "workflow_type": "feature",
-  "workflow_rationale": "New module development for MQTT integration. Follows feature workflow: Core implementation → Discovery → Publishing → Testing",
+  "workflow_rationale": "New module development for MQTT integration. Follows feature workflow: Core implementation \u2192 Discovery \u2192 Publishing \u2192 Testing",
   "phases": [
     {
       "id": "phase-1-core",
@@ -115,8 +115,9 @@
             "command": "python -c \"from src.mqtt_client import MQTTClient; c = MQTTClient.__new__(MQTTClient); payloads = [c._build_threat_sensor_discovery(), c._build_confidence_sensor_discovery(), c._build_analysis_sensor_discovery()]; assert all('state_topic' in p for p in payloads); print('OK')\"",
             "expected": "OK"
           },
-          "status": "pending",
-          "notes": "Create separate methods for each sensor type. Include proper units and icons where applicable."
+          "status": "completed",
+          "notes": "Implemented three sensor discovery payload builders: _build_threat_sensor_discovery() for threat level sensor with shield-alert icon, _build_confidence_sensor_discovery() for confidence sensor with % unit and percent icon, _build_analysis_sensor_discovery() for last analysis timestamp sensor with timestamp device_class. All payloads include state_topic, availability_topic, and device metadata matching the binary sensor pattern. Verification passed successfully.",
+          "updated_at": "2026-01-16T06:47:28.476685+00:00"
         },
         {
           "id": "subtask-2-3",
@@ -131,8 +132,9 @@
             "type": "manual",
             "instructions": "Verify publish_discovery() sends discovery messages to correct topics with retain=True flag"
           },
-          "status": "pending",
-          "notes": "Topics: homeassistant/{component}/{device_id}/{entity}/config. Use QoS from config. Set retain=True for discovery messages."
+          "status": "completed",
+          "notes": "Implemented async publish_discovery() method that publishes Home Assistant auto-discovery configs for all 4 entities (binary_sensor/motion, sensor/threat_level, sensor/confidence, sensor/last_analysis). Uses correct topic format: {discovery_prefix}/{component}/{device_id}/{entity}/config. All discovery messages published with retain=True flag and QoS from config. Includes connection state validation, discovery flag check, comprehensive error handling and logging. Verified successfully - all discovery topics generated correctly.",
+          "updated_at": "2026-01-16T06:49:04.516170+00:00"
         }
       ]
     },
@@ -353,6 +355,6 @@
   "qa_signoff": null,
   "status": "in_progress",
   "planStatus": "in_progress",
-  "updated_at": "2026-01-16T06:46:12.537Z",
-  "last_updated": "2026-01-16T06:45:37.483288+00:00"
+  "updated_at": "2026-01-16T06:47:48.580Z",
+  "last_updated": "2026-01-16T06:49:04.516179+00:00"
 }
