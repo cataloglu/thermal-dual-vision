@@ -410,16 +410,50 @@ class MQTTClient:
             logger.error(f"Failed to publish motion state: {e}")
             raise
 
-    async def publish_state(self, state: Dict[str, Any]) -> None:
+    async def publish_state(self, topic: str, state: Dict[str, Any]) -> None:
         """
         Publish generic state to MQTT.
 
+        Publishes arbitrary JSON state to a specified topic under the configured
+        topic prefix. Useful for custom entities beyond standard motion/analysis.
+
         Args:
-            state: State dictionary to publish
+            topic: Topic path relative to topic_prefix (e.g., "custom/sensor")
+            state: State dictionary to publish as JSON
+
+        Raises:
+            RuntimeError: If not connected to MQTT broker
         """
-        raise NotImplementedError(
-            "publish_state() will be implemented in phase-3-publishing"
-        )
+        if not self._connected:
+            logger.error("Cannot publish state: Not connected to MQTT broker")
+            raise RuntimeError("Not connected to MQTT broker")
+
+        import json
+
+        try:
+            # Build full topic path
+            full_topic = f"{self.config.topic_prefix}/{topic}"
+
+            # Convert state dict to JSON
+            payload = json.dumps(state)
+
+            # Publish to MQTT
+            await self._client.publish(
+                full_topic,
+                payload=payload,
+                qos=self.config.qos,
+                retain=False
+            )
+
+            logger.debug(f"Published state to {full_topic}: {payload}")
+            logger.info(f"Successfully published state to {topic}")
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to serialize state to JSON: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Failed to publish state to {topic}: {e}")
+            raise
 
     def on_connect(self, callback: Callable) -> None:
         """
