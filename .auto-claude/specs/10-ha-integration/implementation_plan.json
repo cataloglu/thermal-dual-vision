@@ -97,8 +97,9 @@
             "command": "test -f rootfs/etc/services.d/smart-motion/finish && test -x rootfs/etc/services.d/smart-motion/finish && echo 'OK'",
             "expected": "OK"
           },
-          "status": "pending",
-          "notes": "Cleanup script for graceful shutdown. Logs exit status and signals."
+          "status": "completed",
+          "notes": "Created s6 service finish script at rootfs/etc/services.d/smart-motion/finish. The script handles graceful shutdown by logging exit codes and signals received from s6-overlay. It uses bashio logging for Home Assistant integration and includes cleanup steps. Script follows the same pattern and style as other s6-overlay scripts (run and init). File is executable and verification passes.",
+          "updated_at": "2026-01-16T13:27:50.588315+00:00"
         }
       ]
     },
@@ -128,8 +129,9 @@
             "command": "python3 -c \"import yaml; yaml.safe_load(open('config.yaml'))\" && echo 'OK'",
             "expected": "OK"
           },
-          "status": "pending",
-          "notes": "Ensure all required HA add-on fields are present: name, version, slug, arch, startup, boot, init, options, schema, ingress, ports"
+          "status": "completed",
+          "notes": "Config.yaml verified and validated successfully. All required HA add-on fields are present: name, version, slug, arch, startup, boot, init, options with defaults, comprehensive schema validation for all options, ingress configuration, ports, and MQTT service enabled. YAML validation passed. No changes needed - file was already in final state.",
+          "updated_at": "2026-01-16T13:28:40.594254+00:00"
         }
       ]
     },
@@ -377,6 +379,6 @@
   "qa_signoff": null,
   "status": "in_progress",
   "planStatus": "in_progress",
-  "updated_at": "2026-01-16T13:27:09.695Z",
-  "last_updated": "2026-01-16T13:26:53.460258+00:00"
+  "updated_at": "2026-01-16T13:28:05.053Z",
+  "last_updated": "2026-01-16T13:28:40.594268+00:00"
 }
