@@ -1,110 +1,337 @@
 {
-  "feature": "02 - Motion Detection",
+  "feature": "Motion Detection Module",
   "workflow_type": "feature",
+  "workflow_rationale": "New feature workflow - building core motion detection functionality using OpenCV and background subtraction algorithm",
   "phases": [
     {
-      "phase": 1,
-      "name": "Camera Connection",
-      "chunks": [
+      "id": "phase-1-connection",
+      "name": "Camera Connection Layer",
+      "type": "implementation",
+      "description": "Implement RTSP stream connection with VideoCapture, retry logic, and timeout handling",
+      "depends_on": [],
+      "parallel_safe": true,
+      "subtasks": [
         {
-          "id": "02-01",
-          "description": "RTSP stream bağlantısı için VideoCapture wrapper oluştur",
-          "status": "pending",
-          "files": [
-            "src/motion_detector.py"
-          ]
+          "id": "subtask-1-1",
+          "description": "Create MotionDetector class with camera connection",
+          "service": "backend",
+          "files_to_modify": [],
+          "files_to_create": ["src/motion_detector.py"],
+          "patterns_from": ["src/config.py", "src/logger.py"],
+          "verification": {
+            "type": "command",
+            "command": "python -c \"from src.motion_detector import MotionDetector; print('OK')\"",
+            "expected": "OK"
+          },
+          "status": "completed"
         },
         {
-          "id": "02-02",
-          "description": "Connection retry ve timeout mekanizması ekle",
-          "status": "pending",
-          "files": [
-            "src/motion_detector.py"
-          ]
+          "id": "subtask-1-2",
+          "description": "Implement connect() with retry mechanism and timeout",
+          "service": "backend",
+          "files_to_modify": ["src/motion_detector.py"],
+          "files_to_create": [],
+          "patterns_from": ["src/config.py"],
+          "verification": {
+            "type": "command",
+            "command": "pytest tests/test_motion_detector.py::TestConnectionManagement -v",
+            "expected": "All tests pass"
+          },
+          "status": "completed"
         }
       ]
     },
     {
-      "phase": 2,
-      "name": "Motion Algorithm",
-      "chunks": [
+      "id": "phase-2-detection",
+      "name": "Motion Detection Algorithm",
+      "type": "implementation",
+      "description": "Implement background subtraction, contour detection, and sensitivity mapping",
+      "depends_on": ["phase-1-connection"],
+      "parallel_safe": true,
+      "subtasks": [
         {
-          "id": "02-03",
-          "description": "BackgroundSubtractorMOG2 ile motion detection implementasyonu",
-          "status": "pending",
-          "files": [
-            "src/motion_detector.py"
-          ]
+          "id": "subtask-2-1",
+          "description": "Implement BackgroundSubtractorMOG2 for motion detection",
+          "service": "backend",
+          "files_to_modify": ["src/motion_detector.py"],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "pytest tests/test_motion_detector.py::TestMotionDetection::test_detect_motion_with_motion -v",
+            "expected": "Test passes"
+          },
+          "status": "completed"
         },
         {
-          "id": "02-04",
-          "description": "Contour detection ve minimum area filtresi",
-          "status": "pending",
-          "files": [
-            "src/motion_detector.py"
-          ]
+          "id": "subtask-2-2",
+          "description": "Add contour detection with min_area filtering",
+          "service": "backend",
+          "files_to_modify": ["src/motion_detector.py"],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "pytest tests/test_motion_detector.py::TestMotionDetection::test_detect_motion_filters_small_areas -v",
+            "expected": "Test passes"
+          },
+          "status": "completed"
         },
         {
-          "id": "02-05",
-          "description": "Sensitivity parametresi ile eşik ayarlama",
-          "status": "pending",
-          "files": [
-            "src/motion_detector.py"
-          ]
+          "id": "subtask-2-3",
+          "description": "Implement sensitivity parameter mapping (1-10 scale)",
+          "service": "backend",
+          "files_to_modify": ["src/motion_detector.py"],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "pytest tests/test_motion_detector.py::TestSensitivityMapping -v",
+            "expected": "All sensitivity mapping tests pass"
+          },
+          "status": "completed"
         }
       ]
     },
     {
-      "phase": 3,
-      "name": "Threading & Callbacks",
-      "chunks": [
+      "id": "phase-3-threading",
+      "name": "Threading and Callbacks",
+      "type": "implementation",
+      "description": "Implement thread-safe capture loop, callback mechanism, and cooldown timer",
+      "depends_on": ["phase-2-detection"],
+      "parallel_safe": true,
+      "subtasks": [
         {
-          "id": "02-06",
-          "description": "Frame capture thread oluştur",
-          "status": "pending",
-          "files": [
-            "src/motion_detector.py"
-          ]
+          "id": "subtask-3-1",
+          "description": "Create frame capture loop in separate thread",
+          "service": "backend",
+          "files_to_modify": ["src/motion_detector.py"],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "pytest tests/test_motion_detector.py::TestFrameCapture -v",
+            "expected": "All frame capture tests pass"
+          },
+          "status": "completed"
         },
         {
-          "id": "02-07",
-          "description": "Thread-safe callback mekanizması",
-          "status": "pending",
-          "files": [
-            "src/motion_detector.py"
-          ]
+          "id": "subtask-3-2",
+          "description": "Implement thread-safe callback registration and invocation",
+          "service": "backend",
+          "files_to_modify": ["src/motion_detector.py"],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "pytest tests/test_motion_detector.py::TestCallbackMechanism -v",
+            "expected": "All callback tests pass"
+          },
+          "status": "completed"
         },
         {
-          "id": "02-08",
-          "description": "Cooldown timer implementasyonu",
-          "status": "pending",
-          "files": [
-            "src/motion_detector.py"
-          ]
+          "id": "subtask-3-3",
+          "description": "Add cooldown timer to prevent callback spam",
+          "service": "backend",
+          "files_to_modify": ["src/motion_detector.py"],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "pytest tests/test_motion_detector.py::TestCooldownTimer -v",
+            "expected": "All cooldown tests pass"
+          },
+          "status": "completed"
         }
       ]
     },
     {
-      "phase": 4,
+      "id": "phase-4-lifecycle",
       "name": "Lifecycle Management",
-      "chunks": [
+      "type": "implementation",
+      "description": "Implement start/stop methods, graceful shutdown, and context manager support",
+      "depends_on": ["phase-3-threading"],
+      "parallel_safe": true,
+      "subtasks": [
         {
-          "id": "02-09",
-          "description": "start() ve stop() metodları",
-          "status": "pending",
-          "files": [
-            "src/motion_detector.py"
-          ]
+          "id": "subtask-4-1",
+          "description": "Implement start() and stop() methods with proper locking",
+          "service": "backend",
+          "files_to_modify": ["src/motion_detector.py"],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "pytest tests/test_motion_detector.py::TestLifecycleManagement -v",
+            "expected": "All lifecycle tests pass"
+          },
+          "status": "completed"
         },
         {
-          "id": "02-10",
-          "description": "Graceful shutdown ve resource cleanup",
-          "status": "pending",
-          "files": [
-            "src/motion_detector.py"
-          ]
+          "id": "subtask-4-2",
+          "description": "Add context manager support (__enter__/__exit__)",
+          "service": "backend",
+          "files_to_modify": ["src/motion_detector.py"],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "pytest tests/test_motion_detector.py::TestLifecycleManagement::test_context_manager -v",
+            "expected": "Context manager test passes"
+          },
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "phase-5-testing",
+      "name": "Comprehensive Testing",
+      "type": "implementation",
+      "description": "Create comprehensive test suite covering all functionality",
+      "depends_on": ["phase-4-lifecycle"],
+      "parallel_safe": true,
+      "subtasks": [
+        {
+          "id": "subtask-5-1",
+          "description": "Create test suite with mock VideoCapture",
+          "service": "backend",
+          "files_to_modify": [],
+          "files_to_create": ["tests/test_motion_detector.py"],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "pytest tests/test_motion_detector.py -v --tb=short",
+            "expected": "All tests pass"
+          },
+          "status": "completed"
+        },
+        {
+          "id": "subtask-5-2",
+          "description": "Add thread safety tests",
+          "service": "backend",
+          "files_to_modify": ["tests/test_motion_detector.py"],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "pytest tests/test_motion_detector.py::TestThreadSafety -v",
+            "expected": "All thread safety tests pass"
+          },
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "phase-6-verification",
+      "name": "Final Verification",
+      "type": "integration",
+      "description": "Run full test suite and verify all success criteria",
+      "depends_on": ["phase-5-testing"],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-6-1",
+          "description": "Run complete test suite and verify success criteria",
+          "service": "backend",
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "e2e",
+            "steps": [
+              "Run pytest tests/test_motion_detector.py",
+              "Verify all 8 test classes pass",
+              "Verify sensitivity mapping works (1-10 scale)",
+              "Verify cooldown prevents spam",
+              "Verify thread safety",
+              "Verify graceful shutdown"
+            ]
+          },
+          "status": "completed"
         }
       ]
     }
-  ]
+  ],
+  "summary": {
+    "total_phases": 6,
+    "total_subtasks": 13,
+    "services_involved": ["backend"],
+    "parallelism": {
+      "max_parallel_phases": 1,
+      "parallel_groups": [],
+      "recommended_workers": 1,
+      "speedup_estimate": "Sequential execution required due to dependencies",
+      "reasoning": "Each phase depends on the previous phase completing - motion detection requires connection, callbacks require detection, lifecycle requires callbacks"
+    },
+    "startup_command": "pytest tests/test_motion_detector.py -v"
+  },
+  "verification_strategy": {
+    "risk_level": "medium",
+    "skip_validation": false,
+    "test_creation_phase": "post_implementation",
+    "test_types_required": ["unit", "integration"],
+    "security_scanning_required": false,
+    "staging_deployment_required": false,
+    "acceptance_criteria": [
+      "RTSP stream connection works with retry logic",
+      "Motion detection callbacks trigger on movement",
+      "Sensitivity parameter (1-10) adjusts detection threshold",
+      "Cooldown timer prevents callback spam",
+      "Frame capture runs at configured FPS (5 FPS)",
+      "Graceful shutdown releases all resources",
+      "All unit tests pass (100% of test suite)",
+      "Thread-safe operations verified"
+    ],
+    "verification_steps": [
+      {
+        "name": "Unit Tests",
+        "command": "pytest tests/test_motion_detector.py -v",
+        "expected_outcome": "All tests pass",
+        "type": "test",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "Test Coverage Check",
+        "command": "pytest tests/test_motion_detector.py --cov=src.motion_detector --cov-report=term-missing",
+        "expected_outcome": "High coverage (>90%)",
+        "type": "test",
+        "required": false,
+        "blocking": false
+      }
+    ],
+    "reasoning": "Medium risk - core functionality with threading, requires thorough testing to ensure thread safety and proper resource management"
+  },
+  "qa_acceptance": {
+    "unit_tests": {
+      "required": true,
+      "commands": ["pytest tests/test_motion_detector.py"],
+      "minimum_coverage": 90
+    },
+    "integration_tests": {
+      "required": true,
+      "commands": ["pytest tests/test_motion_detector.py::TestLifecycleManagement"],
+      "services_to_test": ["backend"]
+    },
+    "e2e_tests": {
+      "required": false,
+      "commands": [],
+      "flows": []
+    },
+    "browser_verification": {
+      "required": false,
+      "pages": []
+    },
+    "database_verification": {
+      "required": false,
+      "checks": []
+    }
+  },
+  "qa_signoff": {
+    "status": "approved",
+    "date": "2026-01-16",
+    "issues": [],
+    "tests_passed": true,
+    "notes": "All tests passing, motion detection working as expected"
+  }
 }

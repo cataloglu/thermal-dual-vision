@@ -1,14 +1,31 @@
 {
-  "task_description": "RTSP kamera stream'inden hareket algılama modülü",
+  "task_description": "RTSP kamera stream'inden hareket algılama modülü. OpenCV ile background subtraction.",
+  "files_to_modify": [],
   "files_to_create": [
     "src/motion_detector.py"
   ],
-  "files_to_modify": [],
   "files_to_reference": [
     "src/config.py",
     "src/logger.py",
-    "src/utils.py",
-    ".auto-claude/test_data/sample_config.yaml"
+    "src/utils.py"
   ],
-  "scoped_services": ["camera", "motion"]
+  "patterns": {
+    "config_pattern": "Dataclass-based configuration (CameraConfig, MotionConfig already exist in src/config.py)",
+    "logging_pattern": "Use get_logger(name) from src/logger.py for module-specific logging",
+    "threading_pattern": "Use threading module (not asyncio) for OpenCV VideoCapture compatibility",
+    "error_handling": "Graceful shutdown, resource cleanup, connection retry logic"
+  },
+  "existing_implementations": {
+    "description": "Configuration dataclasses already exist - MotionConfig and CameraConfig in src/config.py",
+    "relevant_files": [
+      "src/config.py",
+      "src/logger.py",
+      "src/utils.py"
+    ]
+  },
+  "tech_stack": {
+    "opencv": "opencv-python-headless >= 4.8.0",
+    "numpy": "numpy >= 1.24.0",
+    "threading": "Built-in Python threading module"
+  }
 }

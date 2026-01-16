@@ -1,293 +1,99 @@
 {
-  "feature": "LLM Vision Analyzer - OpenAI GPT-4 Vision Integration",
+  "feature": "05 - LLM Vision",
   "workflow_type": "feature",
-  "workflow_rationale": "New module development - creating LLM analyzer for 3-screenshot comparative analysis using OpenAI GPT-4 Vision API",
   "phases": [
     {
-      "id": "phase-1-data-models",
-      "name": "Data Models",
-      "type": "implementation",
-      "description": "Create AnalysisResult dataclass and ScreenshotSet type for LLM analyzer",
-      "depends_on": [],
-      "parallel_safe": true,
-      "subtasks": [
+      "phase": 1,
+      "name": "Data Structures",
+      "chunks": [
         {
-          "id": "subtask-1-1",
-          "description": "Create AnalysisResult dataclass with all required fields (gercek_hareket, guven_skoru, degisiklik_aciklamasi, tespit_edilen_nesneler, tehdit_seviyesi, onerilen_aksiyon, detayli_analiz, raw_response, processing_time)",
-          "service": "backend",
-          "files_to_modify": [],
-          "files_to_create": [
+          "id": "05-01",
+          "description": "AnalysisResult dataclass tanımla",
+          "status": "pending",
+          "files": [
             "src/llm_analyzer.py"
-          ],
-          "patterns_from": [
-            "src/config.py"
-          ],
-          "verification": {
-            "type": "command",
-            "command": "python -c \"from src.llm_analyzer import AnalysisResult; print('OK')\"",
-            "expected": "OK"
-          },
-          "status": "completed",
-          "notes": "Created AnalysisResult dataclass with all required fields: gercek_hareket, guven_skoru, degisiklik_aciklamasi, tespit_edilen_nesneler, tehdit_seviyesi, onerilen_aksiyon, detayli_analiz, raw_response, processing_time. Verification passed successfully.",
-          "updated_at": "2026-01-16T06:40:51.108568+00:00"
-        },
-        {
-          "id": "subtask-1-2",
-          "description": "Create ScreenshotSet dataclass to hold before, now, after screenshots (numpy arrays) with timestamp",
-          "service": "backend",
-          "files_to_modify": [
-            "src/llm_analyzer.py"
-          ],
-          "files_to_create": [],
-          "patterns_from": [
-            "src/config.py"
-          ],
-          "verification": {
-            "type": "command",
-            "command": "python -c \"from src.llm_analyzer import ScreenshotSet; print('OK')\"",
-            "expected": "OK"
-          },
-          "status": "completed",
-          "notes": "Created ScreenshotSet dataclass with before, now, after (Optional) numpy array fields and timestamp. Used TYPE_CHECKING for numpy imports to avoid runtime issues.",
-          "updated_at": "2026-01-16T06:42:10.285849+00:00"
+          ]
         }
       ]
     },
     {
-      "id": "phase-2-llm-analyzer-core",
-      "name": "LLM Analyzer Core",
-      "type": "implementation",
-      "description": "Create LLMAnalyzer class with OpenAI API integration, Turkish prompt, and JSON response parsing",
-      "depends_on": [
-        "phase-1-data-models"
-      ],
-      "parallel_safe": false,
-      "subtasks": [
+      "phase": 2,
+      "name": "OpenAI Client",
+      "chunks": [
         {
-          "id": "subtask-2-1",
-          "description": "Create LLMAnalyzer class with __init__(config: LLMConfig) - initialize AsyncOpenAI client, RateLimiter, and Turkish system prompt from LLM_PROMPTS.md",
-          "service": "backend",
-          "files_to_modify": [
+          "id": "05-02",
+          "description": "LLMAnalyzer sınıfı ve OpenAI client setup",
+          "status": "pending",
+          "files": [
             "src/llm_analyzer.py"
-          ],
-          "files_to_create": [],
-          "patterns_from": [
-            "src/config.py",
-            "src/utils.py",
-            ".auto-claude/test_data/LLM_PROMPTS.md"
-          ],
-          "verification": {
-            "type": "command",
-            "command": "python -c \"from src.llm_analyzer import LLMAnalyzer; from src.config import LLMConfig; config = LLMConfig(api_key='test-key'); analyzer = LLMAnalyzer(config); print('OK')\"",
-            "expected": "OK"
-          },
-          "status": "completed",
-          "notes": "Created LLMAnalyzer class with __init__(config: LLMConfig). Initialized AsyncOpenAI client, RateLimiter (1s min interval), and Turkish system prompt from LLM_PROMPTS.md. Verified with mocked tests - syntax OK and structure correct.",
-          "updated_at": "2026-01-16T06:44:35.013548+00:00"
+          ]
         },
         {
-          "id": "subtask-2-2",
-          "description": "Implement async analyze(screenshots: ScreenshotSet) -> AnalysisResult method - encode images to base64, call OpenAI API with vision, parse JSON response",
-          "service": "backend",
-          "files_to_modify": [
+          "id": "05-03",
+          "description": "Türkçe system prompt tanımla",
+          "status": "pending",
+          "files": [
             "src/llm_analyzer.py"
-          ],
-          "files_to_create": [],
-          "patterns_from": [
-            "src/utils.py"
-          ],
-          "verification": {
-            "type": "command",
-            "command": "python -c \"from src.llm_analyzer import LLMAnalyzer; import inspect; sig = inspect.signature(LLMAnalyzer.analyze); params = list(sig.parameters.keys()); print('OK' if 'screenshots' in params else 'FAIL')\"",
-            "expected": "OK"
-          },
-          "status": "completed",
-          "notes": "Implemented async analyze method with: base64 image encoding, OpenAI API vision call with labeled images (before/now/after), JSON response parsing, AnalysisResult dataclass creation, processing time tracking, rate limiting",
-          "updated_at": "2026-01-16T06:46:38.695496+00:00"
-        },
-        {
-          "id": "subtask-2-3",
-          "description": "Implement async analyze_with_retry(screenshots: ScreenshotSet, max_retries: int = 3) -> AnalysisResult method using retry logic with exponential backoff",
-          "service": "backend",
-          "files_to_modify": [
-            "src/llm_analyzer.py"
-          ],
-          "files_to_create": [],
-          "patterns_from": [
-            "src/utils.py"
-          ],
-          "verification": {
-            "type": "command",
-            "command": "python -c \"from src.llm_analyzer import LLMAnalyzer; import inspect; sig = inspect.signature(LLMAnalyzer.analyze_with_retry); params = list(sig.parameters.keys()); print('OK' if 'max_retries' in params else 'FAIL')\"",
-            "expected": "OK"
-          },
-          "status": "completed",
-          "notes": "Implemented analyze_with_retry method with exponential backoff (1s initial delay, 2x multiplier). Method calls self.analyze() and retries on any exception.",
-          "updated_at": "2026-01-16T06:48:19.351619+00:00"
-        },
-        {
-          "id": "subtask-2-4",
-          "description": "Add proper error handling for OpenAI API errors (RateLimitError, APIError, timeout) and JSON parsing errors with logging using get_logger",
-          "service": "backend",
-          "files_to_modify": [
-            "src/llm_analyzer.py"
-          ],
-          "files_to_create": [],
-          "patterns_from": [
-            "src/logger.py"
-          ],
-          "verification": {
-            "type": "command",
-            "command": "python -c \"from src.llm_analyzer import LLMAnalyzerError, JSONParseError; print('OK')\"",
-            "expected": "OK"
-          },
-          "status": "completed",
-          "notes": "Added LLMAnalyzerError and JSONParseError exception classes. Implemented proper error handling for OpenAI API errors (RateLimitError, APIError, APITimeoutError, APIConnectionError) and JSON parsing errors in the analyze() method. Updated analyze_with_retry() with better error handling and logging using get_logger. Verification passed via AST parsing.",
-          "updated_at": "2026-01-16T06:50:56.772263+00:00"
+          ]
         }
       ]
     },
     {
-      "id": "phase-3-unit-tests",
-      "name": "Unit Tests",
-      "type": "implementation",
-      "description": "Create unit tests with mocked OpenAI API for response parsing and error handling",
-      "depends_on": [
-        "phase-2-llm-analyzer-core"
-      ],
-      "parallel_safe": true,
-      "subtasks": [
+      "phase": 3,
+      "name": "Analysis Logic",
+      "chunks": [
         {
-          "id": "subtask-3-1",
-          "description": "Create test_llm_analyzer.py with mock OpenAI responses - test successful JSON parsing, AnalysisResult creation, and basic error scenarios",
-          "service": "backend",
-          "files_to_modify": [],
-          "files_to_create": [
-            "tests/test_llm_analyzer.py"
-          ],
-          "patterns_from": [
-            "tests/__init__.py"
-          ],
-          "verification": {
-            "type": "command",
-            "command": "python -m pytest tests/test_llm_analyzer.py -v --tb=short",
-            "expected": "passed"
-          },
-          "status": "pending"
+          "id": "05-04",
+          "description": "analyze() - 3 görüntüyü API'ye gönder",
+          "status": "pending",
+          "files": [
+            "src/llm_analyzer.py"
+          ]
         },
         {
-          "id": "subtask-3-2",
-          "description": "Add edge case tests: empty response, malformed JSON, missing required fields, Turkish character encoding in responses",
-          "service": "backend",
-          "files_to_modify": [
-            "tests/test_llm_analyzer.py"
-          ],
-          "files_to_create": [],
-          "patterns_from": [],
-          "verification": {
-            "type": "command",
-            "command": "python -m pytest tests/test_llm_analyzer.py -v",
-            "expected": "passed"
-          },
-          "status": "pending"
+          "id": "05-05",
+          "description": "JSON response parsing ve validation",
+          "status": "pending",
+          "files": [
+            "src/llm_analyzer.py"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 4,
+      "name": "Error Handling",
+      "chunks": [
+        {
+          "id": "05-06",
+          "description": "analyze_with_retry() - exponential backoff",
+          "status": "pending",
+          "files": [
+            "src/llm_analyzer.py"
+          ]
+        },
+        {
+          "id": "05-07",
+          "description": "Rate limiting entegrasyonu",
+          "status": "pending",
+          "files": [
+            "src/llm_analyzer.py"
+          ]
+        },
+        {
+          "id": "05-08",
+          "description": "Timeout ve exception handling",
+          "status": "pending",
+          "files": [
+            "src/llm_analyzer.py"
+          ]
         }
       ]
     }
   ],
-  "summary": {
-    "total_phases": 3,
-    "total_subtasks": 8,
-    "services_involved": [
-      "backend"
-    ],
-    "parallelism": {
-      "max_parallel_phases": 1,
-      "parallel_groups": [],
-      "recommended_workers": 1,
-      "speedup_estimate": "Sequential execution (single service)"
-    },
-    "startup_command": "pip install -r requirements.txt"
-  },
-  "verification_strategy": {
-    "risk_level": "medium",
-    "skip_validation": false,
-    "test_creation_phase": "phase-3-unit-tests",
-    "test_types_required": [
-      "unit"
-    ],
-    "security_scanning_required": false,
-    "staging_deployment_required": false,
-    "acceptance_criteria": [
-      "AnalysisResult dataclass properly defined with all fields",
-      "LLMAnalyzer can be instantiated with LLMConfig",
-      "analyze() method sends 3 base64 images to OpenAI API",
-      "JSON response is properly parsed to AnalysisResult",
-      "Rate limiting is active via utils.RateLimiter",
-      "Retry mechanism works with exponential backoff",
-      "Turkish prompt is correctly sent to API",
-      "All unit tests pass with mocked API responses"
-    ],
-    "verification_steps": [
-      {
-        "name": "Import Check",
-        "command": "python -c \"from src.llm_analyzer import LLMAnalyzer, AnalysisResult, ScreenshotSet; print('OK')\"",
-        "expected_outcome": "OK",
-        "type": "command",
-        "required": true,
-        "blocking": true
-      },
-      {
-        "name": "Unit Tests",
-        "command": "python -m pytest tests/test_llm_analyzer.py -v",
-        "expected_outcome": "All tests pass",
-        "type": "test",
-        "required": true,
-        "blocking": true
-      }
-    ],
-    "reasoning": "Medium risk - external API integration requires thorough mocking and error handling tests"
-  },
-  "qa_acceptance": {
-    "unit_tests": {
-      "required": true,
-      "commands": [
-        "python -m pytest tests/test_llm_analyzer.py -v"
-      ],
-      "minimum_coverage": null
-    },
-    "integration_tests": {
-      "required": false,
-      "commands": [],
-      "services_to_test": [],
-      "note": "Integration test requires real OPENAI_API_KEY - manual testing only"
-    },
-    "e2e_tests": {
-      "required": false,
-      "commands": [],
-      "flows": []
-    },
-    "browser_verification": {
-      "required": false,
-      "pages": []
-    },
-    "database_verification": {
-      "required": false,
-      "checks": []
-    },
-    "manual_verification": {
-      "required": true,
-      "steps": [
-        "Set OPENAI_API_KEY environment variable",
-        "Create test script with 3 sample images",
-        "Call LLMAnalyzer.analyze() and verify Turkish response",
-        "Verify response matches AnalysisResult structure"
-      ]
-    }
-  },
-  "qa_signoff": null,
-  "description": "OpenAI GPT-4 Vision API entegrasyonu. 3 ekran goruntusunu karsilastirmali analiz et.",
+  "description": "OpenAI GPT-4 Vision API entegrasyonu. 3 ekran görüntüsünü karşılaştırmalı analiz et.",
+  "updated_at": "2026-01-16T09:30:55.847Z",
   "status": "in_progress",
   "planStatus": "in_progress",
-  "updated_at": "2026-01-16T06:48:34.769Z",
-  "last_updated": "2026-01-16T06:50:56.772276+00:00"
+  "recoveryNote": "Task recovered from stuck state at 2026-01-16T09:30:52.223Z"
 }

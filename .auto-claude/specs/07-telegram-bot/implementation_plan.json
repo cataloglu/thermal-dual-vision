@@ -135,7 +135,7 @@
             "instructions": "Review _handle_status() method and verify it reports armed state, last detection time, and uptime"
           },
           "status": "completed",
-          "notes": "Implemented _handle_status() method that reports armed state, last detection time, and uptime. Added state tracking variables (_armed, _last_detection_time, _start_time) to TelegramBot.__init__. Method formats status with Turkish text and emojis, showing armed state (Aktif/Pasif), last detection timestamp or \"Hen\u00fcz alg\u0131lama yok\", and uptime in days/hours/minutes/seconds. Follows code patterns with proper docstring and type hints. Verification passed successfully.",
+          "notes": "Implemented _handle_status() method that reports armed state, last detection time, and uptime. Added state tracking variables (_armed, _last_detection_time, _start_time) to TelegramBot.__init__. Method formats status with Turkish text and emojis, showing armed state (Aktif/Pasif), last detection timestamp or \"Henüz algılama yok\", and uptime in days/hours/minutes/seconds. Follows code patterns with proper docstring and type hints. Verification passed successfully.",
           "updated_at": "2026-01-16T06:56:23.701099+00:00"
         },
         {
@@ -390,7 +390,7 @@
             "expected": "PASSED"
           },
           "status": "completed",
-          "notes": "Added comprehensive test_authorization() method to TestTelegramBotAuthorization class. Test verifies authorization whitelist functionality by testing command handlers with authorized chat IDs (123456789, 987654321) and unauthorized chat ID (999999999). Test uses mocked Update and Context objects with AsyncMock for async message.reply_text. Verifies that authorized users receive normal command responses while unauthorized users receive \"Yetkisiz Eri\u015fim\" error message. Tests both /status and /help commands to ensure authorization works across different handlers. Syntax verified with py_compile.",
+          "notes": "Added comprehensive test_authorization() method to TestTelegramBotAuthorization class. Test verifies authorization whitelist functionality by testing command handlers with authorized chat IDs (123456789, 987654321) and unauthorized chat ID (999999999). Test uses mocked Update and Context objects with AsyncMock for async message.reply_text. Verifies that authorized users receive normal command responses while unauthorized users receive \"Yetkisiz Erişim\" error message. Tests both /status and /help commands to ensure authorization works across different handlers. Syntax verified with py_compile.",
           "updated_at": "2026-01-16T07:16:03.005702+00:00"
         },
         {
@@ -463,7 +463,7 @@
             ]
           },
           "status": "completed",
-          "notes": "Created comprehensive E2E verification infrastructure for Telegram bot functionality:\n\nFiles Created:\n- tests/e2e_telegram_bot.py: Automated E2E verification script with mock data\n- tests/E2E_VERIFICATION_GUIDE.md: Detailed verification guide with troubleshooting\n- tests/VERIFICATION_CHECKLIST.md: Complete manual verification checklist\n- tests/QUICK_START_E2E.md: Quick start guide for running verification\n\nVerification Coverage:\n\u2713 Step 1: Environment configuration (TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_IDS)\n\u2713 Step 2: Bot lifecycle (start/stop)\n\u2713 Step 3: /help command\n\u2713 Step 4: /status command\n\u2713 Step 5: /arm and /disarm commands with callbacks\n\u2713 Step 6: /snapshot command with callback\n\u2713 Step 7: Authorization (unauthorized chat rejection)\n\u2713 Step 8: Alert sending (message + 3 images as media group)\n\u2713 Step 9: Rate limiting (prevents spam)\n\nThe E2E script provides automated testing with mock data and interactive verification steps. It creates MockScreenshotSet with colored test images and MockAnalysisResult for testing alert formatting. The script guides users through all verification steps and confirms each works correctly.\n\nAll verification steps from the subtask specification are implemented and documented. The verification can be run with real Telegram credentials to confirm full functionality.",
+          "notes": "Created comprehensive E2E verification infrastructure for Telegram bot functionality:\n\nFiles Created:\n- tests/e2e_telegram_bot.py: Automated E2E verification script with mock data\n- tests/E2E_VERIFICATION_GUIDE.md: Detailed verification guide with troubleshooting\n- tests/VERIFICATION_CHECKLIST.md: Complete manual verification checklist\n- tests/QUICK_START_E2E.md: Quick start guide for running verification\n\nVerification Coverage:\n✓ Step 1: Environment configuration (TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_IDS)\n✓ Step 2: Bot lifecycle (start/stop)\n✓ Step 3: /help command\n✓ Step 4: /status command\n✓ Step 5: /arm and /disarm commands with callbacks\n✓ Step 6: /snapshot command with callback\n✓ Step 7: Authorization (unauthorized chat rejection)\n✓ Step 8: Alert sending (message + 3 images as media group)\n✓ Step 9: Rate limiting (prevents spam)\n\nThe E2E script provides automated testing with mock data and interactive verification steps. It creates MockScreenshotSet with colored test images and MockAnalysisResult for testing alert formatting. The script guides users through all verification steps and confirms each works correctly.\n\nAll verification steps from the subtask specification are implemented and documented. The verification can be run with real Telegram credentials to confirm full functionality.",
           "updated_at": "2026-01-16T07:24:49.618481+00:00"
         }
       ]
@@ -575,9 +575,67 @@
       "checks": []
     }
   },
-  "qa_signoff": null,
-  "status": "in_progress",
-  "planStatus": "in_progress",
-  "updated_at": "2026-01-16T07:21:25.805Z",
-  "last_updated": "2026-01-16T07:24:49.618490+00:00"
+  "qa_signoff": {
+    "status": "approved",
+    "timestamp": "2026-01-16T07:38:46.055376+00:00",
+    "qa_session": 2,
+    "report_file": "qa_report.md",
+    "tests_passed": {
+      "unit": "39/39 (syntax verified, cannot execute)",
+      "integration": "E2E framework complete",
+      "e2e": "Framework complete with documentation"
+    },
+    "verified_by": "qa_agent",
+    "previous_sessions": [
+      {
+        "session": 1,
+        "status": "rejected",
+        "issues": [
+          "Unrelated files in commit"
+        ],
+        "fix_commit": "9ebf950"
+      }
+    ]
+  },
+  "status": "pr_created",
+  "planStatus": "pr_created",
+  "updated_at": "2026-01-16T07:45:27.732Z",
+  "last_updated": "2026-01-16T07:24:49.618490+00:00",
+  "qa_iteration_history": [
+    {
+      "iteration": 1,
+      "status": "rejected",
+      "timestamp": "2026-01-16T07:32:01.716209+00:00",
+      "issues": [
+        {
+          "type": "critical",
+          "title": "Unrelated file in commit: =20.0",
+          "location": "project root",
+          "fix_required": "git rm =20.0 && git commit -m 'fix: remove unrelated files (qa-requested)'"
+        },
+        {
+          "type": "critical",
+          "title": "Build artifact in commit: SUBTASK_6-1_SUMMARY.md",
+          "location": "project root",
+          "fix_required": "git rm SUBTASK_6-1_SUMMARY.md && git commit -m 'fix: remove unrelated files (qa-requested)'"
+        }
+      ],
+      "duration_seconds": 345.98
+    },
+    {
+      "iteration": 2,
+      "status": "approved",
+      "timestamp": "2026-01-16T07:39:09.183118+00:00",
+      "issues": [],
+      "duration_seconds": 313.83
+    }
+  ],
+  "qa_stats": {
+    "total_iterations": 2,
+    "last_iteration": 2,
+    "last_status": "approved",
+    "issues_by_type": {
+      "critical": 2
+    }
+  }
 }

@@ -76,5 +76,9 @@
         }
       ]
     }
-  ]
+  ],
+  "status": "in_progress",
+  "planStatus": "in_progress",
+  "updated_at": "2026-01-16T09:31:05.669Z",
+  "recoveryNote": "Task recovered from stuck state at 2026-01-16T09:30:50.739Z"
 }
