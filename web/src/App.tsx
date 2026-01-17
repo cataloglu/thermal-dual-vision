@@ -3,6 +3,7 @@ import Router from 'preact-router';
 import { Layout } from './components/Layout';
 import { ThemeProvider } from './components/ThemeProvider';
 import { Dashboard } from './pages/Dashboard';
+import { LiveView } from './pages/LiveView';
 
 /**
  * Root application component with routing.
@@ -36,19 +37,6 @@ export function App() {
   );
 }
 
-/**
- * Live View page - MJPEG camera stream
- */
-function LiveView() {
-  return (
-    <div>
-      <h1 class="text-3xl font-bold mb-4">Live View</h1>
-      <p class="text-gray-600 dark:text-gray-400">
-        Live camera stream
-      </p>
-    </div>
-  );
-}
 
 /**
  * Gallery page - Grid view of saved screenshots
