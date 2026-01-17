@@ -8,9 +8,9 @@ from typing import Dict, Any
 
 from flask import Blueprint, jsonify, request, send_file, Response
 
-from config import Config
-from screenshot_manager import ScreenshotManager
-from utils import encode_frame_to_bytes
+from src.config import Config
+from src.screenshot_manager import ScreenshotManager
+from src.utils import encode_frame_to_bytes
 
 
 # Create Blueprint for API routes

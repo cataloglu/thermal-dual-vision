@@ -6,8 +6,8 @@ from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from api import api_bp
-from api.websocket import init_socketio
+from src.api import api_bp
+from src.api.websocket import init_socketio
 
 
 def create_app() -> Flask:
@@ -98,7 +98,7 @@ def create_app() -> Flask:
 app = create_app()
 
 # Get socketio instance for running the app
-from api.websocket import socketio
+from src.api.websocket import socketio
 
 
 if __name__ == '__main__':
