@@ -44,6 +44,7 @@ class TelegramBot:
         self._armed = False
         self._last_detection_time: Optional[datetime] = None
         self._start_time = datetime.now()
+        self._started = False
 
         # Rate limiting
         self._alert_rate_limiter = RateLimiter(min_interval=config.rate_limit_seconds)
@@ -99,6 +100,7 @@ class TelegramBot:
 
             await self.application.initialize()
             await self.application.start()
+            self._started = True
             self.logger.info("Telegram bot started")
         except Exception as e:
             self.logger.error(f"Failed to start Telegram bot: {e}")
@@ -121,6 +123,7 @@ class TelegramBot:
         try:
             await self.application.stop()
             await self.application.shutdown()
+            self._started = False
             self.logger.info("Telegram bot stopped")
         except Exception as e:
             self.logger.error(f"Failed to stop Telegram bot: {e}")
@@ -545,6 +548,11 @@ class TelegramBot:
         """
         self._snapshot_callback = callback
         self.logger.debug("Snapshot callback registered")
+
+    @property
+    def is_running(self) -> bool:
+        """Return True when the bot is started and running."""
+        return self._started
 
     async def _error_handler(self, update: Optional[Update], context: ContextTypes.DEFAULT_TYPE) -> None:
         """
