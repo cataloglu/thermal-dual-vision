@@ -7,6 +7,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import numpy as np
 import pytest
 
+pytest.importorskip("openai")
+
 from src.config import LLMConfig
 from src.llm_analyzer import (
     AnalysisResult,

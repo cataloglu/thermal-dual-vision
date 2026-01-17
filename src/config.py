@@ -71,6 +71,7 @@ class TelegramConfig:
     bot_token: str = ""
     chat_ids: List[str] = field(default_factory=list)
     rate_limit_seconds: int = 5
+    send_images: bool = True
 
 
 @dataclass

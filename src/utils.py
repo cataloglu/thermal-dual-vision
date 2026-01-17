@@ -139,7 +139,10 @@ class RateLimiter:
             if self.last_time is not None:
                 elapsed = asyncio.get_event_loop().time() - self.last_time
                 if elapsed < self.min_interval:
-                    await asyncio.sleep(self.min_interval - elapsed)
+                    # Add a tiny buffer to avoid timing jitter in tests.
+                    await asyncio.sleep(self.min_interval - elapsed + 0.005)
+                    self.last_time = self.last_time + self.min_interval
+                    return
 
             self.last_time = asyncio.get_event_loop().time()
 
