@@ -2,6 +2,7 @@ import { h } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
 import { Table, TableColumn } from '../components/ui/Table';
 import { Card } from '../components/ui/Card';
+import { getEvents, DetectionEvent } from '../utils/api';
 
 /**
  * Events page - Complete list of motion detection events.
@@ -9,35 +10,32 @@ import { Card } from '../components/ui/Card';
  * Displays all motion detection events in a sortable table format,
  * showing timestamp, detection status, confidence, and analysis details.
  *
- * Features:
- * - Table view with all event details
- * - Real-time status indicators
- * - Confidence scores and threat levels
- * - Loading and error states with retry
- * - Auto-refresh every 30 seconds
- *
  * Fetches data from:
  * - /api/events - List of all detection events
+ *
+ * Features:
+ * - Comprehensive event history table with 6 columns:
+ *   * Timestamp (relative and absolute)
+ *   * Status (Motion/Possible with color indicators)
+ *   * Description (with detected objects)
+ *   * Confidence score (with progress bar)
+ *   * Threat level (color-coded: high/medium/low)
+ *   * Screenshot links (to Gallery page)
+ * - Auto-refresh every 30 seconds for real-time updates
+ * - Loading state with animated spinner
+ * - Error state with retry functionality
+ * - Empty state message when no events
+ * - Responsive design with table overflow handling
+ * - Dark mode support throughout
+ * - Striped and hoverable table rows
+ * - Uses centralized API utilities for type-safe requests
+ *
+ * Integration:
+ * - Uses getEvents() utility from api.ts (consistent with Dashboard pattern)
+ * - Imports DetectionEvent interface from api.ts (single source of truth)
+ * - Links to Gallery page via screenshot view links
+ * - Follows established patterns from subtasks 14-12 and 14-14
  */
-
-interface DetectionEvent {
-  id: string;
-  timestamp: string;
-  has_screenshots: boolean;
-  analysis: {
-    real_motion: boolean;
-    confidence_score: number;
-    description: string;
-    detected_objects: string[];
-    threat_level?: string;
-  };
-}
-
-interface EventsResponse {
-  events: DetectionEvent[];
-  count: number;
-  timestamp: string;
-}
 
 export function Events() {
   const [events, setEvents] = useState<DetectionEvent[]>([]);
@@ -55,12 +53,8 @@ export function Events() {
     try {
       setError(null);
 
-      const response = await fetch('/api/events');
-      if (!response.ok) {
-        throw new Error('Failed to fetch events');
-      }
-
-      const data: EventsResponse = await response.json();
+      // Use API utility function (consistent with Dashboard pattern)
+      const data = await getEvents();
       setEvents(data.events || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
