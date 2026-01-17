@@ -1,5 +1,5 @@
 import { h } from 'preact';
-import { useState, useEffect } from 'preact/hooks';
+import { useTheme } from './ThemeProvider';
 
 /**
  * Header component for the top navigation bar.
@@ -8,10 +8,9 @@ import { useState, useEffect } from 'preact/hooks';
  * - Application title
  * - Theme toggle button (dark/light mode)
  *
- * The theme toggle switches between light and dark modes by:
- * - Adding/removing 'dark' class on document root element
- * - Persisting preference to localStorage
- * - Following Tailwind CSS dark mode strategy
+ * The theme toggle uses the ThemeProvider context to switch between
+ * light and dark modes. Theme state is managed centrally and persisted
+ * to localStorage via the ThemeProvider.
  */
 
 interface HeaderProps {
@@ -20,35 +19,7 @@ interface HeaderProps {
 }
 
 export function Header({ title = 'Motion Detector' }: HeaderProps) {
-  const [isDark, setIsDark] = useState(false);
-
-  // Initialize theme from localStorage or system preference
-  useEffect(() => {
-    const savedTheme = localStorage.getItem('theme');
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const shouldBeDark = savedTheme === 'dark' || (!savedTheme && prefersDark);
-
-    setIsDark(shouldBeDark);
-    if (shouldBeDark) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, []);
-
-  // Toggle theme
-  const toggleTheme = () => {
-    const newIsDark = !isDark;
-    setIsDark(newIsDark);
-
-    if (newIsDark) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-    }
-  };
+  const { isDark, toggleTheme } = useTheme();
 
   return (
     <div class="flex items-center gap-4">

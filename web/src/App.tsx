@@ -1,13 +1,15 @@
 import { h } from 'preact';
 import Router from 'preact-router';
 import { Layout } from './components/Layout';
+import { ThemeProvider } from './components/ThemeProvider';
 
 /**
  * Root application component with routing.
  *
  * This component sets up the application routing using preact-router.
- * The entire app is wrapped in a Layout component that provides
- * navigation sidebar and header structure.
+ * The entire app is wrapped in:
+ * - ThemeProvider: Provides dark/light mode context to all components
+ * - Layout: Provides navigation sidebar and header structure
  *
  * Routes:
  * - / : Dashboard (home page with stats and recent detections)
@@ -18,16 +20,18 @@ import { Layout } from './components/Layout';
  */
 export function App() {
   return (
-    <Layout>
-      <Router>
-        <Dashboard path="/" />
-        <LiveView path="/live" />
-        <Gallery path="/gallery" />
-        <Events path="/events" />
-        <Settings path="/settings" />
-        <NotFound default />
-      </Router>
-    </Layout>
+    <ThemeProvider>
+      <Layout>
+        <Router>
+          <Dashboard path="/" />
+          <LiveView path="/live" />
+          <Gallery path="/gallery" />
+          <Events path="/events" />
+          <Settings path="/settings" />
+          <NotFound default />
+        </Router>
+      </Layout>
+    </ThemeProvider>
   );
 }
 
