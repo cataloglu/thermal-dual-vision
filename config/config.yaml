@@ -1,0 +1,47 @@
+# Standalone Configuration for Smart Motion Detector
+# This file is used when HA_MODE=false (standalone Docker mode)
+# Environment variables take precedence over these settings
+
+# Camera Configuration
+camera_url: ""
+camera_fps: 5
+
+# Motion Detection Settings
+motion_sensitivity: 7
+motion_min_area: 500
+motion_cooldown: 5
+
+# YOLO Configuration
+yolo_model: "yolov8n"
+yolo_confidence: 0.5
+yolo_classes:
+  - person
+  - car
+  - dog
+  - cat
+
+# OpenAI Configuration
+openai_api_key: ""
+
+# Screenshot Settings
+screenshot_before_sec: 3
+screenshot_after_sec: 3
+
+# MQTT Settings (optional - will skip if broker not available)
+mqtt_broker: "localhost"
+mqtt_port: 1883
+mqtt_username: ""
+mqtt_password: ""
+mqtt_topic_prefix: "smart_motion"
+mqtt_discovery: true
+
+# Telegram Notifications (optional)
+telegram_enabled: false
+telegram_bot_token: ""
+telegram_chat_id: ""
+
+# Logging
+log_level: "INFO"
+
+# Web UI
+web_port: 8099
