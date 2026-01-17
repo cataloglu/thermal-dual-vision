@@ -6,6 +6,7 @@ import { Dashboard } from './pages/Dashboard';
 import { LiveView } from './pages/LiveView';
 import { Gallery } from './pages/Gallery';
 import { Events } from './pages/Events';
+import { Settings } from './pages/Settings';
 
 /**
  * Root application component with routing.
@@ -36,22 +37,6 @@ export function App() {
         </Router>
       </Layout>
     </ThemeProvider>
-  );
-}
-
-
-
-/**
- * Settings page - Configuration form
- */
-function Settings() {
-  return (
-    <div>
-      <h1 class="text-3xl font-bold mb-4">Settings</h1>
-      <p class="text-gray-600 dark:text-gray-400">
-        System configuration
-      </p>
-    </div>
   );
 }
 
