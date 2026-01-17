@@ -259,6 +259,65 @@ def update_config() -> tuple:
         return jsonify({'error': str(e)}), 500
 
 
+@api_bp.route('/events', methods=['GET'])
+def get_events() -> tuple:
+    """
+    Get events/detections history.
+
+    Query Parameters:
+        limit (int, optional): Maximum number of events to return
+
+    Returns:
+        JSON response with list of detection events and HTTP 200, or error and HTTP 400/500
+    """
+    try:
+        # Get limit from query parameter
+        limit_str = request.args.get('limit')
+        limit = int(limit_str) if limit_str else None
+
+        # Get all screenshots (each represents a detection event)
+        screenshots = _screenshot_manager.list_all(limit=limit)
+
+        # Convert to events format
+        events_data = []
+        for screenshot in screenshots:
+            event = {
+                'id': screenshot.id,
+                'timestamp': screenshot.timestamp,
+                'has_screenshots': {
+                    'before': screenshot.has_before,
+                    'now': screenshot.has_now,
+                    'after': screenshot.has_after
+                }
+            }
+
+            # Add analysis data if available
+            if screenshot.analysis:
+                event['detection'] = {
+                    'real_motion': screenshot.analysis.get('gercek_hareket', False),
+                    'confidence_score': screenshot.analysis.get('guven_skoru', 0.0),
+                    'description': screenshot.analysis.get('degisiklik_aciklamasi', ''),
+                    'detected_objects': screenshot.analysis.get('tespit_edilen_nesneler', []),
+                    'threat_level': screenshot.analysis.get('tehdit_seviyesi', 'yok'),
+                    'recommended_action': screenshot.analysis.get('onerilen_aksiyon', ''),
+                    'detailed_analysis': screenshot.analysis.get('detayli_analiz', ''),
+                    'processing_time': screenshot.analysis.get('processing_time', 0.0)
+                }
+
+            events_data.append(event)
+
+        return jsonify({
+            'events': events_data,
+            'count': len(events_data),
+            'timestamp': datetime.utcnow().isoformat() + 'Z'
+        }), 200
+
+    except ValueError as e:
+        return jsonify({'error': f'Invalid parameter: {str(e)}'}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @api_bp.route('/screenshots', methods=['GET'])
 def list_screenshots() -> tuple:
     """
