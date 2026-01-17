@@ -40,7 +40,11 @@ else
 fi
 
 bashio::log.info "Configuration loaded"
-bashio::log.info "Camera URL: ${CAMERA_URL}"
+if [ -n "${CAMERA_URL}" ]; then
+    bashio::log.info "Camera URL: [set]"
+else
+    bashio::log.warning "Camera URL: [missing]"
+fi
 bashio::log.info "Motion Sensitivity: ${MOTION_SENSITIVITY}"
 bashio::log.info "YOLO Model: ${YOLO_MODEL}"
 bashio::log.info "Log Level: ${LOG_LEVEL}"
