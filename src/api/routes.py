@@ -6,10 +6,11 @@ from dataclasses import asdict
 from datetime import datetime
 from typing import Dict, Any
 
-from flask import Blueprint, jsonify, request, send_file
+from flask import Blueprint, jsonify, request, send_file, Response
 
 from config import Config
 from screenshot_manager import ScreenshotManager
+from utils import encode_frame_to_bytes
 
 
 # Create Blueprint for API routes
@@ -394,3 +395,55 @@ def delete_screenshot(screenshot_id: str) -> tuple:
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+def generate_mjpeg_frames():
+    """
+    Generate MJPEG frames for streaming.
+
+    Yields MJPEG frame boundaries with JPEG image data.
+    Currently returns a placeholder as camera integration is pending.
+
+    Yields:
+        bytes: MJPEG multipart frame data
+    """
+    import cv2
+    import numpy as np
+
+    # Create a placeholder frame with text indicating camera is not available
+    # In production, this would pull frames from the camera feed
+    frame = np.zeros((480, 640, 3), dtype=np.uint8)
+    cv2.putText(
+        frame,
+        "Camera feed not available",
+        (100, 240),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        1,
+        (255, 255, 255),
+        2
+    )
+
+    # Encode frame to JPEG bytes
+    frame_bytes = encode_frame_to_bytes(frame, quality=85)
+
+    # Format as MJPEG multipart response
+    # Each frame is sent with the multipart boundary and content type
+    yield (b'--frame\r\n'
+           b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+
+
+@api_bp.route('/stream', methods=['GET'])
+def stream_video():
+    """
+    Stream live video feed as MJPEG.
+
+    Returns MJPEG stream with multipart/x-mixed-replace content type.
+    Currently returns a placeholder frame as camera integration is pending.
+
+    Returns:
+        Response with MJPEG stream and HTTP 200
+    """
+    return Response(
+        generate_mjpeg_frames(),
+        mimetype='multipart/x-mixed-replace; boundary=frame'
+    )
