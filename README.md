@@ -28,6 +28,24 @@ log_level: "INFO"
 ### Thermal kamera örneği
 ```yaml
 camera_url: "rtsp://user:pass@192.168.1.20:554/thermal"
+camera_type: "thermal"
+camera_fps: 5
+motion_sensitivity: 7
+motion_min_area: 500
+motion_cooldown: 5
+yolo_model: "yolov8n"
+yolo_confidence: 0.5
+openai_api_key: "sk-***"
+telegram_enabled: false
+mqtt_topic_prefix: "smart_motion"
+log_level: "INFO"
+```
+
+### Dual (thermal + color) örneği
+```yaml
+camera_type: "dual"
+color_camera_url: "rtsp://user:pass@192.168.1.10:554/stream1"
+thermal_camera_url: "rtsp://user:pass@192.168.1.20:554/thermal"
 camera_fps: 5
 motion_sensitivity: 7
 motion_min_area: 500
@@ -44,6 +62,9 @@ log_level: "INFO"
 ```
 rtsp://<username>:<password>@<ip>:<port>/<path>
 ```
+
+### Sync strategy
+Detaylar icin `SYNC_STRATEGY.md` dokumanina bakabilirsiniz.
 
 ### MQTT opsiyonları
 - `mqtt_topic_prefix`: Topic prefix (örn. `smart_motion`)
@@ -75,6 +96,16 @@ docker build -t thermal-dual-vision \
 ```
 docker run --rm -p 8099:8099 \
   -e CAMERA_URL="rtsp://user:pass@192.168.1.10:554/stream1" \
+  -e OPENAI_API_KEY="sk-***" \
+  thermal-dual-vision
+```
+
+Dual çalışma örneği:
+```
+docker run --rm -p 8099:8099 \
+  -e CAMERA_TYPE="dual" \
+  -e COLOR_CAMERA_URL="rtsp://user:pass@192.168.1.10:554/stream1" \
+  -e THERMAL_CAMERA_URL="rtsp://user:pass@192.168.1.20:554/thermal" \
   -e OPENAI_API_KEY="sk-***" \
   thermal-dual-vision
 ```
