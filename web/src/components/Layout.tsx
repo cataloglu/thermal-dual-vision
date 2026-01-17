@@ -1,6 +1,7 @@
 import { h, ComponentChildren } from 'preact';
 import { useState } from 'preact/hooks';
 import { Sidebar } from './Sidebar';
+import { Header } from './Header';
 
 /**
  * Main layout component that wraps the entire application.
@@ -54,10 +55,8 @@ export function Layout({ children }: LayoutProps) {
             {/* Spacer for desktop */}
             <div class="hidden lg:block" />
 
-            {/* Right side - can add theme toggle, user menu, etc. later */}
-            <div class="flex items-center gap-4">
-              {/* Placeholder for future header items */}
-            </div>
+            {/* Right side - header with theme toggle */}
+            <Header />
           </div>
         </header>
 
