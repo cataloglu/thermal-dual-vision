@@ -3,45 +3,62 @@
 # Environment variables take precedence over these settings
 
 # Camera Configuration
-camera_url: ""
-camera_fps: 5
+camera:
+  url: "rtsp://example.com/stream"
+  fps: 5
+  resolution: [1280, 720]
 
 # Motion Detection Settings
-motion_sensitivity: 7
-motion_min_area: 500
-motion_cooldown: 5
+motion:
+  sensitivity: 7
+  min_area: 500
+  cooldown_seconds: 5
 
 # YOLO Configuration
-yolo_model: "yolov8n"
-yolo_confidence: 0.5
-yolo_classes:
-  - person
-  - car
-  - dog
-  - cat
+yolo:
+  model: "yolov8n"
+  confidence: 0.5
+  classes:
+    - person
+    - car
+    - dog
+    - cat
 
 # OpenAI Configuration
-openai_api_key: ""
+llm:
+  api_key: "yaml-api-key"
+  model: "gpt-4-vision-preview"
+  max_tokens: 1000
+  timeout: 30
 
 # Screenshot Settings
-screenshot_before_sec: 3
-screenshot_after_sec: 3
+screenshots:
+  before_seconds: 3
+  after_seconds: 3
+  quality: 85
+  max_stored: 100
+  buffer_seconds: 10
 
 # MQTT Settings (optional - will skip if broker not available)
-mqtt_broker: "localhost"
-mqtt_port: 1883
-mqtt_username: ""
-mqtt_password: ""
-mqtt_topic_prefix: "smart_motion"
-mqtt_discovery: true
+mqtt:
+  host: "localhost"
+  port: 1883
+  username: "yaml-user"
+  password: "yaml-pass"
+  topic_prefix: "smart_motion"
+  discovery: true
+  discovery_prefix: "homeassistant"
+  qos: 1
 
 # Telegram Notifications (optional)
-telegram_enabled: false
-telegram_bot_token: ""
-telegram_chat_id: ""
+telegram:
+  enabled: false
+  bot_token: ""
+  chat_ids: []
+  rate_limit_seconds: 5
 
 # Logging
 log_level: "INFO"
 
-# Web UI
-web_port: 8099
+# HA Mode
+ha_mode: false
