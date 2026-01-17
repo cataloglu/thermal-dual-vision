@@ -247,6 +247,91 @@ class Config:
 
         return config
 
+    @classmethod
+    def from_sources(cls, config_path: Optional[Union[str, Path]] = None) -> "Config":
+        """Load configuration from multiple sources with priority: env > YAML > defaults.
+
+        Args:
+            config_path: Optional path to YAML config file
+
+        Returns:
+            Config: Configuration object with values from all sources
+        """
+        # Start with defaults and YAML if provided
+        if config_path is not None:
+            config_path = Path(config_path)
+            if config_path.exists():
+                config = cls.from_yaml(config_path)
+            else:
+                config = cls()
+        else:
+            config = cls()
+
+        # Override with environment variables if they are set
+        # Camera
+        if "CAMERA_URL" in os.environ:
+            config.camera.url = os.environ["CAMERA_URL"]
+        if "CAMERA_FPS" in os.environ:
+            config.camera.fps = int(os.environ["CAMERA_FPS"])
+
+        # Motion
+        if "MOTION_SENSITIVITY" in os.environ:
+            config.motion.sensitivity = int(os.environ["MOTION_SENSITIVITY"])
+        if "MOTION_MIN_AREA" in os.environ:
+            config.motion.min_area = int(os.environ["MOTION_MIN_AREA"])
+        if "MOTION_COOLDOWN" in os.environ:
+            config.motion.cooldown_seconds = int(os.environ["MOTION_COOLDOWN"])
+
+        # YOLO
+        if "YOLO_MODEL" in os.environ:
+            config.yolo.model = os.environ["YOLO_MODEL"]
+        if "YOLO_CONFIDENCE" in os.environ:
+            config.yolo.confidence = float(os.environ["YOLO_CONFIDENCE"])
+
+        # LLM
+        if "OPENAI_API_KEY" in os.environ:
+            config.llm.api_key = os.environ["OPENAI_API_KEY"]
+
+        # Screenshots
+        if "SCREENSHOT_BEFORE" in os.environ:
+            config.screenshots.before_seconds = int(os.environ["SCREENSHOT_BEFORE"])
+        if "SCREENSHOT_AFTER" in os.environ:
+            config.screenshots.after_seconds = int(os.environ["SCREENSHOT_AFTER"])
+
+        # MQTT
+        if "MQTT_HOST" in os.environ:
+            config.mqtt.host = os.environ["MQTT_HOST"]
+        if "MQTT_PORT" in os.environ:
+            config.mqtt.port = int(os.environ["MQTT_PORT"])
+        if "MQTT_USER" in os.environ:
+            config.mqtt.username = os.environ["MQTT_USER"]
+        if "MQTT_PASSWORD" in os.environ:
+            config.mqtt.password = os.environ["MQTT_PASSWORD"]
+        if "MQTT_TOPIC_PREFIX" in os.environ:
+            config.mqtt.topic_prefix = os.environ["MQTT_TOPIC_PREFIX"]
+        if "MQTT_DISCOVERY" in os.environ:
+            config.mqtt.discovery = os.environ["MQTT_DISCOVERY"].lower() == "true"
+
+        # Telegram
+        if "TELEGRAM_ENABLED" in os.environ:
+            config.telegram.enabled = os.environ["TELEGRAM_ENABLED"].lower() == "true"
+        if "TELEGRAM_BOT_TOKEN" in os.environ:
+            config.telegram.bot_token = os.environ["TELEGRAM_BOT_TOKEN"]
+        if "TELEGRAM_CHAT_ID" in os.environ:
+            chat_ids_str = os.environ["TELEGRAM_CHAT_ID"]
+            if chat_ids_str:
+                config.telegram.chat_ids = [cid.strip() for cid in chat_ids_str.split(",")]
+
+        # Logging
+        if "LOG_LEVEL" in os.environ:
+            config.log_level = os.environ["LOG_LEVEL"]
+
+        # HA Mode
+        if "HA_MODE" in os.environ:
+            config.ha_mode = os.environ["HA_MODE"].lower() == "true"
+
+        return config
+
     def validate(self) -> List[str]:
         """Validate configuration and return list of errors."""
         errors = []
