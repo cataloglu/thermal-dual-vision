@@ -5,7 +5,7 @@
   - Owner: cataloglu
   - Status: DONE
   - Proof:
-    - PR: (this PR)
+    - PR: #20
     - Tests:
     - Docker:
 - [ ] Pipeline arayuzu (`BasePipeline`) + Thermal/Color skeleton
