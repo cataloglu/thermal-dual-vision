@@ -1,6 +1,7 @@
 import { h } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
 import { Card } from '../components/ui/Card';
+import { getStatus, getStats, getEvents, SystemStatus, SystemStats, DetectionEvent } from '../utils/api';
 
 /**
  * Dashboard page - System overview with stats and recent detections.
@@ -14,37 +15,14 @@ import { Card } from '../components/ui/Card';
  * - /api/status - System health and component states
  * - /api/stats - Detection statistics
  * - /api/events?limit=5 - Recent events
+ *
+ * Features:
+ * - Auto-refresh every 30 seconds
+ * - Loading and error states
+ * - Responsive grid layouts
+ * - Dark mode support
+ * - Real-time status indicators
  */
-
-interface SystemStatus {
-  status: string;
-  uptime_seconds: number;
-  components: {
-    camera: string;
-    detector: string;
-    mqtt: string;
-  };
-}
-
-interface SystemStats {
-  total_detections: number;
-  real_detections: number;
-  false_positives: number;
-  last_detection?: string;
-}
-
-interface DetectionEvent {
-  id: string;
-  timestamp: string;
-  has_screenshots: boolean;
-  analysis: {
-    real_motion: boolean;
-    confidence_score: number;
-    description: string;
-    detected_objects: string[];
-    threat_level?: string;
-  };
-}
 
 export function Dashboard() {
   const [status, setStatus] = useState<SystemStatus | null>(null);
@@ -64,21 +42,11 @@ export function Dashboard() {
     try {
       setError(null);
 
-      // Fetch all data in parallel
-      const [statusRes, statsRes, eventsRes] = await Promise.all([
-        fetch('/api/status'),
-        fetch('/api/stats'),
-        fetch('/api/events?limit=5')
-      ]);
-
-      if (!statusRes.ok || !statsRes.ok || !eventsRes.ok) {
-        throw new Error('Failed to fetch dashboard data');
-      }
-
+      // Fetch all data in parallel using API utilities
       const [statusData, statsData, eventsData] = await Promise.all([
-        statusRes.json(),
-        statsRes.json(),
-        eventsRes.json()
+        getStatus(),
+        getStats(),
+        getEvents(5)
       ]);
 
       setStatus(statusData);
