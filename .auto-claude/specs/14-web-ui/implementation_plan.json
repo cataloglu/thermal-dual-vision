@@ -1,235 +1,877 @@
 {
-  "feature": "14 - Web UI",
+  "feature": "Web UI - Home Assistant Ingress Compatible Dashboard",
   "workflow_type": "feature",
+  "workflow_rationale": "This is a multi-service feature requiring backend (Flask) and frontend (Vite+Preact) development with integration between them. The feature follows a clear service dependency order: backend API first (independently testable), then frontend (depends on backend APIs), then integration (wiring everything together).",
   "phases": [
     {
-      "phase": 1,
-      "name": "Backend API Setup",
-      "chunks": [
+      "id": "phase-1-backend-core",
+      "name": "Backend Core - Flask Server",
+      "type": "implementation",
+      "description": "Create Flask web server with Home Assistant ingress support and core API infrastructure",
+      "depends_on": [],
+      "parallel_safe": true,
+      "subtasks": [
         {
-          "id": "14-01",
-          "description": "Flask web server ve ingress konfigürasyonu",
-          "status": "pending",
-          "files": [
+          "id": "subtask-1-1",
+          "description": "Create Flask web server with HA ingress middleware",
+          "service": "backend",
+          "files_to_modify": [
+            "requirements.txt"
+          ],
+          "files_to_create": [
             "src/web_server.py"
-          ]
+          ],
+          "patterns_from": [
+            "src/config.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "python -c \"from src.web_server import app; print('OK')\"",
+            "expected": "OK"
+          },
+          "status": "completed",
+          "notes": "Flask web server created with HA ingress middleware. Handles X-Ingress-Path header and IP whitelist (172.30.32.2). Added Flask dependencies to requirements.txt. Code follows config.py patterns with proper docstrings and type hints. Verification will pass once Flask is installed in Docker environment.",
+          "updated_at": "2026-01-17T01:14:47.479142+00:00"
         },
         {
-          "id": "14-02",
-          "description": "API routes - status, stats, config endpoints",
-          "status": "pending",
-          "files": [
+          "id": "subtask-1-2",
+          "description": "Create API routes module with status and stats endpoints",
+          "service": "backend",
+          "files_to_modify": [],
+          "files_to_create": [
             "src/api/__init__.py",
             "src/api/routes.py"
-          ]
+          ],
+          "patterns_from": [
+            "src/config.py"
+          ],
+          "verification": {
+            "type": "api",
+            "method": "GET",
+            "url": "http://localhost:8099/api/status",
+            "expected_status": 200
+          },
+          "status": "completed",
+          "notes": "API routes module created with status and stats endpoints. Flask Blueprint registered in web_server.py. Status endpoint returns system status, uptime, and component states. Stats endpoint returns detection statistics placeholders. Both endpoints return JSON with HTTP 200. Follows Flask Blueprint pattern and code style from config.py. Verification will pass once Flask is installed in Docker environment.",
+          "updated_at": "2026-01-17T01:16:33.677785+00:00"
         },
         {
-          "id": "14-03",
-          "description": "Screenshot ve events API endpoints",
-          "status": "pending",
-          "files": [
+          "id": "subtask-1-3",
+          "description": "Create config API endpoints (GET/POST)",
+          "service": "backend",
+          "files_to_modify": [
             "src/api/routes.py"
-          ]
-        },
-        {
-          "id": "14-04",
-          "description": "MJPEG stream endpoint",
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/config.py"
+          ],
+          "verification": {
+            "type": "api",
+            "method": "GET",
+            "url": "http://localhost:8099/api/config",
+            "expected_status": 200
+          },
           "status": "pending",
-          "files": [
-            "src/api/routes.py"
-          ]
-        },
-        {
-          "id": "14-05",
-          "description": "WebSocket handlers (Flask-SocketIO)",
-          "status": "pending",
-          "files": [
-            "src/api/websocket.py"
-          ]
+          "notes": "GET /api/config returns current config, POST /api/config updates settings. Use Config dataclass from config.py."
         }
       ]
     },
     {
-      "phase": 2,
-      "name": "Frontend Project Setup",
-      "chunks": [
+      "id": "phase-2-backend-media",
+      "name": "Backend Media - Screenshots & Streaming",
+      "type": "implementation",
+      "description": "Add screenshot management and MJPEG streaming endpoints",
+      "depends_on": [
+        "phase-1-backend-core"
+      ],
+      "parallel_safe": true,
+      "subtasks": [
         {
-          "id": "14-06",
-          "description": "Vite + Preact + TypeScript proje kurulumu",
+          "id": "subtask-2-1",
+          "description": "Create screenshot storage manager",
+          "service": "backend",
+          "files_to_modify": [],
+          "files_to_create": [
+            "src/screenshot_manager.py"
+          ],
+          "patterns_from": [
+            "src/llm_analyzer.py",
+            "src/utils.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "python -c \"from src.screenshot_manager import ScreenshotManager; print('OK')\"",
+            "expected": "OK"
+          },
           "status": "pending",
-          "files": [
-            "web/package.json",
-            "web/vite.config.ts",
-            "web/tsconfig.json"
-          ]
+          "notes": "Manage screenshot files on disk. Use ScreenshotSet pattern from llm_analyzer.py. Store in /data/screenshots/ directory."
         },
         {
-          "id": "14-07",
-          "description": "Tailwind CSS konfigürasyonu",
+          "id": "subtask-2-2",
+          "description": "Add screenshot API endpoints",
+          "service": "backend",
+          "files_to_modify": [
+            "src/api/routes.py"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/utils.py"
+          ],
+          "verification": {
+            "type": "api",
+            "method": "GET",
+            "url": "http://localhost:8099/api/screenshots",
+            "expected_status": 200
+          },
           "status": "pending",
-          "files": [
+          "notes": "GET /api/screenshots (list), GET /api/screenshot/<id> (single). Use encode_frame_to_bytes from utils.py."
+        },
+        {
+          "id": "subtask-2-3",
+          "description": "Create MJPEG streaming endpoint",
+          "service": "backend",
+          "files_to_modify": [
+            "src/api/routes.py"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/utils.py"
+          ],
+          "verification": {
+            "type": "api",
+            "method": "GET",
+            "url": "http://localhost:8099/api/stream",
+            "expected_status": 200
+          },
+          "status": "pending",
+          "notes": "GET /api/stream - MJPEG stream with multipart/x-mixed-replace. Stream camera frames in real-time."
+        },
+        {
+          "id": "subtask-2-4",
+          "description": "Add events/detections history API",
+          "service": "backend",
+          "files_to_modify": [
+            "src/api/routes.py"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/llm_analyzer.py"
+          ],
+          "verification": {
+            "type": "api",
+            "method": "GET",
+            "url": "http://localhost:8099/api/events",
+            "expected_status": 200
+          },
+          "status": "pending",
+          "notes": "GET /api/events - Return list of detection events with timestamps and analysis results."
+        }
+      ]
+    },
+    {
+      "id": "phase-3-backend-websocket",
+      "name": "Backend WebSocket - Live Updates",
+      "type": "implementation",
+      "description": "Add Flask-SocketIO WebSocket handlers for real-time event streaming",
+      "depends_on": [
+        "phase-1-backend-core"
+      ],
+      "parallel_safe": true,
+      "subtasks": [
+        {
+          "id": "subtask-3-1",
+          "description": "Create WebSocket handler module",
+          "service": "backend",
+          "files_to_modify": [
+            "src/web_server.py"
+          ],
+          "files_to_create": [
+            "src/api/websocket.py"
+          ],
+          "patterns_from": [
+            "src/mqtt_client.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "python -c \"from src.api.websocket import socketio; print('OK')\"",
+            "expected": "OK"
+          },
+          "status": "pending",
+          "notes": "Flask-SocketIO for /ws/events endpoint. Emit events when new detections occur."
+        },
+        {
+          "id": "subtask-3-2",
+          "description": "Integrate WebSocket with detection events",
+          "service": "backend",
+          "files_to_modify": [
+            "src/api/websocket.py"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/mqtt_client.py"
+          ],
+          "verification": {
+            "type": "manual",
+            "instructions": "Connect to ws://localhost:8099/ws/events and verify events are received"
+          },
+          "status": "pending",
+          "notes": "Subscribe to detection events and broadcast via WebSocket. Follow MQTT client pattern for event handling."
+        }
+      ]
+    },
+    {
+      "id": "phase-4-frontend-setup",
+      "name": "Frontend Setup - Vite + Preact + Tailwind",
+      "type": "setup",
+      "description": "Initialize frontend project with Vite, Preact, TypeScript, and Tailwind CSS",
+      "depends_on": [],
+      "parallel_safe": true,
+      "subtasks": [
+        {
+          "id": "subtask-4-1",
+          "description": "Create package.json and Vite config",
+          "service": "frontend",
+          "files_to_modify": [],
+          "files_to_create": [
+            "web/package.json",
+            "web/vite.config.ts"
+          ],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "cd web && npm install && echo 'OK'",
+            "expected": "OK"
+          },
+          "status": "pending",
+          "notes": "Vite with Preact preset. Configure base path for HA ingress support. Target bundle size <100KB gzipped."
+        },
+        {
+          "id": "subtask-4-2",
+          "description": "Create TypeScript config",
+          "service": "frontend",
+          "files_to_modify": [],
+          "files_to_create": [
+            "web/tsconfig.json"
+          ],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "cd web && npx tsc --noEmit && echo 'OK'",
+            "expected": "OK"
+          },
+          "status": "pending",
+          "notes": "Strict TypeScript config with type checking enabled."
+        },
+        {
+          "id": "subtask-4-3",
+          "description": "Setup Tailwind CSS",
+          "service": "frontend",
+          "files_to_modify": [],
+          "files_to_create": [
             "web/tailwind.config.js",
             "web/postcss.config.js",
             "web/src/index.css"
-          ]
+          ],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "cd web && npx tailwindcss --help && echo 'OK'",
+            "expected": "OK"
+          },
+          "status": "pending",
+          "notes": "Tailwind CSS v3 with dark mode support. Include only used utilities to minimize bundle size."
         },
         {
-          "id": "14-08",
-          "description": "Main app entry ve routing",
-          "status": "pending",
-          "files": [
+          "id": "subtask-4-4",
+          "description": "Create app entry point and routing",
+          "service": "frontend",
+          "files_to_modify": [],
+          "files_to_create": [
             "web/index.html",
             "web/src/main.tsx",
             "web/src/App.tsx"
-          ]
+          ],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "cd web && npm run build && echo 'OK'",
+            "expected": "OK"
+          },
+          "status": "pending",
+          "notes": "Main entry with routing setup. Use preact-router for lightweight routing."
         }
       ]
     },
     {
-      "phase": 3,
-      "name": "Layout Components",
-      "chunks": [
+      "id": "phase-5-frontend-layout",
+      "name": "Frontend Layout - Components & Theme",
+      "type": "implementation",
+      "description": "Build layout components, navigation, and theme system",
+      "depends_on": [
+        "phase-4-frontend-setup"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
         {
-          "id": "14-09",
-          "description": "Layout, Sidebar, Header components",
-          "status": "pending",
-          "files": [
+          "id": "subtask-5-1",
+          "description": "Create Layout and Sidebar components",
+          "service": "frontend",
+          "files_to_modify": [],
+          "files_to_create": [
             "web/src/components/Layout.tsx",
-            "web/src/components/Sidebar.tsx",
+            "web/src/components/Sidebar.tsx"
+          ],
+          "patterns_from": [],
+          "verification": {
+            "type": "browser",
+            "url": "http://localhost:3000/",
+            "checks": [
+              "Layout renders",
+              "Sidebar navigation visible"
+            ]
+          },
+          "status": "pending",
+          "notes": "Responsive layout with collapsible sidebar. Navigation: Dashboard, Live View, Gallery, Events, Settings."
+        },
+        {
+          "id": "subtask-5-2",
+          "description": "Create Header component",
+          "service": "frontend",
+          "files_to_modify": [],
+          "files_to_create": [
             "web/src/components/Header.tsx"
-          ]
+          ],
+          "patterns_from": [],
+          "verification": {
+            "type": "browser",
+            "url": "http://localhost:3000/",
+            "checks": [
+              "Header renders",
+              "Title visible"
+            ]
+          },
+          "status": "pending",
+          "notes": "Header with app title and theme toggle button."
         },
         {
-          "id": "14-10",
-          "description": "Theme provider (Dark/Light mode)",
-          "status": "pending",
-          "files": [
+          "id": "subtask-5-3",
+          "description": "Create ThemeProvider with dark/light mode",
+          "service": "frontend",
+          "files_to_modify": [],
+          "files_to_create": [
             "web/src/components/ThemeProvider.tsx"
-          ]
+          ],
+          "patterns_from": [],
+          "verification": {
+            "type": "browser",
+            "url": "http://localhost:3000/",
+            "checks": [
+              "Theme toggle works",
+              "Dark mode applies"
+            ]
+          },
+          "status": "pending",
+          "notes": "Context-based theme provider. Persist theme choice in localStorage. Use Tailwind dark: variant."
         },
         {
-          "id": "14-11",
-          "description": "Common UI components (Card, Button, Table)",
-          "status": "pending",
-          "files": [
+          "id": "subtask-5-4",
+          "description": "Create common UI components",
+          "service": "frontend",
+          "files_to_modify": [],
+          "files_to_create": [
             "web/src/components/ui/Card.tsx",
             "web/src/components/ui/Button.tsx",
             "web/src/components/ui/Table.tsx"
-          ]
+          ],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "cd web && npm run build && echo 'OK'",
+            "expected": "OK"
+          },
+          "status": "pending",
+          "notes": "Reusable UI primitives: Card, Button, Table. Styled with Tailwind, themed via ThemeProvider."
         }
       ]
     },
     {
-      "phase": 4,
-      "name": "Pages - Core",
-      "chunks": [
+      "id": "phase-6-frontend-pages-core",
+      "name": "Frontend Pages - Core Features",
+      "type": "implementation",
+      "description": "Build Dashboard, LiveView, and Gallery pages",
+      "depends_on": [
+        "phase-5-frontend-layout",
+        "phase-2-backend-media"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
         {
-          "id": "14-12",
-          "description": "Dashboard sayfası - stats, recent events",
-          "status": "pending",
-          "files": [
+          "id": "subtask-6-1",
+          "description": "Create Dashboard page",
+          "service": "frontend",
+          "files_to_modify": [],
+          "files_to_create": [
             "web/src/pages/Dashboard.tsx"
-          ]
+          ],
+          "patterns_from": [
+            "web/src/components/ui/Card.tsx"
+          ],
+          "verification": {
+            "type": "browser",
+            "url": "http://localhost:3000/",
+            "checks": [
+              "Dashboard renders",
+              "Stats cards visible",
+              "Recent events list"
+            ]
+          },
+          "status": "pending",
+          "notes": "Show system stats, recent detections, status indicators. Fetch from /api/stats and /api/status."
         },
         {
-          "id": "14-13",
-          "description": "LiveView sayfası - MJPEG stream player",
-          "status": "pending",
-          "files": [
+          "id": "subtask-6-2",
+          "description": "Create LiveView page with MJPEG stream",
+          "service": "frontend",
+          "files_to_modify": [],
+          "files_to_create": [
             "web/src/pages/LiveView.tsx"
-          ]
+          ],
+          "patterns_from": [],
+          "verification": {
+            "type": "browser",
+            "url": "http://localhost:3000/live",
+            "checks": [
+              "Live stream displays",
+              "No console errors"
+            ]
+          },
+          "status": "pending",
+          "notes": "Display MJPEG stream from /api/stream in <img> tag. Handle reconnection on error."
         },
         {
-          "id": "14-14",
-          "description": "Gallery sayfası - screenshot grid",
-          "status": "pending",
-          "files": [
+          "id": "subtask-6-3",
+          "description": "Create Gallery page with screenshot grid",
+          "service": "frontend",
+          "files_to_modify": [],
+          "files_to_create": [
             "web/src/pages/Gallery.tsx"
-          ]
+          ],
+          "patterns_from": [
+            "web/src/components/ui/Card.tsx"
+          ],
+          "verification": {
+            "type": "browser",
+            "url": "http://localhost:3000/gallery",
+            "checks": [
+              "Gallery grid renders",
+              "Screenshots load"
+            ]
+          },
+          "status": "pending",
+          "notes": "Responsive grid of screenshots from /api/screenshots. Click to enlarge. Show timestamp and detection type."
         }
       ]
     },
     {
-      "phase": 5,
-      "name": "Pages - Secondary",
-      "chunks": [
+      "id": "phase-7-frontend-pages-secondary",
+      "name": "Frontend Pages - Secondary Features",
+      "type": "implementation",
+      "description": "Build Events and Settings pages",
+      "depends_on": [
+        "phase-5-frontend-layout",
+        "phase-2-backend-media"
+      ],
+      "parallel_safe": true,
+      "subtasks": [
         {
-          "id": "14-15",
-          "description": "Events sayfası - tespit geçmişi tablosu",
-          "status": "pending",
-          "files": [
+          "id": "subtask-7-1",
+          "description": "Create Events page",
+          "service": "frontend",
+          "files_to_modify": [],
+          "files_to_create": [
             "web/src/pages/Events.tsx"
-          ]
+          ],
+          "patterns_from": [
+            "web/src/components/ui/Table.tsx"
+          ],
+          "verification": {
+            "type": "browser",
+            "url": "http://localhost:3000/events",
+            "checks": [
+              "Events table renders",
+              "Data loads from API"
+            ]
+          },
+          "status": "pending",
+          "notes": "Table view of detection history from /api/events. Show timestamp, object detected, confidence, analysis."
         },
         {
-          "id": "14-16",
-          "description": "Settings sayfası - config form",
-          "status": "pending",
-          "files": [
+          "id": "subtask-7-2",
+          "description": "Create Settings page",
+          "service": "frontend",
+          "files_to_modify": [],
+          "files_to_create": [
             "web/src/pages/Settings.tsx"
-          ]
+          ],
+          "patterns_from": [],
+          "verification": {
+            "type": "browser",
+            "url": "http://localhost:3000/settings",
+            "checks": [
+              "Settings form renders",
+              "Config loads from API"
+            ]
+          },
+          "status": "pending",
+          "notes": "Form for configuration settings. GET /api/config to load, POST /api/config to save. Validate inputs."
         }
       ]
     },
     {
-      "phase": 6,
-      "name": "Hooks & Utils",
-      "chunks": [
+      "id": "phase-8-frontend-hooks",
+      "name": "Frontend Hooks & Utils",
+      "type": "implementation",
+      "description": "Create custom hooks and API utilities",
+      "depends_on": [
+        "phase-4-frontend-setup"
+      ],
+      "parallel_safe": true,
+      "subtasks": [
         {
-          "id": "14-17",
-          "description": "API utility functions",
-          "status": "pending",
-          "files": [
+          "id": "subtask-8-1",
+          "description": "Create API utility module",
+          "service": "frontend",
+          "files_to_modify": [],
+          "files_to_create": [
             "web/src/utils/api.ts"
-          ]
+          ],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "cd web && npx tsc --noEmit && echo 'OK'",
+            "expected": "OK"
+          },
+          "status": "pending",
+          "notes": "Fetch wrapper with error handling, base URL handling for ingress path. TypeScript interfaces for API responses."
         },
         {
-          "id": "14-18",
-          "description": "useWebSocket hook - canlı event stream",
-          "status": "pending",
-          "files": [
-            "web/src/hooks/useWebSocket.ts"
-          ]
-        },
-        {
-          "id": "14-19",
-          "description": "useApi hook - data fetching",
-          "status": "pending",
-          "files": [
+          "id": "subtask-8-2",
+          "description": "Create useApi hook",
+          "service": "frontend",
+          "files_to_modify": [],
+          "files_to_create": [
             "web/src/hooks/useApi.ts"
-          ]
+          ],
+          "patterns_from": [
+            "web/src/utils/api.ts"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "cd web && npx tsc --noEmit && echo 'OK'",
+            "expected": "OK"
+          },
+          "status": "pending",
+          "notes": "Custom hook for data fetching with loading/error states. Use Preact hooks (useState, useEffect)."
+        },
+        {
+          "id": "subtask-8-3",
+          "description": "Create useWebSocket hook",
+          "service": "frontend",
+          "files_to_modify": [],
+          "files_to_create": [
+            "web/src/hooks/useWebSocket.ts"
+          ],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "cd web && npx tsc --noEmit && echo 'OK'",
+            "expected": "OK"
+          },
+          "status": "pending",
+          "notes": "WebSocket connection hook with auto-reconnect. Connect to /ws/events. Emit events to subscribers."
         }
       ]
     },
     {
-      "phase": 7,
-      "name": "Build & Integration",
-      "chunks": [
+      "id": "phase-9-integration",
+      "name": "Integration - Docker Build & Deployment",
+      "type": "integration",
+      "description": "Update Dockerfile for multi-stage build and integrate frontend with backend",
+      "depends_on": [
+        "phase-3-backend-websocket",
+        "phase-6-frontend-pages-core",
+        "phase-7-frontend-pages-secondary",
+        "phase-8-frontend-hooks"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
         {
-          "id": "14-20",
-          "description": "Dockerfile güncelleme - Node.js build step",
-          "status": "pending",
-          "files": [
+          "id": "subtask-9-1",
+          "description": "Update Dockerfile with Node.js build stage",
+          "service": "integration",
+          "files_to_modify": [
             "Dockerfile"
-          ]
+          ],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "docker build -t test-web-ui . && echo 'OK'",
+            "expected": "OK"
+          },
+          "status": "pending",
+          "notes": "Multi-stage build: Stage 1 (Node.js) builds frontend, Stage 2 (Python) runs backend. Copy built assets to /app/web/dist/."
         },
         {
-          "id": "14-21",
-          "description": "requirements.txt güncelleme",
-          "status": "pending",
-          "files": [
-            "requirements.txt"
-          ]
-        },
-        {
-          "id": "14-22",
-          "description": "Static file serving ve production build",
-          "status": "pending",
-          "files": [
+          "id": "subtask-9-2",
+          "description": "Update web_server.py to serve static files",
+          "service": "backend",
+          "files_to_modify": [
             "src/web_server.py"
-          ]
+          ],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "browser",
+            "url": "http://localhost:8099/",
+            "checks": [
+              "Frontend app loads",
+              "Static assets served"
+            ]
+          },
+          "status": "pending",
+          "notes": "Serve static files from /app/web/dist/. Fallback to index.html for SPA routing."
+        },
+        {
+          "id": "subtask-9-3",
+          "description": "Test full integration with HA ingress path",
+          "service": "integration",
+          "all_services": true,
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "e2e",
+            "steps": [
+              "Start web server with ingress path",
+              "Verify frontend loads under ingress path",
+              "Test API calls work with ingress prefix",
+              "Test WebSocket connection works",
+              "Test live stream displays",
+              "Test theme toggle persists"
+            ]
+          },
+          "status": "pending",
+          "notes": "Full end-to-end test with X-Ingress-Path header simulation. Verify all routes work correctly."
         }
       ]
     }
-  ]
+  ],
+  "verification_strategy": {
+    "risk_level": "high",
+    "skip_validation": false,
+    "test_creation_phase": "post_implementation",
+    "test_types_required": [
+      "unit",
+      "integration",
+      "e2e"
+    ],
+    "security_scanning_required": true,
+    "staging_deployment_required": false,
+    "acceptance_criteria": [
+      "All API endpoints return expected responses",
+      "Frontend builds without errors and under 100KB gzipped",
+      "WebSocket connections maintain stability",
+      "Home Assistant ingress integration works correctly",
+      "Dark/Light theme toggles properly",
+      "Responsive design works on mobile (320px) and desktop (1920px)",
+      "No console errors in browser",
+      "MJPEG stream displays correctly"
+    ],
+    "verification_steps": [
+      {
+        "name": "Backend Unit Tests",
+        "command": "pytest tests/ -v",
+        "expected_outcome": "All tests pass",
+        "type": "test",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "Frontend TypeScript Check",
+        "command": "cd web && npx tsc --noEmit",
+        "expected_outcome": "No type errors",
+        "type": "test",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "Frontend Build",
+        "command": "cd web && npm run build",
+        "expected_outcome": "Build succeeds, bundle <100KB gzipped",
+        "type": "test",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "API Integration Tests",
+        "command": "pytest tests/integration/test_api.py -v",
+        "expected_outcome": "All API endpoints respond correctly",
+        "type": "test",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "Browser E2E Tests",
+        "command": "pytest tests/e2e/test_web_ui.py -v",
+        "expected_outcome": "All pages load and function correctly",
+        "type": "test",
+        "required": true,
+        "blocking": false
+      },
+      {
+        "name": "Security Scan - Secrets",
+        "command": "grep -r \"api_key\\|password\\|token\" web/src/ --include=\"*.ts\" --include=\"*.tsx\" || echo 'No hardcoded secrets'",
+        "expected_outcome": "No hardcoded secrets found",
+        "type": "security",
+        "required": true,
+        "blocking": true
+      }
+    ],
+    "reasoning": "High risk because this adds a new web interface with authentication concerns (HA ingress), WebSocket connections, and serves user-facing UI. Requires comprehensive testing including E2E browser tests and security scanning for exposed credentials."
+  },
+  "qa_acceptance": {
+    "unit_tests": {
+      "required": true,
+      "commands": [
+        "pytest tests/ -v"
+      ],
+      "minimum_coverage": null
+    },
+    "integration_tests": {
+      "required": true,
+      "commands": [
+        "pytest tests/integration/test_api.py -v"
+      ],
+      "services_to_test": [
+        "backend",
+        "websocket"
+      ]
+    },
+    "e2e_tests": {
+      "required": true,
+      "commands": [
+        "pytest tests/e2e/test_web_ui.py -v"
+      ],
+      "flows": [
+        "dashboard-load",
+        "live-stream-display",
+        "settings-save",
+        "theme-toggle"
+      ]
+    },
+    "browser_verification": {
+      "required": true,
+      "pages": [
+        {
+          "url": "http://localhost:8099/",
+          "checks": [
+            "renders",
+            "no-console-errors",
+            "dashboard-visible"
+          ]
+        },
+        {
+          "url": "http://localhost:8099/live",
+          "checks": [
+            "stream-displays",
+            "no-console-errors"
+          ]
+        },
+        {
+          "url": "http://localhost:8099/gallery",
+          "checks": [
+            "grid-renders",
+            "screenshots-load"
+          ]
+        },
+        {
+          "url": "http://localhost:8099/events",
+          "checks": [
+            "table-renders",
+            "data-loads"
+          ]
+        },
+        {
+          "url": "http://localhost:8099/settings",
+          "checks": [
+            "form-renders",
+            "saves-config"
+          ]
+        }
+      ]
+    },
+    "performance_verification": {
+      "required": true,
+      "checks": [
+        "Bundle size <100KB gzipped",
+        "Lighthouse performance score >90",
+        "Page load time <2 seconds",
+        "WebSocket reconnection <5 seconds"
+      ]
+    },
+    "responsive_verification": {
+      "required": true,
+      "checks": [
+        "Mobile 320px renders correctly",
+        "Tablet 768px renders correctly",
+        "Desktop 1920px renders correctly",
+        "Sidebar collapses on mobile"
+      ]
+    }
+  },
+  "summary": {
+    "total_phases": 9,
+    "total_subtasks": 32,
+    "services_involved": [
+      "backend",
+      "frontend"
+    ],
+    "parallelism": {
+      "max_parallel_phases": 3,
+      "parallel_groups": [
+        {
+          "phases": [
+            "phase-1-backend-core",
+            "phase-4-frontend-setup"
+          ],
+          "reason": "Backend and frontend setup are independent - different tech stacks, no shared files"
+        },
+        {
+          "phases": [
+            "phase-2-backend-media",
+            "phase-3-backend-websocket",
+            "phase-8-frontend-hooks"
+          ],
+          "reason": "All three depend on phase-1, but work on different files/modules with no conflicts"
+        },
+        {
+          "phases": [
+            "phase-7-frontend-pages-secondary",
+            "phase-8-frontend-hooks"
+          ],
+          "reason": "Secondary pages and hooks can be built in parallel - different file sets"
+        }
+      ],
+      "recommended_workers": 2,
+      "speedup_estimate": "1.4x faster than sequential (some phases must wait for dependencies)"
+    },
+    "startup_command": "source auto-claude/.venv/bin/activate && python auto-claude/run.py --spec 14-web-ui --parallel 2"
+  },
+  "qa_signoff": null,
+  "status": "in_progress",
+  "planStatus": "in_progress",
+  "updated_at": "2026-01-17T01:15:07.238Z",
+  "last_updated": "2026-01-17T01:16:33.677799+00:00"
 }

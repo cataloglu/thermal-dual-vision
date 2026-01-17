@@ -2,10 +2,13 @@
 
 import os
 import time
+from dataclasses import asdict
 from datetime import datetime
 from typing import Dict, Any
 
 from flask import Blueprint, jsonify, request
+
+from config import Config
 
 
 # Create Blueprint for API routes
@@ -13,6 +16,9 @@ api_bp = Blueprint('api', __name__, url_prefix='/api')
 
 # Track server start time for uptime calculation
 SERVER_START_TIME = time.time()
+
+# Global configuration instance
+_config = Config.from_env()
 
 
 @api_bp.route('/status', methods=['GET'])
@@ -85,3 +91,161 @@ def get_stats() -> tuple:
     }
 
     return jsonify(stats_data), 200
+
+
+@api_bp.route('/config', methods=['GET'])
+def get_config() -> tuple:
+    """
+    Get current configuration.
+
+    Returns:
+        JSON response with configuration and HTTP 200
+    """
+    try:
+        config_dict = asdict(_config)
+        # Mask sensitive values in response
+        if config_dict.get('llm', {}).get('api_key'):
+            config_dict['llm']['api_key'] = '***REDACTED***'
+        if config_dict.get('mqtt', {}).get('password'):
+            config_dict['mqtt']['password'] = '***REDACTED***'
+        if config_dict.get('telegram', {}).get('bot_token'):
+            config_dict['telegram']['bot_token'] = '***REDACTED***'
+
+        return jsonify(config_dict), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route('/config', methods=['POST'])
+def update_config() -> tuple:
+    """
+    Update configuration.
+
+    Expects JSON body with configuration values to update.
+    Only updates provided fields, leaves others unchanged.
+
+    Returns:
+        JSON response with updated configuration and HTTP 200, or error and HTTP 400/500
+    """
+    try:
+        if not request.is_json:
+            return jsonify({'error': 'Content-Type must be application/json'}), 400
+
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+
+        # Update camera config
+        if 'camera' in data:
+            camera_data = data['camera']
+            if 'url' in camera_data:
+                _config.camera.url = str(camera_data['url'])
+            if 'fps' in camera_data:
+                _config.camera.fps = int(camera_data['fps'])
+            if 'resolution' in camera_data:
+                res = camera_data['resolution']
+                if isinstance(res, (list, tuple)) and len(res) == 2:
+                    _config.camera.resolution = tuple(res)
+
+        # Update motion config
+        if 'motion' in data:
+            motion_data = data['motion']
+            if 'sensitivity' in motion_data:
+                _config.motion.sensitivity = int(motion_data['sensitivity'])
+            if 'min_area' in motion_data:
+                _config.motion.min_area = int(motion_data['min_area'])
+            if 'cooldown_seconds' in motion_data:
+                _config.motion.cooldown_seconds = int(motion_data['cooldown_seconds'])
+
+        # Update YOLO config
+        if 'yolo' in data:
+            yolo_data = data['yolo']
+            if 'model' in yolo_data:
+                _config.yolo.model = str(yolo_data['model'])
+            if 'confidence' in yolo_data:
+                _config.yolo.confidence = float(yolo_data['confidence'])
+            if 'classes' in yolo_data:
+                _config.yolo.classes = list(yolo_data['classes'])
+
+        # Update LLM config
+        if 'llm' in data:
+            llm_data = data['llm']
+            if 'api_key' in llm_data:
+                _config.llm.api_key = str(llm_data['api_key'])
+            if 'model' in llm_data:
+                _config.llm.model = str(llm_data['model'])
+            if 'max_tokens' in llm_data:
+                _config.llm.max_tokens = int(llm_data['max_tokens'])
+            if 'timeout' in llm_data:
+                _config.llm.timeout = int(llm_data['timeout'])
+
+        # Update screenshot config
+        if 'screenshots' in data:
+            screenshot_data = data['screenshots']
+            if 'before_seconds' in screenshot_data:
+                _config.screenshots.before_seconds = int(screenshot_data['before_seconds'])
+            if 'after_seconds' in screenshot_data:
+                _config.screenshots.after_seconds = int(screenshot_data['after_seconds'])
+            if 'quality' in screenshot_data:
+                _config.screenshots.quality = int(screenshot_data['quality'])
+            if 'max_stored' in screenshot_data:
+                _config.screenshots.max_stored = int(screenshot_data['max_stored'])
+            if 'buffer_seconds' in screenshot_data:
+                _config.screenshots.buffer_seconds = int(screenshot_data['buffer_seconds'])
+
+        # Update MQTT config
+        if 'mqtt' in data:
+            mqtt_data = data['mqtt']
+            if 'host' in mqtt_data:
+                _config.mqtt.host = str(mqtt_data['host'])
+            if 'port' in mqtt_data:
+                _config.mqtt.port = int(mqtt_data['port'])
+            if 'username' in mqtt_data:
+                _config.mqtt.username = str(mqtt_data['username'])
+            if 'password' in mqtt_data:
+                _config.mqtt.password = str(mqtt_data['password'])
+            if 'topic_prefix' in mqtt_data:
+                _config.mqtt.topic_prefix = str(mqtt_data['topic_prefix'])
+            if 'discovery' in mqtt_data:
+                _config.mqtt.discovery = bool(mqtt_data['discovery'])
+            if 'discovery_prefix' in mqtt_data:
+                _config.mqtt.discovery_prefix = str(mqtt_data['discovery_prefix'])
+            if 'qos' in mqtt_data:
+                _config.mqtt.qos = int(mqtt_data['qos'])
+
+        # Update Telegram config
+        if 'telegram' in data:
+            telegram_data = data['telegram']
+            if 'enabled' in telegram_data:
+                _config.telegram.enabled = bool(telegram_data['enabled'])
+            if 'bot_token' in telegram_data:
+                _config.telegram.bot_token = str(telegram_data['bot_token'])
+            if 'chat_ids' in telegram_data:
+                _config.telegram.chat_ids = list(telegram_data['chat_ids'])
+            if 'rate_limit_seconds' in telegram_data:
+                _config.telegram.rate_limit_seconds = int(telegram_data['rate_limit_seconds'])
+
+        # Update log level
+        if 'log_level' in data:
+            _config.log_level = str(data['log_level'])
+
+        # Validate configuration
+        errors = _config.validate()
+        if errors:
+            return jsonify({'error': 'Validation failed', 'details': errors}), 400
+
+        # Return updated config with masked sensitive values
+        config_dict = asdict(_config)
+        if config_dict.get('llm', {}).get('api_key'):
+            config_dict['llm']['api_key'] = '***REDACTED***'
+        if config_dict.get('mqtt', {}).get('password'):
+            config_dict['mqtt']['password'] = '***REDACTED***'
+        if config_dict.get('telegram', {}).get('bot_token'):
+            config_dict['telegram']['bot_token'] = '***REDACTED***'
+
+        return jsonify(config_dict), 200
+
+    except ValueError as e:
+        return jsonify({'error': f'Invalid value: {str(e)}'}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
