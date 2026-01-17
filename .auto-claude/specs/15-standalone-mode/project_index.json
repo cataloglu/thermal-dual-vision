@@ -1,18 +1,20 @@
 {
-  "task_id": "15-standalone-mode",
-  "title": "15 - Standalone Mode",
-  "status": "pending",
-  "priority": "high",
-  "estimated_complexity": "medium",
-  "dependencies": [
-    "01-project-structure",
-    "08-main-app",
-    "14-web-ui"
-  ],
-  "tags": [
-    "docker-compose",
-    "standalone",
-    "deployment",
-    "config"
-  ]
+  "project_type": "single",
+  "name": "smart-motion-detector",
+  "language": "python",
+  "framework": "home-assistant-addon",
+  "root_path": "/home/ac/Documents/motion-detector/motion-detector/.auto-claude/worktrees/tasks/15-standalone-mode",
+  "services": {
+    "backend": {
+      "path": ".",
+      "tech_stack": ["python", "asyncio", "opencv", "yolo", "openai"],
+      "port": 8099,
+      "dev_command": "python3 -m src.main",
+      "test_command": "pytest tests/"
+    }
+  },
+  "infrastructure": {
+    "docker": true,
+    "docker_compose": true
+  }
 }

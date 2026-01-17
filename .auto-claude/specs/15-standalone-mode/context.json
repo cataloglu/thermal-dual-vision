@@ -1,22 +1,36 @@
 {
-  "background": "Proje hem Home Assistant add-on hem de bağımsız Docker container olarak çalışabilmeli. Bu esneklik farklı kullanım senaryolarını destekler.",
-  "technical_context": {
-    "ha_mode_true": {
-      "config_source": "Bashio (options.json)",
-      "web_server": "Ingress proxy arkasında",
-      "mqtt": "Auto-discovery aktif",
-      "entry_point": "run.sh"
-    },
-    "ha_mode_false": {
-      "config_source": "ENV vars + config.yaml",
-      "web_server": "Doğrudan port expose",
-      "mqtt": "Opsiyonel, auto-discovery yok",
-      "entry_point": "python -m src.main"
-    }
+  "files_to_modify": {
+    "backend": [
+      "src/config.py",
+      "src/mqtt_client.py",
+      "Dockerfile",
+      "run.sh"
+    ]
   },
-  "related_modules": [
-    "src/config.py - Config yönetimi",
-    "src/web_server.py - Web sunucu",
-    "src/mqtt_client.py - MQTT iletişim"
-  ]
+  "files_to_reference": [
+    "src/config.py",
+    "src/mqtt_client.py",
+    "config.yaml"
+  ],
+  "patterns": {
+    "config_pattern": "Config class uses dataclasses with from_env() class method for environment variable loading",
+    "async_pattern": "All modules use async/await patterns with asyncio",
+    "mqtt_pattern": "MQTT client has auto-discovery built in, needs to be made optional based on HA_MODE",
+    "entry_point_pattern": "run.sh uses bashio for HA config, needs conditional logic for standalone mode"
+  },
+  "existing_implementations": {
+    "description": "Config already loads from environment variables via Config.from_env(). MQTT client has auto-discovery. Need to add YAML file support and make components HA-mode aware.",
+    "relevant_files": [
+      "src/config.py - Environment variable loading",
+      "src/mqtt_client.py - MQTT with auto-discovery",
+      "run.sh - Bashio-based entry point",
+      "Dockerfile - HA add-on container setup"
+    ]
+  },
+  "key_decisions": {
+    "ha_mode_default": "false (standalone is default)",
+    "config_priority": "env vars > YAML file > defaults",
+    "mqtt_behavior": "Optional in standalone mode, skip if broker unavailable",
+    "backward_compatibility": "HA_MODE=true must continue working with bashio"
+  }
 }

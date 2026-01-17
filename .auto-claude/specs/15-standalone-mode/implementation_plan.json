@@ -1,96 +1,384 @@
 {
   "feature": "15 - Standalone Mode",
   "workflow_type": "feature",
+  "workflow_rationale": "Adding standalone deployment capability is a new feature that extends the application to work without Home Assistant. This follows a feature workflow with implementation phases for config management, Docker setup, and module updates.",
   "phases": [
     {
-      "phase": 1,
-      "name": "Config Abstraction",
-      "chunks": [
+      "id": "phase-1-config",
+      "name": "Configuration Management",
+      "type": "implementation",
+      "description": "Add HA_MODE environment variable support and multi-source configuration loading (env vars > YAML file > defaults)",
+      "depends_on": [],
+      "parallel_safe": true,
+      "subtasks": [
         {
-          "id": "15-01",
-          "description": "HA_MODE environment variable kontrolü",
-          "status": "pending",
-          "files": [
+          "id": "subtask-1-1",
+          "description": "Add HA_MODE environment variable check to config.py",
+          "service": "backend",
+          "files_to_modify": [
             "src/config.py"
-          ]
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/config.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "python3 -c \"import os; os.environ['HA_MODE']='false'; from src.config import Config; c = Config.from_env(); print('OK' if hasattr(c, 'ha_mode') else 'FAIL')\"",
+            "expected": "OK"
+          },
+          "status": "completed",
+          "notes": "Added ha_mode boolean field to Config class with default value of True. Loads from HA_MODE environment variable (defaults to \"true\"). Verified implementation with test cases for both false and true values.",
+          "updated_at": "2026-01-17T01:15:06.842610+00:00"
         },
         {
-          "id": "15-02",
-          "description": "ConfigLoader - multi-source config okuma",
-          "status": "pending",
-          "files": [
+          "id": "subtask-1-2",
+          "description": "Add YAML config file loader to config.py",
+          "service": "backend",
+          "files_to_modify": [
             "src/config.py"
-          ]
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/config.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "python3 -c \"from src.config import Config; print('OK' if hasattr(Config, 'from_yaml') else 'FAIL')\"",
+            "expected": "OK"
+          },
+          "status": "completed",
+          "notes": "Successfully added Config.from_yaml() classmethod that loads configuration from YAML files. The method reads YAML files, parses all configuration sections (camera, motion, yolo, llm, screenshots, mqtt, telegram), and returns a fully configured Config instance. Includes proper error handling for missing files.",
+          "updated_at": "2026-01-17T01:16:15.863010+00:00"
         },
         {
-          "id": "15-03",
-          "description": "Standalone config.yaml şeması",
-          "status": "pending",
-          "files": [
+          "id": "subtask-1-3",
+          "description": "Create standalone config.yaml template",
+          "service": "backend",
+          "files_to_modify": [],
+          "files_to_create": [
             "config/config.yaml"
-          ]
+          ],
+          "patterns_from": [
+            "config.yaml"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "test -f ./config/config.yaml && python3 -c \"import yaml; yaml.safe_load(open('config/config.yaml'))\" && echo 'OK'",
+            "expected": "OK"
+          },
+          "status": "completed",
+          "notes": "Created standalone config.yaml template with all application settings. Includes camera, motion detection, YOLO, OpenAI, MQTT, Telegram, and web UI configuration options. Verification passed successfully.",
+          "updated_at": "2026-01-17T01:17:01.839137+00:00"
+        },
+        {
+          "id": "subtask-1-4",
+          "description": "Add from_sources() method with priority: env > YAML > defaults",
+          "service": "backend",
+          "files_to_modify": [
+            "src/config.py"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/config.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "python3 -c \"from src.config import Config; c = Config.from_sources('config/config.yaml'); print('OK')\"",
+            "expected": "OK"
+          },
+          "status": "completed",
+          "notes": "Added from_sources() method that loads config with priority: env > YAML > defaults. Method accepts optional config_path parameter and properly handles missing YAML files by falling back to defaults. Environment variables override both YAML and defaults when set.",
+          "updated_at": "2026-01-17T01:18:14.122432+00:00"
         }
       ]
     },
     {
-      "phase": 2,
+      "id": "phase-2-docker",
       "name": "Docker Compose Setup",
-      "chunks": [
+      "type": "implementation",
+      "description": "Create Docker Compose configuration for standalone deployment with environment variable support",
+      "depends_on": [
+        "phase-1-config"
+      ],
+      "parallel_safe": true,
+      "subtasks": [
         {
-          "id": "15-04",
-          "description": "docker-compose.yml oluşturma",
-          "status": "pending",
-          "files": [
+          "id": "subtask-2-1",
+          "description": "Create docker-compose.yml for standalone deployment",
+          "service": "docker",
+          "files_to_modify": [],
+          "files_to_create": [
             "docker-compose.yml"
-          ]
+          ],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "docker-compose config --quiet && echo 'OK'",
+            "expected": "OK"
+          },
+          "status": "completed",
+          "notes": "Created docker-compose.yml for standalone deployment with thermal-vision service. Includes port 8099 mapping, environment variables (HA_MODE=false, CAMERA_URL, OPENAI_API_KEY, TELEGRAM_TOKEN, MQTT settings), volumes for data and config directories, and restart policy. YAML syntax validated successfully.",
+          "updated_at": "2026-01-17T01:19:29.066285+00:00"
         },
         {
-          "id": "15-05",
-          "description": ".env.example template",
-          "status": "pending",
-          "files": [
+          "id": "subtask-2-2",
+          "description": "Create .env.example with all required environment variables",
+          "service": "docker",
+          "files_to_modify": [],
+          "files_to_create": [
             ".env.example"
-          ]
+          ],
+          "patterns_from": [
+            "src/config.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "test -f .env.example && grep -q 'HA_MODE' .env.example && grep -q 'CAMERA_URL' .env.example && echo 'OK'",
+            "expected": "OK"
+          },
+          "status": "pending",
+          "notes": "Template for all environment variables: HA_MODE, CAMERA_URL, OPENAI_API_KEY, TELEGRAM_TOKEN, MQTT settings, etc."
         },
         {
-          "id": "15-06",
-          "description": "Dockerfile standalone entrypoint",
-          "status": "pending",
-          "files": [
+          "id": "subtask-2-3",
+          "description": "Update Dockerfile with standalone entrypoint support",
+          "service": "docker",
+          "files_to_modify": [
             "Dockerfile"
-          ]
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "Dockerfile"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "grep -q 'python.*-m.*src.main' Dockerfile && echo 'OK' || echo 'SKIP'",
+            "expected": "OK"
+          },
+          "status": "pending",
+          "notes": "Add conditional entrypoint: if HA_MODE=true use run.sh (bashio), else use 'python3 -m src.main'"
         }
       ]
     },
     {
-      "phase": 3,
-      "name": "Module Updates",
-      "chunks": [
+      "id": "phase-3-modules",
+      "name": "Module Updates for Standalone Mode",
+      "type": "implementation",
+      "description": "Update MQTT client to make auto-discovery optional and prepare other modules for standalone operation",
+      "depends_on": [
+        "phase-1-config"
+      ],
+      "parallel_safe": true,
+      "subtasks": [
         {
-          "id": "15-07",
-          "description": "web_server.py - ingress/direct mode switch",
-          "status": "pending",
-          "files": [
-            "src/web_server.py"
-          ]
-        },
-        {
-          "id": "15-08",
-          "description": "mqtt_client.py - auto-discovery opsiyonel",
-          "status": "pending",
-          "files": [
+          "id": "subtask-3-1",
+          "description": "Make MQTT auto-discovery conditional on HA_MODE",
+          "service": "backend",
+          "files_to_modify": [
             "src/mqtt_client.py"
-          ]
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/mqtt_client.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "python3 -c \"from src.mqtt_client import MQTTClient; from src.config import MQTTConfig; c = MQTTConfig(); print('OK')\"",
+            "expected": "OK"
+          },
+          "status": "pending",
+          "notes": "Skip auto-discovery when ha_mode=false or when discovery=false in config. Make MQTT connection optional (graceful failure if broker unavailable)"
         },
         {
-          "id": "15-09",
-          "description": "main.py - mode-aware startup",
+          "id": "subtask-3-2",
+          "description": "Update run.sh to check HA_MODE and route to correct entry point",
+          "service": "docker",
+          "files_to_modify": [
+            "run.sh"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "run.sh"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "grep -q 'HA_MODE' run.sh && echo 'OK'",
+            "expected": "OK"
+          },
           "status": "pending",
-          "files": [
-            "src/main.py"
-          ]
+          "notes": "If HA_MODE=true, use bashio config; if false, skip bashio and run python directly with config.yaml"
+        }
+      ]
+    },
+    {
+      "id": "phase-4-integration",
+      "name": "Integration Testing",
+      "type": "integration",
+      "description": "Verify both HA and standalone modes work correctly with proper configuration loading",
+      "depends_on": [
+        "phase-2-docker",
+        "phase-3-modules"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-4-1",
+          "description": "Test config loading in standalone mode (HA_MODE=false)",
+          "all_services": true,
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "manual",
+            "instructions": "1. Set HA_MODE=false, 2. Run config loader, 3. Verify config.yaml is read, 4. Verify env vars override YAML values"
+          },
+          "status": "pending",
+          "notes": "Create test script that validates config priority: env > yaml > defaults"
+        },
+        {
+          "id": "subtask-4-2",
+          "description": "Verify docker-compose up works with .env file",
+          "all_services": true,
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "manual",
+            "instructions": "1. Copy .env.example to .env, 2. Fill in required values, 3. Run docker-compose up, 4. Verify container starts without errors, 5. Check logs for 'HA_MODE=false' confirmation"
+          },
+          "status": "pending",
+          "notes": "This validates the full standalone deployment pipeline"
+        },
+        {
+          "id": "subtask-4-3",
+          "description": "Test MQTT optional connection (no broker scenario)",
+          "all_services": true,
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "manual",
+            "instructions": "1. Start application without MQTT broker, 2. Verify it starts successfully, 3. Check logs show 'MQTT connection failed, continuing without MQTT', 4. Verify other features still work"
+          },
+          "status": "pending",
+          "notes": "Ensures graceful degradation when MQTT broker is unavailable in standalone mode"
         }
       ]
     }
-  ]
+  ],
+  "summary": {
+    "total_phases": 4,
+    "total_subtasks": 12,
+    "services_involved": [
+      "backend",
+      "docker"
+    ],
+    "parallelism": {
+      "max_parallel_phases": 2,
+      "parallel_groups": [
+        {
+          "phases": [
+            "phase-2-docker",
+            "phase-3-modules"
+          ],
+          "reason": "Both depend only on phase-1-config and work on different file sets"
+        }
+      ],
+      "recommended_workers": 1,
+      "speedup_estimate": "Sequential recommended due to Docker build dependencies"
+    }
+  },
+  "verification_strategy": {
+    "risk_level": "medium",
+    "skip_validation": false,
+    "test_creation_phase": "post_implementation",
+    "test_types_required": [
+      "integration"
+    ],
+    "security_scanning_required": false,
+    "staging_deployment_required": false,
+    "acceptance_criteria": [
+      "docker-compose up successfully starts the application",
+      "HA_MODE=false loads config from config.yaml and environment variables",
+      "HA_MODE=true continues to work with bashio (backward compatible)",
+      "MQTT auto-discovery only enabled in HA mode",
+      "Application gracefully handles missing MQTT broker",
+      "Web UI accessible on port 8099 in standalone mode"
+    ],
+    "verification_steps": [
+      {
+        "name": "Config Loading Test",
+        "command": "python3 -c \"from src.config import Config; c = Config.from_sources('config/config.yaml'); print('Config loaded:', c.camera.url)\"",
+        "expected_outcome": "Config loaded successfully with proper priority",
+        "type": "test",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "Docker Compose Validation",
+        "command": "docker-compose config --quiet",
+        "expected_outcome": "Valid docker-compose.yml without errors",
+        "type": "test",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "Standalone Mode Start",
+        "command": "HA_MODE=false python3 -m src.main --dry-run",
+        "expected_outcome": "Application initializes without errors (if --dry-run supported)",
+        "type": "integration",
+        "required": true,
+        "blocking": true
+      }
+    ],
+    "reasoning": "Medium risk change - adds new deployment mode while maintaining backward compatibility with existing HA add-on mode. Integration testing is critical to ensure both modes work."
+  },
+  "qa_acceptance": {
+    "unit_tests": {
+      "required": false,
+      "commands": [],
+      "minimum_coverage": null
+    },
+    "integration_tests": {
+      "required": true,
+      "commands": [
+        "python3 -m pytest tests/ -v"
+      ],
+      "services_to_test": [
+        "backend"
+      ]
+    },
+    "e2e_tests": {
+      "required": false,
+      "commands": [],
+      "flows": []
+    },
+    "browser_verification": {
+      "required": false,
+      "pages": []
+    },
+    "database_verification": {
+      "required": false,
+      "checks": []
+    },
+    "manual_verification": {
+      "required": true,
+      "steps": [
+        "Copy .env.example to .env and fill in credentials",
+        "Run 'docker-compose up' and verify successful startup",
+        "Check logs contain 'HA_MODE=false' or 'Standalone mode'",
+        "Access web UI on http://localhost:8099",
+        "Verify config.yaml settings are applied",
+        "Test with missing MQTT broker - app should still work",
+        "Test environment variable override (change one value in .env)",
+        "Switch to HA_MODE=true and verify bashio path still works"
+      ]
+    }
+  },
+  "qa_signoff": null,
+  "status": "in_progress",
+  "planStatus": "in_progress",
+  "updated_at": "2026-01-17T01:19:44.269Z",
+  "last_updated": "2026-01-17T01:19:29.066298+00:00"
 }
