@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  web-ui-test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_FROM: python:3.11-alpine
+    container_name: motion-detector-web-test
+    ports:
+      - "8099:8099"
+    environment:
+      # Enable development mode for testing
+      - DEV_MODE=true
+      - DEBUG=false
+      - WEB_PORT=8099
+
+      # IP whitelist (Home Assistant Supervisor IP)
+      - ALLOWED_IPS=172.30.32.2,127.0.0.1
+
+      # Flask configuration
+      - FLASK_SECRET_KEY=test-secret-key-do-not-use-in-production
+
+      # Camera configuration (test values)
+      - CAMERA_URL=http://camera:8080/stream
+      - CAMERA_FPS=1
+      - CAMERA_WIDTH=640
+      - CAMERA_HEIGHT=480
+
+      # MQTT configuration (optional for web UI testing)
+      - MQTT_ENABLED=false
+
+      # Telegram configuration (optional for web UI testing)
+      - TELEGRAM_ENABLED=false
+
+    volumes:
+      # Mount data directory for screenshots
+      - ./test_data:/data
+
+      # Mount logs directory
+      - ./test_logs:/logs
+
+    networks:
+      - test-network
+
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8099/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+    command: ["/run.sh"]
+
+networks:
+  test-network:
+    driver: bridge
+
+volumes:
+  test_data:
+  test_logs:
