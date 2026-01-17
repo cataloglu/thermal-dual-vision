@@ -173,7 +173,6 @@ export function useWebSocket(namespace: string = '/events'): UseWebSocketState {
     socket.on('connect', () => {
       if (!isMountedRef.current) return;
 
-      console.log('[WebSocket] Connected to', namespace);
       setConnected(true);
       setConnectionState('connected');
       reconnectAttemptsRef.current = 0;
@@ -189,14 +188,12 @@ export function useWebSocket(namespace: string = '/events'): UseWebSocketState {
     socket.on('disconnect', (reason: string) => {
       if (!isMountedRef.current) return;
 
-      console.log('[WebSocket] Disconnected:', reason);
       setConnected(false);
       setConnectionState('disconnected');
 
       // Auto-reconnect unless disconnect was intentional
       if (reason !== 'io client disconnect') {
         const delay = getReconnectDelay();
-        console.log(`[WebSocket] Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current + 1})`);
 
         reconnectTimeoutRef.current = setTimeout(() => {
           if (!isMountedRef.current) return;
@@ -210,13 +207,11 @@ export function useWebSocket(namespace: string = '/events'): UseWebSocketState {
     socket.on('connect_error', (error: Error) => {
       if (!isMountedRef.current) return;
 
-      console.error('[WebSocket] Connection error:', error.message);
       setConnected(false);
       setConnectionState('disconnected');
 
       // Auto-reconnect on error
       const delay = getReconnectDelay();
-      console.log(`[WebSocket] Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current + 1})`);
 
       reconnectTimeoutRef.current = setTimeout(() => {
         if (!isMountedRef.current) return;
@@ -227,7 +222,7 @@ export function useWebSocket(namespace: string = '/events'): UseWebSocketState {
 
     // Handle welcome message
     socket.on('connected', (data: ConnectedEvent) => {
-      console.log('[WebSocket]', data.message);
+      // Connection acknowledged, ready to receive events
     });
   }, [namespace, getWebSocketUrl, getReconnectDelay]);
 
@@ -235,8 +230,6 @@ export function useWebSocket(namespace: string = '/events'): UseWebSocketState {
    * Disconnect from WebSocket server
    */
   const disconnect = useCallback(() => {
-    console.log('[WebSocket] Manually disconnecting');
-
     // Clear any pending reconnection attempts
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
@@ -260,7 +253,6 @@ export function useWebSocket(namespace: string = '/events'): UseWebSocketState {
    * Manually reconnect to WebSocket server
    */
   const reconnect = useCallback(() => {
-    console.log('[WebSocket] Manually reconnecting');
     disconnect();
     setTimeout(() => {
       reconnectAttemptsRef.current = 0;
@@ -278,11 +270,8 @@ export function useWebSocket(namespace: string = '/events'): UseWebSocketState {
   const subscribe = useCallback(
     <T = any>(event: WebSocketEventType, handler: WebSocketEventHandler<T>) => {
       if (!socketRef.current) {
-        console.warn('[WebSocket] Cannot subscribe: socket not initialized');
         return () => {};
       }
-
-      console.log('[WebSocket] Subscribing to event:', event);
 
       // Add event listener
       socketRef.current.on(event, handler);
@@ -290,7 +279,6 @@ export function useWebSocket(namespace: string = '/events'): UseWebSocketState {
       // Return unsubscribe function
       return () => {
         if (socketRef.current) {
-          console.log('[WebSocket] Unsubscribing from event:', event);
           socketRef.current.off(event, handler);
         }
       };
