@@ -5,7 +5,7 @@ Bu dokuman thermal ve color akislari icin temel zaman senkronizasyonu yaklasimin
 ## Hedef
 - Iki akisin zaman bazinda hizalanmasi
 - Kisa drift durumlarinda toleransli eslestirme
-- Gelecekte uygulanabilir bir arayuz notu sunmak
+- MVP icin drift/tolerans metriklerini ortaya koymak
 
 ## Metrikler / Alanlar
 Senkronizasyon icin her frame paketinde asagidaki alanlar tutulur:
@@ -29,9 +29,14 @@ Senkronizasyon icin her frame paketinde asagidaki alanlar tutulur:
    - En dusuk `delta_ms` kazanir.
 
 ## Drift / Tolerans Sinirlari
-- `soft_tolerance_ms`: 150 ms (eslestirme tercih eşiği)
-- `hard_tolerance_ms`: 500 ms (eslestirme kesme eşiği)
+- `soft_tolerance_ms`: 150 ms (eslestirme tercih esigi)
+- `hard_tolerance_ms`: 500 ms (eslestirme kesme esigi)
 - `drop_policy`: `hard_tolerance_ms` asilirsa frame eslestirilmez ve "unmatched" olarak isaretlenir.
+
+## MVP cikti
+Her eslenen frame cifti icin:
+- `delta_ms` ve durum (`ok`, `degraded`, `unmatched`) loglanir
+- Genişletilebilir minimal bir birlesik cikti uretilir
 
 ## Arayuz Notlari (Gelecek Uygulama)
 Senkronizasyona uygun ortak frame paketi:

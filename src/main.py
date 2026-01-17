@@ -4,9 +4,10 @@ from src.config import Config
 from src.logger import get_logger, setup_logger
 from src.pipelines.base import BasePipeline
 from src.pipelines.color_pipeline import ColorPipeline
+from src.pipelines.dual_pipeline import DualPipeline
 from src.pipelines.thermal_pipeline import ThermalPipeline
 
-PIPELINE_CLASSES = (ThermalPipeline, ColorPipeline)
+PIPELINE_CLASSES = (ThermalPipeline, ColorPipeline, DualPipeline)
 
 
 def main() -> None:

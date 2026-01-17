@@ -12,6 +12,8 @@ bashio::log.info "Starting Smart Motion Detector..."
 # Read configuration from Home Assistant
 export CAMERA_URL=$(bashio::config 'camera_url')
 export CAMERA_TYPE=$(bashio::config 'camera_type')
+export COLOR_CAMERA_URL=$(bashio::config 'color_camera_url')
+export THERMAL_CAMERA_URL=$(bashio::config 'thermal_camera_url')
 export CAMERA_FPS=$(bashio::config 'camera_fps')
 export MOTION_SENSITIVITY=$(bashio::config 'motion_sensitivity')
 export MOTION_MIN_AREA=$(bashio::config 'motion_min_area')
@@ -45,6 +47,8 @@ if [ -n "${CAMERA_URL}" ]; then
 else
     bashio::log.warning "Camera URL: [missing]"
 fi
+bashio::log.info "Color Camera URL: $( [ -n "${COLOR_CAMERA_URL}" ] && echo "[set]" || echo "[missing]" )"
+bashio::log.info "Thermal Camera URL: $( [ -n "${THERMAL_CAMERA_URL}" ] && echo "[set]" || echo "[missing]" )"
 bashio::log.info "Motion Sensitivity: ${MOTION_SENSITIVITY}"
 bashio::log.info "YOLO Model: ${YOLO_MODEL}"
 bashio::log.info "Log Level: ${LOG_LEVEL}"

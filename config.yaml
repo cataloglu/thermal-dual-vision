@@ -15,6 +15,8 @@ init: false
 options:
   camera_url: ""
   camera_type: "color"
+  color_camera_url: ""
+  thermal_camera_url: ""
   camera_fps: 5
   motion_sensitivity: 7
   motion_min_area: 500
@@ -39,6 +41,9 @@ options:
 # Options description
 options_description:
   camera_url: "RTSP camera URL (required)."
+  camera_type: "Camera mode: color, thermal, or dual."
+  color_camera_url: "Color RTSP URL (required for dual mode)."
+  thermal_camera_url: "Thermal RTSP URL (required for dual mode)."
   camera_fps: "Frame rate for capture (default: 5)."
   motion_sensitivity: "Motion sensitivity 1-10 (default: 7)."
   motion_min_area: "Minimum motion area in pixels (default: 500)."
@@ -59,7 +64,9 @@ options_description:
 # Schema validation
 schema:
   camera_url: url
-  camera_type: list(color|thermal)
+  camera_type: list(color|thermal|dual)
+  color_camera_url: url?
+  thermal_camera_url: url?
   camera_fps: int(1,30)
   motion_sensitivity: int(1,10)
   motion_min_area: int(100,10000)
