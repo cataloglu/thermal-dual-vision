@@ -4,6 +4,7 @@ import { Layout } from './components/Layout';
 import { ThemeProvider } from './components/ThemeProvider';
 import { Dashboard } from './pages/Dashboard';
 import { LiveView } from './pages/LiveView';
+import { Gallery } from './pages/Gallery';
 
 /**
  * Root application component with routing.
@@ -37,20 +38,6 @@ export function App() {
   );
 }
 
-
-/**
- * Gallery page - Grid view of saved screenshots
- */
-function Gallery() {
-  return (
-    <div>
-      <h1 class="text-3xl font-bold mb-4">Gallery</h1>
-      <p class="text-gray-600 dark:text-gray-400">
-        Screenshot gallery
-      </p>
-    </div>
-  );
-}
 
 /**
  * Events page - Detection history table
