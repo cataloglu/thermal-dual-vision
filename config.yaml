@@ -14,6 +14,7 @@ init: false
 # Options with defaults
 options:
   camera_url: ""
+  camera_type: "color"
   camera_fps: 5
   motion_sensitivity: 7
   motion_min_area: 500
@@ -38,6 +39,7 @@ options:
 # Schema validation
 schema:
   camera_url: url
+  camera_type: list(color|thermal)
   camera_fps: int(1,30)
   motion_sensitivity: int(1,10)
   motion_min_area: int(100,10000)

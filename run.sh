@@ -11,6 +11,7 @@ bashio::log.info "Starting Smart Motion Detector..."
 
 # Read configuration from Home Assistant
 export CAMERA_URL=$(bashio::config 'camera_url')
+export CAMERA_TYPE=$(bashio::config 'camera_type')
 export CAMERA_FPS=$(bashio::config 'camera_fps')
 export MOTION_SENSITIVITY=$(bashio::config 'motion_sensitivity')
 export MOTION_MIN_AREA=$(bashio::config 'motion_min_area')
