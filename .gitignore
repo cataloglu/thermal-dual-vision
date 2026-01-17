@@ -30,5 +30,8 @@ web/dist/
 data/screenshots/
 *.log
 
+# Environment files with credentials
+.env
+
 # Auto Claude data directory
 .auto-claude/

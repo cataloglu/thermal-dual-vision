@@ -547,12 +547,27 @@ async def main() -> None:
     Loads configuration, validates it, initializes the detector,
     and runs it until interrupted.
     """
-    # Load configuration from environment
-    config = Config.from_env()
+    import os
 
-    # Setup logging with configured level
-    from src.logger import setup_logger
-    setup_logger(level=config.log_level)
+    # Check HA_MODE to determine configuration source
+    ha_mode = os.getenv("HA_MODE", "true").lower() == "true"
+
+    if ha_mode:
+        # Home Assistant Add-on mode - load from environment only
+        from src.logger import setup_logger
+        config = Config.from_env()
+        setup_logger(level=config.log_level)
+        logger.info("Starting Smart Motion Detector in Home Assistant Add-on mode")
+    else:
+        # Standalone mode - load from YAML with env overrides
+        # Look for config file in /config (Docker volume) or ./config (dev)
+        config_path = "/config/config.yaml" if os.path.exists("/config/config.yaml") else "config/config.yaml"
+
+        from src.logger import setup_logger
+        config = Config.from_sources(config_path)
+        setup_logger(level=config.log_level)
+        logger.info(f"Starting Smart Motion Detector in Standalone mode")
+        logger.info(f"Configuration loaded from {config_path} with environment variable overrides")
 
     logger.info("Smart Motion Detector starting up")
 
