@@ -7,6 +7,7 @@ from flask_cors import CORS
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from api import api_bp
+from api.websocket import init_socketio
 
 
 def create_app() -> Flask:
@@ -78,11 +79,17 @@ def create_app() -> Flask:
     # Register API Blueprint
     app.register_blueprint(api_bp)
 
+    # Initialize WebSocket support
+    socketio = init_socketio(app)
+
     return app
 
 
 # Create app instance
 app = create_app()
+
+# Get socketio instance for running the app
+from api.websocket import socketio
 
 
 if __name__ == '__main__':
@@ -92,9 +99,21 @@ if __name__ == '__main__':
 
     print(f"Starting Smart Motion Detector Web Server on port {port}")
     print(f"Debug mode: {debug}")
+    print(f"WebSocket endpoint: ws://0.0.0.0:{port}/events")
 
-    app.run(
-        host='0.0.0.0',
-        port=port,
-        debug=debug
-    )
+    # Use socketio.run() instead of app.run() for WebSocket support
+    if socketio:
+        socketio.run(
+            app,
+            host='0.0.0.0',
+            port=port,
+            debug=debug,
+            allow_unsafe_werkzeug=True  # Required for development mode with WebSocket
+        )
+    else:
+        # Fallback to regular Flask if socketio not initialized
+        app.run(
+            host='0.0.0.0',
+            port=port,
+            debug=debug
+        )
