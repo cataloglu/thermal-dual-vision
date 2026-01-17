@@ -221,8 +221,9 @@
             "type": "manual",
             "instructions": "Connect to ws://localhost:8099/ws/events and verify events are received"
           },
-          "status": "pending",
-          "notes": "Subscribe to detection events and broadcast via WebSocket. Follow MQTT client pattern for event handling."
+          "status": "completed",
+          "notes": "WebSocket integration with detection events completed. Added publish_motion() method to WebSocketManager that follows MQTT client pattern. Extracts all analysis results (real_motion, confidence, description, detected_objects, threat_level, recommended_action, detailed_analysis, processing_time) and broadcasts to all connected WebSocket clients. Also added publish_state() for generic state updates and has_clients property. Detection system can now call ws_manager.publish_motion(detected, analysis) to broadcast events in real-time. Includes comprehensive error handling and logging.",
+          "updated_at": "2026-01-17T01:36:33.609383+00:00"
         }
       ]
     },
@@ -878,6 +879,6 @@
   "qa_signoff": null,
   "status": "in_progress",
   "planStatus": "in_progress",
-  "updated_at": "2026-01-17T01:32:43.910Z",
-  "last_updated": "2026-01-17T01:34:37.011384+00:00"
+  "updated_at": "2026-01-17T01:35:00.137Z",
+  "last_updated": "2026-01-17T01:36:33.609394+00:00"
 }
