@@ -102,22 +102,32 @@ from src.api.websocket import socketio
 
 
 if __name__ == '__main__':
-    """Run development server."""
+    """
+    Run web server with WebSocket support.
+
+    Production mode: Uses eventlet async mode (auto-detected when eventlet is installed)
+    Development mode: Uses threading async mode with werkzeug
+
+    For production deployment with gunicorn:
+        gunicorn --worker-class eventlet -w 1 --bind 0.0.0.0:8099 src.web_server:app
+    """
     port = int(os.getenv('WEB_PORT', '8099'))
     debug = os.getenv('DEBUG', 'false').lower() == 'true'
 
     print(f"Starting Smart Motion Detector Web Server on port {port}")
     print(f"Debug mode: {debug}")
+    print(f"Static files: {app.static_folder}")
     print(f"WebSocket endpoint: ws://0.0.0.0:{port}/events")
 
-    # Use socketio.run() instead of app.run() for WebSocket support
+    # Use socketio.run() for WebSocket support
+    # Flask-SocketIO will automatically use eventlet if available (production)
+    # Falls back to threading mode for development
     if socketio:
         socketio.run(
             app,
             host='0.0.0.0',
             port=port,
-            debug=debug,
-            allow_unsafe_werkzeug=True  # Required for development mode with WebSocket
+            debug=debug
         )
     else:
         # Fallback to regular Flask if socketio not initialized
