@@ -34,4 +34,4 @@ LABEL \
     io.hass.type="addon" \
     io.hass.version="1.0.0"
 
-CMD ["/run.sh"]
+CMD ["python3", "-m", "src.main"]
