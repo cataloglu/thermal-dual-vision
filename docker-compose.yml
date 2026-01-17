@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  thermal-vision:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_FROM: python:3.11-alpine
+    container_name: thermal-vision
+    ports:
+      - "8099:8099"
+    environment:
+      - HA_MODE=false
+      - CAMERA_URL=${CAMERA_URL}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+      - MQTT_HOST=${MQTT_HOST:-}
+      - MQTT_PORT=${MQTT_PORT:-1883}
+      - MQTT_USER=${MQTT_USER:-}
+      - MQTT_PASSWORD=${MQTT_PASSWORD:-}
+      - MQTT_DISCOVERY=${MQTT_DISCOVERY:-false}
+    volumes:
+      - ./data:/data
+      - ./config:/config
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
