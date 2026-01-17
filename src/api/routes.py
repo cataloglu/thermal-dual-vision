@@ -6,9 +6,10 @@ from dataclasses import asdict
 from datetime import datetime
 from typing import Dict, Any
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, send_file
 
 from config import Config
+from screenshot_manager import ScreenshotManager
 
 
 # Create Blueprint for API routes
@@ -19,6 +20,12 @@ SERVER_START_TIME = time.time()
 
 # Global configuration instance
 _config = Config.from_env()
+
+# Global screenshot manager instance
+_screenshot_manager = ScreenshotManager(
+    config=_config.screenshots,
+    storage_path=os.getenv("SCREENSHOT_PATH", "/data/screenshots")
+)
 
 
 @api_bp.route('/status', methods=['GET'])
@@ -247,5 +254,143 @@ def update_config() -> tuple:
 
     except ValueError as e:
         return jsonify({'error': f'Invalid value: {str(e)}'}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route('/screenshots', methods=['GET'])
+def list_screenshots() -> tuple:
+    """
+    List all stored screenshots with metadata.
+
+    Query Parameters:
+        limit (int, optional): Maximum number of screenshots to return
+
+    Returns:
+        JSON response with list of screenshots and HTTP 200, or error and HTTP 500
+    """
+    try:
+        # Get limit from query parameter
+        limit_str = request.args.get('limit')
+        limit = int(limit_str) if limit_str else None
+
+        # Get all screenshots
+        screenshots = _screenshot_manager.list_all(limit=limit)
+
+        # Convert to JSON-serializable format
+        screenshots_data = []
+        for screenshot in screenshots:
+            screenshot_dict = {
+                'id': screenshot.id,
+                'timestamp': screenshot.timestamp,
+                'has_before': screenshot.has_before,
+                'has_now': screenshot.has_now,
+                'has_after': screenshot.has_after,
+                'analysis': screenshot.analysis
+            }
+            screenshots_data.append(screenshot_dict)
+
+        return jsonify({
+            'screenshots': screenshots_data,
+            'count': len(screenshots_data),
+            'timestamp': datetime.utcnow().isoformat() + 'Z'
+        }), 200
+
+    except ValueError as e:
+        return jsonify({'error': f'Invalid parameter: {str(e)}'}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route('/screenshots/<screenshot_id>', methods=['GET'])
+def get_screenshot_metadata(screenshot_id: str) -> tuple:
+    """
+    Get metadata for a specific screenshot set.
+
+    Args:
+        screenshot_id: Screenshot set ID
+
+    Returns:
+        JSON response with screenshot metadata and HTTP 200,
+        or error and HTTP 404/500
+    """
+    try:
+        # Get metadata
+        metadata = _screenshot_manager.get_metadata(screenshot_id)
+
+        if metadata is None:
+            return jsonify({'error': 'Screenshot not found'}), 404
+
+        # Convert to JSON-serializable format
+        metadata_dict = {
+            'id': metadata.id,
+            'timestamp': metadata.timestamp,
+            'has_before': metadata.has_before,
+            'has_now': metadata.has_now,
+            'has_after': metadata.has_after,
+            'analysis': metadata.analysis
+        }
+
+        return jsonify(metadata_dict), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route('/screenshots/<screenshot_id>/<image_type>', methods=['GET'])
+def get_screenshot_image(screenshot_id: str, image_type: str) -> tuple:
+    """
+    Get a specific image from a screenshot set.
+
+    Args:
+        screenshot_id: Screenshot set ID
+        image_type: Type of image ("before", "now", or "after")
+
+    Returns:
+        Image file (JPEG) or error and HTTP 400/404/500
+    """
+    try:
+        # Validate image type
+        if image_type not in ['before', 'now', 'after']:
+            return jsonify({'error': 'Invalid image type. Must be "before", "now", or "after"'}), 400
+
+        # Get image path
+        image_path = _screenshot_manager.get_image_path(screenshot_id, image_type)
+
+        if image_path is None:
+            return jsonify({'error': 'Image not found'}), 404
+
+        # Send file
+        return send_file(str(image_path), mimetype='image/jpeg'), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route('/screenshots/<screenshot_id>', methods=['DELETE'])
+def delete_screenshot(screenshot_id: str) -> tuple:
+    """
+    Delete a screenshot set.
+
+    Args:
+        screenshot_id: Screenshot set ID
+
+    Returns:
+        JSON response with success message and HTTP 200,
+        or error and HTTP 404/500
+    """
+    try:
+        # Delete screenshot
+        success = _screenshot_manager.delete(screenshot_id)
+
+        if not success:
+            return jsonify({'error': 'Screenshot not found or could not be deleted'}), 404
+
+        return jsonify({
+            'message': 'Screenshot deleted successfully',
+            'id': screenshot_id,
+            'timestamp': datetime.utcnow().isoformat() + 'Z'
+        }), 200
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
