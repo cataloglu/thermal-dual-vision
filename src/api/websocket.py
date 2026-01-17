@@ -29,7 +29,6 @@ class WebSocketManager:
         """
         self.socketio = socketio_instance
         self._connected_clients: List[str] = []
-        self._event_callbacks: List[Callable] = []
 
         logger.info("WebSocket manager initialized")
 
@@ -41,6 +40,16 @@ class WebSocketManager:
             Number of connected clients
         """
         return len(self._connected_clients)
+
+    @property
+    def has_clients(self) -> bool:
+        """
+        Check if there are any connected clients.
+
+        Returns:
+            True if at least one client is connected, False otherwise
+        """
+        return len(self._connected_clients) > 0
 
     def broadcast_event(self, event_type: str, data: Dict[str, Any]) -> None:
         """
@@ -96,6 +105,100 @@ class WebSocketManager:
         if sid in self._connected_clients:
             self._connected_clients.remove(sid)
         logger.info(f"Client disconnected: {sid} (total: {len(self._connected_clients)})")
+
+    def publish_motion(
+        self, detected: bool, analysis: Optional[Any] = None
+    ) -> None:
+        """
+        Publish motion detection event and analysis results to WebSocket clients.
+
+        This method is called by the detection system when motion is detected.
+        It broadcasts the event to all connected WebSocket clients.
+
+        Args:
+            detected: Motion detected flag
+            analysis: Optional analysis result from LLM (AnalysisResult type when available)
+        """
+        try:
+            # Build event data payload
+            event_data: Dict[str, Any] = {
+                'detected': detected,
+                'timestamp': None,
+            }
+
+            # Add analysis results if available
+            if analysis is not None:
+                # Extract analysis data
+                if hasattr(analysis, 'timestamp'):
+                    event_data['timestamp'] = str(analysis.timestamp)
+
+                if hasattr(analysis, 'real_motion'):
+                    event_data['real_motion'] = analysis.real_motion
+
+                if hasattr(analysis, 'confidence'):
+                    # Convert confidence to percentage if needed
+                    confidence_value = analysis.confidence
+                    if isinstance(confidence_value, float) and confidence_value <= 1.0:
+                        confidence_value = int(confidence_value * 100)
+                    event_data['confidence'] = confidence_value
+
+                if hasattr(analysis, 'description'):
+                    event_data['description'] = analysis.description
+
+                if hasattr(analysis, 'detected_objects'):
+                    event_data['detected_objects'] = analysis.detected_objects
+
+                if hasattr(analysis, 'threat_level'):
+                    event_data['threat_level'] = analysis.threat_level
+
+                if hasattr(analysis, 'recommended_action'):
+                    event_data['recommended_action'] = analysis.recommended_action
+
+                if hasattr(analysis, 'detailed_analysis'):
+                    event_data['detailed_analysis'] = analysis.detailed_analysis
+
+                if hasattr(analysis, 'processing_time'):
+                    event_data['processing_time'] = analysis.processing_time
+
+            # Broadcast to all connected WebSocket clients
+            logger.debug(
+                f"Publishing motion event (detected={detected}) to "
+                f"{len(self._connected_clients)} WebSocket clients"
+            )
+            self.broadcast_motion_event(event_data)
+            logger.info(f"Successfully published motion event (detected={detected})")
+
+        except Exception as e:
+            logger.error(f"Failed to publish motion event to WebSocket: {e}")
+
+    def publish_state(self, state_type: str, state: Dict[str, Any]) -> None:
+        """
+        Publish generic state update to WebSocket clients.
+
+        Broadcasts arbitrary state updates to all connected clients.
+        Useful for custom state beyond standard motion/analysis events.
+
+        Args:
+            state_type: Type of state update (e.g., "camera_status", "system_health")
+            state: State data dictionary to broadcast
+
+        Raises:
+            Exception: If broadcasting fails
+        """
+        try:
+            logger.debug(
+                f"Publishing state update ({state_type}) to "
+                f"{len(self._connected_clients)} WebSocket clients"
+            )
+
+            # Broadcast state update
+            self.broadcast_event(state_type, state)
+
+            logger.info(f"Successfully published state update: {state_type}")
+
+        except Exception as e:
+            logger.error(f"Failed to publish state update ({state_type}): {e}")
+            raise
 
 
 # Global WebSocket manager instance
