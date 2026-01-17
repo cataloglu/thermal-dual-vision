@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  smart-motion-detector:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_FROM: alpine:latest
+        REQUIREMENTS_FILE: requirements.docker-minimal.txt
+    ports:
+      - "8099:8099"
+    volumes:
+      - ./data:/data
+    environment:
+      # Simulate Home Assistant ingress base path
+      - SUPERVISOR_INGRESS_ENTRY=/ingress
+      - LLM_ENABLED=false
+

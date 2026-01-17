@@ -7,13 +7,19 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from openai import (
-    AsyncOpenAI,
-    APIError,
-    APIConnectionError,
-    APITimeoutError,
-    RateLimitError,
-)
+try:
+    from openai import (
+        AsyncOpenAI,
+        APIError,
+        APIConnectionError,
+        APITimeoutError,
+        RateLimitError,
+    )
+    OPENAI_AVAILABLE = True
+except ImportError:  # pragma: no cover - optional dependency
+    AsyncOpenAI = None  # type: ignore[assignment]
+    APIError = APIConnectionError = APITimeoutError = RateLimitError = Exception  # type: ignore[assignment]
+    OPENAI_AVAILABLE = False
 
 from src.config import LLMConfig
 from src.logger import get_logger
@@ -122,6 +128,10 @@ class LLMAnalyzer:
         Args:
             config: LLM configuration with API key, model, and settings
         """
+        if not OPENAI_AVAILABLE:
+            raise RuntimeError(
+                "openai is not installed. Install with: pip install openai"
+            )
         self.config = config
         self.system_prompt = SYSTEM_PROMPT
 

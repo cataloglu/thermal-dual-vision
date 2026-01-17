@@ -1,11 +1,11 @@
 # TASKS
 
 ## Sprint 1
-- [ ] Multi-camera config (`cameras[]`)
-  - Owner: TBD
-  - Status: TODO
+- [x] Multi-camera config (`cameras[]`)
+  - Owner: cataloglu
+  - Status: DONE
   - Proof:
-    - PR:
+    - PR: (this PR)
     - Tests:
     - Docker:
 - [ ] Pipeline arayuzu (`BasePipeline`) + Thermal/Color skeleton

@@ -30,5 +30,8 @@ web/dist/
 data/screenshots/
 *.log
 
+# Test artifacts
+test-artifacts/
+
 # Auto Claude data directory
 .auto-claude/

@@ -44,11 +44,15 @@ class MQTTClient:
             f"MQTT client initialized for broker {config.host}:{config.port}"
         )
 
-    async def connect(self) -> None:
+    async def connect(self, skip_reconnect: bool = False) -> None:
         """
         Connect to MQTT broker.
 
         Establishes connection with configured broker and sets up Last Will Testament.
+        
+        Args:
+            skip_reconnect: If True, don't start reconnection loop on failure.
+                           Used internally by _reconnect_loop to prevent recursion.
         """
         if aiomqtt is None:
             logger.error("asyncio-mqtt is not installed. Install with: pip install asyncio-mqtt")
@@ -109,10 +113,13 @@ class MQTTClient:
             self._connected = False
             self._client = None
 
-            # Start reconnect task if auto-reconnect is enabled
-            if self._should_reconnect and not self._reconnect_task:
+            # Start reconnect task if auto-reconnect is enabled and not already in reconnect loop
+            if self._should_reconnect and not self._reconnect_task and not skip_reconnect:
                 logger.info("Scheduling automatic reconnection")
                 self._reconnect_task = asyncio.create_task(self._reconnect_loop())
+            elif skip_reconnect:
+                # Don't raise exception if we're in reconnect loop, just return
+                return
             else:
                 raise
 
@@ -367,22 +374,33 @@ class MQTTClient:
 
             # Publish analysis results if available
             if analysis is not None:
-                # Publish threat level
-                if hasattr(analysis, 'threat_level'):
+                # Publish threat level (support TR fields)
+                threat_level = None
+                if hasattr(analysis, "threat_level"):
+                    threat_level = getattr(analysis, "threat_level")
+                elif hasattr(analysis, "tehdit_seviyesi"):
+                    threat_level = getattr(analysis, "tehdit_seviyesi")
+
+                if threat_level is not None:
                     threat_topic = f"{self.config.topic_prefix}/threat_level/state"
                     await self._client.publish(
                         threat_topic,
-                        payload=str(analysis.threat_level),
+                        payload=str(threat_level),
                         qos=self.config.qos,
                         retain=False
                     )
-                    logger.debug(f"Published threat level: {analysis.threat_level}")
+                    logger.debug(f"Published threat level: {threat_level}")
 
                 # Publish confidence
-                if hasattr(analysis, 'confidence'):
+                confidence_value = None
+                if hasattr(analysis, "confidence"):
+                    confidence_value = getattr(analysis, "confidence")
+                elif hasattr(analysis, "guven_skoru"):
+                    confidence_value = getattr(analysis, "guven_skoru")
+
+                if confidence_value is not None:
                     confidence_topic = f"{self.config.topic_prefix}/confidence/state"
                     # Convert confidence to percentage if needed
-                    confidence_value = analysis.confidence
                     if isinstance(confidence_value, float) and confidence_value <= 1.0:
                         confidence_value = int(confidence_value * 100)
                     await self._client.publish(
@@ -403,6 +421,15 @@ class MQTTClient:
                         retain=False
                     )
                     logger.debug(f"Published last analysis timestamp: {analysis.timestamp}")
+                else:
+                    from src.utils import timestamp_now
+                    analysis_topic = f"{self.config.topic_prefix}/last_analysis/state"
+                    await self._client.publish(
+                        analysis_topic,
+                        payload=timestamp_now(),
+                        qos=self.config.qos,
+                        retain=False
+                    )
 
             logger.info(f"Successfully published motion event (detected={detected})")
 
@@ -498,9 +525,9 @@ class MQTTClient:
                 )
                 await asyncio.sleep(delay)
 
-                # Attempt to reconnect
+                # Attempt to reconnect (skip_reconnect=True to prevent recursive reconnection loop)
                 logger.info(f"Attempting to reconnect to MQTT broker...")
-                await self.connect()
+                await self.connect(skip_reconnect=True)
 
                 if self._connected:
                     logger.info("Successfully reconnected to MQTT broker")

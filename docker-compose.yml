@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  smart-motion-detector:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # Note: For local testing, alpine:latest is sufficient.
+      # For Home Assistant add-on, Dockerfile uses Home Assistant base image by default
+      args:
+        BUILD_FROM: alpine:latest
+    container_name: smart-motion-detector
+    restart: unless-stopped
+    environment:
+      - RTSP_URL=${RTSP_URL:-}
+      - CAMERA_FPS=5
+      - MOTION_SENSITIVITY=7
+      - MOTION_MIN_AREA=500
+      - MOTION_COOLDOWN=5
+      - YOLO_MODEL=yolov8n
+      - YOLO_CONFIDENCE=0.5
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - SCREENSHOT_BEFORE=3
+      - SCREENSHOT_AFTER=3
+      - MQTT_ENABLED=false
+      - MQTT_HOST=core-mosquitto
+      - MQTT_PORT=1883
+      - MQTT_TOPIC_PREFIX=smart_motion
+      - MQTT_DISCOVERY=true
+      - TELEGRAM_ENABLED=false
+      - LOG_LEVEL=INFO
+      - HEALTH_HOST=0.0.0.0
+      - HEALTH_PORT=8099
+    ports:
+      - "8099:8099"
+    volumes:
+      - ./data:/data
+    network_mode: bridge

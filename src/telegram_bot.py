@@ -23,6 +23,39 @@ from .config import TelegramConfig
 from .logger import get_logger
 from .utils import RateLimiter, encode_frame_to_bytes, retry_async
 
+
+def mask_token(token: str) -> str:
+    """
+    Mask sensitive token information for logging.
+    
+    Args:
+        token: Token string to mask
+        
+    Returns:
+        Masked token (shows only last 4 characters: ...XXXX)
+    """
+    if not token or len(token) <= 4:
+        return "***"
+    return "..." + token[-4:]
+
+
+def mask_chat_id(chat_id: str) -> str:
+    """
+    Mask chat ID for logging (shows only last 4 digits).
+    
+    Args:
+        chat_id: Chat ID string to mask
+        
+    Returns:
+        Masked chat ID (shows only last 4 characters: ...XXXX)
+    """
+    if not chat_id:
+        return "***"
+    chat_id_str = str(chat_id)
+    if len(chat_id_str) <= 4:
+        return "***"
+    return "..." + chat_id_str[-4:]
+
 if TYPE_CHECKING:
     from .llm_analyzer import AnalysisResult, ScreenshotSet
 
@@ -99,6 +132,8 @@ class TelegramBot:
 
             await self.application.initialize()
             await self.application.start()
+            if self.application.updater:
+                await self.application.updater.start_polling()
             self.logger.info("Telegram bot started")
         except Exception as e:
             self.logger.error(f"Failed to start Telegram bot: {e}")
@@ -119,6 +154,8 @@ class TelegramBot:
             return
 
         try:
+            if self.application.updater:
+                await self.application.updater.stop()
             await self.application.stop()
             await self.application.shutdown()
             self.logger.info("Telegram bot stopped")
@@ -153,9 +190,11 @@ class TelegramBot:
                     text=text,
                     parse_mode="Markdown"
                 )
-                self.logger.debug(f"Message sent to chat_id: {chat_id}")
+                masked_chat_id = mask_chat_id(str(chat_id))
+                self.logger.debug(f"Message sent to chat_id: {masked_chat_id}")
             except Exception as e:
-                self.logger.error(f"Failed to send message to chat_id {chat_id}: {e}")
+                masked_chat_id = mask_chat_id(str(chat_id))
+                self.logger.error(f"Failed to send message to chat_id {masked_chat_id}: {e}")
 
     @retry_async(max_attempts=3, delay=1.0, backoff=2.0)
     async def send_alert(self, screenshots: "ScreenshotSet", analysis: "AnalysisResult") -> None:
@@ -186,11 +225,18 @@ class TelegramBot:
             # Format alert message
             alert_text = self._format_alert_message(screenshots, analysis)
 
+            if not self.config.send_images:
+                await self.send_message(alert_text)
+                return
+
             # Convert frames to JPEG bytes
             try:
-                before_bytes = encode_frame_to_bytes(screenshots.before_frame)
-                now_bytes = encode_frame_to_bytes(screenshots.now_frame)
-                after_bytes = encode_frame_to_bytes(screenshots.after_frame)
+                before_frame = self._get_screenshot_frame(screenshots, ["before_frame", "before"])
+                now_frame = self._get_screenshot_frame(screenshots, ["now_frame", "now"])
+                after_frame = self._get_screenshot_frame(screenshots, ["after_frame", "after"])
+                before_bytes = encode_frame_to_bytes(before_frame)
+                now_bytes = encode_frame_to_bytes(now_frame)
+                after_bytes = encode_frame_to_bytes(after_frame)
             except Exception as e:
                 self.logger.error(f"Failed to encode frames: {e}")
                 return
@@ -209,9 +255,11 @@ class TelegramBot:
                         chat_id=int(chat_id),
                         media=media_group
                     )
-                    self.logger.info(f"Alert sent to chat_id: {chat_id}")
+                    masked_chat_id = mask_chat_id(str(chat_id))
+                    self.logger.info(f"Alert sent to chat_id: {masked_chat_id}")
                 except Exception as e:
-                    self.logger.error(f"Failed to send alert to chat_id {chat_id}: {e}")
+                    masked_chat_id = mask_chat_id(str(chat_id))
+                    self.logger.error(f"Failed to send alert to chat_id {masked_chat_id}: {e}")
 
     def _format_alert_message(self, screenshots: Any, analysis: Any) -> str:
         """
@@ -257,6 +305,13 @@ class TelegramBot:
 
         return alert_text
 
+    @staticmethod
+    def _get_screenshot_frame(screenshots: Any, keys: list[str]) -> Any:
+        for key in keys:
+            if hasattr(screenshots, key):
+                return getattr(screenshots, key)
+        raise AttributeError(f"Missing screenshot frame field, tried: {', '.join(keys)}")
+
     def _check_authorization(self, chat_id: int) -> bool:
         """
         Check if a chat ID is authorized to use the bot.
@@ -276,7 +331,8 @@ class TelegramBot:
         is_authorized = chat_id_str in self.config.chat_ids
 
         if not is_authorized:
-            self.logger.warning(f"Unauthorized access attempt from chat_id: {chat_id}")
+            masked_chat_id = mask_chat_id(str(chat_id))
+            self.logger.warning(f"Unauthorized access attempt from chat_id: {masked_chat_id}")
 
         return is_authorized
 
@@ -416,7 +472,8 @@ class TelegramBot:
 
             help_text = self._handle_help()
             await update.message.reply_text(help_text, parse_mode="Markdown")
-            self.logger.info(f"Help command processed for chat_id: {update.effective_chat.id}")
+            masked_chat_id = mask_chat_id(str(update.effective_chat.id))
+            self.logger.info(f"Help command processed for chat_id: {masked_chat_id}")
         except Exception as e:
             self.logger.error(f"Error handling /help command: {e}")
             try:
@@ -439,7 +496,8 @@ class TelegramBot:
 
             status_text = self._handle_status()
             await update.message.reply_text(status_text, parse_mode="Markdown")
-            self.logger.info(f"Status command processed for chat_id: {update.effective_chat.id}")
+            masked_chat_id = mask_chat_id(str(update.effective_chat.id))
+            self.logger.info(f"Status command processed for chat_id: {masked_chat_id}")
         except Exception as e:
             self.logger.error(f"Error handling /status command: {e}")
             try:
@@ -485,7 +543,8 @@ class TelegramBot:
 
             disarm_text = self._handle_disarm()
             await update.message.reply_text(disarm_text, parse_mode="Markdown")
-            self.logger.info(f"Disarm command processed for chat_id: {update.effective_chat.id}")
+            masked_chat_id = mask_chat_id(str(update.effective_chat.id))
+            self.logger.info(f"Disarm command processed for chat_id: {masked_chat_id}")
         except Exception as e:
             self.logger.error(f"Error handling /disarm command: {e}")
             try:
@@ -508,7 +567,8 @@ class TelegramBot:
 
             snapshot_text = self._handle_snapshot()
             await update.message.reply_text(snapshot_text, parse_mode="Markdown")
-            self.logger.info(f"Snapshot command processed for chat_id: {update.effective_chat.id}")
+            masked_chat_id = mask_chat_id(str(update.effective_chat.id))
+            self.logger.info(f"Snapshot command processed for chat_id: {masked_chat_id}")
         except Exception as e:
             self.logger.error(f"Error handling /snapshot command: {e}")
             try:

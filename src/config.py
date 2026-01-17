@@ -1,6 +1,7 @@
 """Configuration management for Smart Motion Detector."""
 
 import os
+import re
 from dataclasses import dataclass, field
 from typing import List, Optional
 
@@ -8,7 +9,7 @@ from typing import List, Optional
 @dataclass
 class CameraConfig:
     """Camera configuration."""
-    url: str = ""
+    url: str = ""  # RTSP URL
     fps: int = 5
     resolution: tuple = (1280, 720)
 
@@ -32,6 +33,7 @@ class YoloConfig:
 @dataclass
 class LLMConfig:
     """LLM Vision configuration."""
+    enabled: bool = True
     api_key: str = ""
     model: str = "gpt-4-vision-preview"
     max_tokens: int = 1000
@@ -51,6 +53,7 @@ class ScreenshotConfig:
 @dataclass
 class MQTTConfig:
     """MQTT configuration."""
+    enabled: bool = True
     host: str = "core-mosquitto"
     port: int = 1883
     username: str = ""
@@ -68,6 +71,7 @@ class TelegramConfig:
     bot_token: str = ""
     chat_ids: List[str] = field(default_factory=list)
     rate_limit_seconds: int = 5
+    send_images: bool = True
 
 
 @dataclass
@@ -87,8 +91,8 @@ class Config:
         """Load configuration from environment variables."""
         config = cls()
 
-        # Camera
-        config.camera.url = os.getenv("CAMERA_URL", "")
+        # Camera (RTSP URL)
+        config.camera.url = os.getenv("RTSP_URL", os.getenv("CAMERA_URL", ""))
         config.camera.fps = int(os.getenv("CAMERA_FPS", "5"))
 
         # Motion
@@ -101,6 +105,7 @@ class Config:
         config.yolo.confidence = float(os.getenv("YOLO_CONFIDENCE", "0.5"))
 
         # LLM
+        config.llm.enabled = os.getenv("LLM_ENABLED", "true").lower() == "true"
         config.llm.api_key = os.getenv("OPENAI_API_KEY", "")
 
         # Screenshots
@@ -108,6 +113,7 @@ class Config:
         config.screenshots.after_seconds = int(os.getenv("SCREENSHOT_AFTER", "3"))
 
         # MQTT
+        config.mqtt.enabled = os.getenv("MQTT_ENABLED", "true").lower() == "true"
         config.mqtt.host = os.getenv("MQTT_HOST", "core-mosquitto")
         config.mqtt.port = int(os.getenv("MQTT_PORT", "1883"))
         config.mqtt.username = os.getenv("MQTT_USER", "")
@@ -118,9 +124,10 @@ class Config:
         # Telegram
         config.telegram.enabled = os.getenv("TELEGRAM_ENABLED", "false").lower() == "true"
         config.telegram.bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "")
-        chat_ids_str = os.getenv("TELEGRAM_CHAT_ID", "")
+        chat_ids_str = os.getenv("TELEGRAM_CHAT_ID", "") or os.getenv("TELEGRAM_CHAT_IDS", "")
         if chat_ids_str:
             config.telegram.chat_ids = [cid.strip() for cid in chat_ids_str.split(",")]
+        config.telegram.send_images = os.getenv("TELEGRAM_SEND_IMAGES", "true").lower() == "true"
 
         # Logging
         config.log_level = os.getenv("LOG_LEVEL", "INFO")
@@ -131,10 +138,25 @@ class Config:
         """Validate configuration and return list of errors."""
         errors = []
 
-        if not self.camera.url:
-            errors.append("Camera URL is required")
+        # RTSP URL validation - optional but must be valid format if provided
+        if self.camera.url:
+            # Check if it's a dummy/test URL (allowed)
+            if not self.camera.url.startswith(("dummy:", "test:", "mock:")):
+                # Validate RTSP URL format: rtsp://[user:pass@]host[:port]/path
+                rtsp_pattern = re.compile(
+                    r'^rtsp://'  # Must start with rtsp://
+                    r'(?:[^:@]+(?::[^@]+)?@)?'  # Optional user:pass@
+                    r'[^\s/]+'  # Host (no spaces or slashes)
+                    r'(?::\d+)?'  # Optional port
+                    r'(?:/.*)?$'  # Optional path
+                )
+                if not rtsp_pattern.match(self.camera.url):
+                    errors.append(
+                        "RTSP URL format is invalid. "
+                        "Expected format: rtsp://[user:pass@]host[:port]/path"
+                    )
 
-        if not self.llm.api_key:
+        if self.llm.enabled and not self.llm.api_key:
             errors.append("OpenAI API key is required")
 
         if self.telegram.enabled:

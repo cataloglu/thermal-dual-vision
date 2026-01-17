@@ -1,0 +1,4 @@
+# Dev / Test dependencies
+pytest>=8.0.0
+playwright>=1.40.0
+

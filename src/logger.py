@@ -23,9 +23,13 @@ def setup_logger(
     """
     logger = logging.getLogger(name)
 
-    # Prevent duplicate handlers
-    if logger.handlers:
-        return logger
+    # Prevent duplicate handlers - check if StreamHandler already exists
+    for handler in logger.handlers:
+        if isinstance(handler, logging.StreamHandler) and handler.stream == sys.stdout:
+            # StreamHandler already exists with same stream, update level and return
+            handler.setLevel(getattr(logging, level.upper(), logging.INFO))
+            logger.setLevel(getattr(logging, level.upper(), logging.INFO))
+            return logger
 
     # Set level
     log_level = getattr(logging, level.upper(), logging.INFO)

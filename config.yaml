@@ -2,7 +2,7 @@
 name: "Smart Motion Detector"
 version: "1.0.0"
 slug: "smart_motion_detector"
-description: "AI-powered motion detection with YOLO and GPT-4 Vision"
+description: "AI-powered motion detection with RTSP input, YOLO and GPT-4 Vision"
 url: "https://github.com/your-repo/smart-motion-detector"
 arch:
   - amd64
@@ -13,7 +13,7 @@ init: false
 
 # Options with defaults
 options:
-  camera_url: ""
+  rtsp_url: ""
   camera_fps: 5
   motion_sensitivity: 7
   motion_min_area: 500
@@ -37,12 +37,12 @@ options:
 
 # Schema validation
 schema:
-  camera_url: url
+  rtsp_url: str
   camera_fps: int(1,30)
   motion_sensitivity: int(1,10)
   motion_min_area: int(100,10000)
   motion_cooldown: int(1,60)
-  yolo_model: list(yolov8n|yolov8s|yolov8m)
+  yolo_model: match(yolov8n|yolov8s|yolov8m)
   yolo_confidence: float(0.1,1.0)
   yolo_classes:
     - str
@@ -57,14 +57,12 @@ schema:
   log_level: list(DEBUG|INFO|WARNING|ERROR)
 
 # Network
-ports:
-  8099/tcp: 8099
-ports_description:
-  8099/tcp: "Web UI / Health check"
+ports: {}
 
-# Ingress
+# Ingress - Required for Home Assistant add-on web UI
 ingress: true
 ingress_port: 8099
+ingress_entry: /
 panel_icon: "mdi:motion-sensor"
 panel_title: "Smart Motion"
 
@@ -73,5 +71,5 @@ mqtt: true
 auth_api: false
 homeassistant_api: false
 
-# Resources
-image: "ghcr.io/your-repo/smart-motion-detector-{arch}"
+# Resources - Build locally
+image: local/smart-motion-detector-{arch}

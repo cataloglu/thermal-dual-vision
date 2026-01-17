@@ -70,6 +70,30 @@ def decode_base64_to_frame(base64_string: str) -> np.ndarray:
     return cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
 
+def mask_url(url: str) -> str:
+    """
+    Mask sensitive information in URLs (passwords, tokens).
+
+    Args:
+        url: URL string that may contain sensitive information
+
+    Returns:
+        URL with masked sensitive parts (e.g., rtsp://user:***@host/path)
+    """
+    if not url:
+        return url
+    
+    if '@' in url:
+        # Mask password in URL: rtsp://user:pass@host -> rtsp://user:***@host
+        import re
+        # Match pattern: scheme://user:password@host
+        pattern = r'(://[^:]+:)([^@]+)(@)'
+        masked_url = re.sub(pattern, r'\1***\3', url)
+        return masked_url
+    
+    return url
+
+
 def timestamp_now() -> str:
     """Get current timestamp as ISO format string."""
     return datetime.now().isoformat()
