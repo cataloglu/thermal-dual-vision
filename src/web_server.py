@@ -6,6 +6,8 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from werkzeug.middleware.proxy_fix import ProxyFix
 
+from api import api_bp
+
 
 def create_app() -> Flask:
     """Create and configure Flask application with HA ingress support."""
@@ -72,6 +74,9 @@ def create_app() -> Flask:
                 'stream': '/api/stream'
             }
         }), 200
+
+    # Register API Blueprint
+    app.register_blueprint(api_bp)
 
     return app
 
