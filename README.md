@@ -3,9 +3,12 @@
 AI-powered motion detection with YOLO + GPT-4 Vision. This repository ships a Home Assistant add-on package and a runtime that exposes health endpoints.
 
 ## Kurulum
-1) Bu repo’yu Home Assistant add-on olarak ekleyin.
-2) Add-on yapılandırmasını kaydedin.
-3) Add-on’u başlatın.
+1) Home Assistant > Settings > Add-ons > Add-on Store.
+2) Sağ üstteki menüden **Repositories** bölümünü açın.
+3) Bu repo URL’sini ekleyin ve kaydedin.
+4) Add-on listesinde **Thermal Dual Vision**’ı bulun, yükleyin.
+5) Add-on yapılandırmasını kaydedin.
+6) Add-on’u başlatın.
 
 ## Konfigürasyon
 Aşağıdaki örnekler `config.yaml` seçeneklerine göre hazırlanmıştır.
