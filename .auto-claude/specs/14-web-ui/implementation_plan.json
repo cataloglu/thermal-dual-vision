@@ -8,7 +8,7 @@
       "chunks": [
         {
           "id": "14-01",
-          "description": "Flask web server ve ingress konfig\u00fcrasyonu",
+          "description": "Flask web server ve ingress konfigürasyonu",
           "status": "pending",
           "files": [
             "src/web_server.py"
@@ -51,7 +51,7 @@
       "subtasks": [
         {
           "id": "14-01",
-          "description": "Flask web server ve ingress konfig\u00fcrasyonu",
+          "description": "Flask web server ve ingress konfigürasyonu",
           "status": "completed",
           "files": [
             "src/web_server.py"
@@ -114,7 +114,7 @@
         },
         {
           "id": "14-07",
-          "description": "Tailwind CSS konfig\u00fcrasyonu",
+          "description": "Tailwind CSS konfigürasyonu",
           "status": "pending",
           "files": [
             "web/tailwind.config.js",
@@ -146,7 +146,7 @@
         },
         {
           "id": "14-07",
-          "description": "Tailwind CSS konfig\u00fcrasyonu",
+          "description": "Tailwind CSS konfigürasyonu",
           "status": "pending",
           "files": [
             "web/tailwind.config.js",
@@ -236,7 +236,7 @@
       "chunks": [
         {
           "id": "14-12",
-          "description": "Dashboard sayfas\u0131 - stats, recent events",
+          "description": "Dashboard sayfası - stats, recent events",
           "status": "pending",
           "files": [
             "web/src/pages/Dashboard.tsx"
@@ -244,7 +244,7 @@
         },
         {
           "id": "14-13",
-          "description": "LiveView sayfas\u0131 - MJPEG stream player",
+          "description": "LiveView sayfası - MJPEG stream player",
           "status": "pending",
           "files": [
             "web/src/pages/LiveView.tsx"
@@ -252,7 +252,7 @@
         },
         {
           "id": "14-14",
-          "description": "Gallery sayfas\u0131 - screenshot grid",
+          "description": "Gallery sayfası - screenshot grid",
           "status": "pending",
           "files": [
             "web/src/pages/Gallery.tsx"
@@ -262,7 +262,7 @@
       "subtasks": [
         {
           "id": "14-12",
-          "description": "Dashboard sayfas\u0131 - stats, recent events",
+          "description": "Dashboard sayfası - stats, recent events",
           "status": "pending",
           "files": [
             "web/src/pages/Dashboard.tsx"
@@ -270,7 +270,7 @@
         },
         {
           "id": "14-13",
-          "description": "LiveView sayfas\u0131 - MJPEG stream player",
+          "description": "LiveView sayfası - MJPEG stream player",
           "status": "pending",
           "files": [
             "web/src/pages/LiveView.tsx"
@@ -278,7 +278,7 @@
         },
         {
           "id": "14-14",
-          "description": "Gallery sayfas\u0131 - screenshot grid",
+          "description": "Gallery sayfası - screenshot grid",
           "status": "pending",
           "files": [
             "web/src/pages/Gallery.tsx"
@@ -292,7 +292,7 @@
       "chunks": [
         {
           "id": "14-15",
-          "description": "Events sayfas\u0131 - tespit ge\u00e7mi\u015fi tablosu",
+          "description": "Events sayfası - tespit geçmişi tablosu",
           "status": "pending",
           "files": [
             "web/src/pages/Events.tsx"
@@ -300,7 +300,7 @@
         },
         {
           "id": "14-16",
-          "description": "Settings sayfas\u0131 - config form",
+          "description": "Settings sayfası - config form",
           "status": "pending",
           "files": [
             "web/src/pages/Settings.tsx"
@@ -310,7 +310,7 @@
       "subtasks": [
         {
           "id": "14-15",
-          "description": "Events sayfas\u0131 - tespit ge\u00e7mi\u015fi tablosu",
+          "description": "Events sayfası - tespit geçmişi tablosu",
           "status": "pending",
           "files": [
             "web/src/pages/Events.tsx"
@@ -318,7 +318,7 @@
         },
         {
           "id": "14-16",
-          "description": "Settings sayfas\u0131 - config form",
+          "description": "Settings sayfası - config form",
           "status": "pending",
           "files": [
             "web/src/pages/Settings.tsx"
@@ -340,7 +340,7 @@
         },
         {
           "id": "14-18",
-          "description": "useWebSocket hook - canl\u0131 event stream",
+          "description": "useWebSocket hook - canlı event stream",
           "status": "pending",
           "files": [
             "web/src/hooks/useWebSocket.ts"
@@ -366,7 +366,7 @@
         },
         {
           "id": "14-18",
-          "description": "useWebSocket hook - canl\u0131 event stream",
+          "description": "useWebSocket hook - canlı event stream",
           "status": "pending",
           "files": [
             "web/src/hooks/useWebSocket.ts"
@@ -388,7 +388,7 @@
       "chunks": [
         {
           "id": "14-20",
-          "description": "Dockerfile g\u00fcncelleme - Node.js build step",
+          "description": "Dockerfile güncelleme - Node.js build step",
           "status": "pending",
           "files": [
             "Dockerfile"
@@ -396,7 +396,7 @@
         },
         {
           "id": "14-21",
-          "description": "requirements.txt g\u00fcncelleme",
+          "description": "requirements.txt güncelleme",
           "status": "pending",
           "files": [
             "requirements.txt"
@@ -414,7 +414,7 @@
       "subtasks": [
         {
           "id": "14-20",
-          "description": "Dockerfile g\u00fcncelleme - Node.js build step",
+          "description": "Dockerfile güncelleme - Node.js build step",
           "status": "pending",
           "files": [
             "Dockerfile"
@@ -422,7 +422,7 @@
         },
         {
           "id": "14-21",
-          "description": "requirements.txt g\u00fcncelleme",
+          "description": "requirements.txt güncelleme",
           "status": "pending",
           "files": [
             "requirements.txt"
@@ -441,7 +441,7 @@
   ],
   "status": "in_progress",
   "planStatus": "in_progress",
-  "updated_at": "2026-01-17T03:25:25.305Z",
+  "updated_at": "2026-01-17T03:27:26.194Z",
   "recoveryNote": "Task recovered from stuck state at 2026-01-17T03:15:49.429Z",
   "last_updated": "2026-01-17T03:26:31.249924+00:00"
 }
