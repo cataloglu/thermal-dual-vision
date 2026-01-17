@@ -2,8 +2,11 @@
 
 from src.config import Config
 from src.logger import get_logger, setup_logger
+from src.pipelines.base import BasePipeline
 from src.pipelines.color_pipeline import ColorPipeline
 from src.pipelines.thermal_pipeline import ThermalPipeline
+
+PIPELINE_CLASSES = (ThermalPipeline, ColorPipeline)
 
 
 def main() -> None:
@@ -19,12 +22,13 @@ def main() -> None:
         raise SystemExit(1)
 
     camera_type = config.camera.camera_type
-    if camera_type == "thermal":
-        pipeline = ThermalPipeline(config)
-    else:
-        pipeline = ColorPipeline(config)
+    pipeline: BasePipeline = ColorPipeline(config)
+    for pipeline_cls in PIPELINE_CLASSES:
+        if pipeline_cls.supports(camera_type):
+            pipeline = pipeline_cls(config)
+            break
 
-    logger.info("Starting %s pipeline", camera_type)
+    logger.info("Starting %s pipeline", pipeline.camera_type or camera_type)
     pipeline.run()
 
 

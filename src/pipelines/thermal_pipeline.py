@@ -10,6 +10,8 @@ logger = get_logger("pipeline.thermal")
 class ThermalPipeline(BasePipeline):
     """Pipeline for thermal camera processing."""
 
+    camera_type = "thermal"
+
     def __init__(self, config: Config) -> None:
         super().__init__(config)
 

@@ -10,6 +10,8 @@ logger = get_logger("pipeline.color")
 class ColorPipeline(BasePipeline):
     """Pipeline for color camera processing."""
 
+    camera_type = "color"
+
     def __init__(self, config: Config) -> None:
         super().__init__(config)
 
