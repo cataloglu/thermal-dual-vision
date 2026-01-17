@@ -1,8 +1,10 @@
 """Configuration management for Smart Motion Detector."""
 
 import os
+import yaml
 from dataclasses import dataclass, field
-from typing import List, Optional
+from pathlib import Path
+from typing import List, Optional, Union
 
 
 @dataclass
@@ -128,6 +130,120 @@ class Config:
 
         # HA Mode
         config.ha_mode = os.getenv("HA_MODE", "true").lower() == "true"
+
+        return config
+
+    @classmethod
+    def from_yaml(cls, config_path: Union[str, Path]) -> "Config":
+        """Load configuration from YAML file."""
+        config_path = Path(config_path)
+
+        if not config_path.exists():
+            raise FileNotFoundError(f"Config file not found: {config_path}")
+
+        with open(config_path, 'r') as f:
+            data = yaml.safe_load(f)
+
+        if data is None:
+            data = {}
+
+        config = cls()
+
+        # Camera
+        if "camera" in data:
+            cam_data = data["camera"]
+            if "url" in cam_data:
+                config.camera.url = cam_data["url"]
+            if "fps" in cam_data:
+                config.camera.fps = int(cam_data["fps"])
+            if "resolution" in cam_data:
+                config.camera.resolution = tuple(cam_data["resolution"])
+
+        # Motion
+        if "motion" in data:
+            motion_data = data["motion"]
+            if "sensitivity" in motion_data:
+                config.motion.sensitivity = int(motion_data["sensitivity"])
+            if "min_area" in motion_data:
+                config.motion.min_area = int(motion_data["min_area"])
+            if "cooldown_seconds" in motion_data:
+                config.motion.cooldown_seconds = int(motion_data["cooldown_seconds"])
+
+        # YOLO
+        if "yolo" in data:
+            yolo_data = data["yolo"]
+            if "model" in yolo_data:
+                config.yolo.model = yolo_data["model"]
+            if "confidence" in yolo_data:
+                config.yolo.confidence = float(yolo_data["confidence"])
+            if "classes" in yolo_data:
+                config.yolo.classes = yolo_data["classes"]
+
+        # LLM
+        if "llm" in data:
+            llm_data = data["llm"]
+            if "api_key" in llm_data:
+                config.llm.api_key = llm_data["api_key"]
+            if "model" in llm_data:
+                config.llm.model = llm_data["model"]
+            if "max_tokens" in llm_data:
+                config.llm.max_tokens = int(llm_data["max_tokens"])
+            if "timeout" in llm_data:
+                config.llm.timeout = int(llm_data["timeout"])
+
+        # Screenshots
+        if "screenshots" in data:
+            screenshot_data = data["screenshots"]
+            if "before_seconds" in screenshot_data:
+                config.screenshots.before_seconds = int(screenshot_data["before_seconds"])
+            if "after_seconds" in screenshot_data:
+                config.screenshots.after_seconds = int(screenshot_data["after_seconds"])
+            if "quality" in screenshot_data:
+                config.screenshots.quality = int(screenshot_data["quality"])
+            if "max_stored" in screenshot_data:
+                config.screenshots.max_stored = int(screenshot_data["max_stored"])
+            if "buffer_seconds" in screenshot_data:
+                config.screenshots.buffer_seconds = int(screenshot_data["buffer_seconds"])
+
+        # MQTT
+        if "mqtt" in data:
+            mqtt_data = data["mqtt"]
+            if "host" in mqtt_data:
+                config.mqtt.host = mqtt_data["host"]
+            if "port" in mqtt_data:
+                config.mqtt.port = int(mqtt_data["port"])
+            if "username" in mqtt_data:
+                config.mqtt.username = mqtt_data["username"]
+            if "password" in mqtt_data:
+                config.mqtt.password = mqtt_data["password"]
+            if "topic_prefix" in mqtt_data:
+                config.mqtt.topic_prefix = mqtt_data["topic_prefix"]
+            if "discovery" in mqtt_data:
+                config.mqtt.discovery = bool(mqtt_data["discovery"])
+            if "discovery_prefix" in mqtt_data:
+                config.mqtt.discovery_prefix = mqtt_data["discovery_prefix"]
+            if "qos" in mqtt_data:
+                config.mqtt.qos = int(mqtt_data["qos"])
+
+        # Telegram
+        if "telegram" in data:
+            telegram_data = data["telegram"]
+            if "enabled" in telegram_data:
+                config.telegram.enabled = bool(telegram_data["enabled"])
+            if "bot_token" in telegram_data:
+                config.telegram.bot_token = telegram_data["bot_token"]
+            if "chat_ids" in telegram_data:
+                config.telegram.chat_ids = telegram_data["chat_ids"]
+            if "rate_limit_seconds" in telegram_data:
+                config.telegram.rate_limit_seconds = int(telegram_data["rate_limit_seconds"])
+
+        # Logging
+        if "log_level" in data:
+            config.log_level = data["log_level"]
+
+        # HA Mode
+        if "ha_mode" in data:
+            config.ha_mode = bool(data["ha_mode"])
 
         return config
 
