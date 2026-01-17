@@ -77,8 +77,16 @@ export interface EventsResponse {
 export interface Screenshot {
   id: string;
   timestamp: string;
-  detection_status: string;
-  analysis: DetectionAnalysis;
+  has_before: boolean;
+  has_now: boolean;
+  has_after: boolean;
+  analysis?: {
+    gercek_hareket?: boolean;
+    guven_skoru?: number;
+    degisiklik_aciklamasi?: string;
+    tespit_edilen_nesneler?: string[];
+    tehdit_seviyesi?: string;
+  };
 }
 
 /**

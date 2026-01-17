@@ -1,6 +1,7 @@
 import { h } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
 import { Card } from '../components/ui/Card';
+import { getScreenshots, Screenshot, ScreenshotsResponse } from '../utils/api';
 
 /**
  * Gallery page - Grid view of saved motion detection screenshots.
@@ -15,32 +16,13 @@ import { Card } from '../components/ui/Card';
  * - Navigate between before/now/after images in modal
  * - Loading and error states with retry
  * - Real-time detection status indicators
+ * - Auto-refresh capability
+ * - Dark mode support
  *
  * Fetches data from:
  * - /api/screenshots - List of all screenshot sets
  * - /api/screenshots/<id>/<type> - Individual images
  */
-
-interface Screenshot {
-  id: string;
-  timestamp: string;
-  has_before: boolean;
-  has_now: boolean;
-  has_after: boolean;
-  analysis?: {
-    gercek_hareket?: boolean;
-    guven_skoru?: number;
-    degisiklik_aciklamasi?: string;
-    tespit_edilen_nesneler?: string[];
-    tehdit_seviyesi?: string;
-  };
-}
-
-interface ScreenshotsResponse {
-  screenshots: Screenshot[];
-  count: number;
-  timestamp: string;
-}
 
 type ImageType = 'before' | 'now' | 'after';
 
@@ -60,12 +42,8 @@ export function Gallery() {
       setError(null);
       setLoading(true);
 
-      const response = await fetch('/api/screenshots');
-      if (!response.ok) {
-        throw new Error('Failed to fetch screenshots');
-      }
-
-      const data: ScreenshotsResponse = await response.json();
+      // Fetch screenshots using API utility
+      const data = await getScreenshots();
       setScreenshots(data.screenshots || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
