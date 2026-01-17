@@ -2,6 +2,7 @@ import { h } from 'preact';
 import Router from 'preact-router';
 import { Layout } from './components/Layout';
 import { ThemeProvider } from './components/ThemeProvider';
+import { Dashboard } from './pages/Dashboard';
 
 /**
  * Root application component with routing.
@@ -32,20 +33,6 @@ export function App() {
         </Router>
       </Layout>
     </ThemeProvider>
-  );
-}
-
-/**
- * Dashboard page - Overview of system stats and recent detections
- */
-function Dashboard() {
-  return (
-    <div>
-      <h1 class="text-3xl font-bold mb-4">Dashboard</h1>
-      <p class="text-gray-600 dark:text-gray-400">
-        Motion detection system overview
-      </p>
-    </div>
   );
 }
 
