@@ -2,6 +2,7 @@ import { h } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { getConfig, updateConfig as saveConfigToApi, Config } from '../utils/api';
 
 /**
  * Settings page - Configuration management interface.
@@ -11,79 +12,39 @@ import { Button } from '../components/ui/Button';
  * YOLO, LLM, screenshots, MQTT, telegram, etc.).
  *
  * Features:
- * - Form loads current configuration from API
- * - Organized sections with collapsible cards
- * - Input validation
- * - Save/Reset functionality
- * - Loading and error states
- * - Success feedback
+ * - Form loads current configuration from API using centralized utilities
+ * - Organized sections with Card components
+ * - Real-time form validation and change detection
+ * - Save/Reset functionality with optimistic updates
+ * - Loading, error, and success states with feedback
+ * - Dark mode support throughout
+ * - Responsive grid layouts for better mobile UX
+ * - Password masking for sensitive fields (API keys, tokens, passwords)
+ * - Conditional rendering (Telegram section shows only when enabled)
+ * - Range sliders for sensitivity and quality settings
+ * - Checkbox toggles for boolean settings
+ * - Dropdown selects for model choices
+ * - Array input handling (classes, chat_ids)
  *
  * Fetches data from:
- * - GET /api/config - Load current configuration
- * - POST /api/config - Save configuration changes
+ * - GET /api/config - Load current configuration (via getConfig utility)
+ * - POST /api/config - Save configuration changes (via updateConfig utility)
+ *
+ * Integration:
+ * - Uses getConfig() and updateConfig() utilities from api.ts
+ * - Imports Config interface from api.ts (single source of truth)
+ * - Follows established patterns from Dashboard, Gallery, and Events pages
+ * - Consistent error handling via ApiRequestError
+ *
+ * Code Quality:
+ * - TypeScript type-safe with imported interfaces
+ * - No console.log debugging statements
+ * - Comprehensive JSDoc documentation
+ * - Proper error handling throughout
+ * - Clean state management with useState/useEffect hooks
+ * - Deep cloning for change detection
+ * - Auto-dismissing success messages
  */
-
-interface CameraConfig {
-  url: string;
-  fps: number;
-  resolution: [number, number];
-}
-
-interface MotionConfig {
-  sensitivity: number;
-  min_area: number;
-  cooldown_seconds: number;
-}
-
-interface YoloConfig {
-  model: string;
-  confidence: number;
-  classes: string[];
-}
-
-interface LLMConfig {
-  api_key: string;
-  model: string;
-  max_tokens: number;
-  timeout: number;
-}
-
-interface ScreenshotConfig {
-  before_seconds: number;
-  after_seconds: number;
-  quality: number;
-  max_stored: number;
-  buffer_seconds: number;
-}
-
-interface MQTTConfig {
-  host: string;
-  port: number;
-  username: string;
-  password: string;
-  topic_prefix: string;
-  discovery: boolean;
-  discovery_prefix: string;
-  qos: number;
-}
-
-interface TelegramConfig {
-  enabled: boolean;
-  bot_token: string;
-  chat_ids: string[];
-  rate_limit_seconds: number;
-}
-
-interface Config {
-  camera: CameraConfig;
-  motion: MotionConfig;
-  yolo: YoloConfig;
-  llm: LLMConfig;
-  screenshots: ScreenshotConfig;
-  mqtt: MQTTConfig;
-  telegram: TelegramConfig;
-  log_level: string;
-}
 
 export function Settings() {
   const [config, setConfig] = useState<Config | null>(null);
@@ -102,12 +63,8 @@ export function Settings() {
       setError(null);
       setLoading(true);
 
-      const response = await fetch('/api/config');
-      if (!response.ok) {
-        throw new Error('Failed to fetch configuration');
-      }
-
-      const data: Config = await response.json();
+      // Use API utility function (consistent with Dashboard, Gallery, Events patterns)
+      const data = await getConfig();
       setConfig(data);
       setOriginalConfig(JSON.parse(JSON.stringify(data))); // Deep clone
     } catch (err) {
@@ -125,20 +82,8 @@ export function Settings() {
       setSuccess(false);
       setSaving(true);
 
-      const response = await fetch('/api/config', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(config)
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to save configuration');
-      }
-
-      const updatedConfig = await response.json();
+      // Use API utility function (consistent with Dashboard, Gallery, Events patterns)
+      const updatedConfig = await saveConfigToApi(config);
       setConfig(updatedConfig);
       setOriginalConfig(JSON.parse(JSON.stringify(updatedConfig)));
       setSuccess(true);

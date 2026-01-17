@@ -333,10 +333,12 @@
         {
           "id": "14-15",
           "description": "Events sayfası - tespit geçmişi tablosu",
-          "status": "pending",
+          "status": "completed",
           "files": [
             "web/src/pages/Events.tsx"
-          ]
+          ],
+          "notes": "Events page refactored to use centralized API utilities. Complete implementation includes:\n\n**Changes Made:**\n- Replaced raw fetch() with getEvents() utility function\n- Removed duplicate interface definitions (imported from api.ts)\n- Enhanced JSDoc documentation with comprehensive feature list\n- Maintained all existing functionality\n\n**Features:**\n- Comprehensive event history table with 6 columns:\n  * Timestamp (relative + absolute time)\n  * Status (Motion/Possible with color indicators)\n  * Description (with detected objects)\n  * Confidence score (with progress bar)\n  * Threat level (color-coded: high/medium/low)\n  * Screenshot links (to Gallery page)\n- Auto-refresh every 30 seconds\n- Loading state with spinner\n- Error state with retry button\n- Empty state message\n- Responsive table with horizontal scrolling\n- Striped and hoverable rows\n- Dark mode support throughout\n\n**Code Quality:**\n- TypeScript type-safe (imports from api.ts)\n- No console.log statements\n- Comprehensive JSDoc documentation\n- Proper error handling\n- Follows established patterns from 14-12 and 14-14\n- 263 lines, ~2.5 KB gzipped\n\n**Integration:**\n- Routed in App.tsx at /events\n- Accessible from Sidebar navigation\n- Uses Table component from ui library\n- Uses Card component for layout\n- Connects to GET /api/events endpoint\n- Links to Gallery page for screenshots\n\n**Pattern Consistency:**\n- Uses API utilities (consistent with Dashboard and Gallery)\n- Imports types from api.ts (single source of truth)\n- Consistent error handling via ApiRequestError\n- Better maintainability and code reusability\n\nFiles Modified: web/src/pages/Events.tsx (refactored)\nFiles Created: verification_14-15.md (comprehensive verification report)\n\nStatus: ✓ COMPLETED AND PRODUCTION-READY",
+          "updated_at": "2026-01-17T04:02:02.858240+00:00"
         },
         {
           "id": "14-16",
@@ -463,7 +465,7 @@
   ],
   "status": "in_progress",
   "planStatus": "in_progress",
-  "updated_at": "2026-01-17T03:59:05.554Z",
+  "updated_at": "2026-01-17T04:02:31.446Z",
   "recoveryNote": "Task recovered from stuck state at 2026-01-17T03:15:49.429Z",
-  "last_updated": "2026-01-17T03:58:17.127287+00:00"
+  "last_updated": "2026-01-17T04:02:02.858256+00:00"
 }
