@@ -83,10 +83,12 @@
         {
           "id": "14-04",
           "description": "MJPEG stream endpoint",
-          "status": "pending",
+          "status": "completed",
           "files": [
             "src/api/routes.py"
-          ]
+          ],
+          "notes": "MJPEG stream endpoint verified and completed. Implementation includes:\n- GET /api/stream endpoint with MJPEG streaming\n- generate_mjpeg_frames() generator function\n- Proper MJPEG protocol with multipart/x-mixed-replace content type\n- Correct boundary markers (--frame\\r\\n)\n- Uses encode_frame_to_bytes() utility function for JPEG encoding\n- Placeholder frame with \"Camera feed not available\" text (appropriate until camera integration)\n- Complete docstrings and type hints\n- Ready for camera feed integration\n\nThe endpoint follows MJPEG streaming best practices and will seamlessly integrate with the camera component once available. Implementation was present from previous subtasks but verified and committed for 14-04.",
+          "updated_at": "2026-01-17T03:28:36.187917+00:00"
         },
         {
           "id": "14-05",
@@ -441,7 +443,7 @@
   ],
   "status": "in_progress",
   "planStatus": "in_progress",
-  "updated_at": "2026-01-17T03:27:26.194Z",
+  "updated_at": "2026-01-17T03:29:01.017Z",
   "recoveryNote": "Task recovered from stuck state at 2026-01-17T03:15:49.429Z",
-  "last_updated": "2026-01-17T03:26:31.249924+00:00"
+  "last_updated": "2026-01-17T03:28:36.187929+00:00"
 }
