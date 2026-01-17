@@ -60,14 +60,7 @@ class TelegramBot:
             self.logger.warning("python-telegram-bot not installed, bot disabled")
             return
 
-        if config.bot_token:
-            self.application = (
-                Application.builder()
-                .token(config.bot_token)
-                .build()
-            )
-            self.logger.info("Telegram Application initialized")
-        else:
+        if not config.bot_token:
             self.logger.warning("No bot token provided, Application not created")
 
     async def start(self) -> None:
@@ -81,8 +74,16 @@ class TelegramBot:
             return
 
         if not self.application:
-            self.logger.warning("Cannot start bot: Application not initialized")
-            return
+            if not self.config.bot_token:
+                self.logger.warning("Cannot start bot: Application not initialized")
+                return
+
+            self.application = (
+                Application.builder()
+                .token(self.config.bot_token)
+                .build()
+            )
+            self.logger.info("Telegram Application initialized")
 
         try:
             # Register command handlers
