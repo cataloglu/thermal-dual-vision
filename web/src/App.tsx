@@ -1,11 +1,13 @@
 import { h } from 'preact';
 import Router from 'preact-router';
+import { Layout } from './components/Layout';
 
 /**
  * Root application component with routing.
  *
  * This component sets up the application routing using preact-router.
- * Currently includes placeholder pages for all routes.
+ * The entire app is wrapped in a Layout component that provides
+ * navigation sidebar and header structure.
  *
  * Routes:
  * - / : Dashboard (home page with stats and recent detections)
@@ -16,7 +18,7 @@ import Router from 'preact-router';
  */
 export function App() {
   return (
-    <div id="app-root" class="min-h-screen">
+    <Layout>
       <Router>
         <Dashboard path="/" />
         <LiveView path="/live" />
@@ -25,7 +27,7 @@ export function App() {
         <Settings path="/settings" />
         <NotFound default />
       </Router>
-    </div>
+    </Layout>
   );
 }
 
@@ -34,7 +36,7 @@ export function App() {
  */
 function Dashboard() {
   return (
-    <div class="p-8">
+    <div>
       <h1 class="text-3xl font-bold mb-4">Dashboard</h1>
       <p class="text-gray-600 dark:text-gray-400">
         Motion detection system overview
@@ -48,7 +50,7 @@ function Dashboard() {
  */
 function LiveView() {
   return (
-    <div class="p-8">
+    <div>
       <h1 class="text-3xl font-bold mb-4">Live View</h1>
       <p class="text-gray-600 dark:text-gray-400">
         Live camera stream
@@ -62,7 +64,7 @@ function LiveView() {
  */
 function Gallery() {
   return (
-    <div class="p-8">
+    <div>
       <h1 class="text-3xl font-bold mb-4">Gallery</h1>
       <p class="text-gray-600 dark:text-gray-400">
         Screenshot gallery
@@ -76,7 +78,7 @@ function Gallery() {
  */
 function Events() {
   return (
-    <div class="p-8">
+    <div>
       <h1 class="text-3xl font-bold mb-4">Events</h1>
       <p class="text-gray-600 dark:text-gray-400">
         Motion detection event history
@@ -90,7 +92,7 @@ function Events() {
  */
 function Settings() {
   return (
-    <div class="p-8">
+    <div>
       <h1 class="text-3xl font-bold mb-4">Settings</h1>
       <p class="text-gray-600 dark:text-gray-400">
         System configuration
@@ -104,7 +106,7 @@ function Settings() {
  */
 function NotFound() {
   return (
-    <div class="p-8">
+    <div>
       <h1 class="text-3xl font-bold mb-4">404 - Page Not Found</h1>
       <p class="text-gray-600 dark:text-gray-400">
         The requested page could not be found.
