@@ -81,6 +81,7 @@ class Config:
     mqtt: MQTTConfig = field(default_factory=MQTTConfig)
     telegram: TelegramConfig = field(default_factory=TelegramConfig)
     log_level: str = "INFO"
+    ha_mode: bool = True
 
     @classmethod
     def from_env(cls) -> "Config":
@@ -124,6 +125,9 @@ class Config:
 
         # Logging
         config.log_level = os.getenv("LOG_LEVEL", "INFO")
+
+        # HA Mode
+        config.ha_mode = os.getenv("HA_MODE", "true").lower() == "true"
 
         return config
 
