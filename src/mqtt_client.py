@@ -25,14 +25,16 @@ class MQTTClient:
     for motion detection events and analysis results.
     """
 
-    def __init__(self, config: MQTTConfig) -> None:
+    def __init__(self, config: MQTTConfig, ha_mode: bool = True) -> None:
         """
         Initialize MQTT client.
 
         Args:
             config: MQTT configuration
+            ha_mode: Whether running in Home Assistant mode (enables auto-discovery)
         """
         self.config = config
+        self.ha_mode = ha_mode
         self._client: Optional[Any] = None  # aiomqtt.Client when available
         self._connected = False
         self._reconnect_task: Optional[asyncio.Task] = None
@@ -41,7 +43,7 @@ class MQTTClient:
         self._on_disconnect_callbacks: List[Callable] = []
 
         logger.info(
-            f"MQTT client initialized for broker {config.host}:{config.port}"
+            f"MQTT client initialized for broker {config.host}:{config.port} (HA mode: {ha_mode})"
         )
 
     async def connect(self) -> None:
@@ -286,6 +288,10 @@ class MQTTClient:
         if not self._connected:
             logger.error("Cannot publish discovery: Not connected to MQTT broker")
             raise RuntimeError("Not connected to MQTT broker")
+
+        if not self.ha_mode:
+            logger.info("HA mode disabled, skipping auto-discovery")
+            return
 
         if not self.config.discovery:
             logger.debug("Discovery disabled in configuration, skipping")
