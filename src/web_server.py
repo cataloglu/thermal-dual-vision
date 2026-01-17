@@ -2,7 +2,7 @@
 
 import os
 from typing import Optional
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -12,7 +12,12 @@ from api.websocket import init_socketio
 
 def create_app() -> Flask:
     """Create and configure Flask application with HA ingress support."""
-    app = Flask(__name__, static_folder=None)
+    # Configure static file serving for frontend
+    # In Docker: /app/web/dist/, Local dev: ./web/dist/
+    static_folder = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'web', 'dist')
+    app = Flask(__name__,
+                static_folder=static_folder,
+                static_url_path='/assets')
 
     # Enable CORS for development
     CORS(app)
@@ -61,23 +66,27 @@ def create_app() -> Flask:
         """Health check endpoint for container orchestration."""
         return jsonify({'status': 'ok', 'service': 'motion-detector-web'}), 200
 
-    # Basic info endpoint
+    # Register API Blueprint (must be before catch-all routes)
+    app.register_blueprint(api_bp)
+
+    # Serve index.html for root route
     @app.route('/', methods=['GET'])
     def index():
-        """Root endpoint with basic service information."""
-        return jsonify({
-            'service': 'Smart Motion Detector Web Server',
-            'version': '1.0.0',
-            'status': 'running',
-            'endpoints': {
-                'api': '/api',
-                'health': '/health',
-                'stream': '/api/stream'
-            }
-        }), 200
+        """Serve frontend index.html."""
+        return send_from_directory(app.static_folder, 'index.html')
 
-    # Register API Blueprint
-    app.register_blueprint(api_bp)
+    # Catch-all route for SPA client-side routing
+    # This must be AFTER API blueprint registration to avoid catching API routes
+    @app.route('/<path:path>', methods=['GET'])
+    def catch_all(path):
+        """Serve index.html for all non-API routes (SPA routing)."""
+        # Check if file exists in static folder (CSS, JS, images, etc.)
+        file_path = os.path.join(app.static_folder, path)
+        if os.path.isfile(file_path):
+            return send_from_directory(app.static_folder, path)
+
+        # Otherwise serve index.html for client-side routing
+        return send_from_directory(app.static_folder, 'index.html')
 
     # Initialize WebSocket support
     socketio = init_socketio(app)
