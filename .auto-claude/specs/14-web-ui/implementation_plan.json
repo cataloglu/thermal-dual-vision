@@ -8,7 +8,7 @@
       "chunks": [
         {
           "id": "14-01",
-          "description": "Flask web server ve ingress konfig\u00fcrasyonu",
+          "description": "Flask web server ve ingress konfigürasyonu",
           "status": "pending",
           "files": [
             "src/web_server.py"
@@ -51,7 +51,7 @@
       "subtasks": [
         {
           "id": "14-01",
-          "description": "Flask web server ve ingress konfig\u00fcrasyonu",
+          "description": "Flask web server ve ingress konfigürasyonu",
           "status": "completed",
           "files": [
             "src/web_server.py"
@@ -97,7 +97,7 @@
           "files": [
             "src/api/websocket.py"
           ],
-          "notes": "WebSocket handlers fully implemented and verified. Complete implementation includes:\n\n**WebSocketManager Class:**\n- Client connection tracking and management\n- Event broadcasting to all connected clients\n- Specialized methods: broadcast_motion_event(), broadcast_status_update()\n- Integration methods: publish_motion(), publish_state()\n\n**Event Handlers (namespace: /events):**\n- connect - Handles client connections, sends welcome message\n- disconnect - Handles disconnections and cleanup\n- ping - Connection keepalive mechanism\n- error - Comprehensive error handling\n\n**Configuration:**\n- Flask-SocketIO with threading async mode\n- CORS support for development (cors_allowed_origins=\"*\")\n- Proper logging integration\n- Type hints and docstrings throughout\n\n**Integration:**\n- init_socketio(app) - Initializes SocketIO with Flask app\n- get_ws_manager() - Provides access to WebSocket manager\n- Global socketio and ws_manager instances exported\n\n**Dependencies:**\n- Flask-SocketIO>=5.3.0 already in requirements.txt\n\nAll requirements from spec.md met:\n\u2713 WebSocket for live updates (WS /ws/events)\n\u2713 Real-time event streaming\n\u2713 Client connection management\n\u2713 Ready for frontend integration\n\nImplementation is production-ready and follows Flask-SocketIO best practices.",
+          "notes": "WebSocket handlers fully implemented and verified. Complete implementation includes:\n\n**WebSocketManager Class:**\n- Client connection tracking and management\n- Event broadcasting to all connected clients\n- Specialized methods: broadcast_motion_event(), broadcast_status_update()\n- Integration methods: publish_motion(), publish_state()\n\n**Event Handlers (namespace: /events):**\n- connect - Handles client connections, sends welcome message\n- disconnect - Handles disconnections and cleanup\n- ping - Connection keepalive mechanism\n- error - Comprehensive error handling\n\n**Configuration:**\n- Flask-SocketIO with threading async mode\n- CORS support for development (cors_allowed_origins=\"*\")\n- Proper logging integration\n- Type hints and docstrings throughout\n\n**Integration:**\n- init_socketio(app) - Initializes SocketIO with Flask app\n- get_ws_manager() - Provides access to WebSocket manager\n- Global socketio and ws_manager instances exported\n\n**Dependencies:**\n- Flask-SocketIO>=5.3.0 already in requirements.txt\n\nAll requirements from spec.md met:\n✓ WebSocket for live updates (WS /ws/events)\n✓ Real-time event streaming\n✓ Client connection management\n✓ Ready for frontend integration\n\nImplementation is production-ready and follows Flask-SocketIO best practices.",
           "updated_at": "2026-01-17T03:30:14.196034+00:00"
         }
       ]
@@ -118,7 +118,7 @@
         },
         {
           "id": "14-07",
-          "description": "Tailwind CSS konfig\u00fcrasyonu",
+          "description": "Tailwind CSS konfigürasyonu",
           "status": "pending",
           "files": [
             "web/tailwind.config.js",
@@ -152,7 +152,7 @@
         },
         {
           "id": "14-07",
-          "description": "Tailwind CSS konfig\u00fcrasyonu",
+          "description": "Tailwind CSS konfigürasyonu",
           "status": "pending",
           "files": [
             "web/tailwind.config.js",
@@ -242,7 +242,7 @@
       "chunks": [
         {
           "id": "14-12",
-          "description": "Dashboard sayfas\u0131 - stats, recent events",
+          "description": "Dashboard sayfası - stats, recent events",
           "status": "pending",
           "files": [
             "web/src/pages/Dashboard.tsx"
@@ -250,7 +250,7 @@
         },
         {
           "id": "14-13",
-          "description": "LiveView sayfas\u0131 - MJPEG stream player",
+          "description": "LiveView sayfası - MJPEG stream player",
           "status": "pending",
           "files": [
             "web/src/pages/LiveView.tsx"
@@ -258,7 +258,7 @@
         },
         {
           "id": "14-14",
-          "description": "Gallery sayfas\u0131 - screenshot grid",
+          "description": "Gallery sayfası - screenshot grid",
           "status": "pending",
           "files": [
             "web/src/pages/Gallery.tsx"
@@ -268,7 +268,7 @@
       "subtasks": [
         {
           "id": "14-12",
-          "description": "Dashboard sayfas\u0131 - stats, recent events",
+          "description": "Dashboard sayfası - stats, recent events",
           "status": "pending",
           "files": [
             "web/src/pages/Dashboard.tsx"
@@ -276,7 +276,7 @@
         },
         {
           "id": "14-13",
-          "description": "LiveView sayfas\u0131 - MJPEG stream player",
+          "description": "LiveView sayfası - MJPEG stream player",
           "status": "pending",
           "files": [
             "web/src/pages/LiveView.tsx"
@@ -284,7 +284,7 @@
         },
         {
           "id": "14-14",
-          "description": "Gallery sayfas\u0131 - screenshot grid",
+          "description": "Gallery sayfası - screenshot grid",
           "status": "pending",
           "files": [
             "web/src/pages/Gallery.tsx"
@@ -298,7 +298,7 @@
       "chunks": [
         {
           "id": "14-15",
-          "description": "Events sayfas\u0131 - tespit ge\u00e7mi\u015fi tablosu",
+          "description": "Events sayfası - tespit geçmişi tablosu",
           "status": "pending",
           "files": [
             "web/src/pages/Events.tsx"
@@ -306,7 +306,7 @@
         },
         {
           "id": "14-16",
-          "description": "Settings sayfas\u0131 - config form",
+          "description": "Settings sayfası - config form",
           "status": "pending",
           "files": [
             "web/src/pages/Settings.tsx"
@@ -316,7 +316,7 @@
       "subtasks": [
         {
           "id": "14-15",
-          "description": "Events sayfas\u0131 - tespit ge\u00e7mi\u015fi tablosu",
+          "description": "Events sayfası - tespit geçmişi tablosu",
           "status": "pending",
           "files": [
             "web/src/pages/Events.tsx"
@@ -324,7 +324,7 @@
         },
         {
           "id": "14-16",
-          "description": "Settings sayfas\u0131 - config form",
+          "description": "Settings sayfası - config form",
           "status": "pending",
           "files": [
             "web/src/pages/Settings.tsx"
@@ -346,7 +346,7 @@
         },
         {
           "id": "14-18",
-          "description": "useWebSocket hook - canl\u0131 event stream",
+          "description": "useWebSocket hook - canlı event stream",
           "status": "pending",
           "files": [
             "web/src/hooks/useWebSocket.ts"
@@ -372,7 +372,7 @@
         },
         {
           "id": "14-18",
-          "description": "useWebSocket hook - canl\u0131 event stream",
+          "description": "useWebSocket hook - canlı event stream",
           "status": "pending",
           "files": [
             "web/src/hooks/useWebSocket.ts"
@@ -394,7 +394,7 @@
       "chunks": [
         {
           "id": "14-20",
-          "description": "Dockerfile g\u00fcncelleme - Node.js build step",
+          "description": "Dockerfile güncelleme - Node.js build step",
           "status": "pending",
           "files": [
             "Dockerfile"
@@ -402,7 +402,7 @@
         },
         {
           "id": "14-21",
-          "description": "requirements.txt g\u00fcncelleme",
+          "description": "requirements.txt güncelleme",
           "status": "pending",
           "files": [
             "requirements.txt"
@@ -420,7 +420,7 @@
       "subtasks": [
         {
           "id": "14-20",
-          "description": "Dockerfile g\u00fcncelleme - Node.js build step",
+          "description": "Dockerfile güncelleme - Node.js build step",
           "status": "pending",
           "files": [
             "Dockerfile"
@@ -428,7 +428,7 @@
         },
         {
           "id": "14-21",
-          "description": "requirements.txt g\u00fcncelleme",
+          "description": "requirements.txt güncelleme",
           "status": "pending",
           "files": [
             "requirements.txt"
@@ -447,7 +447,7 @@
   ],
   "status": "in_progress",
   "planStatus": "in_progress",
-  "updated_at": "2026-01-17T03:31:01.310Z",
+  "updated_at": "2026-01-17T03:34:42.138Z",
   "recoveryNote": "Task recovered from stuck state at 2026-01-17T03:15:49.429Z",
   "last_updated": "2026-01-17T03:33:36.385331+00:00"
 }
