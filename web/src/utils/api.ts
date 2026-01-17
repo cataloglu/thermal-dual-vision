@@ -1,0 +1,399 @@
+/**
+ * API Utility Module
+ *
+ * Provides a centralized fetch wrapper for making API requests
+ * with error handling, base URL handling for HA ingress path,
+ * and TypeScript interfaces for all API responses.
+ *
+ * Features:
+ * - Automatic JSON serialization/deserialization
+ * - Error handling with descriptive messages
+ * - Base URL handling for Home Assistant ingress
+ * - TypeScript interfaces for type safety
+ */
+
+// ============================================================================
+// TypeScript Interfaces for API Responses
+// ============================================================================
+
+/**
+ * System status response from /api/status
+ */
+export interface SystemStatus {
+  status: string;
+  uptime_seconds: number;
+  components: {
+    camera: string;
+    detector: string;
+    mqtt: string;
+  };
+}
+
+/**
+ * System statistics response from /api/stats
+ */
+export interface SystemStats {
+  total_detections: number;
+  real_detections: number;
+  false_positives: number;
+  last_detection?: string;
+}
+
+/**
+ * Detection event analysis details
+ */
+export interface DetectionAnalysis {
+  real_motion: boolean;
+  confidence_score: number;
+  description: string;
+  detected_objects: string[];
+  threat_level?: string;
+  recommended_action?: string;
+  detailed_analysis?: string;
+  processing_time?: number;
+}
+
+/**
+ * Detection event from /api/events
+ */
+export interface DetectionEvent {
+  id: string;
+  timestamp: string;
+  has_screenshots: boolean;
+  analysis: DetectionAnalysis;
+}
+
+/**
+ * Events list response from /api/events
+ */
+export interface EventsResponse {
+  events: DetectionEvent[];
+  total?: number;
+}
+
+/**
+ * Screenshot metadata from /api/screenshots
+ */
+export interface Screenshot {
+  id: string;
+  timestamp: string;
+  detection_status: string;
+  analysis: DetectionAnalysis;
+}
+
+/**
+ * Screenshots list response from /api/screenshots
+ */
+export interface ScreenshotsResponse {
+  screenshots: Screenshot[];
+  total?: number;
+}
+
+/**
+ * Configuration sections
+ */
+export interface CameraConfig {
+  url: string;
+  fps: number;
+  resolution: [number, number];
+}
+
+export interface MotionConfig {
+  sensitivity: number;
+  min_area: number;
+  cooldown_seconds: number;
+}
+
+export interface YoloConfig {
+  model: string;
+  confidence: number;
+  classes: string[];
+}
+
+export interface LLMConfig {
+  api_key: string;
+  model: string;
+  max_tokens: number;
+  timeout: number;
+}
+
+export interface ScreenshotConfig {
+  before_seconds: number;
+  after_seconds: number;
+  quality: number;
+  max_stored: number;
+  buffer_seconds: number;
+}
+
+export interface MQTTConfig {
+  host: string;
+  port: number;
+  username: string;
+  password: string;
+  topic_prefix: string;
+  discovery: boolean;
+  discovery_prefix: string;
+  qos: number;
+}
+
+export interface TelegramConfig {
+  enabled: boolean;
+  bot_token: string;
+  chat_ids: string[];
+  rate_limit_seconds: number;
+}
+
+/**
+ * Full configuration response from /api/config
+ */
+export interface Config {
+  camera: CameraConfig;
+  motion: MotionConfig;
+  yolo: YoloConfig;
+  llm: LLMConfig;
+  screenshots: ScreenshotConfig;
+  mqtt: MQTTConfig;
+  telegram: TelegramConfig;
+  log_level: string;
+}
+
+/**
+ * Generic error response from API
+ */
+export interface ApiError {
+  error: string;
+  details?: string;
+}
+
+// ============================================================================
+// API Client Configuration
+// ============================================================================
+
+/**
+ * Get the base URL for API requests.
+ *
+ * In development, Vite proxies /api requests to the Flask backend.
+ * In production, the Flask backend serves the frontend and handles
+ * Home Assistant ingress path automatically.
+ *
+ * @returns Base URL for API requests (empty string for relative URLs)
+ */
+function getBaseUrl(): string {
+  // Always use relative URLs - Vite proxy handles dev, Flask handles prod
+  return '';
+}
+
+// ============================================================================
+// API Client Methods
+// ============================================================================
+
+/**
+ * Custom error class for API errors
+ */
+export class ApiRequestError extends Error {
+  public status: number;
+  public statusText: string;
+  public details?: string;
+
+  constructor(message: string, status: number, statusText: string, details?: string) {
+    super(message);
+    this.name = 'ApiRequestError';
+    this.status = status;
+    this.statusText = statusText;
+    this.details = details;
+  }
+}
+
+/**
+ * Make an API request with error handling.
+ *
+ * @param endpoint - API endpoint (e.g., '/api/status')
+ * @param options - Fetch options
+ * @returns Promise with parsed JSON response
+ * @throws ApiRequestError if request fails
+ */
+async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  const url = `${getBaseUrl()}${endpoint}`;
+
+  // Set default headers
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    ...options.headers,
+  };
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers,
+    });
+
+    // Parse response body
+    let data: any;
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      data = await response.json();
+    } else {
+      data = await response.text();
+    }
+
+    // Check if request was successful
+    if (!response.ok) {
+      const errorMessage = typeof data === 'object' && data.error
+        ? data.error
+        : `Request failed: ${response.status} ${response.statusText}`;
+      const errorDetails = typeof data === 'object' && data.details
+        ? data.details
+        : undefined;
+
+      throw new ApiRequestError(
+        errorMessage,
+        response.status,
+        response.statusText,
+        errorDetails
+      );
+    }
+
+    return data as T;
+  } catch (error) {
+    // Re-throw ApiRequestError as-is
+    if (error instanceof ApiRequestError) {
+      throw error;
+    }
+
+    // Handle network errors
+    if (error instanceof TypeError) {
+      throw new ApiRequestError(
+        'Network error: Unable to connect to server',
+        0,
+        'Network Error'
+      );
+    }
+
+    // Handle other errors
+    throw new ApiRequestError(
+      error instanceof Error ? error.message : 'Unknown error occurred',
+      0,
+      'Unknown Error'
+    );
+  }
+}
+
+/**
+ * Make a GET request to the API.
+ *
+ * @param endpoint - API endpoint (e.g., '/api/status')
+ * @returns Promise with parsed JSON response
+ */
+export async function get<T>(endpoint: string): Promise<T> {
+  return request<T>(endpoint, {
+    method: 'GET',
+  });
+}
+
+/**
+ * Make a POST request to the API.
+ *
+ * @param endpoint - API endpoint (e.g., '/api/config')
+ * @param body - Request body (will be JSON stringified)
+ * @returns Promise with parsed JSON response
+ */
+export async function post<T>(endpoint: string, body: any): Promise<T> {
+  return request<T>(endpoint, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+/**
+ * Make a DELETE request to the API.
+ *
+ * @param endpoint - API endpoint (e.g., '/api/screenshots/123')
+ * @returns Promise with parsed JSON response
+ */
+export async function del<T>(endpoint: string): Promise<T> {
+  return request<T>(endpoint, {
+    method: 'DELETE',
+  });
+}
+
+// ============================================================================
+// Convenience API Methods
+// ============================================================================
+
+/**
+ * Fetch system status from /api/status
+ */
+export async function getStatus(): Promise<SystemStatus> {
+  return get<SystemStatus>('/api/status');
+}
+
+/**
+ * Fetch system statistics from /api/stats
+ */
+export async function getStats(): Promise<SystemStats> {
+  return get<SystemStats>('/api/stats');
+}
+
+/**
+ * Fetch detection events from /api/events
+ *
+ * @param limit - Maximum number of events to return
+ */
+export async function getEvents(limit?: number): Promise<EventsResponse> {
+  const url = limit ? `/api/events?limit=${limit}` : '/api/events';
+  return get<EventsResponse>(url);
+}
+
+/**
+ * Fetch screenshots from /api/screenshots
+ */
+export async function getScreenshots(): Promise<ScreenshotsResponse> {
+  return get<ScreenshotsResponse>('/api/screenshots');
+}
+
+/**
+ * Fetch configuration from /api/config
+ */
+export async function getConfig(): Promise<Config> {
+  return get<Config>('/api/config');
+}
+
+/**
+ * Update configuration via /api/config
+ *
+ * @param config - New configuration object
+ */
+export async function updateConfig(config: Config): Promise<Config> {
+  return post<Config>('/api/config', config);
+}
+
+/**
+ * Delete a screenshot by ID
+ *
+ * @param id - Screenshot ID
+ */
+export async function deleteScreenshot(id: string): Promise<{ success: boolean }> {
+  return del<{ success: boolean }>(`/api/screenshots/${id}`);
+}
+
+// ============================================================================
+// Export default API client object
+// ============================================================================
+
+/**
+ * Default API client object with all methods
+ */
+export const api = {
+  get,
+  post,
+  del,
+  getStatus,
+  getStats,
+  getEvents,
+  getScreenshots,
+  getConfig,
+  updateConfig,
+  deleteScreenshot,
+};
+
+export default api;
