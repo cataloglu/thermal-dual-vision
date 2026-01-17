@@ -141,12 +141,14 @@
         {
           "id": "14-06",
           "description": "Vite + Preact + TypeScript proje kurulumu",
-          "status": "pending",
+          "status": "completed",
           "files": [
             "web/package.json",
             "web/vite.config.ts",
             "web/tsconfig.json"
-          ]
+          ],
+          "notes": "Vite + Preact + TypeScript project setup verified and completed. All required configuration files present and properly configured:\n- web/package.json - Package configuration with Preact 10.19.3, Vite 5.0.12, TypeScript 5.3.3\n- web/vite.config.ts - Build configuration with HA ingress support, API proxy, bundle optimization (<100KB target)\n- web/tsconfig.json - Strict TypeScript configuration with Preact JSX\n- web/tailwind.config.js - Tailwind CSS with dark mode and custom colors (already configured for 14-07)\n- web/postcss.config.js - PostCSS with Tailwind and Autoprefixer\n- web/index.html - Entry HTML file\n\nTechnology stack complete: Vite, Preact, TypeScript, Tailwind CSS, Preact Router, Socket.IO Client. Development and production build configurations ready. Home Assistant ingress compatibility configured.",
+          "updated_at": "2026-01-17T03:33:36.385320+00:00"
         },
         {
           "id": "14-07",
@@ -445,7 +447,7 @@
   ],
   "status": "in_progress",
   "planStatus": "in_progress",
-  "updated_at": "2026-01-17T03:29:01.017Z",
+  "updated_at": "2026-01-17T03:31:01.310Z",
   "recoveryNote": "Task recovered from stuck state at 2026-01-17T03:15:49.429Z",
-  "last_updated": "2026-01-17T03:30:14.196047+00:00"
+  "last_updated": "2026-01-17T03:33:36.385331+00:00"
 }
