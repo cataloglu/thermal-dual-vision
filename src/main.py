@@ -1,6 +1,9 @@
 """Application entry point for pipeline selection."""
 
+import threading
+
 from src.config import Config
+from src.health_server import EventStore, PipelineStatusTracker, run_health_server
 from src.logger import get_logger, setup_logger
 from src.pipelines.base import BasePipeline
 from src.pipelines.color_pipeline import ColorPipeline
@@ -22,6 +25,19 @@ def main() -> None:
             logger.error("Config error: %s", error)
         raise SystemExit(1)
 
+    event_store = EventStore()
+    pipeline_status = PipelineStatusTracker(event_store=event_store)
+    server_thread = threading.Thread(
+        target=run_health_server,
+        kwargs={
+            "config": config,
+            "event_store": event_store,
+            "pipeline_status": pipeline_status,
+        },
+        daemon=True,
+    )
+    server_thread.start()
+
     camera_type = config.camera.camera_type
     pipeline: BasePipeline = ColorPipeline(config)
     for pipeline_cls in PIPELINE_CLASSES:
@@ -30,7 +46,14 @@ def main() -> None:
             break
 
     logger.info("Starting %s pipeline", pipeline.camera_type or camera_type)
-    pipeline.run()
+    pipeline_status.set_status("running")
+
+    try:
+        pipeline.run()
+        pipeline_status.set_status("stopped", "Pipeline exited")
+    except Exception as exc:
+        pipeline_status.set_status("error", str(exc))
+        raise
 
 
 if __name__ == "__main__":

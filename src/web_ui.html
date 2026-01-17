@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Smart Motion - Status</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #0f1115;
+        --panel: #1b1f27;
+        --text: #e6e6e6;
+        --muted: #9aa3b2;
+        --ok: #38a169;
+        --warn: #d69e2e;
+        --bad: #e53e3e;
+      }
+      body {
+        margin: 0;
+        font-family: Arial, Helvetica, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+      .container {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+      h1 {
+        font-size: 20px;
+        margin: 0 0 16px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+      .card {
+        background: var(--panel);
+        border-radius: 8px;
+        padding: 16px;
+        min-height: 90px;
+      }
+      .label {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        margin-bottom: 8px;
+      }
+      .value {
+        font-size: 18px;
+        font-weight: 600;
+      }
+      .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--muted);
+      }
+      .ok .dot { background: var(--ok); }
+      .warn .dot { background: var(--warn); }
+      .bad .dot { background: var(--bad); }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        background: var(--panel);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      th, td {
+        padding: 12px 14px;
+        text-align: left;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        font-size: 14px;
+      }
+      th {
+        color: var(--muted);
+        font-size: 12px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+      .empty {
+        padding: 16px;
+        color: var(--muted);
+      }
+      .footer {
+        margin-top: 16px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Smart Motion - Event & Status</h1>
+      <div class="grid">
+        <div class="card">
+          <div class="label">Pipeline Status</div>
+          <div id="pipelineStatus" class="value status">
+            <span class="dot"></span>
+            <span>Unknown</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="label">Health Status</div>
+          <div id="healthStatus" class="value status">
+            <span class="dot"></span>
+            <span>Unknown</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="label">Ready Status</div>
+          <div id="readyStatus" class="value status">
+            <span class="dot"></span>
+            <span>Unknown</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="label">Recent Events</div>
+        <div id="eventsContainer"></div>
+      </div>
+      <div class="footer" id="lastUpdated">Last update: --</div>
+    </div>
+
+    <script>
+      const pipelineStatusEl = document.getElementById("pipelineStatus");
+      const healthStatusEl = document.getElementById("healthStatus");
+      const readyStatusEl = document.getElementById("readyStatus");
+      const eventsContainer = document.getElementById("eventsContainer");
+      const lastUpdatedEl = document.getElementById("lastUpdated");
+
+      function formatStatus(el, status, detail) {
+        const text = detail ? `${status} (${detail})` : status;
+        el.querySelector("span:last-child").textContent = text;
+        el.classList.remove("ok", "warn", "bad");
+        if (status === "ok" || status === "running") {
+          el.classList.add("ok");
+        } else if (status === "degraded" || status === "stopped") {
+          el.classList.add("warn");
+        } else if (status === "down" || status === "error" || status === "missing") {
+          el.classList.add("bad");
+        }
+      }
+
+      function renderEvents(events) {
+        if (!events || events.length === 0) {
+          eventsContainer.innerHTML = "<div class=\"empty\">No events yet.</div>";
+          return;
+        }
+        let rows = events.map((event) => {
+          const ts = new Date(event.timestamp).toLocaleString();
+          return `
+            <tr>
+              <td>${ts}</td>
+              <td>${event.event_type}</td>
+              <td>${event.source}</td>
+            </tr>
+          `;
+        }).join("");
+        eventsContainer.innerHTML = `
+          <table>
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Type</th>
+                <th>Source</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        `;
+      }
+
+      async function loadStatus() {
+        try {
+          const response = await fetch("/ready", { cache: "no-store" });
+          const data = await response.json();
+
+          const pipeline = data.pipeline || { status: "unknown" };
+          formatStatus(pipelineStatusEl, pipeline.status, pipeline.detail);
+
+          formatStatus(healthStatusEl, data.status || "unknown");
+          formatStatus(readyStatusEl, data.ready ? "ready" : "not ready");
+
+          renderEvents(data.events || []);
+
+          const stamp = new Date().toLocaleTimeString();
+          lastUpdatedEl.textContent = `Last update: ${stamp}`;
+        } catch (error) {
+          formatStatus(healthStatusEl, "error", "fetch failed");
+          formatStatus(readyStatusEl, "error", "fetch failed");
+          formatStatus(pipelineStatusEl, "error", "fetch failed");
+          eventsContainer.innerHTML = "<div class=\"empty\">Failed to load events.</div>";
+        }
+      }
+
+      loadStatus();
+      setInterval(loadStatus, 5000);
+    </script>
+  </body>
+</html>
