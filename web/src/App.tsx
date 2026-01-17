@@ -5,6 +5,7 @@ import { ThemeProvider } from './components/ThemeProvider';
 import { Dashboard } from './pages/Dashboard';
 import { LiveView } from './pages/LiveView';
 import { Gallery } from './pages/Gallery';
+import { Events } from './pages/Events';
 
 /**
  * Root application component with routing.
@@ -39,19 +40,6 @@ export function App() {
 }
 
 
-/**
- * Events page - Detection history table
- */
-function Events() {
-  return (
-    <div>
-      <h1 class="text-3xl font-bold mb-4">Events</h1>
-      <p class="text-gray-600 dark:text-gray-400">
-        Motion detection event history
-      </p>
-    </div>
-  );
-}
 
 /**
  * Settings page - Configuration form
