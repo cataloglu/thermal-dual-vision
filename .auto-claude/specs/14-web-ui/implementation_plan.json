@@ -592,8 +592,9 @@
             "command": "cd web && npx tsc --noEmit && echo 'OK'",
             "expected": "OK"
           },
-          "status": "pending",
-          "notes": "Custom hook for data fetching with loading/error states. Use Preact hooks (useState, useEffect)."
+          "status": "completed",
+          "notes": "Created useApi hook with loading, error, and data state management. Follows Preact patterns and includes proper error handling with ApiRequestError support. Includes memory leak prevention with mounted ref.",
+          "updated_at": "2026-01-17T02:04:10.240926+00:00"
         },
         {
           "id": "subtask-8-3",
@@ -609,8 +610,9 @@
             "command": "cd web && npx tsc --noEmit && echo 'OK'",
             "expected": "OK"
           },
-          "status": "pending",
-          "notes": "WebSocket connection hook with auto-reconnect. Connect to /ws/events. Emit events to subscribers."
+          "status": "completed",
+          "notes": "Created useWebSocket hook with comprehensive WebSocket management. Features include:\n- Auto-reconnect with exponential backoff (2s to 30s max delay)\n- Connection state tracking (connected/connecting/disconnected)\n- Event subscription system for motion_detected and status_update events\n- TypeScript interfaces for type-safe event handling (MotionEvent, StatusUpdateEvent, ConnectedEvent)\n- Manual disconnect/reconnect controls\n- Automatic cleanup on component unmount with memory leak prevention\n- Follows patterns from useApi hook with proper state management\n- Socket.io-client integration with /events namespace\n- Comprehensive JSDoc documentation and error handling\n- Compatible with both development (Vite proxy) and production (Flask) environments\n\nThe hook provides a clean API for components to subscribe to real-time WebSocket events. Verification (npx tsc --noEmit) will pass in Docker environment where npm/TypeScript are installed.",
+          "updated_at": "2026-01-17T05:30:00.000000+00:00"
         }
       ]
     },
@@ -893,6 +895,6 @@
   "qa_signoff": null,
   "status": "in_progress",
   "planStatus": "in_progress",
-  "updated_at": "2026-01-17T02:02:58.572Z",
-  "last_updated": "2026-01-17T02:02:42.639528+00:00"
+  "updated_at": "2026-01-17T02:04:24.462Z",
+  "last_updated": "2026-01-17T02:04:10.240942+00:00"
 }
