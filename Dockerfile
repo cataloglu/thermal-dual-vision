@@ -18,7 +18,8 @@ WORKDIR /app
 COPY requirements.txt /app/
 
 # Install Python dependencies
-RUN pip3 install --no-cache-dir -r requirements.txt
+RUN grep -v '^ultralytics' requirements.txt > /tmp/requirements.txt \
+    && pip3 install --no-cache-dir --break-system-packages -r /tmp/requirements.txt
 
 # Copy application source
 COPY src/ /app/src/
