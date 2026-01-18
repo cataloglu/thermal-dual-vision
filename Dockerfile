@@ -24,8 +24,9 @@ RUN pip3 install --no-cache-dir -r requirements.txt
 COPY src/ /app/src/
 COPY run.sh /
 
-# Make run script executable
-RUN chmod +x /run.sh
+# Normalize line endings and make executable
+RUN sed -i 's/\r$//' /run.sh \
+    && chmod +x /run.sh
 
 # Labels
 LABEL \
