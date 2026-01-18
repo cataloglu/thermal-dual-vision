@@ -17,7 +17,7 @@ from src.camera_store import CameraStore
 from src.config import Config
 from src.config_store import ConfigStore, merge_config, redacted_effective_config
 from src.events import EventType, new_event
-from src.logger import get_logger
+from src.logger import get_log_tail, get_logger
 from src.mqtt_client import MQTTClient
 from src.telegram_bot import TELEGRAM_AVAILABLE, TelegramBot
 
@@ -259,6 +259,7 @@ def create_app(
     )
 
     camera_store = CameraStore()
+    start_time = time.time()
 
     async def health_handler(_: web.Request) -> web.Response:
         return web.json_response(reporter.build_report())
@@ -293,6 +294,63 @@ def create_app(
         payload["ready"] = reporter.is_ready(payload)
         reporter._record_ready_event(payload["ready"])
         return web.json_response(payload, status=200)
+
+    async def events_handler(request: web.Request) -> web.Response:
+        events = event_store.snapshot() if event_store else []
+        event_type = request.query.get("type")
+        if event_type:
+            events = [event for event in events if event.get("event_type") == event_type]
+        limit = request.query.get("limit")
+        if limit:
+            try:
+                count = int(limit)
+                events = events[:count]
+            except ValueError:
+                return web.json_response({"error": "Invalid limit"}, status=400)
+        return web.json_response({"events": events})
+
+    async def logs_tail_handler(request: web.Request) -> web.Response:
+        lines_param = request.query.get("lines", "200")
+        try:
+            lines = int(lines_param)
+        except ValueError:
+            return web.json_response({"error": "Invalid lines"}, status=400)
+        return web.json_response({"lines": get_log_tail(lines)})
+
+    async def metrics_handler(_: web.Request) -> web.Response:
+        uptime = time.time() - start_time
+        pipeline_payload = pipeline_status.as_dict() if pipeline_status else {"status": "unknown"}
+        return web.json_response(
+            {
+                "uptime_seconds": uptime,
+                "pipeline": pipeline_payload,
+                "events_count": len(event_store.snapshot()) if event_store else 0,
+            }
+        )
+
+    async def status_handler(_: web.Request) -> web.Response:
+        report = reporter.build_report()
+        uptime = time.time() - start_time
+        return web.json_response(
+            {
+                "status": report["status"],
+                "uptime_seconds": uptime,
+                "components": {
+                    "camera": report["components"]["camera"]["status"],
+                    "detector": report["pipeline"]["status"],
+                    "mqtt": report["components"]["mqtt"]["status"],
+                },
+            }
+        )
+
+    async def stats_handler(_: web.Request) -> web.Response:
+        return web.json_response(
+            {
+                "total_detections": 0,
+                "real_detections": 0,
+                "false_positives": 0,
+            }
+        )
 
     async def cameras_list_handler(_: web.Request) -> web.Response:
         return web.json_response({"cameras": camera_store.list_cameras()})
@@ -463,6 +521,11 @@ def create_app(
     app.router.add_get("/api/health", health_handler)
     app.router.add_get("/api/config", config_get_handler)
     app.router.add_post("/api/config", config_post_handler)
+    app.router.add_get("/api/events", events_handler)
+    app.router.add_get("/api/logs/tail", logs_tail_handler)
+    app.router.add_get("/api/metrics", metrics_handler)
+    app.router.add_get("/api/status", status_handler)
+    app.router.add_get("/api/stats", stats_handler)
     app.router.add_get("/api/cameras", cameras_list_handler)
     app.router.add_post("/api/cameras", cameras_create_handler)
     app.router.add_post("/api/cameras/test", camera_test_payload_handler)

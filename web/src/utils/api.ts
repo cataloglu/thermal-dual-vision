@@ -42,32 +42,21 @@ export interface SystemStats {
 /**
  * Detection event analysis details
  */
-export interface DetectionAnalysis {
-  real_motion: boolean;
-  confidence_score: number;
-  description: string;
-  detected_objects: string[];
-  threat_level?: string;
-  recommended_action?: string;
-  detailed_analysis?: string;
-  processing_time?: number;
-}
-
-/**
- * Detection event from /api/events
- */
-export interface DetectionEvent {
-  id: string;
+export interface SystemEvent {
+  event_id: string;
+  event_type: string;
   timestamp: string;
-  has_screenshots: boolean;
-  analysis: DetectionAnalysis;
+  source: string;
+  camera_id?: string | null;
+  payload?: Record<string, any>;
+  schema_version?: string;
 }
 
 /**
  * Events list response from /api/events
  */
 export interface EventsResponse {
-  events: DetectionEvent[];
+  events: SystemEvent[];
   total?: number;
 }
 

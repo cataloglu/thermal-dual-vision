@@ -2,7 +2,7 @@ import { h } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
 import { Table, TableColumn } from '../components/ui/Table';
 import { Card } from '../components/ui/Card';
-import { getEvents, DetectionEvent } from '../utils/api';
+import { getEvents, SystemEvent } from '../utils/api';
 
 /**
  * Events page - Complete list of motion detection events.
@@ -38,7 +38,9 @@ import { getEvents, DetectionEvent } from '../utils/api';
  */
 
 export function Events() {
-  const [events, setEvents] = useState<DetectionEvent[]>([]);
+  const [events, setEvents] = useState<SystemEvent[]>([]);
+  const [filterType, setFilterType] = useState<string>('all');
+  const [filterSource, setFilterSource] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -80,20 +82,7 @@ export function Events() {
     return `${Math.floor(diffMins / 1440)}d ago`;
   };
 
-  const getThreatColor = (threatLevel?: string): string => {
-    switch (threatLevel) {
-      case 'high':
-        return 'text-red-600 dark:text-red-400';
-      case 'medium':
-        return 'text-yellow-600 dark:text-yellow-400';
-      case 'low':
-        return 'text-green-600 dark:text-green-400';
-      default:
-        return 'text-gray-600 dark:text-gray-400';
-    }
-  };
-
-  const columns: TableColumn<DetectionEvent>[] = [
+  const columns: TableColumn<SystemEvent>[] = [
     {
       key: 'timestamp',
       label: 'Time',
@@ -110,99 +99,21 @@ export function Events() {
       )
     },
     {
-      key: 'status',
-      label: 'Status',
+      key: 'event_type',
+      label: 'Type',
+      width: 'w-40',
+      render: (event) => (
+        <span class="font-medium text-gray-900 dark:text-gray-100">
+          {event.event_type}
+        </span>
+      )
+    },
+    {
+      key: 'source',
+      label: 'Source',
       width: 'w-32',
       render: (event) => (
-        <div class="flex items-center gap-2">
-          <div
-            class={`w-2 h-2 rounded-full ${
-              event.analysis.real_motion ? 'bg-green-500' : 'bg-yellow-500'
-            }`}
-          ></div>
-          <span class={`font-medium ${
-            event.analysis.real_motion
-              ? 'text-green-600 dark:text-green-400'
-              : 'text-yellow-600 dark:text-yellow-400'
-          }`}>
-            {event.analysis.real_motion ? 'Motion' : 'Possible'}
-          </span>
-        </div>
-      )
-    },
-    {
-      key: 'description',
-      label: 'Description',
-      render: (event) => (
-        <div class="min-w-0">
-          <p class="text-gray-900 dark:text-gray-100 truncate">
-            {event.analysis.description}
-          </p>
-          {event.analysis.detected_objects.length > 0 && (
-            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              Objects: {event.analysis.detected_objects.join(', ')}
-            </p>
-          )}
-        </div>
-      )
-    },
-    {
-      key: 'confidence',
-      label: 'Confidence',
-      width: 'w-28',
-      render: (event) => (
-        <div class="text-center">
-          <div class="text-sm font-medium text-gray-900 dark:text-gray-100">
-            {Math.round(event.analysis.confidence_score * 100)}%
-          </div>
-          <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 mt-1">
-            <div
-              class={`h-1.5 rounded-full ${
-                event.analysis.confidence_score >= 0.8
-                  ? 'bg-green-500'
-                  : event.analysis.confidence_score >= 0.5
-                  ? 'bg-yellow-500'
-                  : 'bg-red-500'
-              }`}
-              style={{ width: `${event.analysis.confidence_score * 100}%` }}
-            ></div>
-          </div>
-        </div>
-      )
-    },
-    {
-      key: 'threat',
-      label: 'Threat Level',
-      width: 'w-28',
-      render: (event) => (
-        <div class="text-center">
-          {event.analysis.threat_level ? (
-            <span class={`font-medium capitalize ${getThreatColor(event.analysis.threat_level)}`}>
-              {event.analysis.threat_level}
-            </span>
-          ) : (
-            <span class="text-gray-400 dark:text-gray-600">-</span>
-          )}
-        </div>
-      )
-    },
-    {
-      key: 'screenshots',
-      label: 'Screenshots',
-      width: 'w-24',
-      render: (event) => (
-        <div class="text-center">
-          {event.has_screenshots ? (
-            <a
-              href={`/gallery#${event.id}`}
-              class="text-primary-600 dark:text-primary-400 hover:underline text-sm"
-            >
-              View
-            </a>
-          ) : (
-            <span class="text-gray-400 dark:text-gray-600 text-sm">None</span>
-          )}
-        </div>
+        <span class="text-sm text-gray-600 dark:text-gray-400">{event.source}</span>
       )
     }
   ];
@@ -247,11 +158,41 @@ export function Events() {
         </p>
       </div>
 
+      {/* Filters */}
+      <Card>
+        <div class="flex flex-col md:flex-row gap-3">
+          <select
+            value={filterType}
+            onChange={(e) => setFilterType((e.target as HTMLSelectElement).value)}
+            class="px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
+          >
+            <option value="all">All types</option>
+            {[...new Set(events.map((event) => event.event_type))].map((type) => (
+              <option key={type} value={type}>{type}</option>
+            ))}
+          </select>
+          <select
+            value={filterSource}
+            onChange={(e) => setFilterSource((e.target as HTMLSelectElement).value)}
+            class="px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
+          >
+            <option value="all">All sources</option>
+            {[...new Set(events.map((event) => event.source))].map((source) => (
+              <option key={source} value={source}>{source}</option>
+            ))}
+          </select>
+        </div>
+      </Card>
+
       {/* Events Table */}
       <Card>
         <Table
           columns={columns}
-          data={events}
+          data={events.filter((event) => {
+            if (filterType !== 'all' && event.event_type !== filterType) return false;
+            if (filterSource !== 'all' && event.source !== filterSource) return false;
+            return true;
+          })}
           loading={loading}
           emptyMessage="No events recorded yet"
           striped
