@@ -189,10 +189,8 @@ def update_config() -> tuple:
         # Update screenshot config
         if 'screenshots' in data:
             screenshot_data = data['screenshots']
-            if 'before_seconds' in screenshot_data:
-                _config.screenshots.before_seconds = int(screenshot_data['before_seconds'])
-            if 'after_seconds' in screenshot_data:
-                _config.screenshots.after_seconds = int(screenshot_data['after_seconds'])
+            if 'window_seconds' in screenshot_data:
+                _config.screenshots.window_seconds = int(screenshot_data['window_seconds'])
             if 'quality' in screenshot_data:
                 _config.screenshots.quality = int(screenshot_data['quality'])
             if 'max_stored' in screenshot_data:
@@ -285,7 +283,9 @@ def get_events() -> tuple:
                 'timestamp': screenshot.timestamp,
                 'has_screenshots': {
                     'before': screenshot.has_before,
-                    'now': screenshot.has_now,
+                    'early': screenshot.has_early,
+                    'peak': screenshot.has_peak,
+                    'late': screenshot.has_late,
                     'after': screenshot.has_after
                 }
             }
@@ -343,7 +343,9 @@ def list_screenshots() -> tuple:
                 'id': screenshot.id,
                 'timestamp': screenshot.timestamp,
                 'has_before': screenshot.has_before,
-                'has_now': screenshot.has_now,
+                'has_early': screenshot.has_early,
+                'has_peak': screenshot.has_peak,
+                'has_late': screenshot.has_late,
                 'has_after': screenshot.has_after,
                 'analysis': screenshot.analysis
             }
@@ -385,7 +387,9 @@ def get_screenshot_metadata(screenshot_id: str) -> tuple:
             'id': metadata.id,
             'timestamp': metadata.timestamp,
             'has_before': metadata.has_before,
-            'has_now': metadata.has_now,
+            'has_early': metadata.has_early,
+            'has_peak': metadata.has_peak,
+            'has_late': metadata.has_late,
             'has_after': metadata.has_after,
             'analysis': metadata.analysis
         }
@@ -403,15 +407,15 @@ def get_screenshot_image(screenshot_id: str, image_type: str) -> tuple:
 
     Args:
         screenshot_id: Screenshot set ID
-        image_type: Type of image ("before", "now", or "after")
+        image_type: Type of image ("before", "early", "peak", "late", or "after")
 
     Returns:
         Image file (JPEG) or error and HTTP 400/404/500
     """
     try:
         # Validate image type
-        if image_type not in ['before', 'now', 'after']:
-            return jsonify({'error': 'Invalid image type. Must be "before", "now", or "after"'}), 400
+        if image_type not in ['before', 'early', 'peak', 'late', 'after']:
+            return jsonify({'error': 'Invalid image type. Must be "before", "early", "peak", "late", or "after"'}), 400
 
         # Get image path
         image_path = _screenshot_manager.get_image_path(screenshot_id, image_type)

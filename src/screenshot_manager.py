@@ -46,7 +46,9 @@ class ScreenshotMetadata:
     id: str
     timestamp: str
     has_before: bool
-    has_now: bool
+    has_early: bool
+    has_peak: bool
+    has_late: bool
     has_after: bool
     analysis: Optional[Dict[str, Any]] = None
 
@@ -121,12 +123,30 @@ class ScreenshotManager:
                     [cv2.IMWRITE_JPEG_QUALITY, self.config.quality]
                 )
 
-            # Save now screenshot
-            if screenshots.now is not None:
-                now_path = screenshot_dir / "now.jpg"
+            # Save early screenshot
+            if screenshots.early is not None:
+                early_path = screenshot_dir / "early.jpg"
                 cv2.imwrite(
-                    str(now_path),
-                    screenshots.now,
+                    str(early_path),
+                    screenshots.early,
+                    [cv2.IMWRITE_JPEG_QUALITY, self.config.quality]
+                )
+
+            # Save peak screenshot
+            if screenshots.peak is not None:
+                peak_path = screenshot_dir / "peak.jpg"
+                cv2.imwrite(
+                    str(peak_path),
+                    screenshots.peak,
+                    [cv2.IMWRITE_JPEG_QUALITY, self.config.quality]
+                )
+
+            # Save late screenshot
+            if screenshots.late is not None:
+                late_path = screenshot_dir / "late.jpg"
+                cv2.imwrite(
+                    str(late_path),
+                    screenshots.late,
                     [cv2.IMWRITE_JPEG_QUALITY, self.config.quality]
                 )
 
@@ -144,7 +164,9 @@ class ScreenshotManager:
                 "id": screenshot_id,
                 "timestamp": screenshots.timestamp.isoformat(),
                 "has_before": screenshots.before is not None,
-                "has_now": screenshots.now is not None,
+                "has_early": screenshots.early is not None,
+                "has_peak": screenshots.peak is not None,
+                "has_late": screenshots.late is not None,
                 "has_after": screenshots.after is not None,
             }
 
@@ -211,11 +233,23 @@ class ScreenshotManager:
                 if before_path.exists():
                     before = cv2.imread(str(before_path))
 
-            now = None
-            if metadata.get("has_now", False):
-                now_path = screenshot_dir / "now.jpg"
-                if now_path.exists():
-                    now = cv2.imread(str(now_path))
+            early = None
+            if metadata.get("has_early", False):
+                early_path = screenshot_dir / "early.jpg"
+                if early_path.exists():
+                    early = cv2.imread(str(early_path))
+
+            peak = None
+            if metadata.get("has_peak", False):
+                peak_path = screenshot_dir / "peak.jpg"
+                if peak_path.exists():
+                    peak = cv2.imread(str(peak_path))
+
+            late = None
+            if metadata.get("has_late", False):
+                late_path = screenshot_dir / "late.jpg"
+                if late_path.exists():
+                    late = cv2.imread(str(late_path))
 
             after = None
             if metadata.get("has_after", False):
@@ -228,7 +262,9 @@ class ScreenshotManager:
 
             return ScreenshotSet(
                 before=before,
-                now=now,
+                early=early,
+                peak=peak,
+                late=late,
                 after=after,
                 timestamp=timestamp
             )
@@ -263,7 +299,9 @@ class ScreenshotManager:
                 id=data["id"],
                 timestamp=data["timestamp"],
                 has_before=data["has_before"],
-                has_now=data["has_now"],
+                has_early=data["has_early"],
+                has_peak=data["has_peak"],
+                has_late=data["has_late"],
                 has_after=data["has_after"],
                 analysis=data.get("analysis")
             )
@@ -312,14 +350,14 @@ class ScreenshotManager:
     def get_image_path(
         self,
         screenshot_id: str,
-        image_type: str = "now"
+        image_type: str = "peak"
     ) -> Optional[Path]:
         """
         Get the file path for a specific image in a screenshot set.
 
         Args:
             screenshot_id: Screenshot set ID
-            image_type: Type of image ("before", "now", or "after")
+            image_type: Type of image ("before", "early", "peak", "late", or "after")
 
         Returns:
             Path to image file or None if not found

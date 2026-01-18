@@ -67,7 +67,9 @@ export interface Screenshot {
   id: string;
   timestamp: string;
   has_before: boolean;
-  has_now: boolean;
+  has_early: boolean;
+  has_peak: boolean;
+  has_late: boolean;
   has_after: boolean;
   analysis?: {
     gercek_hareket?: boolean;
@@ -116,8 +118,7 @@ export interface LLMConfig {
 }
 
 export interface ScreenshotConfig {
-  before_seconds: number;
-  after_seconds: number;
+  window_seconds: number;
   quality: number;
   max_stored: number;
   buffer_seconds: number;

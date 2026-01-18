@@ -46,8 +46,7 @@ class LLMConfig:
 @dataclass
 class ScreenshotConfig:
     """Screenshot configuration."""
-    before_seconds: int = 3
-    after_seconds: int = 3
+    window_seconds: int = 9
     quality: int = 85
     max_stored: int = 100
     buffer_seconds: int = 10
@@ -184,15 +183,9 @@ class Config:
         # Screenshots
         _apply_env_int(
             env,
-            "SCREENSHOT_BEFORE",
-            lambda value: setattr(config.screenshots, "before_seconds", value),
-            config.screenshots.before_seconds,
-        )
-        _apply_env_int(
-            env,
-            "SCREENSHOT_AFTER",
-            lambda value: setattr(config.screenshots, "after_seconds", value),
-            config.screenshots.after_seconds,
+            "SCREENSHOT_WINDOW_SECONDS",
+            lambda value: setattr(config.screenshots, "window_seconds", value),
+            config.screenshots.window_seconds,
         )
 
         # MQTT
@@ -272,8 +265,7 @@ class Config:
                 "timeout": self.llm.timeout,
             },
             "screenshots": {
-                "before_seconds": self.screenshots.before_seconds,
-                "after_seconds": self.screenshots.after_seconds,
+                "window_seconds": self.screenshots.window_seconds,
                 "quality": self.screenshots.quality,
                 "max_stored": self.screenshots.max_stored,
                 "buffer_seconds": self.screenshots.buffer_seconds,
@@ -425,11 +417,8 @@ def _apply_saved_config(config: Config, saved: Dict[str, Any]) -> None:
     config.llm.timeout = llm.get("timeout", config.llm.timeout)
 
     screenshots = saved.get("screenshots", {})
-    config.screenshots.before_seconds = screenshots.get(
-        "before_seconds", config.screenshots.before_seconds
-    )
-    config.screenshots.after_seconds = screenshots.get(
-        "after_seconds", config.screenshots.after_seconds
+    config.screenshots.window_seconds = screenshots.get(
+        "window_seconds", config.screenshots.window_seconds
     )
     config.screenshots.quality = screenshots.get("quality", config.screenshots.quality)
     config.screenshots.max_stored = screenshots.get("max_stored", config.screenshots.max_stored)

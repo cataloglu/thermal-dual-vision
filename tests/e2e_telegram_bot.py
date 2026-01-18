@@ -24,14 +24,20 @@ class MockScreenshotSet:
     def __init__(self):
         """Initialize mock screenshot set with sample frames."""
         # Create sample BGR frames (100x100 pixels with different colors)
-        self.before_frame = np.zeros((100, 100, 3), dtype=np.uint8)
-        self.before_frame[:, :] = [0, 0, 255]  # Red
+        self.before = np.zeros((100, 100, 3), dtype=np.uint8)
+        self.before[:, :] = [0, 0, 255]  # Red
 
-        self.now_frame = np.zeros((100, 100, 3), dtype=np.uint8)
-        self.now_frame[:, :] = [0, 255, 0]  # Green
+        self.early = np.zeros((100, 100, 3), dtype=np.uint8)
+        self.early[:, :] = [0, 128, 255]  # Orange
 
-        self.after_frame = np.zeros((100, 100, 3), dtype=np.uint8)
-        self.after_frame[:, :] = [255, 0, 0]  # Blue
+        self.peak = np.zeros((100, 100, 3), dtype=np.uint8)
+        self.peak[:, :] = [0, 255, 0]  # Green
+
+        self.late = np.zeros((100, 100, 3), dtype=np.uint8)
+        self.late[:, :] = [255, 255, 0]  # Cyan
+
+        self.after = np.zeros((100, 100, 3), dtype=np.uint8)
+        self.after[:, :] = [255, 0, 0]  # Blue
 
         self.timestamp = datetime.now()
 

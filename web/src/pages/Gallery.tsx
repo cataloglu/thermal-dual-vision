@@ -7,13 +7,13 @@ import { getScreenshots, Screenshot, ScreenshotsResponse } from '../utils/api';
  * Gallery page - Grid view of saved motion detection screenshots.
  *
  * Displays a responsive grid of screenshot thumbnails from detection events.
- * Each screenshot shows the "now" moment of the detection, with timestamp
+ * Each screenshot shows the peak moment of the detection, with timestamp
  * and detection status overlay.
  *
  * Features:
  * - Responsive grid layout (1-4 columns based on screen size)
  * - Click to view full-size image in modal
- * - Navigate between before/now/after images in modal
+ * - Navigate between before/early/peak/late/after images in modal
  * - Loading and error states with retry
  * - Real-time detection status indicators
  * - Auto-refresh capability
@@ -24,14 +24,14 @@ import { getScreenshots, Screenshot, ScreenshotsResponse } from '../utils/api';
  * - /api/screenshots/<id>/<type> - Individual images
  */
 
-type ImageType = 'before' | 'now' | 'after';
+type ImageType = 'before' | 'early' | 'peak' | 'late' | 'after';
 
 export function Gallery() {
   const [screenshots, setScreenshots] = useState<Screenshot[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [selectedType, setSelectedType] = useState<ImageType>('now');
+  const [selectedType, setSelectedType] = useState<ImageType>('peak');
 
   useEffect(() => {
     fetchScreenshots();
@@ -59,7 +59,7 @@ export function Gallery() {
 
   const openModal = (id: string) => {
     setSelectedId(id);
-    setSelectedType('now');
+    setSelectedType('peak');
   };
 
   const closeModal = () => {
@@ -144,7 +144,7 @@ export function Gallery() {
               {/* Screenshot Image */}
               <div class="aspect-video bg-gray-900 relative overflow-hidden">
                 <img
-                  src={getImageUrl(screenshot.id, 'now')}
+                  src={getImageUrl(screenshot.id, 'peak')}
                   alt={`Screenshot from ${formatTimestamp(screenshot.timestamp)}`}
                   class="w-full h-full object-cover"
                   loading="lazy"
@@ -258,16 +258,40 @@ export function Gallery() {
                     Before
                   </button>
                 )}
-                {selectedScreenshot.has_now && (
+                {selectedScreenshot.has_early && (
                   <button
-                    onClick={() => setSelectedType('now')}
+                    onClick={() => setSelectedType('early')}
                     class={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                      selectedType === 'now'
+                      selectedType === 'early'
                         ? 'bg-primary-600 text-white'
                         : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
                     }`}
                   >
-                    Now
+                    Early
+                  </button>
+                )}
+                {selectedScreenshot.has_peak && (
+                  <button
+                    onClick={() => setSelectedType('peak')}
+                    class={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                      selectedType === 'peak'
+                        ? 'bg-primary-600 text-white'
+                        : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    Peak
+                  </button>
+                )}
+                {selectedScreenshot.has_late && (
+                  <button
+                    onClick={() => setSelectedType('late')}
+                    class={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                      selectedType === 'late'
+                        ? 'bg-primary-600 text-white'
+                        : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    Late
                   </button>
                 )}
                 {selectedScreenshot.has_after && (

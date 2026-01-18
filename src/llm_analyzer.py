@@ -23,12 +23,14 @@ from src.utils import RateLimiter, encode_frame_to_base64
 logger = get_logger("llm_analyzer")
 
 # Turkish system prompt for security camera analysis
-SYSTEM_PROMPT = """Sen bir güvenlik kamerası görüntü analiz uzmanısın. Sana 3 görüntü veriyorum:
-1. ÖNCE: Hareket algılanmadan 3 saniye önce
-2. ŞİMDİ: Hareket algılandığı an
-3. SONRA: Hareket algılandıktan 3 saniye sonra
+SYSTEM_PROMPT = """Sen bir güvenlik kamerası görüntü analiz uzmanısın. Sana 5 görüntü veriyorum:
+1. ÖNCE: Hareket algılanmadan önce
+2. ERKEN: Hareketin başlangıç evresi
+3. ZİRVE: Hareketin en belirgin anı
+4. GEÇ: Hareketin son evresi
+5. SONRA: Hareket tamamlandıktan sonra
 
-Bu 3 görüntüyü karşılaştırarak analiz et:
+Bu 5 görüntüyü karşılaştırarak analiz et:
 
 1. Gerçek bir hareket var mı? (Evet/Hayır)
 2. Ne değişti? (Detaylı açıkla)
@@ -87,9 +89,11 @@ class JSONParseError(LLMAnalyzerError):
 @dataclass
 class ScreenshotSet:
     """Set of screenshots captured around a motion event."""
-    before: Any  # NDArray[np.uint8] - Screenshot before motion
-    now: Any  # NDArray[np.uint8] - Screenshot at motion detection
-    after: Optional[Any]  # NDArray[np.uint8] - Screenshot after motion (may be None initially)
+    before: Any  # NDArray[np.uint8] - Before motion
+    early: Any  # NDArray[np.uint8] - Early motion
+    peak: Any  # NDArray[np.uint8] - Peak motion
+    late: Any  # NDArray[np.uint8] - Late motion
+    after: Any  # NDArray[np.uint8] - After motion
     timestamp: datetime  # When motion was detected
 
 
@@ -150,7 +154,10 @@ class LLMAnalyzer:
 
         # Encode images to base64
         before_b64 = encode_frame_to_base64(screenshots.before)
-        now_b64 = encode_frame_to_base64(screenshots.now)
+        early_b64 = encode_frame_to_base64(screenshots.early)
+        peak_b64 = encode_frame_to_base64(screenshots.peak)
+        late_b64 = encode_frame_to_base64(screenshots.late)
+        after_b64 = encode_frame_to_base64(screenshots.after)
 
         # Build image content list
         image_content: List[Dict[str, Any]] = [
@@ -167,33 +174,51 @@ class LLMAnalyzer:
             },
             {
                 "type": "text",
-                "text": "ŞİMDİ (Hareket algılandığı an):"
+                "text": "ERKEN (Hareketin başlangıcı):"
             },
             {
                 "type": "image_url",
                 "image_url": {
-                    "url": f"data:image/jpeg;base64,{now_b64}",
+                    "url": f"data:image/jpeg;base64,{early_b64}",
                     "detail": "low"
                 }
             }
         ]
-
-        # Add after screenshot if available
-        if screenshots.after is not None:
-            after_b64 = encode_frame_to_base64(screenshots.after)
-            image_content.extend([
-                {
-                    "type": "text",
-                    "text": "SONRA (Hareket algılandıktan sonra):"
-                },
-                {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": f"data:image/jpeg;base64,{after_b64}",
-                        "detail": "low"
-                    }
+        image_content.extend([
+            {
+                "type": "text",
+                "text": "ZİRVE (Hareketin en belirgin anı):"
+            },
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:image/jpeg;base64,{peak_b64}",
+                    "detail": "low"
                 }
-            ])
+            },
+            {
+                "type": "text",
+                "text": "GEÇ (Hareketin son evresi):"
+            },
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:image/jpeg;base64,{late_b64}",
+                    "detail": "low"
+                }
+            },
+            {
+                "type": "text",
+                "text": "SONRA (Hareket tamamlandıktan sonra):"
+            },
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:image/jpeg;base64,{after_b64}",
+                    "detail": "low"
+                }
+            }
+        ])
 
         # Wait for rate limiter and call OpenAI API with error handling
         try:

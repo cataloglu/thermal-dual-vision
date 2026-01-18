@@ -35,12 +35,16 @@ def sample_screenshot_set():
     """Create sample screenshot set for testing."""
     # Create simple test images (100x100 BGR)
     before = np.zeros((100, 100, 3), dtype=np.uint8)
-    now = np.ones((100, 100, 3), dtype=np.uint8) * 128
+    early = np.ones((100, 100, 3), dtype=np.uint8) * 64
+    peak = np.ones((100, 100, 3), dtype=np.uint8) * 128
+    late = np.ones((100, 100, 3), dtype=np.uint8) * 192
     after = np.ones((100, 100, 3), dtype=np.uint8) * 255
 
     return ScreenshotSet(
         before=before,
-        now=now,
+        early=early,
+        peak=peak,
+        late=late,
         after=after,
         timestamp=datetime.now()
     )
@@ -112,25 +116,34 @@ class TestScreenshotSet:
     def test_screenshot_set_creation(self, sample_screenshot_set):
         """Test creating ScreenshotSet."""
         assert sample_screenshot_set.before is not None
-        assert sample_screenshot_set.now is not None
+        assert sample_screenshot_set.early is not None
+        assert sample_screenshot_set.peak is not None
+        assert sample_screenshot_set.late is not None
         assert sample_screenshot_set.after is not None
         assert sample_screenshot_set.timestamp is not None
 
-    def test_screenshot_set_without_after(self):
-        """Test ScreenshotSet with after=None."""
+    def test_screenshot_set_full_sequence(self):
+        """Test ScreenshotSet with all five frames."""
         before = np.zeros((100, 100, 3), dtype=np.uint8)
-        now = np.ones((100, 100, 3), dtype=np.uint8) * 128
+        early = np.ones((100, 100, 3), dtype=np.uint8) * 64
+        peak = np.ones((100, 100, 3), dtype=np.uint8) * 128
+        late = np.ones((100, 100, 3), dtype=np.uint8) * 192
+        after = np.ones((100, 100, 3), dtype=np.uint8) * 255
 
         screenshot_set = ScreenshotSet(
             before=before,
-            now=now,
-            after=None,
+            early=early,
+            peak=peak,
+            late=late,
+            after=after,
             timestamp=datetime.now()
         )
 
         assert screenshot_set.before is not None
-        assert screenshot_set.now is not None
-        assert screenshot_set.after is None
+        assert screenshot_set.early is not None
+        assert screenshot_set.peak is not None
+        assert screenshot_set.late is not None
+        assert screenshot_set.after is not None
 
 
 class TestLLMAnalyzerInit:
@@ -197,14 +210,14 @@ class TestLLMAnalyzerAnalyze:
     @pytest.mark.asyncio
     @patch("src.llm_analyzer.encode_frame_to_base64")
     @patch("src.llm_analyzer.AsyncOpenAI")
-    async def test_analysis_without_after_screenshot(
+    async def test_analysis_with_full_sequence(
         self,
         mock_openai_class,
         mock_encode,
         llm_config,
         valid_response_json
     ):
-        """Test analysis when after screenshot is None."""
+        """Test analysis with all five screenshots."""
         mock_encode.return_value = "base64encodedimage"
 
         mock_message = MagicMock()
@@ -220,13 +233,18 @@ class TestLLMAnalyzerAnalyze:
         mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
         mock_openai_class.return_value = mock_client
 
-        # Create screenshot set without after
+        # Create screenshot set with full sequence
         before = np.zeros((100, 100, 3), dtype=np.uint8)
-        now = np.ones((100, 100, 3), dtype=np.uint8) * 128
+        early = np.ones((100, 100, 3), dtype=np.uint8) * 64
+        peak = np.ones((100, 100, 3), dtype=np.uint8) * 128
+        late = np.ones((100, 100, 3), dtype=np.uint8) * 192
+        after = np.ones((100, 100, 3), dtype=np.uint8) * 255
         screenshot_set = ScreenshotSet(
             before=before,
-            now=now,
-            after=None,
+            early=early,
+            peak=peak,
+            late=late,
+            after=after,
             timestamp=datetime.now()
         )
 
@@ -234,8 +252,8 @@ class TestLLMAnalyzerAnalyze:
         result = await analyzer.analyze(screenshot_set)
 
         assert isinstance(result, AnalysisResult)
-        # encode_frame_to_base64 should be called only 2 times (before, now)
-        assert mock_encode.call_count == 2
+        # encode_frame_to_base64 should be called for all 5 frames
+        assert mock_encode.call_count == 5
 
     @pytest.mark.asyncio
     @patch("src.llm_analyzer.encode_frame_to_base64")

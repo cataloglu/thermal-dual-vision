@@ -187,10 +187,10 @@ class TelegramBot:
     @retry_async(max_attempts=3, delay=1.0, backoff=2.0)
     async def send_alert(self, screenshots: "ScreenshotSet", analysis: "AnalysisResult") -> None:
         """
-        Send motion detection alert with message and 3 images as media group.
+        Send motion detection alert with message and 5 images as media group.
 
         Args:
-            screenshots: ScreenshotSet containing before/now/after images and timestamp
+            screenshots: ScreenshotSet containing 5 images and timestamp
             analysis: AnalysisResult containing analysis details
         """
         if not TELEGRAM_AVAILABLE:
@@ -215,9 +215,11 @@ class TelegramBot:
 
             # Convert frames to JPEG bytes
             try:
-                before_bytes = encode_frame_to_bytes(screenshots.before_frame)
-                now_bytes = encode_frame_to_bytes(screenshots.now_frame)
-                after_bytes = encode_frame_to_bytes(screenshots.after_frame)
+                before_bytes = encode_frame_to_bytes(screenshots.before)
+                early_bytes = encode_frame_to_bytes(screenshots.early)
+                peak_bytes = encode_frame_to_bytes(screenshots.peak)
+                late_bytes = encode_frame_to_bytes(screenshots.late)
+                after_bytes = encode_frame_to_bytes(screenshots.after)
             except Exception as e:
                 self.logger.error(f"Failed to encode frames: {e}")
                 return
@@ -225,7 +227,9 @@ class TelegramBot:
             # Create media group (first photo has caption with alert message)
             media_group = [
                 InputMediaPhoto(media=before_bytes, caption=alert_text, parse_mode="Markdown"),
-                InputMediaPhoto(media=now_bytes),
+                InputMediaPhoto(media=early_bytes),
+                InputMediaPhoto(media=peak_bytes),
+                InputMediaPhoto(media=late_bytes),
                 InputMediaPhoto(media=after_bytes)
             ]
 
@@ -245,7 +249,7 @@ class TelegramBot:
         Format motion detection alert message.
 
         Args:
-            screenshots: ScreenshotSet containing before/now/after images and timestamp
+            screenshots: ScreenshotSet containing 5 images and timestamp
             analysis: AnalysisResult containing analysis details
 
         Returns:
