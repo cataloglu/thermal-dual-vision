@@ -499,7 +499,7 @@ class MQTTClient:
                 await asyncio.sleep(delay)
 
                 # Attempt to reconnect
-                logger.info(f"Attempting to reconnect to MQTT broker...")
+                logger.info("Attempting to reconnect to MQTT broker...")
                 await self.connect()
 
                 if self._connected:

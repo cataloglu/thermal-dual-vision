@@ -334,7 +334,6 @@ class TestLLMAnalyzerErrorHandling:
         mock_encode.return_value = "base64encodedimage"
 
         mock_client = AsyncMock()
-        mock_request = MagicMock()
         mock_response = MagicMock()
         mock_response.status_code = 429
         mock_client.chat.completions.create = AsyncMock(
