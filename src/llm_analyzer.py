@@ -17,20 +17,21 @@ from openai import (
 
 from src.config import LLMConfig
 from src.logger import get_logger
-from src.utils import RateLimiter, encode_frame_to_base64
+from src.utils import RateLimiter, build_event_collage, encode_frame_to_base64
 
 # Initialize logger
 logger = get_logger("llm_analyzer")
 
 # Turkish system prompt for security camera analysis
-SYSTEM_PROMPT = """Sen bir güvenlik kamerası görüntü analiz uzmanısın. Sana 5 görüntü veriyorum:
-1. ÖNCE: Hareket algılanmadan önce
-2. ERKEN: Hareketin başlangıç evresi
-3. ZİRVE: Hareketin en belirgin anı
-4. GEÇ: Hareketin son evresi
-5. SONRA: Hareket tamamlandıktan sonra
+SYSTEM_PROMPT = """Sen bir güvenlik kamerası görüntü analiz uzmanısın. Sana tek bir kolaj veriyorum.
+Kolajda 5 kare soldan sağa zaman sırasıyla yer alır:
+1. ÖNCE
+2. ERKEN
+3. ZİRVE
+4. GEÇ
+5. SONRA
 
-Bu 5 görüntüyü karşılaştırarak analiz et:
+Kolajdaki 5 kareyi karşılaştırarak analiz et:
 
 1. Gerçek bir hareket var mı? (Evet/Hayır)
 2. Ne değişti? (Detaylı açıkla)
@@ -95,6 +96,8 @@ class ScreenshotSet:
     late: Any  # NDArray[np.uint8] - Late motion
     after: Any  # NDArray[np.uint8] - After motion
     timestamp: datetime  # When motion was detected
+    camera_name: Optional[str] = None
+    camera_type: str = "color"
 
 
 @dataclass
@@ -152,73 +155,39 @@ class LLMAnalyzer:
 
         start_time = time.time()
 
-        # Encode images to base64
-        before_b64 = encode_frame_to_base64(screenshots.before)
-        early_b64 = encode_frame_to_base64(screenshots.early)
-        peak_b64 = encode_frame_to_base64(screenshots.peak)
-        late_b64 = encode_frame_to_base64(screenshots.late)
-        after_b64 = encode_frame_to_base64(screenshots.after)
+        camera_name = screenshots.camera_name or "Camera"
+        is_thermal = screenshots.camera_type == "thermal"
+        frames = [
+            screenshots.before,
+            screenshots.early,
+            screenshots.peak,
+            screenshots.late,
+            screenshots.after,
+        ]
+        labels = ["before", "early", "peak", "late", "after"]
+        collage = build_event_collage(
+            frames=frames,
+            labels=labels,
+            camera_name=camera_name,
+            timestamp=screenshots.timestamp,
+            is_thermal=is_thermal,
+        )
+        collage_b64 = encode_frame_to_base64(collage)
 
         # Build image content list
         image_content: List[Dict[str, Any]] = [
             {
                 "type": "text",
-                "text": "ÖNCE (Hareket algılanmadan önce):"
+                "text": "5 kareli kolaj (soldan saga zaman sirasi)"
             },
             {
                 "type": "image_url",
                 "image_url": {
-                    "url": f"data:image/jpeg;base64,{before_b64}",
+                    "url": f"data:image/jpeg;base64,{collage_b64}",
                     "detail": "low"
                 }
             },
-            {
-                "type": "text",
-                "text": "ERKEN (Hareketin başlangıcı):"
-            },
-            {
-                "type": "image_url",
-                "image_url": {
-                    "url": f"data:image/jpeg;base64,{early_b64}",
-                    "detail": "low"
-                }
-            }
         ]
-        image_content.extend([
-            {
-                "type": "text",
-                "text": "ZİRVE (Hareketin en belirgin anı):"
-            },
-            {
-                "type": "image_url",
-                "image_url": {
-                    "url": f"data:image/jpeg;base64,{peak_b64}",
-                    "detail": "low"
-                }
-            },
-            {
-                "type": "text",
-                "text": "GEÇ (Hareketin son evresi):"
-            },
-            {
-                "type": "image_url",
-                "image_url": {
-                    "url": f"data:image/jpeg;base64,{late_b64}",
-                    "detail": "low"
-                }
-            },
-            {
-                "type": "text",
-                "text": "SONRA (Hareket tamamlandıktan sonra):"
-            },
-            {
-                "type": "image_url",
-                "image_url": {
-                    "url": f"data:image/jpeg;base64,{after_b64}",
-                    "detail": "low"
-                }
-            }
-        ])
 
         # Wait for rate limiter and call OpenAI API with error handling
         try:

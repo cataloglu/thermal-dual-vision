@@ -252,8 +252,8 @@ class TestLLMAnalyzerAnalyze:
         result = await analyzer.analyze(screenshot_set)
 
         assert isinstance(result, AnalysisResult)
-        # encode_frame_to_base64 should be called for all 5 frames
-        assert mock_encode.call_count == 5
+        # encode_frame_to_base64 should be called once for the collage
+        assert mock_encode.call_count == 1
 
     @pytest.mark.asyncio
     @patch("src.llm_analyzer.encode_frame_to_base64")

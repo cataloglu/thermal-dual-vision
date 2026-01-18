@@ -5,7 +5,7 @@ import base64
 import io
 from datetime import datetime
 from functools import wraps
-from typing import Any, Callable, Optional, TypeVar
+from typing import Any, Callable, Optional, Sequence, TypeVar
 
 import cv2
 import numpy as np
@@ -53,6 +53,60 @@ def encode_frame_to_bytes(frame: np.ndarray, quality: int = 85) -> bytes:
     encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), quality]
     _, buffer = cv2.imencode(".jpg", frame, encode_param)
     return buffer.tobytes()
+
+
+def build_event_collage(
+    frames: Sequence[np.ndarray],
+    labels: Sequence[str],
+    camera_name: str,
+    timestamp: datetime,
+    is_thermal: bool = False,
+) -> np.ndarray:
+    """Build a left-to-right collage with overlays for event frames."""
+    if not frames:
+        raise ValueError("No frames provided for collage")
+    if len(frames) != len(labels):
+        raise ValueError("Frame and label counts must match")
+
+    base_height, base_width = frames[0].shape[:2]
+    timestamp_text = timestamp.strftime("%Y-%m-%d %H:%M:%S")
+    total = len(frames)
+    output_frames = []
+
+    for index, frame in enumerate(frames):
+        resized = cv2.resize(frame, (base_width, base_height))
+        overlay = resized.copy()
+
+        label_text = f"{camera_name} | {timestamp_text} | {index + 1}/{total} {labels[index]}"
+        cv2.putText(
+            overlay,
+            label_text,
+            (10, 24),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (255, 255, 255),
+            2,
+            cv2.LINE_AA,
+        )
+
+        if is_thermal:
+            min_val = float(resized.min())
+            max_val = float(resized.max())
+            temp_text = f"Temp min/max: {min_val:.1f}/{max_val:.1f}"
+            cv2.putText(
+                overlay,
+                temp_text,
+                (10, base_height - 12),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                (255, 255, 255),
+                2,
+                cv2.LINE_AA,
+            )
+
+        output_frames.append(overlay)
+
+    return cv2.hconcat(output_frames)
 
 
 def decode_base64_to_frame(base64_string: str) -> np.ndarray:
