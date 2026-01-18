@@ -1,7 +1,6 @@
 """Flask web server with Home Assistant ingress support."""
 
 import os
-from typing import Optional
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -89,7 +88,7 @@ def create_app() -> Flask:
         return send_from_directory(app.static_folder, 'index.html')
 
     # Initialize WebSocket support
-    socketio = init_socketio(app)
+    init_socketio(app)
 
     return app
 

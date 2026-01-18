@@ -1,15 +1,13 @@
 """Screenshot storage manager for Smart Motion Detector."""
 
 import json
-import os
 import shutil
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import cv2
-import numpy as np
 
 from src.config import ScreenshotConfig
 from src.llm_analyzer import AnalysisResult, ScreenshotSet

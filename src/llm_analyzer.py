@@ -3,9 +3,9 @@
 import asyncio
 import json
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from openai import (
     AsyncOpenAI,
@@ -21,11 +21,6 @@ from src.utils import RateLimiter, encode_frame_to_base64
 
 # Initialize logger
 logger = get_logger("llm_analyzer")
-
-if TYPE_CHECKING:
-    import numpy as np
-    from numpy.typing import NDArray
-
 
 # Turkish system prompt for security camera analysis
 SYSTEM_PROMPT = """Sen bir güvenlik kamerası görüntü analiz uzmanısın. Sana 3 görüntü veriyorum:

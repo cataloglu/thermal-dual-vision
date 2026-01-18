@@ -2,8 +2,7 @@
 
 import asyncio
 import json
-from typing import Any, Dict
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -169,6 +168,7 @@ class TestMQTTClientConnect:
                 await mqtt_client.connect()
 
         # Verify reconnect was scheduled
+        assert mock_reconnect.called
         assert mqtt_client._connected is False
         assert mqtt_client._reconnect_task is not None
 
@@ -548,8 +548,6 @@ class TestMQTTClientReconnect:
         """Test that reconnect loop retries connection."""
         # Track connection attempts
         connect_attempts = []
-
-        original_connect = mqtt_client.connect
 
         async def mock_connect():
             connect_attempts.append(asyncio.get_event_loop().time())

@@ -1,8 +1,8 @@
 """WebSocket handler for real-time event streaming."""
 
-from typing import Any, Dict, List, Optional, Callable
+from typing import Any, Dict, List, Optional
 from flask import request
-from flask_socketio import SocketIO, emit, disconnect
+from flask_socketio import SocketIO, emit
 
 from src.logger import get_logger
 
