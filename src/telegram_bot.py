@@ -159,6 +159,32 @@ class TelegramBot:
                 self.logger.error(f"Failed to send message to chat_id {chat_id}: {e}")
 
     @retry_async(max_attempts=3, delay=1.0, backoff=2.0)
+    async def send_photo_bytes(self, image_bytes: bytes, caption: str = "Test snapshot") -> None:
+        """Send a single photo to all configured chat IDs."""
+        if not TELEGRAM_AVAILABLE:
+            self.logger.warning("Cannot send photo: python-telegram-bot not installed")
+            return
+
+        if not self.application:
+            self.logger.warning("Cannot send photo: Application not initialized")
+            return
+
+        if not self.config.chat_ids:
+            self.logger.warning("Cannot send photo: No chat IDs configured")
+            return
+
+        for chat_id in self.config.chat_ids:
+            try:
+                await self.application.bot.send_photo(
+                    chat_id=int(chat_id),
+                    photo=image_bytes,
+                    caption=caption,
+                )
+                self.logger.debug(f"Photo sent to chat_id: {chat_id}")
+            except Exception as e:
+                self.logger.error(f"Failed to send photo to chat_id {chat_id}: {e}")
+
+    @retry_async(max_attempts=3, delay=1.0, backoff=2.0)
     async def send_alert(self, screenshots: "ScreenshotSet", analysis: "AnalysisResult") -> None:
         """
         Send motion detection alert with message and 3 images as media group.

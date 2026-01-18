@@ -36,6 +36,13 @@ class CameraStore:
                 return self._attach_status(self._redact_camera(camera))
         return None
 
+    def get_camera_raw(self, camera_id: str) -> Optional[Dict[str, Any]]:
+        payload = self.store.load()
+        for camera in payload.get("cameras", []):
+            if camera.get("id") == camera_id:
+                return camera
+        return None
+
     def create_camera(self, data: Dict[str, Any]) -> Dict[str, Any]:
         errors = _validate_camera_payload(data)
         if errors:
@@ -84,6 +91,13 @@ class CameraStore:
             camera_id=camera_id,
             update_status=self._update_status,
         )
+
+    def snapshot_camera(self, camera_id: str) -> Dict[str, Any]:
+        payload = self.store.load()
+        camera = next((item for item in payload.get("cameras", []) if item.get("id") == camera_id), None)
+        if not camera:
+            raise KeyError(camera_id)
+        return _test_camera_url(_primary_camera_url(camera))
 
     def test_camera_payload(self, data: Dict[str, Any]) -> Dict[str, Any]:
         camera = _normalize_camera(data, partial=True)
