@@ -92,8 +92,8 @@ def main() -> None:
     controller = PipelineController(lambda: pipeline.__class__(config), pipeline_status, logger)
     controller.start()
 
-    host = config_store_env("HOST", "0.0.0.0")
-    port = int(config_store_env("PORT", "8000"))
+    host = os.getenv("HOST") or config.general.bind_host
+    port = int(os.getenv("PORT") or config.general.http_port)
 
     run_health_server(
         config=config,
@@ -109,8 +109,3 @@ if __name__ == "__main__":
     main()
 
 
-def config_store_env(key: str, default: str) -> str:
-    value = os.getenv(key)
-    if value is None or value == "":
-        return default
-    return value

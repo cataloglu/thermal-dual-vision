@@ -120,6 +120,7 @@ export interface YoloConfig {
 
 export interface LLMConfig {
   api_key: string;
+  enabled: boolean;
   model: string;
   max_tokens: number;
   timeout: number;
@@ -159,6 +160,12 @@ export interface RetryPolicyConfig {
   max_retries?: number | null;
 }
 
+export interface GeneralConfig {
+  bind_host: string;
+  http_port: number;
+  timezone: string;
+}
+
 /**
  * Full configuration response from /api/config
  */
@@ -171,6 +178,7 @@ export interface Config {
   mqtt: MQTTConfig;
   telegram: TelegramConfig;
   retry_policy: RetryPolicyConfig;
+  general: GeneralConfig;
   log_level: string;
 }
 
