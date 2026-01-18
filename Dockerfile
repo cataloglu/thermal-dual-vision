@@ -1,3 +1,22 @@
+# Stage 1: Build frontend with Node.js
+FROM node:20-alpine AS frontend-builder
+
+# Set working directory
+WORKDIR /build
+
+# Copy package files
+COPY web/package.json web/package-lock.json* ./
+
+# Install dependencies
+RUN npm ci --prefer-offline --no-audit
+
+# Copy frontend source
+COPY web/ ./
+
+# Build frontend
+RUN npm run build
+
+# Stage 2: Python runtime
 ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.20
 FROM ${BUILD_FROM}
 
@@ -30,6 +49,9 @@ RUN grep -v -e '^ultralytics' -e '^opencv-python-headless' requirements.txt > /t
 # Copy application source
 COPY src/ /app/src/
 COPY run.sh /
+
+# Copy built frontend assets from stage 1
+COPY --from=frontend-builder /build/dist/ /app/web/dist/
 
 # Normalize line endings and make run script executable
 RUN sed -i 's/\r$//' /run.sh \
