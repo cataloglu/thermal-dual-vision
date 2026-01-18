@@ -241,16 +241,7 @@ def update_config() -> tuple:
         if errors:
             return jsonify({'error': 'Validation failed', 'details': errors}), 400
 
-        # Return updated config with masked sensitive values
-        config_dict = asdict(_config)
-        if config_dict.get('llm', {}).get('api_key'):
-            config_dict['llm']['api_key'] = '***REDACTED***'
-        if config_dict.get('mqtt', {}).get('password'):
-            config_dict['mqtt']['password'] = '***REDACTED***'
-        if config_dict.get('telegram', {}).get('bot_token'):
-            config_dict['telegram']['bot_token'] = '***REDACTED***'
-
-        return jsonify(config_dict), 200
+        return jsonify(_config.to_dict(redact=True)), 200
 
     except ValueError as e:
         return jsonify({'error': f'Invalid value: {str(e)}'}), 400
