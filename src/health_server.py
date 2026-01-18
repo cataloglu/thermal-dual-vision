@@ -12,6 +12,7 @@ from typing import Any, Deque, Dict, List, Optional
 import cv2
 from aiohttp import web
 
+from src.camera_store import CameraStore
 from src.config import Config
 from src.config_store import ConfigStore, merge_config, redacted_effective_config
 from src.events import EventType, new_event
@@ -242,6 +243,8 @@ def create_app(
         pipeline_status=pipeline_status,
     )
 
+    camera_store = CameraStore()
+
     async def health_handler(_: web.Request) -> web.Response:
         return web.json_response(reporter.build_report())
 
@@ -276,6 +279,62 @@ def create_app(
         reporter._record_ready_event(payload["ready"])
         return web.json_response(payload, status=200)
 
+    async def cameras_list_handler(_: web.Request) -> web.Response:
+        return web.json_response({"cameras": camera_store.list_cameras()})
+
+    async def cameras_create_handler(request: web.Request) -> web.Response:
+        try:
+            payload = await request.json()
+        except Exception:
+            return web.json_response({"error": "Invalid JSON body"}, status=400)
+        if not isinstance(payload, dict):
+            return web.json_response({"error": "Invalid camera payload"}, status=400)
+        try:
+            camera = camera_store.create_camera(payload)
+        except ValueError as exc:
+            return web.json_response({"error": str(exc)}, status=400)
+        return web.json_response(camera, status=201)
+
+    async def camera_detail_handler(request: web.Request) -> web.Response:
+        camera_id = request.match_info.get("camera_id", "")
+        camera = camera_store.get_camera(camera_id)
+        if not camera:
+            return web.json_response({"error": "Camera not found"}, status=404)
+        return web.json_response(camera)
+
+    async def camera_update_handler(request: web.Request) -> web.Response:
+        camera_id = request.match_info.get("camera_id", "")
+        try:
+            payload = await request.json()
+        except Exception:
+            return web.json_response({"error": "Invalid JSON body"}, status=400)
+        if not isinstance(payload, dict):
+            return web.json_response({"error": "Invalid camera payload"}, status=400)
+        try:
+            camera = camera_store.update_camera(camera_id, payload)
+        except KeyError:
+            return web.json_response({"error": "Camera not found"}, status=404)
+        except ValueError as exc:
+            return web.json_response({"error": str(exc)}, status=400)
+        return web.json_response(camera)
+
+    async def camera_delete_handler(request: web.Request) -> web.Response:
+        camera_id = request.match_info.get("camera_id", "")
+        camera = camera_store.get_camera(camera_id)
+        if not camera:
+            return web.json_response({"error": "Camera not found"}, status=404)
+        camera_store.delete_camera(camera_id)
+        return web.json_response({"deleted": True})
+
+    async def camera_test_handler(request: web.Request) -> web.Response:
+        camera_id = request.match_info.get("camera_id", "")
+        try:
+            result = camera_store.test_camera(camera_id)
+        except KeyError:
+            return web.json_response({"error": "Camera not found"}, status=404)
+        status = 200 if result.get("ok") else 400
+        return web.json_response(result, status=status)
+
     async def ui_handler(_: web.Request) -> web.Response:
         html = UI_PATH.read_text(encoding="utf-8")
         return web.Response(text=html, content_type="text/html")
@@ -286,6 +345,12 @@ def create_app(
     app.router.add_get("/api/health", health_handler)
     app.router.add_get("/api/config", config_get_handler)
     app.router.add_post("/api/config", config_post_handler)
+    app.router.add_get("/api/cameras", cameras_list_handler)
+    app.router.add_post("/api/cameras", cameras_create_handler)
+    app.router.add_get("/api/cameras/{camera_id}", camera_detail_handler)
+    app.router.add_put("/api/cameras/{camera_id}", camera_update_handler)
+    app.router.add_delete("/api/cameras/{camera_id}", camera_delete_handler)
+    app.router.add_post("/api/cameras/{camera_id}/test", camera_test_handler)
     app.router.add_get("/ready", ready_handler)
     return app
 
