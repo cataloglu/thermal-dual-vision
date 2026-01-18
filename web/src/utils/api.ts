@@ -208,26 +208,6 @@ export interface PipelineState {
 export interface PipelineStatusResponse {
   pipeline: PipelineState;
 }
-
-export interface LogsTailResponse {
-  lines: string[];
-}
-
-export interface MetricsResponse {
-  uptime_seconds: number;
-  pipeline: PipelineState;
-  events_count: number;
-}
-
-export interface HealthResponse {
-  status: string;
-  timestamp: number;
-  ai_enabled: boolean;
-  components: Record<string, any>;
-  pipeline: PipelineState;
-  events: SystemEvent[];
-}
-
 /**
  * Generic error response from API
  */
@@ -476,19 +456,6 @@ export async function sendTelegramTestMessage(): Promise<{ sent: boolean }> {
 export async function sendTelegramTestSnapshot(cameraId: string): Promise<{ sent: boolean }> {
   return post<{ sent: boolean }>('/api/notifications/telegram/test-snapshot', { camera_id: cameraId });
 }
-
-export async function getLogsTail(lines = 200): Promise<LogsTailResponse> {
-  return get<LogsTailResponse>(`/api/logs/tail?lines=${lines}`);
-}
-
-export async function getMetrics(): Promise<MetricsResponse> {
-  return get<MetricsResponse>('/api/metrics');
-}
-
-export async function getHealth(): Promise<HealthResponse> {
-  return get<HealthResponse>('/api/health');
-}
-
 /**
  * Update configuration via /api/config
  *
@@ -537,9 +504,6 @@ export const api = {
   updateTelegramSettings,
   sendTelegramTestMessage,
   sendTelegramTestSnapshot,
-  getLogsTail,
-  getMetrics,
-  getHealth,
 };
 
 export default api;
