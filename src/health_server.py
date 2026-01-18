@@ -267,7 +267,7 @@ def run_health_server(
     event_store: Optional[EventStore] = None,
     pipeline_status: Optional[PipelineStatusTracker] = None,
     host: str = "0.0.0.0",
-    port: int = 8099,
+    port: int = 8000,
 ) -> None:
     """Run the health server."""
     app = create_app(

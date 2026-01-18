@@ -21,7 +21,7 @@ WORKDIR /app
 COPY requirements.txt /app/
 
 # Install Python dependencies
-RUN python3 -m venv /opt/venv
+RUN python3 -m venv --system-site-packages /opt/venv
 ENV PATH="/opt/venv/bin:${PATH}"
 RUN pip install -U pip setuptools wheel
 RUN grep -v -e '^ultralytics' -e '^opencv-python-headless' requirements.txt > /tmp/requirements.txt \
@@ -31,8 +31,9 @@ RUN grep -v -e '^ultralytics' -e '^opencv-python-headless' requirements.txt > /t
 COPY src/ /app/src/
 COPY run.sh /
 
-# Make run script executable
-RUN chmod +x /run.sh
+# Normalize line endings and make run script executable
+RUN sed -i 's/\r$//' /run.sh \
+    && chmod +x /run.sh
 
 # Labels
 LABEL \
