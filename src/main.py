@@ -1,5 +1,6 @@
 """Application entry point for pipeline selection."""
 
+import os
 import threading
 
 from src.config import Config
@@ -48,10 +49,15 @@ def main() -> None:
     pipeline_thread = threading.Thread(target=_run_pipeline, daemon=True)
     pipeline_thread.start()
 
+    host = os.getenv("HOST", "0.0.0.0")
+    port = int(os.getenv("PORT", "8000"))
+
     run_health_server(
         config=config,
         event_store=event_store,
         pipeline_status=pipeline_status,
+        host=host,
+        port=port,
     )
 
 

@@ -148,6 +148,9 @@ class LLMAnalyzer:
             LLMAnalyzerError: If API call fails (rate limit, timeout, connection error)
             JSONParseError: If response JSON parsing fails
         """
+        if not self.config.api_key:
+            raise LLMAnalyzerError("AI disabled (no OPENAI_API_KEY)")
+
         start_time = time.time()
 
         # Encode images to base64
