@@ -1,7 +1,7 @@
 import { h } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import { Card } from '../components/ui/Card';
-import { getHealth, getLogsTail, getMetrics, HealthResponse, LogsTailResponse, MetricsResponse } from '../utils/api';
+import api, { HealthResponse, LogsTailResponse, MetricsResponse } from '../utils/api';
 
 export function Diagnostics() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
@@ -13,9 +13,9 @@ export function Diagnostics() {
     try {
       setError(null);
       const [healthData, metricsData, logsData] = await Promise.all([
-        getHealth(),
-        getMetrics(),
-        getLogsTail(200),
+        api.getHealth(),
+        api.getMetrics(),
+        api.getLogsTail(200),
       ]);
       setHealth(healthData);
       setMetrics(metricsData);
