@@ -3,6 +3,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { route } from 'preact-router';
 import { Card } from '../components/ui/Card';
 import { getCamera, Camera } from '../utils/api';
+import { redactRtspUrl } from '../utils/redact';
 
 interface CameraDetailProps {
   id?: string;
@@ -85,11 +86,11 @@ export function CameraDetail({ id }: CameraDetailProps) {
         <div class="space-y-2 text-sm text-gray-600 dark:text-gray-400">
           <div>
             <span class="font-medium text-gray-700 dark:text-gray-300">Color URL:</span>{' '}
-            {camera.rtsp_url_color || '—'}
+            {camera.rtsp_url_color ? redactRtspUrl(camera.rtsp_url_color) : '—'}
           </div>
           <div>
             <span class="font-medium text-gray-700 dark:text-gray-300">Thermal URL:</span>{' '}
-            {camera.rtsp_url_thermal || '—'}
+            {camera.rtsp_url_thermal ? redactRtspUrl(camera.rtsp_url_thermal) : '—'}
           </div>
           <div>
             <span class="font-medium text-gray-700 dark:text-gray-300">Color Channel:</span>{' '}

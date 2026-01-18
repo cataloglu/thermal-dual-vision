@@ -173,13 +173,10 @@ def _redact_url(url: str) -> str:
     parsed = urlsplit(url)
     if "@" not in parsed.netloc:
         return url
-    userinfo, host = parsed.netloc.split("@", 1)
-    if ":" in userinfo:
-        user, _password = userinfo.split(":", 1)
-        userinfo = f"{user}:***"
-    else:
-        userinfo = f"{userinfo}:***"
-    return urlunsplit((parsed.scheme, f"{userinfo}@{host}", parsed.path, parsed.query, parsed.fragment))
+    _userinfo, host = parsed.netloc.split("@", 1)
+    return urlunsplit(
+        (parsed.scheme, f"***REDACTED***@{host}", parsed.path, parsed.query, parsed.fragment)
+    )
 
 
 def _test_camera_url(
