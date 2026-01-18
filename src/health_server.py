@@ -116,6 +116,9 @@ class CameraStatusChecker:
 
         self._last_check = now
         camera_url = self.config.camera.url or self.config.camera.color_url or self.config.camera.thermal_url
+        if camera_url.startswith("dummy://"):
+            self._last_status = ComponentStatus(status="ok", detail="Dummy camera")
+            return self._last_status
 
         capture = cv2.VideoCapture(camera_url)
         try:
@@ -154,6 +157,8 @@ class HealthReporter:
 
     def _mqtt_status(self) -> ComponentStatus:
         if self.mqtt_client is None:
+            if not self.config.mqtt.discovery:
+                return ComponentStatus(status="disabled", detail="MQTT discovery disabled")
             return ComponentStatus(status="unknown", detail="MQTT client not wired")
         return ComponentStatus(status="ok" if self.mqtt_client.is_connected else "down")
 
@@ -212,7 +217,7 @@ class HealthReporter:
 
         camera_ok = components["camera"]["status"] == "ok"
         telegram_ok = components["telegram"]["status"] in {"ok", "disabled"}
-        mqtt_ok = components["mqtt"]["status"] == "ok"
+        mqtt_ok = components["mqtt"]["status"] in {"ok", "disabled"}
 
         return camera_ok and telegram_ok and mqtt_ok
 
