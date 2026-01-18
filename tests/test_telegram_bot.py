@@ -496,9 +496,14 @@ class TestTelegramBotAlerts:
         analysis.detayli_analiz = "Bahçede yürüyen bir kişi tespit edildi..."
         analysis.tespit_edilen_nesneler = ["insan", "köpek"]
 
-        alert_text = bot._format_alert_message(screenshots, analysis)
+        alert_text = bot._format_alert_message(
+            screenshots,
+            analysis,
+            event_type="motion_detected",
+            speed_multiplier=4,
+        )
 
-        assert "HAREKET ALGILANDI" in alert_text
+        assert "EVENT" in alert_text
         assert "2024-01-15 14:30:25" in alert_text
         assert "Orta" in alert_text
         assert "%85" in alert_text
@@ -532,7 +537,12 @@ class TestTelegramBotAlerts:
             analysis.detayli_analiz = "Test analysis"
             analysis.tespit_edilen_nesneler = ["test"]
 
-            alert_text = bot._format_alert_message(screenshots, analysis)
+            alert_text = bot._format_alert_message(
+                screenshots,
+                analysis,
+                event_type="motion_detected",
+                speed_multiplier=4,
+            )
             assert level_output in alert_text
 
     @pytest.mark.asyncio
@@ -672,7 +682,8 @@ class TestTelegramBotRateLimiting:
 
             # Mock the application and bot
             bot.application = Mock()
-            bot.application.bot.send_media_group = AsyncMock()
+            bot.application.bot.send_photo = AsyncMock()
+            bot.application.bot.send_video = AsyncMock()
 
             # Create mock screenshots
             screenshots = Mock()
@@ -682,6 +693,8 @@ class TestTelegramBotRateLimiting:
             screenshots.peak = Mock()
             screenshots.late = Mock()
             screenshots.after = Mock()
+            screenshots.camera_name = None
+            screenshots.camera_type = "color"
 
             # Create mock analysis
             analysis = Mock()
@@ -691,7 +704,9 @@ class TestTelegramBotRateLimiting:
             analysis.tespit_edilen_nesneler = ["test"]
 
             # Mock encode_frame_to_bytes to return test bytes
-            with patch("src.telegram_bot.encode_frame_to_bytes", return_value=b"test_image"):
+            with patch("src.telegram_bot.encode_frame_to_bytes", return_value=b"test_image"), \
+                patch("src.telegram_bot.build_event_collage", return_value=Mock()), \
+                patch("src.telegram_bot.build_event_video_bytes", return_value=b"test_video"):
                 # Record start time
                 start_time = asyncio.get_event_loop().time()
 
@@ -724,7 +739,8 @@ class TestTelegramBotRateLimiting:
 
             # Mock the application and bot
             bot.application = Mock()
-            bot.application.bot.send_media_group = AsyncMock()
+            bot.application.bot.send_photo = AsyncMock()
+            bot.application.bot.send_video = AsyncMock()
 
             # Create mock screenshots
             screenshots = Mock()
@@ -734,6 +750,8 @@ class TestTelegramBotRateLimiting:
             screenshots.peak = Mock()
             screenshots.late = Mock()
             screenshots.after = Mock()
+            screenshots.camera_name = None
+            screenshots.camera_type = "color"
 
             # Create mock analysis
             analysis = Mock()
@@ -743,7 +761,9 @@ class TestTelegramBotRateLimiting:
             analysis.tespit_edilen_nesneler = ["test"]
 
             # Mock encode_frame_to_bytes to return test bytes
-            with patch("src.telegram_bot.encode_frame_to_bytes", return_value=b"test_image"):
+            with patch("src.telegram_bot.encode_frame_to_bytes", return_value=b"test_image"), \
+                patch("src.telegram_bot.build_event_collage", return_value=Mock()), \
+                patch("src.telegram_bot.build_event_video_bytes", return_value=b"test_video"):
                 # Send first alert
                 await bot.send_alert(screenshots, analysis)
 
@@ -760,7 +780,8 @@ class TestTelegramBotRateLimiting:
                 assert elapsed < 0.05  # Should be much less than rate limit
 
                 # Both alerts should have been sent
-                assert bot.application.bot.send_media_group.call_count == 2
+                assert bot.application.bot.send_photo.call_count == 2
+                assert bot.application.bot.send_video.call_count == 2
 
     @pytest.mark.asyncio
     async def test_rate_limiting_updates_last_detection_time(self):
@@ -776,7 +797,8 @@ class TestTelegramBotRateLimiting:
 
             # Mock the application and bot
             bot.application = Mock()
-            bot.application.bot.send_media_group = AsyncMock()
+            bot.application.bot.send_photo = AsyncMock()
+            bot.application.bot.send_video = AsyncMock()
 
             # Create mock screenshots with specific timestamp
             test_timestamp = datetime(2024, 1, 15, 14, 30, 25)
@@ -787,6 +809,8 @@ class TestTelegramBotRateLimiting:
             screenshots.peak = Mock()
             screenshots.late = Mock()
             screenshots.after = Mock()
+            screenshots.camera_name = None
+            screenshots.camera_type = "color"
 
             # Create mock analysis
             analysis = Mock()
@@ -796,7 +820,9 @@ class TestTelegramBotRateLimiting:
             analysis.tespit_edilen_nesneler = ["person"]
 
             # Mock encode_frame_to_bytes
-            with patch("src.telegram_bot.encode_frame_to_bytes", return_value=b"test_image"):
+            with patch("src.telegram_bot.encode_frame_to_bytes", return_value=b"test_image"), \
+                patch("src.telegram_bot.build_event_collage", return_value=Mock()), \
+                patch("src.telegram_bot.build_event_video_bytes", return_value=b"test_video"):
                 # Initially no detection time
                 assert bot._last_detection_time is None
 
@@ -833,10 +859,15 @@ def test_alerts():
     analysis.tespit_edilen_nesneler = ["insan", "araba"]
 
     # Format alert message
-    alert_text = bot._format_alert_message(screenshots, analysis)
+    alert_text = bot._format_alert_message(
+        screenshots,
+        analysis,
+        event_type="motion_detected",
+        speed_multiplier=4,
+    )
 
     # Verify formatting
-    assert "HAREKET ALGILANDI" in alert_text
+    assert "EVENT" in alert_text
     assert "2024-01-15 14:30:25" in alert_text
     assert "Yüksek" in alert_text  # Threat level should be capitalized
     assert "%92" in alert_text  # Confidence as percentage
@@ -853,7 +884,12 @@ def test_alerts():
 
     for level_input, level_output in threat_levels.items():
         analysis.tehdit_seviyesi = level_input
-        alert_text = bot._format_alert_message(screenshots, analysis)
+        alert_text = bot._format_alert_message(
+            screenshots,
+            analysis,
+            event_type="motion_detected",
+            speed_multiplier=4,
+        )
         assert level_output in alert_text, f"Expected {level_output} for threat level {level_input}"
 
     # Test 3: Rate limiter initialization
@@ -862,11 +898,21 @@ def test_alerts():
 
     # Test 4: Alert formatting with empty objects list
     analysis.tespit_edilen_nesneler = []
-    alert_text = bot._format_alert_message(screenshots, analysis)
+    alert_text = bot._format_alert_message(
+        screenshots,
+        analysis,
+        event_type="motion_detected",
+        speed_multiplier=4,
+    )
     assert "🏷️ *Tespit:*" in alert_text  # Should still include label
 
     # Test 5: Alert formatting with single object
     analysis.tespit_edilen_nesneler = ["kedi"]
-    alert_text = bot._format_alert_message(screenshots, analysis)
+    alert_text = bot._format_alert_message(
+        screenshots,
+        analysis,
+        event_type="motion_detected",
+        speed_multiplier=4,
+    )
     assert "kedi" in alert_text
     assert "," not in alert_text.split("🏷️ *Tespit:*")[1]  # No comma for single item

@@ -229,6 +229,8 @@ def update_config() -> tuple:
                 _config.telegram.chat_ids = list(telegram_data['chat_ids'])
             if 'rate_limit_seconds' in telegram_data:
                 _config.telegram.rate_limit_seconds = int(telegram_data['rate_limit_seconds'])
+            if 'video_speed' in telegram_data:
+                _config.telegram.video_speed = int(telegram_data['video_speed'])
 
         # Update log level
         if 'log_level' in data:

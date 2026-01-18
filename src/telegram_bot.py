@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any, Callable, Optional
 
 try:
-    from telegram import InputMediaPhoto, Update
+    from telegram import Update
     from telegram.ext import Application, CommandHandler, ContextTypes
     TELEGRAM_AVAILABLE = True
 except ImportError:
@@ -21,7 +21,13 @@ except ImportError:
 
 from .config import TelegramConfig
 from .logger import get_logger
-from .utils import RateLimiter, encode_frame_to_bytes, retry_async
+from .utils import (
+    RateLimiter,
+    build_event_collage,
+    build_event_video_bytes,
+    encode_frame_to_bytes,
+    retry_async,
+)
 
 if TYPE_CHECKING:
     from .llm_analyzer import AnalysisResult, ScreenshotSet
@@ -187,7 +193,7 @@ class TelegramBot:
     @retry_async(max_attempts=3, delay=1.0, backoff=2.0)
     async def send_alert(self, screenshots: "ScreenshotSet", analysis: "AnalysisResult") -> None:
         """
-        Send motion detection alert with message and 5 images as media group.
+        Send motion detection alert with collage image and MP4 clip.
 
         Args:
             screenshots: ScreenshotSet containing 5 images and timestamp
@@ -210,41 +216,69 @@ class TelegramBot:
             # Update last detection time
             self._last_detection_time = screenshots.timestamp
 
-            # Format alert message
-            alert_text = self._format_alert_message(screenshots, analysis)
-
-            # Convert frames to JPEG bytes
-            try:
-                before_bytes = encode_frame_to_bytes(screenshots.before)
-                early_bytes = encode_frame_to_bytes(screenshots.early)
-                peak_bytes = encode_frame_to_bytes(screenshots.peak)
-                late_bytes = encode_frame_to_bytes(screenshots.late)
-                after_bytes = encode_frame_to_bytes(screenshots.after)
-            except Exception as e:
-                self.logger.error(f"Failed to encode frames: {e}")
-                return
-
-            # Create media group (first photo has caption with alert message)
-            media_group = [
-                InputMediaPhoto(media=before_bytes, caption=alert_text, parse_mode="Markdown"),
-                InputMediaPhoto(media=early_bytes),
-                InputMediaPhoto(media=peak_bytes),
-                InputMediaPhoto(media=late_bytes),
-                InputMediaPhoto(media=after_bytes)
+            camera_name = screenshots.camera_name or "Camera"
+            event_type = "motion_detected"
+            speed_multiplier = self.config.video_speed
+            frames = [
+                screenshots.before,
+                screenshots.early,
+                screenshots.peak,
+                screenshots.late,
+                screenshots.after,
             ]
+
+            # Format alert message
+            alert_text = self._format_alert_message(
+                screenshots,
+                analysis,
+                event_type,
+                speed_multiplier,
+            )
+
+            try:
+                collage = build_event_collage(
+                    frames=frames,
+                    labels=["before", "early", "peak", "late", "after"],
+                    camera_name=camera_name,
+                    timestamp=screenshots.timestamp,
+                    is_thermal=screenshots.camera_type == "thermal",
+                )
+                collage_bytes = encode_frame_to_bytes(collage, quality=self.config.snapshot_quality)
+                video_bytes = build_event_video_bytes(
+                    frames=frames,
+                    camera_name=camera_name,
+                    timestamp=screenshots.timestamp,
+                    event_type=event_type,
+                    speed_multiplier=speed_multiplier,
+                )
+            except Exception as e:
+                self.logger.error(f"Failed to prepare telegram media: {e}")
+                return
 
             # Send to all configured chat IDs
             for chat_id in self.config.chat_ids:
                 try:
-                    await self.application.bot.send_media_group(
+                    await self.application.bot.send_photo(
                         chat_id=int(chat_id),
-                        media=media_group
+                        photo=collage_bytes,
+                        caption=alert_text,
+                        parse_mode="Markdown",
+                    )
+                    await self.application.bot.send_video(
+                        chat_id=int(chat_id),
+                        video=video_bytes,
                     )
                     self.logger.info(f"Alert sent to chat_id: {chat_id}")
                 except Exception as e:
                     self.logger.error(f"Failed to send alert to chat_id {chat_id}: {e}")
 
-    def _format_alert_message(self, screenshots: Any, analysis: Any) -> str:
+    def _format_alert_message(
+        self,
+        screenshots: Any,
+        analysis: Any,
+        event_type: str,
+        speed_multiplier: int,
+    ) -> str:
         """
         Format motion detection alert message.
 
@@ -278,10 +312,11 @@ class TelegramBot:
 
         # Build alert message
         alert_text = (
-            "🚨 *HAREKET ALGILANDI*\n\n"
+            f"🚨 *EVENT:* {event_type}\n\n"
             f"📅 *Zaman:* {timestamp_str}\n"
             f"⚠️ *Tehdit:* {threat_level}\n"
-            f"🎯 *Güven:* %{confidence_percent}\n\n"
+            f"🎯 *Güven:* %{confidence_percent}\n"
+            f"🎬 *Video Hizi:* {speed_multiplier}x\n\n"
             f"📝 *Analiz:*\n{analysis.detayli_analiz}\n\n"
             f"🏷️ *Tespit:* {detected_objects}"
         )
