@@ -3,6 +3,8 @@ import Router from 'preact-router';
 import { Layout } from './components/Layout';
 import { ThemeProvider } from './components/ThemeProvider';
 import { Dashboard } from './pages/Dashboard';
+import { Cameras } from './pages/Cameras';
+import { CameraDetail } from './pages/CameraDetail';
 import { LiveView } from './pages/LiveView';
 import { Gallery } from './pages/Gallery';
 import { Events } from './pages/Events';
@@ -29,6 +31,8 @@ export function App() {
       <Layout>
         <Router>
           <Dashboard path="/" />
+          <Cameras path="/cameras" />
+          <CameraDetail path="/cameras/:id" />
           <LiveView path="/live" />
           <Gallery path="/gallery" />
           <Events path="/events" />

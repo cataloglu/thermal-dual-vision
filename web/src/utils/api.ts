@@ -165,6 +165,23 @@ export interface Config {
   log_level: string;
 }
 
+export interface Camera {
+  id: string;
+  name: string;
+  type: 'color' | 'thermal' | 'dual';
+  rtsp_url_color: string;
+  rtsp_url_thermal: string;
+  channel_color?: number;
+  channel_thermal?: number;
+  status: string;
+  last_error?: string;
+  last_frame_ts?: number;
+}
+
+export interface CamerasResponse {
+  cameras: Camera[];
+}
+
 /**
  * Generic error response from API
  */
@@ -366,6 +383,14 @@ export async function getConfig(): Promise<Config> {
   return get<Config>('/api/config');
 }
 
+export async function getCameras(): Promise<CamerasResponse> {
+  return get<CamerasResponse>('/api/cameras');
+}
+
+export async function getCamera(id: string): Promise<Camera> {
+  return get<Camera>(`/api/cameras/${id}`);
+}
+
 /**
  * Update configuration via /api/config
  *
@@ -402,6 +427,8 @@ export const api = {
   getConfig,
   updateConfig,
   deleteScreenshot,
+  getCameras,
+  getCamera,
 };
 
 export default api;
