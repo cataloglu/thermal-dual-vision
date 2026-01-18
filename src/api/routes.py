@@ -4,7 +4,6 @@ import os
 import time
 from dataclasses import asdict
 from datetime import datetime
-from typing import Dict, Any
 
 from flask import Blueprint, jsonify, request, send_file, Response
 
