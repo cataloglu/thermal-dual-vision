@@ -100,7 +100,7 @@ export function Events() {
       render: (event) => {
         const human = hasHuman(event.analysis?.tespit_edilen_nesneler);
         const label = human === null ? 'Unknown' : human ? 'Yes' : 'No';
-        const chip = human === null ? 'chip-muted' : human ? 'chip-ok' : 'chip-warn';
+        const chip = human === null ? 'chip-muted' : 'chip-ok';
         return <span class={`chip ${chip}`}>{label}</span>;
       }
     },
@@ -109,7 +109,7 @@ export function Events() {
       label: 'Threat',
       width: 'w-32',
       render: (event) => (
-        <span class={`chip ${threatClass(event.analysis?.tehdit_seviyesi)}`}>
+        <span class={`chip ${event.analysis?.tehdit_seviyesi ? 'chip-ok' : 'chip-muted'}`}>
           {event.analysis?.tehdit_seviyesi || 'unknown'}
         </span>
       )
@@ -135,21 +135,23 @@ export function Events() {
         </Card>
       )}
 
-      <Card title="Event list">
-        <Table
-          columns={columns}
-          data={events}
-          emptyMessage="No events recorded."
-          onRowClick={setSelected}
-        />
-      </Card>
+      <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <Card title="Event list" className="h-full">
+          <Table
+            columns={columns}
+            data={events}
+            emptyMessage="No events recorded."
+            onRowClick={setSelected}
+          />
+        </Card>
 
-      {selected && (
-        <Card title="Event detail">
-          <div class="grid gap-4 lg:grid-cols-2">
-            <div class="space-y-3">
+        <Card title="Event detail" className="h-full">
+          {!selected ? (
+            <p class="text-sm text-muted">Select an event to inspect details.</p>
+          ) : (
+            <div class="space-y-4">
               <div>
-                <p class="text-xs uppercase text-muted mb-2">Collage</p>
+                <p class="text-xs uppercase text-muted mb-2">5-frame collage</p>
                 <img
                   src={getScreenshotCollageUrl(selected.id)}
                   alt="Event collage"
@@ -171,8 +173,6 @@ export function Events() {
                   Download MP4
                 </a>
               </div>
-            </div>
-            <div class="space-y-3">
               <div>
                 <p class="text-xs uppercase text-muted mb-2">AI summary</p>
                 <p class="text-sm text-gray-300">
@@ -187,7 +187,7 @@ export function Events() {
                   <span>{formatTime(selected.timestamp)}</span>
                 </div>
                 <div class="flex items-center justify-between">
-                  <span class="text-muted">Pipeline latency</span>
+                  <span class="text-muted">Latency</span>
                   <span>
                     {selected.analysis?.processing_time !== undefined
                       ? `${selected.analysis.processing_time}s`
@@ -200,9 +200,9 @@ export function Events() {
                 </div>
               </div>
             </div>
-          </div>
+          )}
         </Card>
-      )}
+      </div>
     </div>
   );
 }

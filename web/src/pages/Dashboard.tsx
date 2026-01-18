@@ -165,7 +165,7 @@ export function Dashboard() {
               </div>
               <div class="flex items-center justify-between">
                 <span class="text-muted">Threat</span>
-                <span class={`chip ${lastThreat === 'yuksek' ? 'chip-danger' : lastThreat === 'orta' ? 'chip-warn' : 'chip-ok'}`}>
+                <span class={`chip ${lastThreat ? 'chip-ok' : 'chip-muted'}`}>
                   {lastThreat}
                 </span>
               </div>

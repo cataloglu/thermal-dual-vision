@@ -34,14 +34,14 @@ export function Layout({ children }: LayoutProps) {
   };
 
   return (
-    <div class="min-h-screen bg-[#0B0E14] text-gray-200">
+      <div class="min-h-screen bg-[#0B0E14] text-gray-200">
       {/* Sidebar */}
       <Sidebar isOpen={sidebarOpen} onClose={closeSidebar} />
 
       {/* Main content wrapper */}
       <div class="lg:pl-64">
         {/* Top header */}
-        <header class="h-14 bg-[#111827] border-b border-[#1F2937]">
+        <header class="h-14 bg-[#0F141D] border-b border-[#1F2937]">
           <div class="flex items-center justify-between h-full px-4">
             {/* Menu toggle button (mobile only) */}
             <button

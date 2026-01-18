@@ -17,9 +17,9 @@ import { Settings } from './pages/Settings';
  * - Layout: Provides navigation sidebar and header structure
  *
  * Routes:
- * - / : Status overview
- * - /events : Event history and detail
- * - /cameras : Camera health and setup
+ * - / : Events (primary)
+ * - /status : Status overview
+ * - /cameras : Camera list
  * - /settings : Configuration tabs
  * - /diagnostics : Health/metrics/logs
  */
@@ -28,8 +28,8 @@ export function App() {
     <ThemeProvider>
       <Layout>
         <Router>
-          <Dashboard path="/" />
-          <Events path="/events" />
+          <Events path="/" />
+          <Dashboard path="/status" />
           <Cameras path="/cameras" />
           <Settings path="/settings" />
           <Diagnostics path="/diagnostics" />
@@ -49,7 +49,7 @@ function NotFound() {
       <h1 class="text-lg font-semibold text-gray-200">404</h1>
       <p class="text-sm text-muted">Requested page not found.</p>
       <a href="/" class="text-sm text-[#38BDF8]">
-        Return to Status
+        Return to Events
       </a>
     </div>
   );

@@ -21,8 +21,8 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { path: '/', label: 'Status', hint: 'System overview' },
-  { path: '/events', label: 'Events', hint: 'Primary feed' },
+  { path: '/status', label: 'Status', hint: 'Pipeline & AI' },
+  { path: '/', label: 'Events', hint: 'Primary feed' },
   { path: '/cameras', label: 'Cameras', hint: 'Connectivity' },
   { path: '/settings', label: 'Settings', hint: 'Config' },
   { path: '/diagnostics', label: 'Diagnostics', hint: 'Health & logs' },
