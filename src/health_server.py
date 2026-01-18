@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import time
 from collections import deque
 from dataclasses import dataclass
@@ -12,6 +13,7 @@ import cv2
 from aiohttp import web
 
 from src.config import Config
+from src.config_store import ConfigStore, merge_config, redacted_effective_config
 from src.events import EventType, new_event
 from src.logger import get_logger
 from src.mqtt_client import MQTTClient
@@ -243,6 +245,31 @@ def create_app(
     async def health_handler(_: web.Request) -> web.Response:
         return web.json_response(reporter.build_report())
 
+    async def config_get_handler(_: web.Request) -> web.Response:
+        store = ConfigStore()
+        payload = redacted_effective_config(os.environ, store=store)
+        return web.json_response(payload)
+
+    async def config_post_handler(request: web.Request) -> web.Response:
+        store = ConfigStore()
+        try:
+            updates = await request.json()
+        except Exception:
+            return web.json_response({"error": "Invalid JSON body"}, status=400)
+
+        if not isinstance(updates, dict):
+            return web.json_response({"error": "Invalid config payload"}, status=400)
+
+        saved = store.load()
+        merged = merge_config(saved, updates)
+        config_candidate = Config.from_sources(os.environ, saved=merged)
+        errors = config_candidate.validate(allow_incomplete=True)
+        if errors:
+            return web.json_response({"errors": errors}, status=400)
+
+        store.save(merged)
+        return web.json_response(config_candidate.to_dict(redact=True))
+
     async def ready_handler(_: web.Request) -> web.Response:
         payload = reporter.build_report()
         payload["ready"] = reporter.is_ready(payload)
@@ -257,6 +284,8 @@ def create_app(
     app.router.add_get("/", ui_handler)
     app.router.add_get("/index.html", ui_handler)
     app.router.add_get("/api/health", health_handler)
+    app.router.add_get("/api/config", config_get_handler)
+    app.router.add_post("/api/config", config_post_handler)
     app.router.add_get("/ready", ready_handler)
     return app
 

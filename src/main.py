@@ -3,7 +3,7 @@
 import os
 import threading
 
-from src.config import Config
+from src.config_store import load_effective_config
 from src.health_server import EventStore, PipelineStatusTracker, run_health_server
 from src.logger import get_logger, setup_logger
 from src.pipelines.base import BasePipeline
@@ -16,7 +16,7 @@ PIPELINE_CLASSES = (ThermalPipeline, ColorPipeline, DualPipeline)
 
 def main() -> None:
     """Run the pipeline based on camera type."""
-    config = Config.from_env()
+    config = load_effective_config(os.environ)
     setup_logger(level=config.log_level)
     logger = get_logger("main")
 
@@ -49,8 +49,8 @@ def main() -> None:
     pipeline_thread = threading.Thread(target=_run_pipeline, daemon=True)
     pipeline_thread.start()
 
-    host = os.getenv("HOST", "0.0.0.0")
-    port = int(os.getenv("PORT", "8000"))
+    host = config_store_env("HOST", "0.0.0.0")
+    port = int(config_store_env("PORT", "8000"))
 
     run_health_server(
         config=config,
@@ -63,3 +63,10 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+def config_store_env(key: str, default: str) -> str:
+    value = os.getenv(key)
+    if value is None or value == "":
+        return default
+    return value
