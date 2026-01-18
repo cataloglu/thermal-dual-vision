@@ -44,6 +44,8 @@ interface TableProps<T = any> {
   className?: string;
   /** Whether the table is loading */
   loading?: boolean;
+  /** Optional row click handler */
+  onRowClick?: (item: T) => void;
 }
 
 export function Table<T = any>({
@@ -54,7 +56,8 @@ export function Table<T = any>({
   hover = true,
   emptyMessage = 'No data available',
   className = '',
-  loading = false
+  loading = false,
+  onRowClick
 }: TableProps<T>) {
   return (
     <div class={`overflow-x-auto ${className}`}>
@@ -115,10 +118,15 @@ export function Table<T = any>({
               border-b border-gray-200 dark:border-gray-700
               ${striped && index % 2 === 0 ? 'bg-gray-50 dark:bg-gray-800/50' : ''}
               ${hover ? 'hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors' : ''}
+              ${onRowClick ? 'cursor-pointer' : ''}
             `;
 
             return (
-              <tr key={key} class={rowClasses}>
+              <tr
+                key={key}
+                class={rowClasses}
+                onClick={onRowClick ? () => onRowClick(item) : undefined}
+              >
                 {columns.map((column) => (
                   <td
                     key={column.key}

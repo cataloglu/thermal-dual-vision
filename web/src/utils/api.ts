@@ -400,8 +400,17 @@ export async function getEvents(limit?: number): Promise<EventsResponse> {
 /**
  * Fetch screenshots from /api/screenshots
  */
-export async function getScreenshots(): Promise<ScreenshotsResponse> {
-  return get<ScreenshotsResponse>('/api/screenshots');
+export async function getScreenshots(limit?: number): Promise<ScreenshotsResponse> {
+  const url = limit ? `/api/screenshots?limit=${limit}` : '/api/screenshots';
+  return get<ScreenshotsResponse>(url);
+}
+
+export function getScreenshotCollageUrl(id: string): string {
+  return `/api/screenshots/${id}/collage`;
+}
+
+export function getScreenshotClipUrl(id: string): string {
+  return `/api/screenshots/${id}/clip.mp4`;
 }
 
 /**
@@ -491,6 +500,8 @@ export const api = {
   getStats,
   getEvents,
   getScreenshots,
+  getScreenshotCollageUrl,
+  getScreenshotClipUrl,
   getConfig,
   updateConfig,
   deleteScreenshot,
