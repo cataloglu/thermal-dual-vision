@@ -1,6 +1,7 @@
 """Base pipeline interface for camera processing."""
 
 from abc import ABC, abstractmethod
+import threading
 from typing import Protocol
 
 from src.config import Config
@@ -13,6 +14,11 @@ class BasePipeline(ABC):
 
     def __init__(self, config: Config) -> None:
         self.config = config
+        self.stop_event = threading.Event()
+
+    def stop(self) -> None:
+        """Signal pipeline to stop."""
+        self.stop_event.set()
 
     @classmethod
     def supports(cls, camera_type: str) -> bool:

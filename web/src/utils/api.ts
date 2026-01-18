@@ -151,6 +151,14 @@ export interface TelegramConfig {
   rate_limit_seconds: number;
 }
 
+export interface RetryPolicyConfig {
+  initial_delay: number;
+  max_delay: number;
+  multiplier: number;
+  jitter: number;
+  max_retries?: number | null;
+}
+
 /**
  * Full configuration response from /api/config
  */
@@ -162,6 +170,7 @@ export interface Config {
   screenshots: ScreenshotConfig;
   mqtt: MQTTConfig;
   telegram: TelegramConfig;
+  retry_policy: RetryPolicyConfig;
   log_level: string;
 }
 
@@ -186,6 +195,16 @@ export interface CameraTestResponse {
   ok: boolean;
   snapshot?: string;
   error?: string;
+}
+
+export interface PipelineState {
+  status: string;
+  detail?: string;
+  updated_at?: number;
+}
+
+export interface PipelineStatusResponse {
+  pipeline: PipelineState;
 }
 /**
  * Generic error response from API
@@ -388,7 +407,6 @@ export async function getConfig(): Promise<Config> {
   return get<Config>('/api/config');
 }
 
-<<<<<<< HEAD
 export async function getCameras(): Promise<CamerasResponse> {
   return get<CamerasResponse>('/api/cameras');
 }
@@ -405,8 +423,21 @@ export async function testCameraPayload(payload: Partial<Camera>): Promise<Camer
   return post<CameraTestResponse>('/api/cameras/test', payload);
 }
 
-=======
->>>>>>> origin/master
+export async function getPipelineStatus(): Promise<PipelineStatusResponse> {
+  return get<PipelineStatusResponse>('/api/pipeline/status');
+}
+
+export async function startPipeline(): Promise<{ started: boolean }> {
+  return post<{ started: boolean }>('/api/pipeline/start', {});
+}
+
+export async function stopPipeline(): Promise<{ stopped: boolean }> {
+  return post<{ stopped: boolean }>('/api/pipeline/stop', {});
+}
+
+export async function restartPipeline(): Promise<{ restarted: boolean }> {
+  return post<{ restarted: boolean }>('/api/pipeline/restart', {});
+}
 /**
  * Update configuration via /api/config
  *
@@ -443,13 +474,14 @@ export const api = {
   getConfig,
   updateConfig,
   deleteScreenshot,
-<<<<<<< HEAD
   getCameras,
   getCamera,
   createCamera,
   testCameraPayload,
-=======
->>>>>>> origin/master
+  getPipelineStatus,
+  startPipeline,
+  stopPipeline,
+  restartPipeline,
 };
 
 export default api;

@@ -76,6 +76,16 @@ class TelegramConfig:
 
 
 @dataclass
+class RetryPolicyConfig:
+    """Pipeline retry/backoff configuration."""
+    initial_delay: float = 1.0
+    max_delay: float = 10.0
+    multiplier: float = 2.0
+    jitter: float = 0.2
+    max_retries: Optional[int] = None
+
+
+@dataclass
 class Config:
     """Main application configuration."""
     camera: CameraConfig = field(default_factory=CameraConfig)
@@ -85,6 +95,7 @@ class Config:
     screenshots: ScreenshotConfig = field(default_factory=ScreenshotConfig)
     mqtt: MQTTConfig = field(default_factory=MQTTConfig)
     telegram: TelegramConfig = field(default_factory=TelegramConfig)
+    retry_policy: RetryPolicyConfig = field(default_factory=RetryPolicyConfig)
     log_level: str = "INFO"
 
     @classmethod
@@ -246,6 +257,13 @@ class Config:
                 "rate_limit_seconds": self.telegram.rate_limit_seconds,
                 "send_images": self.telegram.send_images,
             },
+            "retry_policy": {
+                "initial_delay": self.retry_policy.initial_delay,
+                "max_delay": self.retry_policy.max_delay,
+                "multiplier": self.retry_policy.multiplier,
+                "jitter": self.retry_policy.jitter,
+                "max_retries": self.retry_policy.max_retries,
+            },
             "log_level": self.log_level,
         }
 
@@ -391,6 +409,17 @@ def _apply_saved_config(config: Config, saved: Dict[str, Any]) -> None:
         "rate_limit_seconds", config.telegram.rate_limit_seconds
     )
     config.telegram.send_images = telegram.get("send_images", config.telegram.send_images)
+
+    retry_policy = saved.get("retry_policy", {})
+    config.retry_policy.initial_delay = retry_policy.get(
+        "initial_delay", config.retry_policy.initial_delay
+    )
+    config.retry_policy.max_delay = retry_policy.get("max_delay", config.retry_policy.max_delay)
+    config.retry_policy.multiplier = retry_policy.get("multiplier", config.retry_policy.multiplier)
+    config.retry_policy.jitter = retry_policy.get("jitter", config.retry_policy.jitter)
+    config.retry_policy.max_retries = retry_policy.get(
+        "max_retries", config.retry_policy.max_retries
+    )
 
     config.log_level = saved.get("log_level", config.log_level)
 

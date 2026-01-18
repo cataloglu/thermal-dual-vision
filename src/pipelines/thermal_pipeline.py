@@ -24,10 +24,10 @@ class ThermalPipeline(BasePipeline):
         url = self.config.camera.url
         if url.startswith("dummy://"):
             logger.info("Dummy camera URL detected, keeping pipeline alive.")
-            while True:
+            while not self.stop_event.is_set():
                 time.sleep(1)
 
-        while True:
+        while not self.stop_event.is_set():
             capture = cv2.VideoCapture(url)
             if not capture.isOpened():
                 logger.warning("Failed to open thermal stream, retrying...")
@@ -36,7 +36,7 @@ class ThermalPipeline(BasePipeline):
                 continue
 
             try:
-                while True:
+                while not self.stop_event.is_set():
                     ok, _frame = capture.read()
                     if not ok:
                         logger.warning("Failed to read thermal frame, reconnecting...")
