@@ -1,0 +1,16 @@
+services:
+  app:
+    build:
+      context: .
+      args:
+        BUILD_FROM: ghcr.io/home-assistant/amd64-base:3.19
+    ports:
+      - "8000:8099"
+    environment:
+      CAMERA_URL: ${CAMERA_URL:-dummy://}
+      CAMERA_TYPE: ${CAMERA_TYPE:-color}
+      COLOR_CAMERA_URL: ${COLOR_CAMERA_URL:-}
+      THERMAL_CAMERA_URL: ${THERMAL_CAMERA_URL:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-test}
+      MQTT_DISCOVERY: ${MQTT_DISCOVERY:-false}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
