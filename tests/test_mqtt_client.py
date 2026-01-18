@@ -549,8 +549,6 @@ class TestMQTTClientReconnect:
         # Track connection attempts
         connect_attempts = []
 
-        original_connect = mqtt_client.connect
-
         async def mock_connect():
             connect_attempts.append(asyncio.get_event_loop().time())
             if len(connect_attempts) < 3:
