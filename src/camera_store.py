@@ -79,25 +79,15 @@ class CameraStore:
         if not camera:
             raise KeyError(camera_id)
 
-        url = _primary_camera_url(camera)
-        if not url:
-            self._update_status(camera_id, "disconnected", "Missing RTSP URL")
-            return {"ok": False, "error": "Missing RTSP URL"}
+        return _test_camera_url(
+            _primary_camera_url(camera),
+            camera_id=camera_id,
+            update_status=self._update_status,
+        )
 
-        capture = cv2.VideoCapture(url)
-        try:
-            if not capture.isOpened():
-                self._update_status(camera_id, "disconnected", "Unable to open stream")
-                return {"ok": False, "error": "Unable to open stream"}
-            ok, frame = capture.read()
-            if not ok:
-                self._update_status(camera_id, "disconnected", "Unable to read frame")
-                return {"ok": False, "error": "Unable to read frame"}
-            snapshot = encode_frame_to_base64(frame)
-            self._update_status(camera_id, "connected", None)
-            return {"ok": True, "snapshot": snapshot}
-        finally:
-            capture.release()
+    def test_camera_payload(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        camera = _normalize_camera(data, partial=True)
+        return _test_camera_url(_primary_camera_url(camera))
 
     def _update_status(self, camera_id: str, status: str, last_error: Optional[str]) -> None:
         _status_cache[camera_id] = {
@@ -176,3 +166,32 @@ def _redact_url(url: str) -> str:
     else:
         userinfo = f"{userinfo}:***"
     return urlunsplit((parsed.scheme, f"{userinfo}@{host}", parsed.path, parsed.query, parsed.fragment))
+
+
+def _test_camera_url(
+    url: str,
+    camera_id: Optional[str] = None,
+    update_status=None,
+) -> Dict[str, Any]:
+    if not url:
+        if update_status and camera_id:
+            update_status(camera_id, "disconnected", "Missing RTSP URL")
+        return {"ok": False, "error": "Missing RTSP URL"}
+
+    capture = cv2.VideoCapture(url)
+    try:
+        if not capture.isOpened():
+            if update_status and camera_id:
+                update_status(camera_id, "disconnected", "Unable to open stream")
+            return {"ok": False, "error": "Unable to open stream"}
+        ok, frame = capture.read()
+        if not ok:
+            if update_status and camera_id:
+                update_status(camera_id, "disconnected", "Unable to read frame")
+            return {"ok": False, "error": "Unable to read frame"}
+        snapshot = encode_frame_to_base64(frame)
+        if update_status and camera_id:
+            update_status(camera_id, "connected", None)
+        return {"ok": True, "snapshot": snapshot}
+    finally:
+        capture.release()

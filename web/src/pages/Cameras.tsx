@@ -1,5 +1,6 @@
 import { h } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
+import { CameraWizard } from '../components/cameras/CameraWizard';
 import { Card } from '../components/ui/Card';
 import { getCameras, Camera } from '../utils/api';
 
@@ -7,6 +8,7 @@ export function Cameras() {
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [wizardOpen, setWizardOpen] = useState(false);
 
   const fetchCameras = async () => {
     try {
@@ -65,10 +67,27 @@ export function Cameras() {
 
   return (
     <div class="space-y-6">
-      <div>
-        <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">Cameras</h1>
-        <p class="text-gray-600 dark:text-gray-400">Registered cameras and connection status</p>
+      <div class="flex items-start justify-between">
+        <div>
+          <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">Cameras</h1>
+          <p class="text-gray-600 dark:text-gray-400">Registered cameras and connection status</p>
+        </div>
+        <button
+          onClick={() => setWizardOpen(true)}
+          class="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors"
+        >
+          Add camera
+        </button>
       </div>
+
+      {wizardOpen && (
+        <CameraWizard
+          onClose={() => setWizardOpen(false)}
+          onSaved={() => {
+            fetchCameras();
+          }}
+        />
+      )}
 
       {cameras.length === 0 ? (
         <Card>

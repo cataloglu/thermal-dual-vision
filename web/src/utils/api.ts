@@ -182,6 +182,12 @@ export interface CamerasResponse {
   cameras: Camera[];
 }
 
+export interface CameraTestResponse {
+  ok: boolean;
+  snapshot?: string;
+  error?: string;
+}
+
 /**
  * Generic error response from API
  */
@@ -391,6 +397,14 @@ export async function getCamera(id: string): Promise<Camera> {
   return get<Camera>(`/api/cameras/${id}`);
 }
 
+export async function createCamera(payload: Partial<Camera>): Promise<Camera> {
+  return post<Camera>('/api/cameras', payload);
+}
+
+export async function testCameraPayload(payload: Partial<Camera>): Promise<CameraTestResponse> {
+  return post<CameraTestResponse>('/api/cameras/test', payload);
+}
+
 /**
  * Update configuration via /api/config
  *
@@ -429,6 +443,8 @@ export const api = {
   deleteScreenshot,
   getCameras,
   getCamera,
+  createCamera,
+  testCameraPayload,
 };
 
 export default api;
