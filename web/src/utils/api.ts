@@ -219,7 +219,6 @@ export interface PipelineState {
 export interface PipelineStatusResponse {
   pipeline: PipelineState;
 }
-
 /**
  * Generic error response from API
  */
@@ -468,7 +467,6 @@ export async function sendTelegramTestMessage(): Promise<{ sent: boolean }> {
 export async function sendTelegramTestSnapshot(cameraId: string): Promise<{ sent: boolean }> {
   return post<{ sent: boolean }>('/api/notifications/telegram/test-snapshot', { camera_id: cameraId });
 }
-
 /**
  * Update configuration via /api/config
  *
