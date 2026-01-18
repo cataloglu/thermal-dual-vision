@@ -335,6 +335,17 @@ def create_app(
         status = 200 if result.get("ok") else 400
         return web.json_response(result, status=status)
 
+    async def camera_test_payload_handler(request: web.Request) -> web.Response:
+        try:
+            payload = await request.json()
+        except Exception:
+            return web.json_response({"error": "Invalid JSON body"}, status=400)
+        if not isinstance(payload, dict):
+            return web.json_response({"error": "Invalid camera payload"}, status=400)
+        result = camera_store.test_camera_payload(payload)
+        status = 200 if result.get("ok") else 400
+        return web.json_response(result, status=status)
+
     async def ui_handler(_: web.Request) -> web.Response:
         html = UI_PATH.read_text(encoding="utf-8")
         return web.Response(text=html, content_type="text/html")
@@ -347,6 +358,7 @@ def create_app(
     app.router.add_post("/api/config", config_post_handler)
     app.router.add_get("/api/cameras", cameras_list_handler)
     app.router.add_post("/api/cameras", cameras_create_handler)
+    app.router.add_post("/api/cameras/test", camera_test_payload_handler)
     app.router.add_get("/api/cameras/{camera_id}", camera_detail_handler)
     app.router.add_put("/api/cameras/{camera_id}", camera_update_handler)
     app.router.add_delete("/api/cameras/{camera_id}", camera_delete_handler)

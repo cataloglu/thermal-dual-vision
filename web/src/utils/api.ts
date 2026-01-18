@@ -165,6 +165,28 @@ export interface Config {
   log_level: string;
 }
 
+export interface Camera {
+  id: string;
+  name: string;
+  type: 'color' | 'thermal' | 'dual';
+  rtsp_url_color: string;
+  rtsp_url_thermal: string;
+  channel_color?: number;
+  channel_thermal?: number;
+  status: string;
+  last_error?: string;
+  last_frame_ts?: number;
+}
+
+export interface CamerasResponse {
+  cameras: Camera[];
+}
+
+export interface CameraTestResponse {
+  ok: boolean;
+  snapshot?: string;
+  error?: string;
+}
 /**
  * Generic error response from API
  */
@@ -366,6 +388,25 @@ export async function getConfig(): Promise<Config> {
   return get<Config>('/api/config');
 }
 
+<<<<<<< HEAD
+export async function getCameras(): Promise<CamerasResponse> {
+  return get<CamerasResponse>('/api/cameras');
+}
+
+export async function getCamera(id: string): Promise<Camera> {
+  return get<Camera>(`/api/cameras/${id}`);
+}
+
+export async function createCamera(payload: Partial<Camera>): Promise<Camera> {
+  return post<Camera>('/api/cameras', payload);
+}
+
+export async function testCameraPayload(payload: Partial<Camera>): Promise<CameraTestResponse> {
+  return post<CameraTestResponse>('/api/cameras/test', payload);
+}
+
+=======
+>>>>>>> origin/master
 /**
  * Update configuration via /api/config
  *
@@ -402,6 +443,13 @@ export const api = {
   getConfig,
   updateConfig,
   deleteScreenshot,
+<<<<<<< HEAD
+  getCameras,
+  getCamera,
+  createCamera,
+  testCameraPayload,
+=======
+>>>>>>> origin/master
 };
 
 export default api;
