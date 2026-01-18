@@ -55,7 +55,7 @@ options_description:
   yolo_model: "YOLO model name (default: yolov8n)."
   yolo_confidence: "YOLO confidence threshold (default: 0.5)."
   yolo_classes: "YOLO class list for detection."
-  openai_api_key: "OpenAI API key for vision analysis (required)."
+  openai_api_key: "OpenAI API key for vision analysis (optional)."
   screenshot_before_sec: "Seconds before event to capture (default: 3)."
   screenshot_after_sec: "Seconds after event to capture (default: 3)."
   mqtt_topic_prefix: "MQTT topic prefix (default: smart_motion)."
@@ -81,7 +81,7 @@ schema:
   yolo_confidence: float(0.1,1.0)
   yolo_classes:
     - str
-  openai_api_key: password
+  openai_api_key: password?
   screenshot_before_sec: int(1,10)
   screenshot_after_sec: int(1,10)
   mqtt_topic_prefix: str

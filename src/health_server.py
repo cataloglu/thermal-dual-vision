@@ -80,7 +80,7 @@ class PipelineStatusTracker:
 
     def __init__(self, event_store: Optional[EventStore] = None) -> None:
         self._event_store = event_store
-        self._status = PipelineStatus(status="stopped", detail="Not started", updated_at=time.time())
+        self._status = PipelineStatus(status="idle", detail="Not started", updated_at=time.time())
 
     def set_status(self, status: str, detail: Optional[str] = None) -> None:
         if status == self._status.status and detail == self._status.detail:

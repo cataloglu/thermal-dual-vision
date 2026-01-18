@@ -18,13 +18,15 @@ if [ -d /run/s6/container_environment ]; then
 fi
 
 HAS_BASHIO=0
+HAS_CONFIG=0
 if [ -x /usr/bin/bashio ] || [ -f /usr/lib/bashio/bashio.sh ]; then
     # Home Assistant add-on environment
     # shellcheck source=/usr/lib/bashio/bashio.sh
     . /usr/lib/bashio/bashio.sh
-    if [ -f "${CONFIG_PATH}" ]; then
-        HAS_BASHIO=1
-    fi
+    HAS_BASHIO=1
+fi
+if [ -f "${CONFIG_PATH}" ]; then
+    HAS_CONFIG=1
 fi
 
 log_info() {
@@ -45,41 +47,44 @@ log_warn() {
 
 log_info "Starting Smart Motion Detector..."
 
-if [ "$HAS_BASHIO" -eq 1 ]; then
-    # Read configuration from Home Assistant
-    export CAMERA_URL=$(bashio::config 'camera_url')
-    export CAMERA_TYPE=$(bashio::config 'camera_type')
-    export COLOR_CAMERA_URL=$(bashio::config 'color_camera_url')
-    export THERMAL_CAMERA_URL=$(bashio::config 'thermal_camera_url')
-    export CAMERA_FPS=$(bashio::config 'camera_fps')
-    export MOTION_SENSITIVITY=$(bashio::config 'motion_sensitivity')
-    export MOTION_MIN_AREA=$(bashio::config 'motion_min_area')
-    export MOTION_COOLDOWN=$(bashio::config 'motion_cooldown')
-    export YOLO_MODEL=$(bashio::config 'yolo_model')
-    export YOLO_CONFIDENCE=$(bashio::config 'yolo_confidence')
-    OPENAI_API_KEY_CONFIG=$(bashio::config 'openai_api_key')
-    if [ -n "${OPENAI_API_KEY_CONFIG}" ]; then
-        export OPENAI_API_KEY="${OPENAI_API_KEY_CONFIG}"
+set_config_if_present() {
+    local key="$1"
+    local var_name="$2"
+    local value
+    value=$(bashio::config "$key")
+    if [ -n "${value}" ] && [ "${value}" != "null" ]; then
+        export "${var_name}=${value}"
     fi
-    export SCREENSHOT_BEFORE=$(bashio::config 'screenshot_before_sec')
-    export SCREENSHOT_AFTER=$(bashio::config 'screenshot_after_sec')
-    export MQTT_TOPIC_PREFIX=$(bashio::config 'mqtt_topic_prefix')
-    export MQTT_DISCOVERY=$(bashio::config 'mqtt_discovery')
-    export TELEGRAM_ENABLED=$(bashio::config 'telegram_enabled')
-    export TELEGRAM_BOT_TOKEN=$(bashio::config 'telegram_bot_token')
-    export TELEGRAM_CHAT_ID=$(bashio::config 'telegram_chat_id')
-    export LOG_LEVEL=$(bashio::config 'log_level')
-    export HOST=$(bashio::config 'host')
-    export PORT=$(bashio::config 'port')
+}
 
-    if [ -z "${HOST}" ]; then
-        HOST="0.0.0.0"
-    fi
-    if [ -z "${PORT}" ]; then
-        PORT="8000"
-    fi
+if [ "$HAS_BASHIO" -eq 1 ] && [ "$HAS_CONFIG" -eq 1 ]; then
+    # Read configuration from Home Assistant
+    set_config_if_present 'camera_url' 'CAMERA_URL'
+    set_config_if_present 'camera_type' 'CAMERA_TYPE'
+    set_config_if_present 'color_camera_url' 'COLOR_CAMERA_URL'
+    set_config_if_present 'thermal_camera_url' 'THERMAL_CAMERA_URL'
+    set_config_if_present 'camera_fps' 'CAMERA_FPS'
+    set_config_if_present 'motion_sensitivity' 'MOTION_SENSITIVITY'
+    set_config_if_present 'motion_min_area' 'MOTION_MIN_AREA'
+    set_config_if_present 'motion_cooldown' 'MOTION_COOLDOWN'
+    set_config_if_present 'yolo_model' 'YOLO_MODEL'
+    set_config_if_present 'yolo_confidence' 'YOLO_CONFIDENCE'
+    set_config_if_present 'openai_api_key' 'OPENAI_API_KEY'
+    set_config_if_present 'screenshot_before_sec' 'SCREENSHOT_BEFORE'
+    set_config_if_present 'screenshot_after_sec' 'SCREENSHOT_AFTER'
+    set_config_if_present 'mqtt_topic_prefix' 'MQTT_TOPIC_PREFIX'
+    set_config_if_present 'mqtt_discovery' 'MQTT_DISCOVERY'
+    set_config_if_present 'telegram_enabled' 'TELEGRAM_ENABLED'
+    set_config_if_present 'telegram_bot_token' 'TELEGRAM_BOT_TOKEN'
+    set_config_if_present 'telegram_chat_id' 'TELEGRAM_CHAT_ID'
+    set_config_if_present 'log_level' 'LOG_LEVEL'
+    set_config_if_present 'host' 'HOST'
+    set_config_if_present 'port' 'PORT'
 else
     # Local Docker fallback
+    if [ "$HAS_BASHIO" -eq 1 ]; then
+        log_warn "Home Assistant config not found, using environment defaults."
+    fi
     export CAMERA_URL="${CAMERA_URL:-dummy://}"
     export CAMERA_TYPE="${CAMERA_TYPE:-color}"
     export COLOR_CAMERA_URL="${COLOR_CAMERA_URL:-}"
@@ -98,12 +103,13 @@ else
     export TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-}"
     export TELEGRAM_CHAT_ID="${TELEGRAM_CHAT_ID:-}"
     export LOG_LEVEL="${LOG_LEVEL:-INFO}"
-    export HOST="${HOST:-0.0.0.0}"
-    export PORT="${PORT:-8000}"
 fi
 
+export HOST="${HOST:-0.0.0.0}"
+export PORT="${PORT:-8000}"
+
 # Get MQTT credentials from Home Assistant
-if [ "$HAS_BASHIO" -eq 1 ] && bashio::services.available "mqtt"; then
+if [ "$HAS_BASHIO" -eq 1 ] && [ "$HAS_CONFIG" -eq 1 ] && bashio::services.available "mqtt"; then
     export MQTT_HOST=$(bashio::services mqtt "host")
     export MQTT_PORT=$(bashio::services mqtt "port")
     export MQTT_USER=$(bashio::services mqtt "username")

@@ -80,36 +80,45 @@ Detaylar icin `SYNC_STRATEGY.md` dokumanina bakabilirsiniz.
 
 ## Health/Ready kontrolü
 - `GET /api/health`: sistem durum raporu
-- `GET /ready`: readiness kontrolü (200 hazır, 503 hazır değil)
+- `GET /ready`: readiness kontrolü (200 döner, body içindeki `ready` ile durum verilir)
 
 Örnek:
 ```
-curl http://<addon-host>:8099/api/health
-curl -i http://<addon-host>:8099/ready
+curl http://<addon-host>:8000/api/health
+curl -i http://<addon-host>:8000/ready
 ```
 
-## Lokal build
-Home Assistant base image ile lokal build:
+## Docker Desktop (standalone)
+Repo root'unda `Dockerfile` bulunduğundan build context doğrudan repo root olmalıdır.
+
+Build:
 ```
-docker build -t thermal-dual-vision \
-  --build-arg BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.19 .
+docker build --no-cache -t thermal-dual-vision .
 ```
 
 Çalıştırma:
 ```
-docker run --rm -p 8099:8099 \
+docker run --rm -p 8000:8000 \
+  -e CAMERA_TYPE=color \
   -e CAMERA_URL="rtsp://user:pass@192.168.1.10:554/stream1" \
-  -e OPENAI_API_KEY="sk-***" \
+  -e MQTT_DISCOVERY=false \
   thermal-dual-vision
+```
+
+Health/UI kontrolü:
+```
+curl http://localhost:8000/api/health
+curl -i http://localhost:8000/ready
+curl -i http://localhost:8000/
 ```
 
 Dual çalışma örneği:
 ```
-docker run --rm -p 8099:8099 \
+docker run --rm -p 8000:8000 \
   -e CAMERA_TYPE="dual" \
   -e COLOR_CAMERA_URL="rtsp://user:pass@192.168.1.10:554/stream1" \
   -e THERMAL_CAMERA_URL="rtsp://user:pass@192.168.1.20:554/thermal" \
-  -e OPENAI_API_KEY="sk-***" \
+  -e MQTT_DISCOVERY=false \
   thermal-dual-vision
 ```
 
