@@ -1,5 +1,9 @@
 """Color camera pipeline skeleton."""
 
+import time
+
+import cv2
+
 from src.config import Config
 from src.logger import get_logger
 from src.pipelines.base import BasePipeline
@@ -17,4 +21,27 @@ class ColorPipeline(BasePipeline):
 
     def run(self) -> None:
         logger.info("Color pipeline started (skeleton).")
-        # TODO: implement color camera processing loop
+        url = self.config.camera.url
+        if url.startswith("dummy://"):
+            logger.info("Dummy camera URL detected, keeping pipeline alive.")
+            while True:
+                time.sleep(1)
+
+        while True:
+            capture = cv2.VideoCapture(url)
+            if not capture.isOpened():
+                logger.warning("Failed to open color stream, retrying...")
+                capture.release()
+                time.sleep(2)
+                continue
+
+            try:
+                while True:
+                    ok, _frame = capture.read()
+                    if not ok:
+                        logger.warning("Failed to read color frame, reconnecting...")
+                        break
+                    if self.config.camera.fps > 0:
+                        time.sleep(1 / self.config.camera.fps)
+            finally:
+                capture.release()
