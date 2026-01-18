@@ -9,10 +9,15 @@ Tests full end-to-end integration including:
 - Theme persistence
 """
 
+import os
 import pytest
 import requests
 
 
+@pytest.mark.skipif(
+    not os.getenv("RUN_INTEGRATION_TESTS"),
+    reason="Integration tests require running server",
+)
 class TestWebUIIntegration:
     """Test full Web UI integration with HA ingress."""
 
