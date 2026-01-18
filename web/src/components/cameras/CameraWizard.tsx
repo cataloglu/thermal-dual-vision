@@ -2,6 +2,7 @@ import { h } from 'preact';
 import { useMemo, useState } from 'preact/hooks';
 import { Card } from '../ui/Card';
 import { Camera, CameraTestResponse, createCamera, testCameraPayload } from '../../utils/api';
+import { redactRtspUrl } from '../../utils/redact';
 
 interface CameraWizardProps {
   onClose: () => void;
@@ -175,13 +176,13 @@ export function CameraWizard({ onClose, onSaved }: CameraWizardProps) {
               )}
             </div>
             <div class="text-sm text-gray-500 dark:text-gray-400">
-              Hikvision default: <code>{rtspBase}/Streaming/Channels/102</code> (color),{' '}
-              <code>{rtspBase}/Streaming/Channels/202</code> (thermal)
+              Hikvision default: <code>{redactRtspUrl(rtspBase)}/Streaming/Channels/102</code> (color),{' '}
+              <code>{redactRtspUrl(rtspBase)}/Streaming/Channels/202</code> (thermal)
             </div>
             <div class="space-y-1 text-sm text-gray-600 dark:text-gray-400">
               <div>Preview (masked):</div>
-              <div>{buildUrl(channelColor, true) || '—'}</div>
-              {type !== 'color' && <div>{buildUrl(channelThermal, true) || '—'}</div>}
+              <div>{redactRtspUrl(buildUrl(channelColor, true)) || '—'}</div>
+              {type !== 'color' && <div>{redactRtspUrl(buildUrl(channelThermal, true)) || '—'}</div>}
             </div>
           </div>
         )}

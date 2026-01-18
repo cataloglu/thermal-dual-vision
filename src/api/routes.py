@@ -3,7 +3,6 @@
 import io
 import os
 import time
-from dataclasses import asdict
 from datetime import datetime
 
 from flask import Blueprint, jsonify, request, send_file, Response
@@ -15,6 +14,7 @@ from src.utils import build_event_collage, build_event_video_bytes, encode_frame
 
 # Create Blueprint for API routes
 api_bp = Blueprint('api', __name__, url_prefix='/api')
+REDACTED_VALUE = "***REDACTED***"
 
 # Track server start time for uptime calculation
 SERVER_START_TIME = time.time()
@@ -110,16 +110,7 @@ def get_config() -> tuple:
         JSON response with configuration and HTTP 200
     """
     try:
-        config_dict = asdict(_config)
-        # Mask sensitive values in response
-        if config_dict.get('llm', {}).get('api_key'):
-            config_dict['llm']['api_key'] = '***REDACTED***'
-        if config_dict.get('mqtt', {}).get('password'):
-            config_dict['mqtt']['password'] = '***REDACTED***'
-        if config_dict.get('telegram', {}).get('bot_token'):
-            config_dict['telegram']['bot_token'] = '***REDACTED***'
-
-        return jsonify(config_dict), 200
+        return jsonify(_config.to_dict(redact=True)), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -147,7 +138,9 @@ def update_config() -> tuple:
         if 'camera' in data:
             camera_data = data['camera']
             if 'url' in camera_data:
-                _config.camera.url = str(camera_data['url'])
+                url_value = str(camera_data['url'])
+                if REDACTED_VALUE not in url_value:
+                    _config.camera.url = url_value
             if 'fps' in camera_data:
                 _config.camera.fps = int(camera_data['fps'])
             if 'resolution' in camera_data:
@@ -179,7 +172,9 @@ def update_config() -> tuple:
         if 'llm' in data:
             llm_data = data['llm']
             if 'api_key' in llm_data:
-                _config.llm.api_key = str(llm_data['api_key'])
+                api_key = str(llm_data['api_key'])
+                if REDACTED_VALUE not in api_key:
+                    _config.llm.api_key = api_key
             if 'model' in llm_data:
                 _config.llm.model = str(llm_data['model'])
             if 'max_tokens' in llm_data:
@@ -209,7 +204,9 @@ def update_config() -> tuple:
             if 'username' in mqtt_data:
                 _config.mqtt.username = str(mqtt_data['username'])
             if 'password' in mqtt_data:
-                _config.mqtt.password = str(mqtt_data['password'])
+                password = str(mqtt_data['password'])
+                if REDACTED_VALUE not in password:
+                    _config.mqtt.password = password
             if 'topic_prefix' in mqtt_data:
                 _config.mqtt.topic_prefix = str(mqtt_data['topic_prefix'])
             if 'discovery' in mqtt_data:
@@ -225,7 +222,9 @@ def update_config() -> tuple:
             if 'enabled' in telegram_data:
                 _config.telegram.enabled = bool(telegram_data['enabled'])
             if 'bot_token' in telegram_data:
-                _config.telegram.bot_token = str(telegram_data['bot_token'])
+                bot_token = str(telegram_data['bot_token'])
+                if REDACTED_VALUE not in bot_token:
+                    _config.telegram.bot_token = bot_token
             if 'chat_ids' in telegram_data:
                 _config.telegram.chat_ids = list(telegram_data['chat_ids'])
             if 'rate_limit_seconds' in telegram_data:
@@ -242,16 +241,7 @@ def update_config() -> tuple:
         if errors:
             return jsonify({'error': 'Validation failed', 'details': errors}), 400
 
-        # Return updated config with masked sensitive values
-        config_dict = asdict(_config)
-        if config_dict.get('llm', {}).get('api_key'):
-            config_dict['llm']['api_key'] = '***REDACTED***'
-        if config_dict.get('mqtt', {}).get('password'):
-            config_dict['mqtt']['password'] = '***REDACTED***'
-        if config_dict.get('telegram', {}).get('bot_token'):
-            config_dict['telegram']['bot_token'] = '***REDACTED***'
-
-        return jsonify(config_dict), 200
+        return jsonify(_config.to_dict(redact=True)), 200
 
     except ValueError as e:
         return jsonify({'error': f'Invalid value: {str(e)}'}), 400

@@ -66,6 +66,10 @@ log_level: "INFO"
 rtsp://<username>:<password>@<ip>:<port>/<path>
 ```
 
+### Redaction (masking)
+- RTSP URL (kullanıcı/şifre): `rtsp://***REDACTED***@<ip>:<port>/<path>`
+- API key / token / parola: `***REDACTED***`
+
 ### Sync strategy
 Detaylar icin `SYNC_STRATEGY.md` dokumanina bakabilirsiniz.
 

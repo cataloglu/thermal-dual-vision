@@ -493,15 +493,15 @@ def _redact_config(config: Dict[str, Any]) -> None:
 
     llm = config.get("llm", {})
     if llm.get("api_key"):
-        llm["api_key"] = "***"
+        llm["api_key"] = "***REDACTED***"
 
     mqtt = config.get("mqtt", {})
     if mqtt.get("password"):
-        mqtt["password"] = "***"
+        mqtt["password"] = "***REDACTED***"
 
     telegram = config.get("telegram", {})
     if telegram.get("bot_token"):
-        telegram["bot_token"] = "***"
+        telegram["bot_token"] = "***REDACTED***"
 
 
 def _redact_url(url: str) -> str:
@@ -510,10 +510,7 @@ def _redact_url(url: str) -> str:
     parsed = urlsplit(url)
     if "@" not in parsed.netloc:
         return url
-    userinfo, host = parsed.netloc.split("@", 1)
-    if ":" in userinfo:
-        user, _password = userinfo.split(":", 1)
-        userinfo = f"{user}:***"
-    else:
-        userinfo = f"{userinfo}:***"
-    return urlunsplit((parsed.scheme, f"{userinfo}@{host}", parsed.path, parsed.query, parsed.fragment))
+    _userinfo, host = parsed.netloc.split("@", 1)
+    return urlunsplit(
+        (parsed.scheme, f"***REDACTED***@{host}", parsed.path, parsed.query, parsed.fragment)
+    )
