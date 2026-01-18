@@ -206,7 +206,6 @@ export interface PipelineState {
 export interface PipelineStatusResponse {
   pipeline: PipelineState;
 }
-
 /**
  * Generic error response from API
  */
@@ -439,7 +438,6 @@ export async function stopPipeline(): Promise<{ stopped: boolean }> {
 export async function restartPipeline(): Promise<{ restarted: boolean }> {
   return post<{ restarted: boolean }>('/api/pipeline/restart', {});
 }
-
 /**
  * Update configuration via /api/config
  *

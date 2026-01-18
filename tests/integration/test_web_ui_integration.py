@@ -9,11 +9,14 @@ Tests full end-to-end integration including:
 - Theme persistence
 """
 
+import os
 import pytest
 import requests
-import time
-from typing import Dict, Any
-import json
+
+pytestmark = pytest.mark.skipif(
+    not os.getenv("RUN_INTEGRATION_TESTS"),
+    reason="Integration tests require running server",
+)
 
 
 class TestWebUIIntegration:
