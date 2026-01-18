@@ -3,6 +3,8 @@
 import asyncio
 import base64
 import io
+import os
+import tempfile
 from datetime import datetime
 from functools import wraps
 from typing import Any, Callable, Optional, Sequence, TypeVar
@@ -107,6 +109,63 @@ def build_event_collage(
         output_frames.append(overlay)
 
     return cv2.hconcat(output_frames)
+
+
+def build_event_video_bytes(
+    frames: Sequence[np.ndarray],
+    camera_name: str,
+    timestamp: datetime,
+    event_type: str,
+    speed_multiplier: int = 4,
+    duration_seconds: int = 20,
+) -> bytes:
+    """Build a short MP4 clip from event frames with overlays."""
+    if speed_multiplier not in (2, 4, 5):
+        speed_multiplier = 4
+
+    base_height, base_width = frames[0].shape[:2]
+    fps = 2 * speed_multiplier
+    total_frames = max(1, int(duration_seconds * fps))
+    timestamp_text = timestamp.strftime("%Y-%m-%d %H:%M:%S")
+    overlay_text = f"{camera_name} | {timestamp_text} | {event_type}"
+
+    tmp_file = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
+    tmp_path = tmp_file.name
+    tmp_file.close()
+
+    writer = cv2.VideoWriter(
+        tmp_path,
+        cv2.VideoWriter_fourcc(*"mp4v"),
+        fps,
+        (base_width, base_height),
+    )
+
+    for index in range(total_frames):
+        frame = frames[index % len(frames)]
+        resized = cv2.resize(frame, (base_width, base_height))
+        overlay = resized.copy()
+        cv2.putText(
+            overlay,
+            overlay_text,
+            (10, 24),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (255, 255, 255),
+            2,
+            cv2.LINE_AA,
+        )
+        writer.write(overlay)
+
+    writer.release()
+
+    try:
+        with open(tmp_path, "rb") as handle:
+            return handle.read()
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
 
 
 def decode_base64_to_frame(base64_string: str) -> np.ndarray:

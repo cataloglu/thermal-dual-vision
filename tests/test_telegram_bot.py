@@ -672,7 +672,8 @@ class TestTelegramBotRateLimiting:
 
             # Mock the application and bot
             bot.application = Mock()
-            bot.application.bot.send_media_group = AsyncMock()
+            bot.application.bot.send_photo = AsyncMock()
+            bot.application.bot.send_video = AsyncMock()
 
             # Create mock screenshots
             screenshots = Mock()
@@ -724,7 +725,8 @@ class TestTelegramBotRateLimiting:
 
             # Mock the application and bot
             bot.application = Mock()
-            bot.application.bot.send_media_group = AsyncMock()
+            bot.application.bot.send_photo = AsyncMock()
+            bot.application.bot.send_video = AsyncMock()
 
             # Create mock screenshots
             screenshots = Mock()
@@ -760,7 +762,8 @@ class TestTelegramBotRateLimiting:
                 assert elapsed < 0.05  # Should be much less than rate limit
 
                 # Both alerts should have been sent
-                assert bot.application.bot.send_media_group.call_count == 2
+                assert bot.application.bot.send_photo.call_count == 2
+                assert bot.application.bot.send_video.call_count == 2
 
     @pytest.mark.asyncio
     async def test_rate_limiting_updates_last_detection_time(self):
@@ -776,7 +779,8 @@ class TestTelegramBotRateLimiting:
 
             # Mock the application and bot
             bot.application = Mock()
-            bot.application.bot.send_media_group = AsyncMock()
+            bot.application.bot.send_photo = AsyncMock()
+            bot.application.bot.send_video = AsyncMock()
 
             # Create mock screenshots with specific timestamp
             test_timestamp = datetime(2024, 1, 15, 14, 30, 25)

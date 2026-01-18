@@ -73,6 +73,7 @@ class TelegramConfig:
     chat_ids: List[str] = field(default_factory=list)
     rate_limit_seconds: int = 5
     send_images: bool = True
+    video_speed: int = 4
     event_types: List[str] = field(
         default_factory=lambda: [
             "motion_detected",
@@ -227,6 +228,12 @@ class Config:
             config.telegram.enabled,
         )
         _apply_env_str(env, "TELEGRAM_BOT_TOKEN", lambda value: setattr(config.telegram, "bot_token", value))
+        _apply_env_int(
+            env,
+            "TELEGRAM_VIDEO_SPEED",
+            lambda value: setattr(config.telegram, "video_speed", value),
+            config.telegram.video_speed,
+        )
         chat_ids_str = env.get("TELEGRAM_CHAT_ID", "")
         if chat_ids_str:
             config.telegram.chat_ids = [cid.strip() for cid in chat_ids_str.split(",")]
@@ -286,6 +293,7 @@ class Config:
                 "chat_ids": self.telegram.chat_ids,
                 "rate_limit_seconds": self.telegram.rate_limit_seconds,
                 "send_images": self.telegram.send_images,
+                "video_speed": self.telegram.video_speed,
                 "event_types": self.telegram.event_types,
                 "cooldown_seconds": self.telegram.cooldown_seconds,
                 "max_messages_per_min": self.telegram.max_messages_per_min,
@@ -331,6 +339,8 @@ class Config:
                     errors.append("Telegram bot token is required when enabled")
                 if not self.telegram.chat_ids:
                     errors.append("Telegram chat ID is required when enabled")
+                if self.telegram.video_speed not in {2, 4, 5}:
+                    errors.append("Telegram video speed must be 2, 4, or 5")
 
         return errors
 
@@ -446,6 +456,7 @@ def _apply_saved_config(config: Config, saved: Dict[str, Any]) -> None:
         "rate_limit_seconds", config.telegram.rate_limit_seconds
     )
     config.telegram.send_images = telegram.get("send_images", config.telegram.send_images)
+    config.telegram.video_speed = telegram.get("video_speed", config.telegram.video_speed)
     config.telegram.event_types = telegram.get("event_types", config.telegram.event_types)
     config.telegram.cooldown_seconds = telegram.get("cooldown_seconds", config.telegram.cooldown_seconds)
     config.telegram.max_messages_per_min = telegram.get(

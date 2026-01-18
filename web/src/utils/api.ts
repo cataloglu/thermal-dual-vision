@@ -141,6 +141,7 @@ export interface TelegramConfig {
   chat_ids: string[];
   rate_limit_seconds: number;
   send_images: boolean;
+  video_speed: number;
   event_types: string[];
   cooldown_seconds: number;
   max_messages_per_min: number;
