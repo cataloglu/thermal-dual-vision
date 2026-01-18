@@ -2,7 +2,18 @@
 
 import logging
 import sys
-from typing import Optional
+from collections import deque
+from typing import Deque, List, Optional
+
+_LOG_BUFFER: Deque[str] = deque(maxlen=500)
+
+
+class LogBufferHandler(logging.Handler):
+    """In-memory log buffer for API access."""
+
+    def emit(self, record: logging.LogRecord) -> None:
+        message = self.format(record)
+        _LOG_BUFFER.append(message)
 
 
 def setup_logger(
@@ -35,15 +46,20 @@ def setup_logger(
     handler = logging.StreamHandler(sys.stdout)
     handler.setLevel(log_level)
 
+    buffer_handler = LogBufferHandler()
+    buffer_handler.setLevel(log_level)
+
     # Create formatter
     if format_string is None:
         format_string = "[%(asctime)s] %(levelname)s [%(name)s] %(message)s"
 
     formatter = logging.Formatter(format_string, datefmt="%Y-%m-%d %H:%M:%S")
     handler.setFormatter(formatter)
+    buffer_handler.setFormatter(formatter)
 
     # Add handler
     logger.addHandler(handler)
+    logger.addHandler(buffer_handler)
 
     return logger
 
@@ -63,3 +79,10 @@ def get_logger(name: str) -> logging.Logger:
         Logger instance
     """
     return logging.getLogger(f"smart_motion.{name}")
+
+
+def get_log_tail(lines: int = 200) -> List[str]:
+    """Return the most recent log lines."""
+    if lines <= 0:
+        return []
+    return list(_LOG_BUFFER)[-lines:]

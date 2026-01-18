@@ -42,32 +42,21 @@ export interface SystemStats {
 /**
  * Detection event analysis details
  */
-export interface DetectionAnalysis {
-  real_motion: boolean;
-  confidence_score: number;
-  description: string;
-  detected_objects: string[];
-  threat_level?: string;
-  recommended_action?: string;
-  detailed_analysis?: string;
-  processing_time?: number;
-}
-
-/**
- * Detection event from /api/events
- */
-export interface DetectionEvent {
-  id: string;
+export interface SystemEvent {
+  event_id: string;
+  event_type: string;
   timestamp: string;
-  has_screenshots: boolean;
-  analysis: DetectionAnalysis;
+  source: string;
+  camera_id?: string | null;
+  payload?: Record<string, any>;
+  schema_version?: string;
 }
 
 /**
  * Events list response from /api/events
  */
 export interface EventsResponse {
-  events: DetectionEvent[];
+  events: SystemEvent[];
   total?: number;
 }
 
@@ -218,6 +207,25 @@ export interface PipelineState {
 
 export interface PipelineStatusResponse {
   pipeline: PipelineState;
+}
+
+export interface LogsTailResponse {
+  lines: string[];
+}
+
+export interface MetricsResponse {
+  uptime_seconds: number;
+  pipeline: PipelineState;
+  events_count: number;
+}
+
+export interface HealthResponse {
+  status: string;
+  timestamp: number;
+  ai_enabled: boolean;
+  components: Record<string, any>;
+  pipeline: PipelineState;
+  events: SystemEvent[];
 }
 
 /**
@@ -469,6 +477,18 @@ export async function sendTelegramTestSnapshot(cameraId: string): Promise<{ sent
   return post<{ sent: boolean }>('/api/notifications/telegram/test-snapshot', { camera_id: cameraId });
 }
 
+export async function getLogsTail(lines = 200): Promise<LogsTailResponse> {
+  return get<LogsTailResponse>(`/api/logs/tail?lines=${lines}`);
+}
+
+export async function getMetrics(): Promise<MetricsResponse> {
+  return get<MetricsResponse>('/api/metrics');
+}
+
+export async function getHealth(): Promise<HealthResponse> {
+  return get<HealthResponse>('/api/health');
+}
+
 /**
  * Update configuration via /api/config
  *
@@ -517,6 +537,9 @@ export const api = {
   updateTelegramSettings,
   sendTelegramTestMessage,
   sendTelegramTestSnapshot,
+  getLogsTail,
+  getMetrics,
+  getHealth,
 };
 
 export default api;

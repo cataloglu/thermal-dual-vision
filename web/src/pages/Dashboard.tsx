@@ -1,7 +1,7 @@
 import { h } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
 import { Card } from '../components/ui/Card';
-import { getStatus, getStats, getEvents, SystemStatus, SystemStats, DetectionEvent } from '../utils/api';
+import { getStatus, getStats, getEvents, SystemStatus, SystemStats, SystemEvent } from '../utils/api';
 
 /**
  * Dashboard page - System overview with stats and recent detections.
@@ -27,7 +27,7 @@ import { getStatus, getStats, getEvents, SystemStatus, SystemStats, DetectionEve
 export function Dashboard() {
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [stats, setStats] = useState<SystemStats | null>(null);
-  const [events, setEvents] = useState<DetectionEvent[]>([]);
+  const [events, setEvents] = useState<SystemEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -93,19 +93,6 @@ export function Dashboard() {
         return 'bg-red-500';
       default:
         return 'bg-yellow-500';
-    }
-  };
-
-  const getThreatColor = (threatLevel?: string): string => {
-    switch (threatLevel) {
-      case 'high':
-        return 'text-red-600 dark:text-red-400';
-      case 'medium':
-        return 'text-yellow-600 dark:text-yellow-400';
-      case 'low':
-        return 'text-green-600 dark:text-green-400';
-      default:
-        return 'text-gray-600 dark:text-gray-400';
     }
   };
 
@@ -259,16 +246,14 @@ export function Dashboard() {
           <div class="space-y-3">
             {events.map((event) => (
               <div
-                key={event.id}
+                key={event.event_id}
                 class="flex items-start gap-4 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
               >
                 {/* Status Indicator */}
                 <div class="flex-shrink-0 mt-1">
                   <div
                     class={`w-2 h-2 rounded-full ${
-                      event.analysis.real_motion
-                        ? 'bg-green-500'
-                        : 'bg-yellow-500'
+                      event.event_type === 'error' ? 'bg-red-500' : 'bg-green-500'
                     }`}
                   ></div>
                 </div>
@@ -277,7 +262,7 @@ export function Dashboard() {
                 <div class="flex-1 min-w-0">
                   <div class="flex items-start justify-between gap-2 mb-1">
                     <p class="font-medium text-gray-900 dark:text-gray-100">
-                      {event.analysis.real_motion ? 'Motion Detected' : 'Possible Motion'}
+                      {event.event_type}
                     </p>
                     <span class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
                       {formatTimestamp(event.timestamp)}
@@ -285,24 +270,8 @@ export function Dashboard() {
                   </div>
 
                   <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                    {event.analysis.description}
+                    Source: {event.source}
                   </p>
-
-                  <div class="flex flex-wrap items-center gap-2 text-xs">
-                    <span class="px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
-                      Confidence: {Math.round(event.analysis.confidence_score * 100)}%
-                    </span>
-                    {event.analysis.threat_level && (
-                      <span class={`px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 font-medium ${getThreatColor(event.analysis.threat_level)}`}>
-                        Threat: {event.analysis.threat_level}
-                      </span>
-                    )}
-                    {event.analysis.detected_objects.length > 0 && (
-                      <span class="px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
-                        Objects: {event.analysis.detected_objects.join(', ')}
-                      </span>
-                    )}
-                  </div>
                 </div>
               </div>
             ))}

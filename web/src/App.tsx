@@ -8,6 +8,7 @@ import { CameraDetail } from './pages/CameraDetail';
 import { Pipelines } from './pages/Pipelines';
 import { LiveView } from './pages/LiveView';
 import { Notifications } from './pages/Notifications';
+import { Diagnostics } from './pages/Diagnostics';
 import { Gallery } from './pages/Gallery';
 import { Events } from './pages/Events';
 import { Settings } from './pages/Settings';
@@ -37,6 +38,7 @@ export function App() {
           <CameraDetail path="/cameras/:id" />
           <Pipelines path="/pipelines" />
           <Notifications path="/notifications" />
+          <Diagnostics path="/diagnostics" />
           <LiveView path="/live" />
           <Gallery path="/gallery" />
           <Events path="/events" />
