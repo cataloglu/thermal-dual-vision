@@ -1,5 +1,6 @@
 """API routes for Smart Motion Detector web server."""
 
+import io
 import os
 import time
 from dataclasses import asdict
@@ -9,7 +10,7 @@ from flask import Blueprint, jsonify, request, send_file, Response
 
 from src.config import Config
 from src.screenshot_manager import ScreenshotManager
-from src.utils import encode_frame_to_bytes
+from src.utils import build_event_collage, build_event_video_bytes, encode_frame_to_bytes
 
 
 # Create Blueprint for API routes
@@ -428,6 +429,61 @@ def get_screenshot_image(screenshot_id: str, image_type: str) -> tuple:
         # Send file
         return send_file(str(image_path), mimetype='image/jpeg'), 200
 
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route('/screenshots/<screenshot_id>/collage', methods=['GET'])
+def get_screenshot_collage(screenshot_id: str) -> tuple:
+    """Get a collage image for a screenshot set."""
+    try:
+        screenshot_set = _screenshot_manager.get(screenshot_id)
+        if screenshot_set is None:
+            return jsonify({'error': 'Screenshot not found'}), 404
+
+        frames = [
+            screenshot_set.before,
+            screenshot_set.early,
+            screenshot_set.peak,
+            screenshot_set.late,
+            screenshot_set.after,
+        ]
+        collage = build_event_collage(
+            frames=frames,
+            labels=["before", "early", "peak", "late", "after"],
+            camera_name="Camera",
+            timestamp=screenshot_set.timestamp,
+            is_thermal=False,
+        )
+        collage_bytes = encode_frame_to_bytes(collage, quality=_config.screenshots.quality)
+        return send_file(io.BytesIO(collage_bytes), mimetype='image/jpeg'), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route('/screenshots/<screenshot_id>/clip.mp4', methods=['GET'])
+def get_screenshot_clip(screenshot_id: str) -> tuple:
+    """Get a short MP4 clip for a screenshot set."""
+    try:
+        screenshot_set = _screenshot_manager.get(screenshot_id)
+        if screenshot_set is None:
+            return jsonify({'error': 'Screenshot not found'}), 404
+
+        frames = [
+            screenshot_set.before,
+            screenshot_set.early,
+            screenshot_set.peak,
+            screenshot_set.late,
+            screenshot_set.after,
+        ]
+        video_bytes = build_event_video_bytes(
+            frames=frames,
+            camera_name="Camera",
+            timestamp=screenshot_set.timestamp,
+            event_type="motion_detected",
+            speed_multiplier=_config.telegram.video_speed,
+        )
+        return send_file(io.BytesIO(video_bytes), mimetype='video/mp4'), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

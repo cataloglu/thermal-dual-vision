@@ -2,16 +2,23 @@ import { h } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
 import { Table, TableColumn } from '../components/ui/Table';
 import { Card } from '../components/ui/Card';
-import { getEvents, SystemEvent } from '../utils/api';
+import {
+  getScreenshots,
+  getScreenshotClipUrl,
+  getScreenshotCollageUrl,
+  Screenshot
+} from '../utils/api';
 
 /**
- * Events page - Complete list of motion detection events.
+ * Events page - Motion detection event history and detail view.
  *
  * Displays all motion detection events in a sortable table format,
- * showing timestamp, detection status, confidence, and analysis details.
+ * plus a detail panel with collage, AI analysis, and MP4 clip.
  *
  * Fetches data from:
- * - /api/events - List of all detection events
+ * - /api/screenshots - List of detection events
+ * - /api/screenshots/<id>/collage - 5-frame collage
+ * - /api/screenshots/<id>/clip.mp4 - MP4 clip
  *
  * Features:
  * - Comprehensive event history table with 6 columns:
@@ -38,9 +45,9 @@ import { getEvents, SystemEvent } from '../utils/api';
  */
 
 export function Events() {
-  const [events, setEvents] = useState<SystemEvent[]>([]);
-  const [filterType, setFilterType] = useState<string>('all');
-  const [filterSource, setFilterSource] = useState<string>('all');
+  const [events, setEvents] = useState<Screenshot[]>([]);
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [selectedEvent, setSelectedEvent] = useState<Screenshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,8 +63,8 @@ export function Events() {
       setError(null);
 
       // Use API utility function (consistent with Dashboard pattern)
-      const data = await getEvents();
-      setEvents(data.events || []);
+      const data = await getScreenshots();
+      setEvents(data.screenshots || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
@@ -82,7 +89,15 @@ export function Events() {
     return `${Math.floor(diffMins / 1440)}d ago`;
   };
 
-  const columns: TableColumn<SystemEvent>[] = [
+  const filteredEvents = events.filter((event) => {
+    if (filterStatus === 'all') {
+      return true;
+    }
+    const isReal = event.analysis?.gercek_hareket === true;
+    return filterStatus === 'real' ? isReal : !isReal;
+  });
+
+  const columns: TableColumn<Screenshot>[] = [
     {
       key: 'timestamp',
       label: 'Time',
@@ -99,21 +114,37 @@ export function Events() {
       )
     },
     {
-      key: 'event_type',
-      label: 'Type',
-      width: 'w-40',
+      key: 'status',
+      label: 'Status',
+      width: 'w-32',
       render: (event) => (
-        <span class="font-medium text-gray-900 dark:text-gray-100">
-          {event.event_type}
+        <span class={`inline-flex items-center gap-2 text-sm ${
+          event.analysis?.gercek_hareket ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400'
+        }`}>
+          <span class={`w-2 h-2 rounded-full ${
+            event.analysis?.gercek_hareket ? 'bg-green-500' : 'bg-yellow-500'
+          }`}></span>
+          {event.analysis?.gercek_hareket ? 'Real' : 'Possible'}
         </span>
       )
     },
     {
-      key: 'source',
-      label: 'Source',
+      key: 'threat',
+      label: 'Threat',
       width: 'w-32',
       render: (event) => (
-        <span class="text-sm text-gray-600 dark:text-gray-400">{event.source}</span>
+        <span class="text-sm text-gray-600 dark:text-gray-400 capitalize">
+          {event.analysis?.tehdit_seviyesi || 'unknown'}
+        </span>
+      )
+    },
+    {
+      key: 'summary',
+      label: 'Summary',
+      render: (event) => (
+        <span class="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
+          {event.analysis?.degisiklik_aciklamasi || 'No analysis summary'}
+        </span>
       )
     }
   ];
@@ -162,24 +193,13 @@ export function Events() {
       <Card>
         <div class="flex flex-col md:flex-row gap-3">
           <select
-            value={filterType}
-            onChange={(e) => setFilterType((e.target as HTMLSelectElement).value)}
+            value={filterStatus}
+            onChange={(e) => setFilterStatus((e.target as HTMLSelectElement).value)}
             class="px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
           >
-            <option value="all">All types</option>
-            {[...new Set(events.map((event) => event.event_type))].map((type) => (
-              <option key={type} value={type}>{type}</option>
-            ))}
-          </select>
-          <select
-            value={filterSource}
-            onChange={(e) => setFilterSource((e.target as HTMLSelectElement).value)}
-            class="px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
-          >
-            <option value="all">All sources</option>
-            {[...new Set(events.map((event) => event.source))].map((source) => (
-              <option key={source} value={source}>{source}</option>
-            ))}
+            <option value="all">All statuses</option>
+            <option value="real">Real motion</option>
+            <option value="possible">Possible motion</option>
           </select>
         </div>
       </Card>
@@ -188,17 +208,81 @@ export function Events() {
       <Card>
         <Table
           columns={columns}
-          data={events.filter((event) => {
-            if (filterType !== 'all' && event.event_type !== filterType) return false;
-            if (filterSource !== 'all' && event.source !== filterSource) return false;
-            return true;
-          })}
+          data={filteredEvents}
           loading={loading}
           emptyMessage="No events recorded yet"
           striped
           hover
+          onRowClick={(event) => setSelectedEvent(event)}
         />
       </Card>
+
+      {/* Event Detail */}
+      {selectedEvent && (
+        <Card title="Event Detail">
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="space-y-4">
+              <div>
+                <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  Collage
+                </h3>
+                <img
+                  src={getScreenshotCollageUrl(selectedEvent.id)}
+                  alt="Event collage"
+                  class="w-full rounded-lg border border-gray-200 dark:border-gray-700"
+                />
+              </div>
+              <div>
+                <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  MP4 Clip
+                </h3>
+                <video
+                  src={getScreenshotClipUrl(selectedEvent.id)}
+                  controls
+                  class="w-full rounded-lg border border-gray-200 dark:border-gray-700"
+                />
+                <a
+                  href={getScreenshotClipUrl(selectedEvent.id)}
+                  download
+                  class="inline-flex mt-2 text-sm text-primary-600 dark:text-primary-400 hover:underline"
+                >
+                  Download MP4
+                </a>
+              </div>
+            </div>
+            <div class="space-y-4">
+              <div>
+                <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  AI Summary
+                </h3>
+                <p class="text-sm text-gray-600 dark:text-gray-400">
+                  {selectedEvent.analysis?.detayli_analiz || 'No AI analysis available.'}
+                </p>
+              </div>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600 dark:text-gray-400">
+                <div>
+                  <span class="font-medium text-gray-900 dark:text-gray-100">Threat:</span>{' '}
+                  {selectedEvent.analysis?.tehdit_seviyesi || 'unknown'}
+                </div>
+                <div>
+                  <span class="font-medium text-gray-900 dark:text-gray-100">Confidence:</span>{' '}
+                  {selectedEvent.analysis?.guven_skoru !== undefined
+                    ? `${Math.round(selectedEvent.analysis.guven_skoru * 100)}%`
+                    : 'n/a'}
+                </div>
+                <div>
+                  <span class="font-medium text-gray-900 dark:text-gray-100">Objects:</span>{' '}
+                  {selectedEvent.analysis?.tespit_edilen_nesneler?.join(', ') || 'n/a'}
+                </div>
+                <div>
+                  <span class="font-medium text-gray-900 dark:text-gray-100">Detected:</span>{' '}
+                  {selectedEvent.analysis?.gercek_hareket ? 'Real motion' : 'Possible motion'}
+                </div>
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

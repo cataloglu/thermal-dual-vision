@@ -1,7 +1,18 @@
 import { h } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
 import { Card } from '../components/ui/Card';
-import { getStatus, getStats, getEvents, SystemStatus, SystemStats, SystemEvent } from '../utils/api';
+import {
+  getCameras,
+  getPipelineStatus,
+  getScreenshots,
+  getStatus,
+  getStats,
+  Camera,
+  PipelineState,
+  Screenshot,
+  SystemStatus,
+  SystemStats
+} from '../utils/api';
 
 /**
  * Dashboard page - System overview with stats and recent detections.
@@ -9,12 +20,14 @@ import { getStatus, getStats, getEvents, SystemStatus, SystemStats, SystemEvent 
  * Displays:
  * - System status indicators
  * - Key statistics cards (total detections, active time, etc.)
- * - Recent motion detection events
+ * - Latest motion detection event summary
  *
  * Fetches data from:
  * - /api/status - System health and component states
  * - /api/stats - Detection statistics
- * - /api/events?limit=5 - Recent events
+ * - /api/screenshots?limit=1 - Latest event
+ * - /api/pipeline/status - Pipeline status
+ * - /api/cameras - Camera status list
  *
  * Features:
  * - Auto-refresh every 30 seconds
@@ -27,7 +40,9 @@ import { getStatus, getStats, getEvents, SystemStatus, SystemStats, SystemEvent 
 export function Dashboard() {
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [stats, setStats] = useState<SystemStats | null>(null);
-  const [events, setEvents] = useState<SystemEvent[]>([]);
+  const [pipeline, setPipeline] = useState<PipelineState | null>(null);
+  const [cameras, setCameras] = useState<Camera[]>([]);
+  const [latestEvent, setLatestEvent] = useState<Screenshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,15 +58,19 @@ export function Dashboard() {
       setError(null);
 
       // Fetch all data in parallel using API utilities
-      const [statusData, statsData, eventsData] = await Promise.all([
+      const [statusData, statsData, pipelineData, camerasData, screenshotsData] = await Promise.all([
         getStatus(),
         getStats(),
-        getEvents(5)
+        getPipelineStatus(),
+        getCameras(),
+        getScreenshots(1)
       ]);
 
       setStatus(statusData);
       setStats(statsData);
-      setEvents(eventsData.events || []);
+      setPipeline(pipelineData.pipeline);
+      setCameras(camerasData.cameras || []);
+      setLatestEvent((screenshotsData.screenshots || [])[0] ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
@@ -96,6 +115,11 @@ export function Dashboard() {
     }
   };
 
+  const connectedCameras = cameras.filter((camera) => camera.status === 'connected').length;
+  const cameraSummary = cameras.length
+    ? `${connectedCameras}/${cameras.length} connected`
+    : 'No cameras configured';
+
   if (loading) {
     return (
       <div class="flex items-center justify-center min-h-screen">
@@ -138,7 +162,7 @@ export function Dashboard() {
 
       {/* System Status */}
       <Card title="System Status">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
           {/* Overall Status */}
           <div>
             <div class="flex items-center gap-2 mb-1">
@@ -153,14 +177,30 @@ export function Dashboard() {
             </p>
           </div>
 
+          {/* Pipeline Status */}
+          <div>
+            <div class="flex items-center gap-2 mb-1">
+              <div class={`w-3 h-3 rounded-full ${getStatusColor(pipeline?.status || 'unknown')}`}></div>
+              <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Pipeline</span>
+            </div>
+            <p class="text-lg font-semibold text-gray-900 dark:text-gray-100 capitalize">
+              {pipeline?.status || 'Unknown'}
+            </p>
+            {pipeline?.detail && (
+              <p class="text-sm text-gray-500 dark:text-gray-400">
+                {pipeline.detail}
+              </p>
+            )}
+          </div>
+
           {/* Camera Status */}
           <div>
             <div class="flex items-center gap-2 mb-1">
               <div class={`w-3 h-3 rounded-full ${getStatusColor(status?.components.camera || 'unknown')}`}></div>
-              <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Camera</span>
+              <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Cameras</span>
             </div>
             <p class="text-lg font-semibold text-gray-900 dark:text-gray-100 capitalize">
-              {status?.components.camera || 'Unknown'}
+              {cameraSummary}
             </p>
           </div>
 
@@ -226,9 +266,9 @@ export function Dashboard() {
         </Card>
       </div>
 
-      {/* Recent Events */}
+      {/* Latest Event */}
       <Card
-        title="Recent Events"
+        title="Latest Event"
         actions={
           <a
             href="/events"
@@ -238,43 +278,36 @@ export function Dashboard() {
           </a>
         }
       >
-        {events.length === 0 ? (
+        {!latestEvent ? (
           <div class="text-center py-8 text-gray-500 dark:text-gray-400">
-            No recent events
+            No events recorded yet
           </div>
         ) : (
           <div class="space-y-3">
-            {events.map((event) => (
-              <div
-                key={event.event_id}
-                class="flex items-start gap-4 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-              >
-                {/* Status Indicator */}
-                <div class="flex-shrink-0 mt-1">
-                  <div
-                    class={`w-2 h-2 rounded-full ${
-                      event.event_type === 'error' ? 'bg-red-500' : 'bg-green-500'
-                    }`}
-                  ></div>
-                </div>
-
-                {/* Event Details */}
-                <div class="flex-1 min-w-0">
-                  <div class="flex items-start justify-between gap-2 mb-1">
-                    <p class="font-medium text-gray-900 dark:text-gray-100">
-                      {event.event_type}
-                    </p>
-                    <span class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                      {formatTimestamp(event.timestamp)}
-                    </span>
-                  </div>
-
-                  <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                    Source: {event.source}
-                  </p>
-                </div>
-              </div>
-            ))}
+            <div class="flex items-start justify-between gap-2">
+              <p class="font-medium text-gray-900 dark:text-gray-100">
+                Motion detected
+              </p>
+              <span class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                {formatTimestamp(latestEvent.timestamp)}
+              </span>
+            </div>
+            {latestEvent.analysis?.degisiklik_aciklamasi && (
+              <p class="text-sm text-gray-600 dark:text-gray-400">
+                {latestEvent.analysis.degisiklik_aciklamasi}
+              </p>
+            )}
+            <div class="flex flex-wrap gap-3 text-sm text-gray-600 dark:text-gray-400">
+              <span>
+                Threat: {latestEvent.analysis?.tehdit_seviyesi || 'unknown'}
+              </span>
+              <span>
+                Confidence:{' '}
+                {latestEvent.analysis?.guven_skoru !== undefined
+                  ? `${Math.round(latestEvent.analysis.guven_skoru * 100)}%`
+                  : 'n/a'}
+              </span>
+            </div>
           </div>
         )}
       </Card>
