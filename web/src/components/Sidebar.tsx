@@ -30,7 +30,6 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { path: '/', label: 'Dashboard', icon: '📊' },
-  { path: '/cameras', label: 'Cameras', icon: '🎥' },
   { path: '/live', label: 'Live View', icon: '📹' },
   { path: '/gallery', label: 'Gallery', icon: '🖼️' },
   { path: '/events', label: 'Events', icon: '📋' },
