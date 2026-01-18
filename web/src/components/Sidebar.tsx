@@ -4,15 +4,7 @@ import { Link } from 'preact-router/match';
 /**
  * Sidebar navigation component.
  *
- * Provides main navigation links for the application. The sidebar is responsive
- * and can be toggled on mobile devices. Active routes are highlighted.
- *
- * Navigation items:
- * - Dashboard: System overview and recent detections
- * - Live View: Real-time camera stream
- * - Gallery: Screenshot grid view
- * - Events: Detection history table
- * - Settings: Configuration form
+ * Security-focused navigation with only the required sections.
  */
 
 interface SidebarProps {
@@ -25,19 +17,15 @@ interface SidebarProps {
 interface NavItem {
   path: string;
   label: string;
-  icon: string;
+  hint?: string;
 }
 
 const navItems: NavItem[] = [
-  { path: '/', label: 'Dashboard', icon: '📊' },
-  { path: '/cameras', label: 'Cameras', icon: '🎥' },
-  { path: '/pipelines', label: 'Pipelines', icon: '🔁' },
-  { path: '/notifications', label: 'Notifications', icon: '🔔' },
-  { path: '/diagnostics', label: 'Diagnostics', icon: '🩺' },
-  { path: '/live', label: 'Live View', icon: '📹' },
-  { path: '/gallery', label: 'Gallery', icon: '🖼️' },
-  { path: '/events', label: 'Events', icon: '📋' },
-  { path: '/settings', label: 'Settings', icon: '⚙️' },
+  { path: '/', label: 'Status', hint: 'System overview' },
+  { path: '/events', label: 'Events', hint: 'Primary feed' },
+  { path: '/cameras', label: 'Cameras', hint: 'Connectivity' },
+  { path: '/settings', label: 'Settings', hint: 'Config' },
+  { path: '/diagnostics', label: 'Diagnostics', hint: 'Health & logs' },
 ];
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
@@ -55,25 +43,24 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       <aside
         class={`
           fixed top-0 left-0 z-30 h-full w-64
-          bg-white dark:bg-gray-800
-          border-r border-gray-200 dark:border-gray-700
+          bg-[#111827] border-r border-[#1F2937]
           transition-transform duration-300 ease-in-out
           lg:translate-x-0 lg:static
           ${isOpen ? 'translate-x-0' : '-translate-x-full'}
         `}
       >
         {/* Sidebar header */}
-        <div class="flex items-center justify-between h-16 px-6 border-b border-gray-200 dark:border-gray-700">
-          <h1 class="text-xl font-bold text-gray-900 dark:text-gray-100">
-            Motion Detector
+        <div class="flex items-center justify-between h-16 px-6 border-b border-[#1F2937]">
+          <h1 class="text-base font-semibold text-gray-100 tracking-wide">
+            Smart Motion
           </h1>
           {/* Close button (mobile only) */}
           <button
             onClick={onClose}
-            class="lg:hidden p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
+            class="lg:hidden p-2 rounded-md hover:bg-[#1F2937]"
             aria-label="Close sidebar"
           >
-            <span class="text-2xl">✕</span>
+            <span class="text-xl text-gray-200">✕</span>
           </button>
         </div>
 
@@ -84,17 +71,19 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               <li key={item.path}>
                 <Link
                   href={item.path}
-                  activeClassName="bg-primary-600 text-white"
+                  activeClassName="bg-[#161B22] text-gray-100 border border-[#1F2937]"
                   class="
-                    flex items-center gap-3 px-4 py-3 rounded-lg
-                    text-gray-700 dark:text-gray-300
-                    hover:bg-gray-100 dark:hover:bg-gray-700
-                    transition-colors duration-200
+                    flex flex-col gap-1 px-4 py-3 rounded-lg
+                    text-gray-300 border border-transparent
+                    hover:bg-[#161B22] hover:text-gray-100
+                    transition-colors duration-150
                   "
                   onClick={onClose}
                 >
-                  <span class="text-xl">{item.icon}</span>
-                  <span class="font-medium">{item.label}</span>
+                  <span class="text-sm font-semibold tracking-wide">{item.label}</span>
+                  {item.hint && (
+                    <span class="text-xs text-gray-500">{item.hint}</span>
+                  )}
                 </Link>
               </li>
             ))}
@@ -102,9 +91,9 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         </nav>
 
         {/* Footer */}
-        <div class="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 dark:border-gray-700">
-          <div class="text-xs text-gray-500 dark:text-gray-400 text-center">
-            Motion Detector v1.0
+        <div class="absolute bottom-0 left-0 right-0 p-4 border-t border-[#1F2937]">
+          <div class="text-xs text-gray-500 text-center">
+            Monitoring Console
           </div>
         </div>
       </aside>

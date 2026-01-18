@@ -1,316 +1,180 @@
 import { h } from 'preact';
-import { useState, useEffect } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import { Card } from '../components/ui/Card';
 import {
-  getCameras,
-  getPipelineStatus,
-  getScreenshots,
-  getStatus,
-  getStats,
   Camera,
+  HealthResponse,
   PipelineState,
   Screenshot,
-  SystemStatus,
-  SystemStats
+  getCameras,
+  getHealth,
+  getPipelineStatus,
+  getScreenshots,
 } from '../utils/api';
 
-/**
- * Dashboard page - System overview with stats and recent detections.
- *
- * Displays:
- * - System status indicators
- * - Key statistics cards (total detections, active time, etc.)
- * - Latest motion detection event summary
- *
- * Fetches data from:
- * - /api/status - System health and component states
- * - /api/stats - Detection statistics
- * - /api/screenshots?limit=1 - Latest event
- * - /api/pipeline/status - Pipeline status
- * - /api/cameras - Camera status list
- *
- * Features:
- * - Auto-refresh every 30 seconds
- * - Loading and error states
- * - Responsive grid layouts
- * - Dark mode support
- * - Real-time status indicators
- */
+const formatTime = (value?: string) => {
+  if (!value) return 'Unknown';
+  const date = new Date(value);
+  return date.toLocaleString();
+};
+
+const normalizePipeline = (status?: string) => {
+  if (!status) return { label: 'Unknown', chip: 'chip-muted' };
+  const normalized = status.toLowerCase();
+  if (normalized.includes('retry')) return { label: 'Retry', chip: 'chip-warn' };
+  if (normalized === 'running') return { label: 'Running', chip: 'chip-ok' };
+  if (normalized === 'idle' || normalized === 'stopped') return { label: 'Stopped', chip: 'chip-danger' };
+  return { label: status, chip: 'chip-muted' };
+};
+
+const hasHuman = (objects?: string[]) => {
+  if (!objects || objects.length === 0) return false;
+  return objects.some((obj) => {
+    const lowered = obj.toLowerCase();
+    return lowered.includes('person') || lowered.includes('insan');
+  });
+};
 
 export function Dashboard() {
-  const [status, setStatus] = useState<SystemStatus | null>(null);
-  const [stats, setStats] = useState<SystemStats | null>(null);
   const [pipeline, setPipeline] = useState<PipelineState | null>(null);
   const [cameras, setCameras] = useState<Camera[]>([]);
+  const [health, setHealth] = useState<HealthResponse | null>(null);
   const [latestEvent, setLatestEvent] = useState<Screenshot | null>(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchDashboardData();
-    // Refresh data every 30 seconds
-    const interval = setInterval(fetchDashboardData, 30000);
+    const load = async () => {
+      setLoading(true);
+      const results = await Promise.allSettled([
+        getPipelineStatus(),
+        getCameras(),
+        getHealth(),
+        getScreenshots(1),
+      ]);
+
+      const [pipelineResult, camerasResult, healthResult, screenshotsResult] = results;
+      if (pipelineResult.status === 'fulfilled') {
+        setPipeline(pipelineResult.value.pipeline);
+      }
+      if (camerasResult.status === 'fulfilled') {
+        setCameras(camerasResult.value.cameras || []);
+      }
+      if (healthResult.status === 'fulfilled') {
+        setHealth(healthResult.value);
+      }
+      if (screenshotsResult.status === 'fulfilled') {
+        setLatestEvent((screenshotsResult.value.screenshots || [])[0] ?? null);
+      }
+
+      if (results.some((result) => result.status === 'rejected')) {
+        setError('Some status feeds failed to load.');
+      } else {
+        setError(null);
+      }
+      setLoading(false);
+    };
+
+    load();
+    const interval = setInterval(load, 30000);
     return () => clearInterval(interval);
   }, []);
 
-  const fetchDashboardData = async () => {
-    try {
-      setError(null);
+  const { label: pipelineLabel, chip: pipelineChip } = normalizePipeline(pipeline?.status);
+  const connectedCount = cameras.filter((camera) => camera.status === 'connected').length;
+  const disconnectedCount = cameras.length - connectedCount;
+  const aiEnabled = Boolean(health?.ai_enabled);
 
-      // Fetch all data in parallel using API utilities
-      const [statusData, statsData, pipelineData, camerasData, screenshotsData] = await Promise.all([
-        getStatus(),
-        getStats(),
-        getPipelineStatus(),
-        getCameras(),
-        getScreenshots(1)
-      ]);
-
-      setStatus(statusData);
-      setStats(statsData);
-      setPipeline(pipelineData.pipeline);
-      setCameras(camerasData.cameras || []);
-      setLatestEvent((screenshotsData.screenshots || [])[0] ?? null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const formatUptime = (seconds: number): string => {
-    const days = Math.floor(seconds / 86400);
-    const hours = Math.floor((seconds % 86400) / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-
-    if (days > 0) return `${days}d ${hours}h`;
-    if (hours > 0) return `${hours}h ${minutes}m`;
-    return `${minutes}m`;
-  };
-
-  const formatTimestamp = (timestamp: string): string => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffMins < 1440) return `${Math.floor(diffMins / 60)}h ago`;
-    return date.toLocaleDateString();
-  };
-
-  const getStatusColor = (componentStatus: string): string => {
-    switch (componentStatus) {
-      case 'online':
-      case 'connected':
-      case 'active':
-        return 'bg-green-500';
-      case 'offline':
-      case 'disconnected':
-      case 'inactive':
-        return 'bg-red-500';
-      default:
-        return 'bg-yellow-500';
-    }
-  };
-
-  const connectedCameras = cameras.filter((camera) => camera.status === 'connected').length;
-  const cameraSummary = cameras.length
-    ? `${connectedCameras}/${cameras.length} connected`
-    : 'No cameras configured';
-
-  if (loading) {
-    return (
-      <div class="flex items-center justify-center min-h-screen">
-        <div class="text-center">
-          <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
-          <p class="text-gray-600 dark:text-gray-400">Loading dashboard...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div class="p-4">
-        <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-          <h3 class="text-red-800 dark:text-red-200 font-semibold mb-2">Error Loading Dashboard</h3>
-          <p class="text-red-600 dark:text-red-400">{error}</p>
-          <button
-            onClick={fetchDashboardData}
-            class="mt-4 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const lastObjects = latestEvent?.analysis?.tespit_edilen_nesneler;
+  const lastThreat = latestEvent?.analysis?.tehdit_seviyesi || 'unknown';
+  const lastHuman = hasHuman(lastObjects) ? 'Yes' : 'No';
+  const lastAiResult = latestEvent?.analysis?.gercek_hareket === undefined
+    ? 'No data'
+    : latestEvent.analysis.gercek_hareket
+      ? 'Verified'
+      : 'Not verified';
+  const cameraLabel = cameras.length === 1 ? cameras[0].name : cameras.length > 1 ? 'Multiple' : 'Unknown';
 
   return (
-    <div class="space-y-6">
-      {/* Page Header */}
+    <div class="space-y-4">
       <div>
-        <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">
-          Dashboard
-        </h1>
-        <p class="text-gray-600 dark:text-gray-400">
-          Motion detection system overview
-        </p>
+        <h1 class="text-lg font-semibold text-gray-200">Status</h1>
+        <p class="text-sm text-muted">Operational snapshot.</p>
       </div>
 
-      {/* System Status */}
-      <Card title="System Status">
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {/* Overall Status */}
-          <div>
-            <div class="flex items-center gap-2 mb-1">
-              <div class={`w-3 h-3 rounded-full ${status?.status === 'running' ? 'bg-green-500' : 'bg-red-500'}`}></div>
-              <span class="text-sm font-medium text-gray-700 dark:text-gray-300">System</span>
-            </div>
-            <p class="text-lg font-semibold text-gray-900 dark:text-gray-100 capitalize">
-              {status?.status || 'Unknown'}
-            </p>
-            <p class="text-sm text-gray-500 dark:text-gray-400">
-              Uptime: {status ? formatUptime(status.uptime_seconds) : '-'}
-            </p>
-          </div>
-
-          {/* Pipeline Status */}
-          <div>
-            <div class="flex items-center gap-2 mb-1">
-              <div class={`w-3 h-3 rounded-full ${getStatusColor(pipeline?.status || 'unknown')}`}></div>
-              <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Pipeline</span>
-            </div>
-            <p class="text-lg font-semibold text-gray-900 dark:text-gray-100 capitalize">
-              {pipeline?.status || 'Unknown'}
-            </p>
-            {pipeline?.detail && (
-              <p class="text-sm text-gray-500 dark:text-gray-400">
-                {pipeline.detail}
-              </p>
-            )}
-          </div>
-
-          {/* Camera Status */}
-          <div>
-            <div class="flex items-center gap-2 mb-1">
-              <div class={`w-3 h-3 rounded-full ${getStatusColor(status?.components.camera || 'unknown')}`}></div>
-              <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Cameras</span>
-            </div>
-            <p class="text-lg font-semibold text-gray-900 dark:text-gray-100 capitalize">
-              {cameraSummary}
-            </p>
-          </div>
-
-          {/* MQTT Status */}
-          <div>
-            <div class="flex items-center gap-2 mb-1">
-              <div class={`w-3 h-3 rounded-full ${getStatusColor(status?.components.mqtt || 'unknown')}`}></div>
-              <span class="text-sm font-medium text-gray-700 dark:text-gray-300">MQTT</span>
-            </div>
-            <p class="text-lg font-semibold text-gray-900 dark:text-gray-100 capitalize">
-              {status?.components.mqtt || 'Unknown'}
-            </p>
-          </div>
-        </div>
-      </Card>
-
-      {/* Statistics Cards */}
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {error && (
         <Card>
-          <div class="text-center">
-            <p class="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
-              Total Detections
-            </p>
-            <p class="text-3xl font-bold text-primary-600 dark:text-primary-400">
-              {stats?.total_detections || 0}
-            </p>
+          <p class="text-sm text-[#EF4444]">{error}</p>
+        </Card>
+      )}
+
+      {loading && (
+        <Card>
+          <p class="text-sm text-muted">Loading status...</p>
+        </Card>
+      )}
+
+      <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <Card title="Pipeline">
+          <div class="flex items-center justify-between">
+            <span class="text-sm text-muted">State</span>
+            <span class={`chip ${pipelineChip}`}>{pipelineLabel}</span>
           </div>
         </Card>
 
-        <Card>
-          <div class="text-center">
-            <p class="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
-              Real Motion
-            </p>
-            <p class="text-3xl font-bold text-green-600 dark:text-green-400">
-              {stats?.real_detections || 0}
-            </p>
+        <Card title="Cameras">
+          <div class="flex items-center justify-between text-sm">
+            <span class="text-muted">Connected</span>
+            <span class="text-gray-200">{connectedCount}</span>
+          </div>
+          <div class="flex items-center justify-between text-sm mt-2">
+            <span class="text-muted">Disconnected</span>
+            <span class="text-gray-200">{Math.max(disconnectedCount, 0)}</span>
           </div>
         </Card>
 
-        <Card>
-          <div class="text-center">
-            <p class="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
-              False Positives
-            </p>
-            <p class="text-3xl font-bold text-yellow-600 dark:text-yellow-400">
-              {stats?.false_positives || 0}
-            </p>
+        <Card title="AI Status">
+          <div class="flex items-center justify-between text-sm">
+            <span class="text-muted">Enabled</span>
+            <span class={`chip ${aiEnabled ? 'chip-info' : 'chip-muted'}`}>
+              {aiEnabled ? 'Yes' : 'No'}
+            </span>
+          </div>
+          <div class="flex items-center justify-between text-sm mt-2">
+            <span class="text-muted">Last AI result</span>
+            <span class={`chip ${lastAiResult === 'Verified' ? 'chip-ok' : lastAiResult === 'Not verified' ? 'chip-warn' : 'chip-muted'}`}>
+              {lastAiResult}
+            </span>
           </div>
         </Card>
 
-        <Card>
-          <div class="text-center">
-            <p class="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
-              Accuracy
-            </p>
-            <p class="text-3xl font-bold text-blue-600 dark:text-blue-400">
-              {stats?.total_detections
-                ? Math.round((stats.real_detections / stats.total_detections) * 100)
-                : 0}%
-            </p>
-          </div>
+        <Card title="Last Event">
+          {latestEvent ? (
+            <div class="space-y-2 text-sm">
+              <div class="flex items-center justify-between">
+                <span class="text-muted">Camera</span>
+                <span class="text-gray-200">{cameraLabel}</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-muted">Time</span>
+                <span class="text-gray-200">{formatTime(latestEvent.timestamp)}</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-muted">Human</span>
+                <span class="text-gray-200">{lastHuman}</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-muted">Threat</span>
+                <span class={`chip ${lastThreat === 'yuksek' ? 'chip-danger' : lastThreat === 'orta' ? 'chip-warn' : 'chip-ok'}`}>
+                  {lastThreat}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <p class="text-sm text-muted">No events yet.</p>
+          )}
         </Card>
       </div>
-
-      {/* Latest Event */}
-      <Card
-        title="Latest Event"
-        actions={
-          <a
-            href="/events"
-            class="text-sm text-primary-600 dark:text-primary-400 hover:underline"
-          >
-            View All
-          </a>
-        }
-      >
-        {!latestEvent ? (
-          <div class="text-center py-8 text-gray-500 dark:text-gray-400">
-            No events recorded yet
-          </div>
-        ) : (
-          <div class="space-y-3">
-            <div class="flex items-start justify-between gap-2">
-              <p class="font-medium text-gray-900 dark:text-gray-100">
-                Motion detected
-              </p>
-              <span class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                {formatTimestamp(latestEvent.timestamp)}
-              </span>
-            </div>
-            {latestEvent.analysis?.degisiklik_aciklamasi && (
-              <p class="text-sm text-gray-600 dark:text-gray-400">
-                {latestEvent.analysis.degisiklik_aciklamasi}
-              </p>
-            )}
-            <div class="flex flex-wrap gap-3 text-sm text-gray-600 dark:text-gray-400">
-              <span>
-                Threat: {latestEvent.analysis?.tehdit_seviyesi || 'unknown'}
-              </span>
-              <span>
-                Confidence:{' '}
-                {latestEvent.analysis?.guven_skoru !== undefined
-                  ? `${Math.round(latestEvent.analysis.guven_skoru * 100)}%`
-                  : 'n/a'}
-              </span>
-            </div>
-          </div>
-        )}
-      </Card>
     </div>
   );
 }

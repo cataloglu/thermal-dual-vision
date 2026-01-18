@@ -34,22 +34,22 @@ export function Layout({ children }: LayoutProps) {
   };
 
   return (
-    <div class="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div class="min-h-screen bg-[#0B0E14] text-gray-200">
       {/* Sidebar */}
       <Sidebar isOpen={sidebarOpen} onClose={closeSidebar} />
 
       {/* Main content wrapper */}
       <div class="lg:pl-64">
         {/* Top header */}
-        <header class="h-16 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+        <header class="h-14 bg-[#111827] border-b border-[#1F2937]">
           <div class="flex items-center justify-between h-full px-4">
             {/* Menu toggle button (mobile only) */}
             <button
               onClick={toggleSidebar}
-              class="lg:hidden p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
+              class="lg:hidden p-2 rounded-md hover:bg-[#1F2937]"
               aria-label="Toggle sidebar"
             >
-              <span class="text-2xl">☰</span>
+              <span class="text-xl text-gray-200">☰</span>
             </button>
 
             {/* Spacer for desktop */}

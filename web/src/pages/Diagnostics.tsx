@@ -27,60 +27,54 @@ export function Diagnostics() {
 
   useEffect(() => {
     loadDiagnostics();
+    const interval = setInterval(loadDiagnostics, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   return (
-    <div class="space-y-6">
-      <div class="flex items-start justify-between">
-        <div>
-          <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">Diagnostics</h1>
-          <p class="text-gray-600 dark:text-gray-400">Logs, health, and system info.</p>
-        </div>
-        <button
-          onClick={loadDiagnostics}
-          class="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg"
-        >
-          Refresh
-        </button>
+    <div class="space-y-4">
+      <div>
+        <h1 class="text-lg font-semibold text-gray-200 mb-1">Diagnostics</h1>
+        <p class="text-sm text-muted">Read-only health, metrics, and logs.</p>
       </div>
 
       {error && (
-        <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 text-red-600 dark:text-red-400">
-          {error}
-        </div>
+        <Card>
+          <p class="text-sm text-[#EF4444]">{error}</p>
+        </Card>
       )}
 
       <Card title="Health / Ready">
         {health ? (
-          <div class="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+          <div class="space-y-2 text-sm text-gray-300">
             <div>Status: {health.status}</div>
             <div>AI Enabled: {health.ai_enabled ? 'true' : 'false'}</div>
             <div>Pipeline: {health.pipeline?.status}</div>
           </div>
         ) : (
-          <div class="text-sm text-gray-500 dark:text-gray-400">Loading health...</div>
+          <div class="text-sm text-muted">Loading health...</div>
         )}
       </Card>
 
       <Card title="System Metrics">
         {metrics ? (
-          <div class="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+          <div class="space-y-2 text-sm text-gray-300">
             <div>Uptime: {Math.round(metrics.uptime_seconds)}s</div>
             <div>Events count: {metrics.events_count}</div>
             <div>Pipeline: {metrics.pipeline?.status}</div>
           </div>
         ) : (
-          <div class="text-sm text-gray-500 dark:text-gray-400">Loading metrics...</div>
+          <div class="text-sm text-muted">Loading metrics...</div>
         )}
       </Card>
 
       <Card title="Logs (tail)">
         {logs ? (
-          <pre class="text-xs whitespace-pre-wrap text-gray-700 dark:text-gray-300">
+          <pre class="text-xs whitespace-pre-wrap text-gray-300">
             {logs.lines.join('\n')}
           </pre>
         ) : (
-          <div class="text-sm text-gray-500 dark:text-gray-400">Loading logs...</div>
+          <div class="text-sm text-muted">Loading logs...</div>
         )}
       </Card>
     </div>

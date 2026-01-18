@@ -33,23 +33,16 @@ export function Card({
   padding = 'p-4'
 }: CardProps) {
   return (
-    <div
-      class={`
-        bg-white dark:bg-gray-800
-        rounded-lg shadow-md
-        border border-gray-200 dark:border-gray-700
-        ${className}
-      `}
-    >
+    <div class={`card ${className}`}>
       {/* Card header with title and actions */}
       {(title || actions) && (
         <div class={`
           flex items-center justify-between
           px-4 py-3
-          border-b border-gray-200 dark:border-gray-700
+          border-b border-[#1F2937]
         `}>
           {title && (
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+            <h3 class="text-sm font-semibold text-gray-200 tracking-wide">
               {title}
             </h3>
           )}

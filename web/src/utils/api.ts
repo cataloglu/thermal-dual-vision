@@ -23,9 +23,11 @@ export interface SystemStatus {
   status: string;
   uptime_seconds: number;
   components: {
-    camera: string;
-    detector: string;
-    mqtt: string;
+    camera?: string;
+    detector?: string;
+    motion_detection?: string;
+    mqtt?: string;
+    [key: string]: string | undefined;
   };
 }
 
@@ -42,22 +44,33 @@ export interface SystemStats {
 /**
  * Detection event analysis details
  */
-export interface SystemEvent {
-  event_id: string;
-  event_type: string;
+export interface EventDetection {
+  real_motion?: boolean;
+  confidence_score?: number;
+  description?: string;
+  detected_objects?: string[];
+  threat_level?: string;
+  recommended_action?: string;
+  detailed_analysis?: string;
+  processing_time?: number;
+}
+
+export interface EventItem {
+  id: string;
   timestamp: string;
-  source: string;
-  camera_id?: string | null;
-  payload?: Record<string, any>;
-  schema_version?: string;
+  camera_name?: string;
+  event_type?: string;
+  detection?: EventDetection;
+  retry_count?: number;
 }
 
 /**
  * Events list response from /api/events
  */
 export interface EventsResponse {
-  events: SystemEvent[];
+  events: EventItem[];
   total?: number;
+  count?: number;
 }
 
 /**
@@ -77,6 +90,8 @@ export interface Screenshot {
     degisiklik_aciklamasi?: string;
     tespit_edilen_nesneler?: string[];
     tehdit_seviyesi?: string;
+    detayli_analiz?: string;
+    processing_time?: number;
   };
 }
 
@@ -189,6 +204,7 @@ export interface Camera {
   status: string;
   last_error?: string;
   last_frame_ts?: number;
+  event_count?: number;
 }
 
 export interface CamerasResponse {
