@@ -14,6 +14,9 @@ init: false
 # Options with defaults
 options:
   camera_url: ""
+  camera_type: "color"
+  color_camera_url: ""
+  thermal_camera_url: ""
   camera_fps: 5
   motion_sensitivity: 7
   motion_min_area: 500
@@ -35,9 +38,35 @@ options:
   telegram_chat_id: ""
   log_level: "INFO"
 
+# Options description
+options_description:
+  camera_url: "RTSP camera URL (required)."
+  camera_type: "Camera mode: color, thermal, or dual."
+  color_camera_url: "Color RTSP URL (required for dual mode)."
+  thermal_camera_url: "Thermal RTSP URL (required for dual mode)."
+  camera_fps: "Frame rate for capture (default: 5)."
+  motion_sensitivity: "Motion sensitivity 1-10 (default: 7)."
+  motion_min_area: "Minimum motion area in pixels (default: 500)."
+  motion_cooldown: "Cooldown seconds between detections (default: 5)."
+  yolo_model: "YOLO model name (default: yolov8n)."
+  yolo_confidence: "YOLO confidence threshold (default: 0.5)."
+  yolo_classes: "YOLO class list for detection."
+  openai_api_key: "OpenAI API key for vision analysis (required)."
+  screenshot_before_sec: "Seconds before event to capture (default: 3)."
+  screenshot_after_sec: "Seconds after event to capture (default: 3)."
+  mqtt_topic_prefix: "MQTT topic prefix (default: smart_motion)."
+  mqtt_discovery: "Enable Home Assistant MQTT discovery."
+  telegram_enabled: "Enable Telegram notifications."
+  telegram_bot_token: "Telegram bot token (required if enabled)."
+  telegram_chat_id: "Telegram chat ID(s) comma-separated (required if enabled)."
+  log_level: "Log level (default: INFO)."
+
 # Schema validation
 schema:
   camera_url: url
+  camera_type: list(color|thermal|dual)
+  color_camera_url: url?
+  thermal_camera_url: url?
   camera_fps: int(1,30)
   motion_sensitivity: int(1,10)
   motion_min_area: int(100,10000)

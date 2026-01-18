@@ -1,12 +1,11 @@
-I don't have enough information about what specific features were implemented in version 1.0.1. The task description mentions "01-project-structure" as creating Home Assistant add-on format files, but I don't see those files in the current backend directory. Without access to actual changelog documentation, git history, or the specific implementation details of what was added/changed/fixed in this release, I cannot write accurate release notes.
+## [1.0.1] - 2026-01-18
 
-Could you provide:
-1. A summary of the actual changes implemented in version 1.0.1
-2. Any specific features that were added
-3. Bug fixes that were resolved
-4. Breaking changes or modifications to existing functionality
+### Added
+- Home Assistant add-on setup and configuration documentation
+- Health/ready endpoint usage notes
 
-Alternatively, if there's a changelog file, git history, or documentation about this release, I can review that to write the release notes.
+### Known Issues
+- `pytest` fails at collection when the `openai` dependency is missing
 
 ## [1.0.0] - 2026-01-16
 

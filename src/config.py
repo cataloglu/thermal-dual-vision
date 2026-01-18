@@ -11,6 +11,9 @@ class CameraConfig:
     url: str = ""
     fps: int = 5
     resolution: tuple = (1280, 720)
+    camera_type: str = "color"
+    color_url: str = ""
+    thermal_url: str = ""
 
 
 @dataclass
@@ -68,6 +71,7 @@ class TelegramConfig:
     bot_token: str = ""
     chat_ids: List[str] = field(default_factory=list)
     rate_limit_seconds: int = 5
+    send_images: bool = True
 
 
 @dataclass
@@ -90,6 +94,9 @@ class Config:
         # Camera
         config.camera.url = os.getenv("CAMERA_URL", "")
         config.camera.fps = int(os.getenv("CAMERA_FPS", "5"))
+        config.camera.camera_type = os.getenv("CAMERA_TYPE", "color").lower()
+        config.camera.color_url = os.getenv("COLOR_CAMERA_URL", "")
+        config.camera.thermal_url = os.getenv("THERMAL_CAMERA_URL", "")
 
         # Motion
         config.motion.sensitivity = int(os.getenv("MOTION_SENSITIVITY", "7"))
@@ -131,11 +138,16 @@ class Config:
         """Validate configuration and return list of errors."""
         errors = []
 
-        if not self.camera.url:
-            errors.append("Camera URL is required")
+        if self.camera.camera_type not in {"color", "thermal", "dual"}:
+            errors.append("Camera type must be 'color', 'thermal', or 'dual'")
 
-        if not self.llm.api_key:
-            errors.append("OpenAI API key is required")
+        if self.camera.camera_type == "dual":
+            if not self.camera.color_url:
+                errors.append("Color camera URL is required for dual mode")
+            if not self.camera.thermal_url:
+                errors.append("Thermal camera URL is required for dual mode")
+        elif not self.camera.url:
+            errors.append("Camera URL is required")
 
         if self.telegram.enabled:
             if not self.telegram.bot_token:
