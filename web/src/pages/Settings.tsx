@@ -553,26 +553,13 @@ export function Settings() {
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Before (seconds)
+                Event Window (seconds)
               </label>
               <input
                 type="number"
-                value={config.screenshots.before_seconds}
-                onChange={(e) => updateConfig('screenshots', 'before_seconds', parseInt((e.target as HTMLInputElement).value))}
-                min="1"
-                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-              />
-            </div>
-
-            <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                After (seconds)
-              </label>
-              <input
-                type="number"
-                value={config.screenshots.after_seconds}
-                onChange={(e) => updateConfig('screenshots', 'after_seconds', parseInt((e.target as HTMLInputElement).value))}
-                min="1"
+                value={config.screenshots.window_seconds}
+                onChange={(e) => updateConfig('screenshots', 'window_seconds', parseInt((e.target as HTMLInputElement).value))}
+                min="5"
                 class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
               />
             </div>
