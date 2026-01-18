@@ -211,6 +211,31 @@ export interface PipelineStatusResponse {
   pipeline: PipelineState;
 }
 /**
+ * Health response from /api/health
+ */
+export interface HealthResponse {
+  status: string;
+  ai_enabled?: boolean;
+  pipeline?: PipelineState;
+  components?: Record<string, any>;
+}
+
+/**
+ * Logs tail response from /api/logs/tail
+ */
+export interface LogsTailResponse {
+  lines: string[];
+}
+
+/**
+ * Metrics response from /api/metrics
+ */
+export interface MetricsResponse {
+  uptime_seconds: number;
+  events_count: number;
+  pipeline?: PipelineState;
+}
+/**
  * Generic error response from API
  */
 export interface ApiError {
@@ -440,6 +465,18 @@ export async function getPipelineStatus(): Promise<PipelineStatusResponse> {
   return get<PipelineStatusResponse>('/api/pipeline/status');
 }
 
+export async function getHealth(): Promise<HealthResponse> {
+  return get<HealthResponse>('/api/health');
+}
+
+export async function getMetrics(): Promise<MetricsResponse> {
+  return get<MetricsResponse>('/api/metrics');
+}
+
+export async function getLogsTail(lines: number = 200): Promise<LogsTailResponse> {
+  return get<LogsTailResponse>(`/api/logs/tail?lines=${lines}`);
+}
+
 export async function startPipeline(): Promise<{ started: boolean }> {
   return post<{ started: boolean }>('/api/pipeline/start', {});
 }
@@ -510,6 +547,9 @@ export const api = {
   createCamera,
   testCameraPayload,
   getPipelineStatus,
+  getHealth,
+  getMetrics,
+  getLogsTail,
   startPipeline,
   stopPipeline,
   restartPipeline,
