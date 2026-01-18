@@ -150,6 +150,11 @@ export interface TelegramConfig {
   bot_token: string;
   chat_ids: string[];
   rate_limit_seconds: number;
+  send_images: boolean;
+  event_types: string[];
+  cooldown_seconds: number;
+  max_messages_per_min: number;
+  snapshot_quality: number;
 }
 
 export interface RetryPolicyConfig {
@@ -446,6 +451,22 @@ export async function stopPipeline(): Promise<{ stopped: boolean }> {
 export async function restartPipeline(): Promise<{ restarted: boolean }> {
   return post<{ restarted: boolean }>('/api/pipeline/restart', {});
 }
+
+export async function getTelegramSettings(): Promise<TelegramConfig> {
+  return get<TelegramConfig>('/api/notifications/telegram');
+}
+
+export async function updateTelegramSettings(payload: Partial<TelegramConfig>): Promise<TelegramConfig> {
+  return post<TelegramConfig>('/api/notifications/telegram', payload);
+}
+
+export async function sendTelegramTestMessage(): Promise<{ sent: boolean }> {
+  return post<{ sent: boolean }>('/api/notifications/telegram/test-message', {});
+}
+
+export async function sendTelegramTestSnapshot(cameraId: string): Promise<{ sent: boolean }> {
+  return post<{ sent: boolean }>('/api/notifications/telegram/test-snapshot', { camera_id: cameraId });
+}
 /**
  * Update configuration via /api/config
  *
@@ -490,6 +511,10 @@ export const api = {
   startPipeline,
   stopPipeline,
   restartPipeline,
+  getTelegramSettings,
+  updateTelegramSettings,
+  sendTelegramTestMessage,
+  sendTelegramTestSnapshot,
 };
 
 export default api;

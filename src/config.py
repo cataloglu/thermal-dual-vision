@@ -74,6 +74,18 @@ class TelegramConfig:
     chat_ids: List[str] = field(default_factory=list)
     rate_limit_seconds: int = 5
     send_images: bool = True
+    event_types: List[str] = field(
+        default_factory=lambda: [
+            "motion_detected",
+            "ai_verified",
+            "system_error",
+            "pipeline_reconnect",
+            "pipeline_down",
+        ]
+    )
+    cooldown_seconds: int = 5
+    max_messages_per_min: int = 20
+    snapshot_quality: int = 85
 
 
 @dataclass
@@ -282,6 +294,10 @@ class Config:
                 "chat_ids": self.telegram.chat_ids,
                 "rate_limit_seconds": self.telegram.rate_limit_seconds,
                 "send_images": self.telegram.send_images,
+                "event_types": self.telegram.event_types,
+                "cooldown_seconds": self.telegram.cooldown_seconds,
+                "max_messages_per_min": self.telegram.max_messages_per_min,
+                "snapshot_quality": self.telegram.snapshot_quality,
             },
             "retry_policy": {
                 "initial_delay": self.retry_policy.initial_delay,
@@ -441,6 +457,14 @@ def _apply_saved_config(config: Config, saved: Dict[str, Any]) -> None:
         "rate_limit_seconds", config.telegram.rate_limit_seconds
     )
     config.telegram.send_images = telegram.get("send_images", config.telegram.send_images)
+    config.telegram.event_types = telegram.get("event_types", config.telegram.event_types)
+    config.telegram.cooldown_seconds = telegram.get("cooldown_seconds", config.telegram.cooldown_seconds)
+    config.telegram.max_messages_per_min = telegram.get(
+        "max_messages_per_min", config.telegram.max_messages_per_min
+    )
+    config.telegram.snapshot_quality = telegram.get(
+        "snapshot_quality", config.telegram.snapshot_quality
+    )
 
     retry_policy = saved.get("retry_policy", {})
     config.retry_policy.initial_delay = retry_policy.get(

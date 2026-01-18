@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import os
 import time
 from collections import deque
@@ -382,6 +383,76 @@ def create_app(
         pipeline_controller.restart()
         return web.json_response({"restarted": True})
 
+    async def telegram_get_handler(_: web.Request) -> web.Response:
+        store = ConfigStore()
+        config_payload = Config.from_sources(os.environ, store.load()).to_dict(redact=True)
+        return web.json_response(config_payload.get("telegram", {}))
+
+    async def telegram_post_handler(request: web.Request) -> web.Response:
+        try:
+            payload = await request.json()
+        except Exception:
+            return web.json_response({"error": "Invalid JSON body"}, status=400)
+        if not isinstance(payload, dict):
+            return web.json_response({"error": "Invalid telegram payload"}, status=400)
+
+        saved = ConfigStore().load()
+        merged = merge_config(saved, {"telegram": payload})
+        config_candidate = Config.from_sources(os.environ, saved=merged)
+        errors = config_candidate.validate(allow_incomplete=True)
+        if errors:
+            return web.json_response({"errors": errors}, status=400)
+        ConfigStore().save(merged)
+        return web.json_response(config_candidate.to_dict(redact=True).get("telegram", {}))
+
+    async def telegram_test_message_handler(_: web.Request) -> web.Response:
+        if not TELEGRAM_AVAILABLE:
+            return web.json_response({"error": "Telegram library not installed"}, status=400)
+
+        config_payload = Config.from_sources(os.environ, ConfigStore().load())
+        if not config_payload.telegram.enabled:
+            return web.json_response({"error": "Telegram is disabled"}, status=400)
+        if not config_payload.telegram.bot_token or not config_payload.telegram.chat_ids:
+            return web.json_response({"error": "Telegram is misconfigured"}, status=400)
+
+        bot = TelegramBot(config_payload.telegram)
+        await bot.start()
+        await bot.send_message("Test message from Smart Motion Detector.")
+        await bot.stop()
+        return web.json_response({"sent": True})
+
+    async def telegram_test_snapshot_handler(request: web.Request) -> web.Response:
+        if not TELEGRAM_AVAILABLE:
+            return web.json_response({"error": "Telegram library not installed"}, status=400)
+        try:
+            payload = await request.json()
+        except Exception:
+            return web.json_response({"error": "Invalid JSON body"}, status=400)
+        camera_id = payload.get("camera_id") if isinstance(payload, dict) else None
+        if not camera_id:
+            return web.json_response({"error": "camera_id is required"}, status=400)
+
+        config_payload = Config.from_sources(os.environ, ConfigStore().load())
+        if not config_payload.telegram.enabled:
+            return web.json_response({"error": "Telegram is disabled"}, status=400)
+        if not config_payload.telegram.bot_token or not config_payload.telegram.chat_ids:
+            return web.json_response({"error": "Telegram is misconfigured"}, status=400)
+
+        try:
+            snapshot_result = camera_store.snapshot_camera(camera_id)
+        except KeyError:
+            return web.json_response({"error": "Camera not found"}, status=404)
+
+        if not snapshot_result.get("ok"):
+            return web.json_response({"error": snapshot_result.get("error")}, status=400)
+
+        image_bytes = base64.b64decode(snapshot_result["snapshot"])
+        bot = TelegramBot(config_payload.telegram)
+        await bot.start()
+        await bot.send_photo_bytes(image_bytes, caption="Test snapshot from Smart Motion Detector.")
+        await bot.stop()
+        return web.json_response({"sent": True})
+
     async def ui_handler(_: web.Request) -> web.Response:
         html = UI_PATH.read_text(encoding="utf-8")
         return web.Response(text=html, content_type="text/html")
@@ -403,6 +474,10 @@ def create_app(
     app.router.add_post("/api/pipeline/start", pipeline_start_handler)
     app.router.add_post("/api/pipeline/stop", pipeline_stop_handler)
     app.router.add_post("/api/pipeline/restart", pipeline_restart_handler)
+    app.router.add_get("/api/notifications/telegram", telegram_get_handler)
+    app.router.add_post("/api/notifications/telegram", telegram_post_handler)
+    app.router.add_post("/api/notifications/telegram/test-message", telegram_test_message_handler)
+    app.router.add_post("/api/notifications/telegram/test-snapshot", telegram_test_snapshot_handler)
     app.router.add_get("/ready", ready_handler)
     return app
 
