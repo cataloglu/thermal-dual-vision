@@ -1,4 +1,5 @@
 # Stage 1: Build frontend with Node.js
+ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.20
 FROM node:20-alpine AS frontend-builder
 
 # Set working directory
@@ -8,7 +9,7 @@ WORKDIR /build
 COPY web/package.json web/package-lock.json* ./
 
 # Install dependencies
-RUN npm ci --prefer-offline --no-audit
+RUN npm install --prefer-offline --no-audit
 
 # Copy frontend source
 COPY web/ ./
@@ -17,7 +18,7 @@ COPY web/ ./
 RUN npm run build
 
 # Stage 2: Python runtime
-ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.20
+ARG BUILD_FROM
 FROM ${BUILD_FROM}
 
 # Install system dependencies
@@ -28,6 +29,9 @@ RUN apk add --no-cache \
     python3-dev \
     py3-opencv \
     ffmpeg \
+    gstreamer \
+    gst-plugins-base \
+    gst-plugins-good \
     libstdc++ \
     libgcc \
     musl-dev \

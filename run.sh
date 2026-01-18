@@ -7,13 +7,24 @@ set -e
 
 CONFIG_PATH=/data/options.json
 
+# Load container environment variables when running under s6.
+if [ -d /run/s6/container_environment ]; then
+    for env_file in /run/s6/container_environment/*; do
+        env_key=$(basename "$env_file")
+        if [ -n "${env_key}" ] && [ -z "${!env_key+x}" ]; then
+            export "${env_key}=$(cat "$env_file")"
+        fi
+    done
+fi
+
+HAS_BASHIO=0
 if [ -x /usr/bin/bashio ] || [ -f /usr/lib/bashio/bashio.sh ]; then
     # Home Assistant add-on environment
     # shellcheck source=/usr/lib/bashio/bashio.sh
     . /usr/lib/bashio/bashio.sh
-    HAS_BASHIO=1
-else
-    HAS_BASHIO=0
+    if [ -f "${CONFIG_PATH}" ]; then
+        HAS_BASHIO=1
+    fi
 fi
 
 log_info() {
@@ -34,7 +45,7 @@ log_warn() {
 
 log_info "Starting Smart Motion Detector..."
 
-if [ "$HAS_BASHIO" -eq 1 ] && [ -f "${CONFIG_PATH}" ]; then
+if [ "$HAS_BASHIO" -eq 1 ]; then
     # Read configuration from Home Assistant
     export CAMERA_URL=$(bashio::config 'camera_url')
     export CAMERA_TYPE=$(bashio::config 'camera_type')
@@ -92,7 +103,7 @@ else
 fi
 
 # Get MQTT credentials from Home Assistant
-if [ "$HAS_BASHIO" -eq 1 ] && [ -f "${CONFIG_PATH}" ] && bashio::services.available "mqtt"; then
+if [ "$HAS_BASHIO" -eq 1 ] && bashio::services.available "mqtt"; then
     export MQTT_HOST=$(bashio::services mqtt "host")
     export MQTT_PORT=$(bashio::services mqtt "port")
     export MQTT_USER=$(bashio::services mqtt "username")
