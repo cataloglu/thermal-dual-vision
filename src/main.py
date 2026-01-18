@@ -27,16 +27,6 @@ def main() -> None:
 
     event_store = EventStore()
     pipeline_status = PipelineStatusTracker(event_store=event_store)
-    server_thread = threading.Thread(
-        target=run_health_server,
-        kwargs={
-            "config": config,
-            "event_store": event_store,
-            "pipeline_status": pipeline_status,
-        },
-        daemon=True,
-    )
-    server_thread.start()
 
     camera_type = config.camera.camera_type
     pipeline: BasePipeline = ColorPipeline(config)
@@ -45,15 +35,24 @@ def main() -> None:
             pipeline = pipeline_cls(config)
             break
 
-    logger.info("Starting %s pipeline", pipeline.camera_type or camera_type)
-    pipeline_status.set_status("running")
+    def _run_pipeline() -> None:
+        logger.info("Starting %s pipeline", pipeline.camera_type or camera_type)
+        pipeline_status.set_status("running")
+        try:
+            pipeline.run()
+            pipeline_status.set_status("stopped", "Pipeline exited")
+        except Exception as exc:
+            pipeline_status.set_status("error", str(exc))
+            raise
 
-    try:
-        pipeline.run()
-        pipeline_status.set_status("stopped", "Pipeline exited")
-    except Exception as exc:
-        pipeline_status.set_status("error", str(exc))
-        raise
+    pipeline_thread = threading.Thread(target=_run_pipeline, daemon=True)
+    pipeline_thread.start()
+
+    run_health_server(
+        config=config,
+        event_store=event_store,
+        pipeline_status=pipeline_status,
+    )
 
 
 if __name__ == "__main__":
