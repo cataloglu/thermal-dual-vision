@@ -187,6 +187,7 @@ class HealthReporter:
         self.event_store.add_event(event_type=EventType.READY, source="health", payload={"ready": ready})
 
     def build_report(self) -> Dict[str, Any]:
+        ai_enabled = bool(self.config.llm.api_key)
         components = {
             "camera": self._camera_status(),
             "mqtt": self._mqtt_status(),
@@ -206,6 +207,7 @@ class HealthReporter:
         return {
             "status": overall,
             "timestamp": time.time(),
+            "ai_enabled": ai_enabled,
             "components": {key: value.as_dict() for key, value in components.items()},
             "pipeline": self.pipeline_status.as_dict() if self.pipeline_status else {"status": "unknown"},
             "events": self.event_store.snapshot() if self.event_store else [],
@@ -245,8 +247,7 @@ def create_app(
         payload = reporter.build_report()
         payload["ready"] = reporter.is_ready(payload)
         reporter._record_ready_event(payload["ready"])
-        status = 200 if payload["ready"] else 503
-        return web.json_response(payload, status=status)
+        return web.json_response(payload, status=200)
 
     async def ui_handler(_: web.Request) -> web.Response:
         html = UI_PATH.read_text(encoding="utf-8")

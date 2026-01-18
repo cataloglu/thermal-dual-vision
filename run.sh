@@ -46,7 +46,10 @@ if [ "$HAS_BASHIO" -eq 1 ] && [ -f "${CONFIG_PATH}" ]; then
     export MOTION_COOLDOWN=$(bashio::config 'motion_cooldown')
     export YOLO_MODEL=$(bashio::config 'yolo_model')
     export YOLO_CONFIDENCE=$(bashio::config 'yolo_confidence')
-    export OPENAI_API_KEY=$(bashio::config 'openai_api_key')
+    OPENAI_API_KEY_CONFIG=$(bashio::config 'openai_api_key')
+    if [ -n "${OPENAI_API_KEY_CONFIG}" ]; then
+        export OPENAI_API_KEY="${OPENAI_API_KEY_CONFIG}"
+    fi
     export SCREENSHOT_BEFORE=$(bashio::config 'screenshot_before_sec')
     export SCREENSHOT_AFTER=$(bashio::config 'screenshot_after_sec')
     export MQTT_TOPIC_PREFIX=$(bashio::config 'mqtt_topic_prefix')
@@ -76,7 +79,6 @@ else
     export MOTION_COOLDOWN="${MOTION_COOLDOWN:-5}"
     export YOLO_MODEL="${YOLO_MODEL:-yolov8n}"
     export YOLO_CONFIDENCE="${YOLO_CONFIDENCE:-0.5}"
-    export OPENAI_API_KEY="${OPENAI_API_KEY:-}"
     export SCREENSHOT_BEFORE="${SCREENSHOT_BEFORE:-3}"
     export SCREENSHOT_AFTER="${SCREENSHOT_AFTER:-3}"
     export MQTT_TOPIC_PREFIX="${MQTT_TOPIC_PREFIX:-}"

@@ -149,9 +149,6 @@ class Config:
         elif not self.camera.url:
             errors.append("Camera URL is required")
 
-        if not self.llm.api_key:
-            errors.append("OpenAI API key is required")
-
         if self.telegram.enabled:
             if not self.telegram.bot_token:
                 errors.append("Telegram bot token is required when enabled")
