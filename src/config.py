@@ -37,6 +37,7 @@ class YoloConfig:
 class LLMConfig:
     """LLM Vision configuration."""
     api_key: str = ""
+    enabled: bool = True
     model: str = "gpt-4-vision-preview"
     max_tokens: int = 1000
     timeout: int = 30
@@ -76,6 +77,14 @@ class TelegramConfig:
 
 
 @dataclass
+class GeneralConfig:
+    """General application settings."""
+    bind_host: str = "0.0.0.0"
+    http_port: int = 8000
+    timezone: str = "UTC"
+
+
+@dataclass
 class RetryPolicyConfig:
     """Pipeline retry/backoff configuration."""
     initial_delay: float = 1.0
@@ -96,6 +105,7 @@ class Config:
     mqtt: MQTTConfig = field(default_factory=MQTTConfig)
     telegram: TelegramConfig = field(default_factory=TelegramConfig)
     retry_policy: RetryPolicyConfig = field(default_factory=RetryPolicyConfig)
+    general: GeneralConfig = field(default_factory=GeneralConfig)
     log_level: str = "INFO"
 
     @classmethod
@@ -152,6 +162,12 @@ class Config:
 
         # LLM
         _apply_env_str(env, "OPENAI_API_KEY", lambda value: setattr(config.llm, "api_key", value))
+        _apply_env_bool(
+            env,
+            "AI_ENABLED",
+            lambda value: setattr(config.llm, "enabled", value),
+            config.llm.enabled,
+        )
 
         # Screenshots
         _apply_env_int(
@@ -187,6 +203,15 @@ class Config:
             "MQTT_DISCOVERY",
             lambda value: setattr(config.mqtt, "discovery", value),
             config.mqtt.discovery,
+        )
+
+        # General
+        _apply_env_str(env, "HOST", lambda value: setattr(config.general, "bind_host", value))
+        _apply_env_int(
+            env,
+            "PORT",
+            lambda value: setattr(config.general, "http_port", value),
+            config.general.http_port,
         )
 
         # Telegram
@@ -229,6 +254,7 @@ class Config:
             },
             "llm": {
                 "api_key": self.llm.api_key,
+                "enabled": self.llm.enabled,
                 "model": self.llm.model,
                 "max_tokens": self.llm.max_tokens,
                 "timeout": self.llm.timeout,
@@ -263,6 +289,11 @@ class Config:
                 "multiplier": self.retry_policy.multiplier,
                 "jitter": self.retry_policy.jitter,
                 "max_retries": self.retry_policy.max_retries,
+            },
+            "general": {
+                "bind_host": self.general.bind_host,
+                "http_port": self.general.http_port,
+                "timezone": self.general.timezone,
             },
             "log_level": self.log_level,
         }
@@ -372,6 +403,7 @@ def _apply_saved_config(config: Config, saved: Dict[str, Any]) -> None:
     if "openai_api_key" in saved:
         config.llm.api_key = saved.get("openai_api_key") or config.llm.api_key
     config.llm.api_key = llm.get("api_key", config.llm.api_key)
+    config.llm.enabled = llm.get("enabled", config.llm.enabled)
     config.llm.model = llm.get("model", config.llm.model)
     config.llm.max_tokens = llm.get("max_tokens", config.llm.max_tokens)
     config.llm.timeout = llm.get("timeout", config.llm.timeout)
@@ -420,6 +452,11 @@ def _apply_saved_config(config: Config, saved: Dict[str, Any]) -> None:
     config.retry_policy.max_retries = retry_policy.get(
         "max_retries", config.retry_policy.max_retries
     )
+
+    general = saved.get("general", {})
+    config.general.bind_host = general.get("bind_host", config.general.bind_host)
+    config.general.http_port = general.get("http_port", config.general.http_port)
+    config.general.timezone = general.get("timezone", config.general.timezone)
 
     config.log_level = saved.get("log_level", config.log_level)
 

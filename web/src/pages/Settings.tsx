@@ -202,6 +202,60 @@ export function Settings() {
         </div>
       )}
 
+      {/* General Settings */}
+      <Card title="General">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Bind Host
+            </label>
+            <input
+              type="text"
+              value={config.general.bind_host}
+              onChange={(e) => updateConfig('general', 'bind_host', (e.target as HTMLInputElement).value)}
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              HTTP Port
+            </label>
+            <input
+              type="number"
+              value={config.general.http_port}
+              onChange={(e) => updateConfig('general', 'http_port', parseInt((e.target as HTMLInputElement).value))}
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Timezone
+            </label>
+            <input
+              type="text"
+              value={config.general.timezone}
+              onChange={(e) => updateConfig('general', 'timezone', (e.target as HTMLInputElement).value)}
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Log Level
+            </label>
+            <select
+              value={config.log_level}
+              onChange={(e) => setConfig({ ...config, log_level: (e.target as HTMLSelectElement).value })}
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            >
+              <option value="DEBUG">DEBUG</option>
+              <option value="INFO">INFO</option>
+              <option value="WARNING">WARNING</option>
+              <option value="ERROR">ERROR</option>
+            </select>
+          </div>
+        </div>
+      </Card>
+
       {/* Camera Settings */}
       <Card title="Camera">
         <div class="space-y-4">
@@ -258,6 +312,67 @@ export function Settings() {
                 />
               </div>
             </div>
+          </div>
+        </div>
+      </Card>
+
+      {/* RTSP / Reconnect Policy */}
+      <Card title="RTSP / Reconnect Policy">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Initial Delay (sec)
+            </label>
+            <input
+              type="number"
+              value={config.retry_policy.initial_delay}
+              onChange={(e) => updateConfig('retry_policy', 'initial_delay', parseFloat((e.target as HTMLInputElement).value))}
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Max Delay (sec)
+            </label>
+            <input
+              type="number"
+              value={config.retry_policy.max_delay}
+              onChange={(e) => updateConfig('retry_policy', 'max_delay', parseFloat((e.target as HTMLInputElement).value))}
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Multiplier
+            </label>
+            <input
+              type="number"
+              value={config.retry_policy.multiplier}
+              onChange={(e) => updateConfig('retry_policy', 'multiplier', parseFloat((e.target as HTMLInputElement).value))}
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Jitter
+            </label>
+            <input
+              type="number"
+              value={config.retry_policy.jitter}
+              onChange={(e) => updateConfig('retry_policy', 'jitter', parseFloat((e.target as HTMLInputElement).value))}
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Max Retries (optional)
+            </label>
+            <input
+              type="number"
+              value={config.retry_policy.max_retries ?? ''}
+              onChange={(e) => updateConfig('retry_policy', 'max_retries', (e.target as HTMLInputElement).value ? parseInt((e.target as HTMLInputElement).value) : null)}
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            />
           </div>
         </div>
       </Card>
@@ -365,9 +480,17 @@ export function Settings() {
         </div>
       </Card>
 
-      {/* LLM Settings */}
-      <Card title="LLM Vision Analysis">
+      {/* AI Settings */}
+      <Card title="AI Settings">
         <div class="space-y-4">
+          <div class="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={config.llm.enabled}
+              onChange={(e) => updateConfig('llm', 'enabled', (e.target as HTMLInputElement).checked)}
+            />
+            <span class="text-sm text-gray-700 dark:text-gray-300">Enable AI analysis</span>
+          </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               API Key
