@@ -1,10 +1,10 @@
 """End-to-end verification script for Telegram Bot functionality."""
 
 import asyncio
+import importlib.util
 import os
 import sys
 from datetime import datetime
-from typing import Optional
 
 import numpy as np
 
@@ -374,9 +374,7 @@ def main():
     """Main entry point."""
     try:
         # Check for python-telegram-bot
-        try:
-            import telegram
-        except ImportError:
+        if importlib.util.find_spec("telegram") is None:
             logger.error("python-telegram-bot not installed!")
             logger.info("Install it with: pip install python-telegram-bot")
             sys.exit(1)

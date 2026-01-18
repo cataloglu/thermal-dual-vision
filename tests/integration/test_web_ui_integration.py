@@ -11,9 +11,6 @@ Tests full end-to-end integration including:
 
 import pytest
 import requests
-import time
-from typing import Dict, Any
-import json
 
 
 class TestWebUIIntegration:
