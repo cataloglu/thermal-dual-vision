@@ -1,15 +1,18 @@
-ARG BUILD_FROM
+ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.20
 FROM ${BUILD_FROM}
 
 # Install system dependencies
 RUN apk add --no-cache \
     python3 \
     py3-pip \
-    py3-numpy \
+    build-base \
+    python3-dev \
     py3-opencv \
     ffmpeg \
     libstdc++ \
-    libgcc
+    libgcc \
+    musl-dev \
+    linux-headers
 
 # Set working directory
 WORKDIR /app
@@ -18,7 +21,11 @@ WORKDIR /app
 COPY requirements.txt /app/
 
 # Install Python dependencies
-RUN pip3 install --no-cache-dir -r requirements.txt
+RUN python3 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:${PATH}"
+RUN pip install -U pip setuptools wheel
+RUN grep -v -e '^ultralytics' -e '^opencv-python-headless' requirements.txt > /tmp/requirements.txt \
+    && pip install --no-cache-dir -r /tmp/requirements.txt
 
 # Copy application source
 COPY src/ /app/src/
