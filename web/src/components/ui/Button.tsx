@@ -53,8 +53,8 @@ export function Button({
   const baseClasses = `
     inline-flex items-center justify-center gap-2
     font-medium rounded-md
-    transition-colors duration-200
-    focus:outline-none focus:ring-2 focus:ring-offset-2
+    transition-colors duration-150
+    focus:outline-none focus:ring-2 focus:ring-offset-0
     disabled:opacity-50 disabled:cursor-not-allowed
   `;
 
@@ -68,19 +68,19 @@ export function Button({
   // Variant classes
   const variantClasses = {
     primary: `
-      bg-primary-600 hover:bg-primary-700 text-white
-      focus:ring-primary-500
-      dark:bg-primary-700 dark:hover:bg-primary-600
+      bg-[#111827] hover:bg-[#161B22] text-gray-200
+      border border-[#1F2937]
+      focus:ring-[#1F2937]
     `,
     secondary: `
-      bg-gray-200 hover:bg-gray-300 text-gray-900
-      dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-100
-      focus:ring-gray-500
+      bg-transparent hover:bg-[#161B22] text-gray-400
+      border border-[#1F2937]
+      focus:ring-[#1F2937]
     `,
     danger: `
-      bg-danger-600 hover:bg-danger-700 text-white
-      focus:ring-danger-500
-      dark:bg-danger-700 dark:hover:bg-danger-600
+      bg-[#111827] hover:bg-[#161B22] text-[#EF4444]
+      border border-[#1F2937]
+      focus:ring-[#EF4444]
     `
   };
 

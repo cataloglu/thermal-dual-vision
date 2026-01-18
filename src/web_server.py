@@ -13,10 +13,13 @@ def create_app() -> Flask:
     """Create and configure Flask application with HA ingress support."""
     # Configure static file serving for frontend
     # In Docker: /app/web/dist/, Local dev: ./web/dist/
-    static_folder = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'web', 'dist')
-    app = Flask(__name__,
-                static_folder=static_folder,
-                static_url_path='/assets')
+    dist_folder = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'web', 'dist')
+    assets_folder = os.path.join(dist_folder, 'assets')
+    app = Flask(
+        __name__,
+        static_folder=assets_folder,
+        static_url_path='/assets',
+    )
 
     # Enable CORS for development
     CORS(app)
@@ -72,7 +75,7 @@ def create_app() -> Flask:
     @app.route('/', methods=['GET'])
     def index():
         """Serve frontend index.html."""
-        return send_from_directory(app.static_folder, 'index.html')
+        return send_from_directory(dist_folder, 'index.html')
 
     # Catch-all route for SPA client-side routing
     # This must be AFTER API blueprint registration to avoid catching API routes
@@ -80,12 +83,12 @@ def create_app() -> Flask:
     def catch_all(path):
         """Serve index.html for all non-API routes (SPA routing)."""
         # Check if file exists in static folder (CSS, JS, images, etc.)
-        file_path = os.path.join(app.static_folder, path)
+        file_path = os.path.join(dist_folder, path)
         if os.path.isfile(file_path):
-            return send_from_directory(app.static_folder, path)
+            return send_from_directory(dist_folder, path)
 
         # Otherwise serve index.html for client-side routing
-        return send_from_directory(app.static_folder, 'index.html')
+        return send_from_directory(dist_folder, 'index.html')
 
     # Initialize WebSocket support
     init_socketio(app)

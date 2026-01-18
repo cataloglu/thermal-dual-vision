@@ -4,21 +4,74 @@
 
 /* Base styles for the application */
 @layer base {
+  :root {
+    --bg: #0B0E14;
+    --surface: #111827;
+    --card: #161B22;
+    --border: #1F2937;
+    --text: #E5E7EB;
+    --text-muted: #9CA3AF;
+    --accent: #38BDF8;
+    --danger: #EF4444;
+  }
+
   body {
-    @apply bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100;
-    @apply transition-colors duration-200;
+    @apply text-gray-200;
+    background-color: var(--bg);
+    font-family: "Inter", "SF Pro Text", "SF Pro", "Segoe UI", "Roboto", "Helvetica", "Arial", sans-serif;
+    letter-spacing: 0.01em;
   }
 
   * {
-    @apply border-gray-200 dark:border-gray-700;
+    border-color: var(--border);
   }
 }
 
 /* Custom component styles */
 @layer components {
   .card {
-    @apply bg-white dark:bg-gray-800 rounded-lg shadow-md p-4;
-    @apply border border-gray-200 dark:border-gray-700;
+    background-color: var(--card);
+    border: 1px solid var(--border);
+    @apply rounded-lg p-4;
+  }
+
+  .surface {
+    background-color: var(--surface);
+  }
+
+  .text-muted {
+    color: var(--text-muted);
+  }
+
+  .chip {
+    @apply px-2 py-1 rounded-md border text-xs uppercase tracking-wide;
+    background-color: rgba(31, 41, 55, 0.6);
+    color: var(--text-muted);
+    border-color: var(--border);
+  }
+
+  .chip-ok {
+    color: var(--accent);
+    border-color: rgba(56, 189, 248, 0.4);
+  }
+
+  .chip-warn {
+    color: var(--accent);
+    border-color: rgba(56, 189, 248, 0.4);
+  }
+
+  .chip-danger {
+    color: var(--accent);
+    border-color: rgba(56, 189, 248, 0.4);
+  }
+
+  .chip-info {
+    color: var(--accent);
+    border-color: rgba(56, 189, 248, 0.4);
+  }
+
+  .chip-muted {
+    color: var(--text-muted);
   }
 
   .btn {
@@ -27,22 +80,22 @@
   }
 
   .btn-primary {
-    @apply bg-primary-600 hover:bg-primary-700 text-white;
-    @apply focus:ring-primary-500;
+    background-color: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
   }
 
   .btn-secondary {
-    @apply bg-gray-200 hover:bg-gray-300 text-gray-900;
-    @apply dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-100;
-    @apply focus:ring-gray-500;
+    background-color: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
   }
 
   .input {
     @apply w-full px-3 py-2 rounded-md;
-    @apply bg-white dark:bg-gray-800;
-    @apply border border-gray-300 dark:border-gray-600;
-    @apply focus:outline-none focus:ring-2 focus:ring-primary-500;
-    @apply transition-colors;
+    background-color: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
   }
 
   .table {
@@ -50,14 +103,15 @@
   }
 
   .table th {
-    @apply px-4 py-3 text-left text-sm font-semibold;
-    @apply bg-gray-50 dark:bg-gray-800;
-    @apply border-b border-gray-200 dark:border-gray-700;
+    @apply px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide;
+    background-color: var(--surface);
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
   }
 
   .table td {
     @apply px-4 py-3 text-sm;
-    @apply border-b border-gray-200 dark:border-gray-700;
+    border-bottom: 1px solid var(--border);
   }
 }
 
@@ -65,7 +119,7 @@
 @layer utilities {
   .scrollbar-thin {
     scrollbar-width: thin;
-    scrollbar-color: rgb(156 163 175) transparent;
+    scrollbar-color: var(--border) transparent;
   }
 
   .scrollbar-thin::-webkit-scrollbar {
@@ -78,15 +132,7 @@
   }
 
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    background-color: rgb(156 163 175);
+    background-color: var(--border);
     border-radius: 4px;
-  }
-
-  .dark .scrollbar-thin {
-    scrollbar-color: rgb(75 85 99) transparent;
-  }
-
-  .dark .scrollbar-thin::-webkit-scrollbar-thumb {
-    background-color: rgb(75 85 99);
   }
 }

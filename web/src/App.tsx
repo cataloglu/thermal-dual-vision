@@ -4,12 +4,7 @@ import { Layout } from './components/Layout';
 import { ThemeProvider } from './components/ThemeProvider';
 import { Dashboard } from './pages/Dashboard';
 import { Cameras } from './pages/Cameras';
-import { CameraDetail } from './pages/CameraDetail';
-import { Pipelines } from './pages/Pipelines';
-import { LiveView } from './pages/LiveView';
-import { Notifications } from './pages/Notifications';
 import { Diagnostics } from './pages/Diagnostics';
-import { Gallery } from './pages/Gallery';
 import { Events } from './pages/Events';
 import { Settings } from './pages/Settings';
 
@@ -18,31 +13,26 @@ import { Settings } from './pages/Settings';
  *
  * This component sets up the application routing using preact-router.
  * The entire app is wrapped in:
- * - ThemeProvider: Provides dark/light mode context to all components
+ * - ThemeProvider: Forces dark-only mode
  * - Layout: Provides navigation sidebar and header structure
  *
  * Routes:
- * - / : Dashboard (home page with stats and recent detections)
- * - /live : Live camera stream view
- * - /gallery : Screenshot gallery grid
- * - /events : Event history table
- * - /settings : Configuration settings
+ * - / : Events (primary)
+ * - /status : Status overview
+ * - /cameras : Camera list
+ * - /settings : Configuration tabs
+ * - /diagnostics : Health/metrics/logs
  */
 export function App() {
   return (
     <ThemeProvider>
       <Layout>
         <Router>
-          <Dashboard path="/" />
+          <Events path="/" />
+          <Dashboard path="/status" />
           <Cameras path="/cameras" />
-          <CameraDetail path="/cameras/:id" />
-          <Pipelines path="/pipelines" />
-          <Notifications path="/notifications" />
-          <Diagnostics path="/diagnostics" />
-          <LiveView path="/live" />
-          <Gallery path="/gallery" />
-          <Events path="/events" />
           <Settings path="/settings" />
+          <Diagnostics path="/diagnostics" />
           <NotFound default />
         </Router>
       </Layout>
@@ -55,13 +45,11 @@ export function App() {
  */
 function NotFound() {
   return (
-    <div>
-      <h1 class="text-3xl font-bold mb-4">404 - Page Not Found</h1>
-      <p class="text-gray-600 dark:text-gray-400">
-        The requested page could not be found.
-      </p>
-      <a href="/" class="text-primary-600 hover:text-primary-700 mt-4 inline-block">
-        Return to Dashboard
+    <div class="space-y-2">
+      <h1 class="text-lg font-semibold text-gray-200">404</h1>
+      <p class="text-sm text-muted">Requested page not found.</p>
+      <a href="/" class="text-sm text-[#38BDF8]">
+        Return to Events
       </a>
     </div>
   );

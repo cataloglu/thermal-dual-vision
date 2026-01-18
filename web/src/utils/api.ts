@@ -23,9 +23,11 @@ export interface SystemStatus {
   status: string;
   uptime_seconds: number;
   components: {
-    camera: string;
-    detector: string;
-    mqtt: string;
+    camera?: string;
+    detector?: string;
+    motion_detection?: string;
+    mqtt?: string;
+    [key: string]: string | undefined;
   };
 }
 
@@ -42,22 +44,33 @@ export interface SystemStats {
 /**
  * Detection event analysis details
  */
-export interface SystemEvent {
-  event_id: string;
-  event_type: string;
+export interface EventDetection {
+  real_motion?: boolean;
+  confidence_score?: number;
+  description?: string;
+  detected_objects?: string[];
+  threat_level?: string;
+  recommended_action?: string;
+  detailed_analysis?: string;
+  processing_time?: number;
+}
+
+export interface EventItem {
+  id: string;
   timestamp: string;
-  source: string;
-  camera_id?: string | null;
-  payload?: Record<string, any>;
-  schema_version?: string;
+  camera_name?: string;
+  event_type?: string;
+  detection?: EventDetection;
+  retry_count?: number;
 }
 
 /**
  * Events list response from /api/events
  */
 export interface EventsResponse {
-  events: SystemEvent[];
+  events: EventItem[];
   total?: number;
+  count?: number;
 }
 
 /**
@@ -77,6 +90,8 @@ export interface Screenshot {
     degisiklik_aciklamasi?: string;
     tespit_edilen_nesneler?: string[];
     tehdit_seviyesi?: string;
+    detayli_analiz?: string;
+    processing_time?: number;
   };
 }
 
@@ -189,6 +204,7 @@ export interface Camera {
   status: string;
   last_error?: string;
   last_frame_ts?: number;
+  event_count?: number;
 }
 
 export interface CamerasResponse {
@@ -209,6 +225,31 @@ export interface PipelineState {
 
 export interface PipelineStatusResponse {
   pipeline: PipelineState;
+}
+/**
+ * Health response from /api/health
+ */
+export interface HealthResponse {
+  status: string;
+  ai_enabled?: boolean;
+  pipeline?: PipelineState;
+  components?: Record<string, any>;
+}
+
+/**
+ * Logs tail response from /api/logs/tail
+ */
+export interface LogsTailResponse {
+  lines: string[];
+}
+
+/**
+ * Metrics response from /api/metrics
+ */
+export interface MetricsResponse {
+  uptime_seconds: number;
+  events_count: number;
+  pipeline?: PipelineState;
 }
 /**
  * Generic error response from API
@@ -440,6 +481,18 @@ export async function getPipelineStatus(): Promise<PipelineStatusResponse> {
   return get<PipelineStatusResponse>('/api/pipeline/status');
 }
 
+export async function getHealth(): Promise<HealthResponse> {
+  return get<HealthResponse>('/api/health');
+}
+
+export async function getMetrics(): Promise<MetricsResponse> {
+  return get<MetricsResponse>('/api/metrics');
+}
+
+export async function getLogsTail(lines: number = 200): Promise<LogsTailResponse> {
+  return get<LogsTailResponse>(`/api/logs/tail?lines=${lines}`);
+}
+
 export async function startPipeline(): Promise<{ started: boolean }> {
   return post<{ started: boolean }>('/api/pipeline/start', {});
 }
@@ -510,6 +563,9 @@ export const api = {
   createCamera,
   testCameraPayload,
   getPipelineStatus,
+  getHealth,
+  getMetrics,
+  getLogsTail,
   startPipeline,
   stopPipeline,
   restartPipeline,

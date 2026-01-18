@@ -69,9 +69,10 @@ export function Table<T = any>({
               <th
                 key={column.key}
                 class={`
-                  px-4 py-3 text-left text-sm font-semibold
-                  bg-gray-50 dark:bg-gray-800
-                  border-b border-gray-200 dark:border-gray-700
+                  px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide
+                  bg-[#111827]
+                  border-b border-[#1F2937]
+                  text-gray-400
                   ${column.width || ''}
                   ${column.className || ''}
                 `}
@@ -89,7 +90,7 @@ export function Table<T = any>({
             <tr>
               <td
                 colSpan={columns.length}
-                class="px-4 py-8 text-center text-gray-500 dark:text-gray-400"
+                class="px-4 py-8 text-center text-gray-500"
               >
                 <div class="flex items-center justify-center gap-2">
                   <span class="animate-spin text-2xl">⟳</span>
@@ -104,7 +105,7 @@ export function Table<T = any>({
             <tr>
               <td
                 colSpan={columns.length}
-                class="px-4 py-8 text-center text-gray-500 dark:text-gray-400"
+                class="px-4 py-8 text-center text-gray-500"
               >
                 {emptyMessage}
               </td>
@@ -115,9 +116,9 @@ export function Table<T = any>({
           {!loading && data.map((item, index) => {
             const key = keyExtractor(item, index);
             const rowClasses = `
-              border-b border-gray-200 dark:border-gray-700
-              ${striped && index % 2 === 0 ? 'bg-gray-50 dark:bg-gray-800/50' : ''}
-              ${hover ? 'hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors' : ''}
+              border-b border-[#1F2937]
+              ${striped && index % 2 === 0 ? 'bg-[#0F141D]' : ''}
+              ${hover ? 'hover:bg-[#161B22] transition-colors' : ''}
               ${onRowClick ? 'cursor-pointer' : ''}
             `;
 
@@ -131,7 +132,7 @@ export function Table<T = any>({
                   <td
                     key={column.key}
                     class={`
-                      px-4 py-3 text-sm text-gray-900 dark:text-gray-100
+                      px-4 py-3 text-sm text-gray-200
                       ${column.className || ''}
                     `}
                   >
