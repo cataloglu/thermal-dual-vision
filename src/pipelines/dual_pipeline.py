@@ -26,7 +26,6 @@ class DualPipeline(BasePipeline):
     def __init__(self, config: Config, max_pairs: Optional[int] = None) -> None:
         super().__init__(config)
         self.max_pairs = max_pairs
-        self._stop_event = threading.Event()
         self._lock = threading.Lock()
         self._latest_frames: Dict[str, Optional[np.ndarray]] = {"color": None, "thermal": None}
         self._latest_ts: Dict[str, Optional[float]] = {"color": None, "thermal": None}
@@ -40,7 +39,7 @@ class DualPipeline(BasePipeline):
             return
 
         try:
-            while not self._stop_event.is_set():
+            while not self.stop_event.is_set():
                 ok, frame = capture.read()
                 if not ok:
                     logger.warning("Failed to read %s frame", label)
@@ -83,7 +82,7 @@ class DualPipeline(BasePipeline):
         pair_count = 0
 
         try:
-            while True:
+            while not self.stop_event.is_set():
                 if self.max_pairs is not None and pair_count >= self.max_pairs:
                     break
 
@@ -112,4 +111,4 @@ class DualPipeline(BasePipeline):
                 if self.config.camera.fps > 0:
                     time.sleep(1 / self.config.camera.fps)
         finally:
-            self._stop_event.set()
+            self.stop_event.set()

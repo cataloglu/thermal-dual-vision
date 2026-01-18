@@ -5,6 +5,7 @@ import { ThemeProvider } from './components/ThemeProvider';
 import { Dashboard } from './pages/Dashboard';
 import { Cameras } from './pages/Cameras';
 import { CameraDetail } from './pages/CameraDetail';
+import { Pipelines } from './pages/Pipelines';
 import { LiveView } from './pages/LiveView';
 import { Gallery } from './pages/Gallery';
 import { Events } from './pages/Events';
@@ -33,6 +34,7 @@ export function App() {
           <Dashboard path="/" />
           <Cameras path="/cameras" />
           <CameraDetail path="/cameras/:id" />
+          <Pipelines path="/pipelines" />
           <LiveView path="/live" />
           <Gallery path="/gallery" />
           <Events path="/events" />

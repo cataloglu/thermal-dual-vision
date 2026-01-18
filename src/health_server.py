@@ -7,7 +7,7 @@ import time
 from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Deque, Dict, List, Optional
+from typing import Any, Deque, Dict, List, Optional, Protocol
 
 import cv2
 from aiohttp import web
@@ -98,6 +98,19 @@ class PipelineStatusTracker:
 
     def as_dict(self) -> Dict[str, Any]:
         return self._status.as_dict()
+
+
+class PipelineController(Protocol):
+    """Protocol for controlling pipeline lifecycle."""
+
+    def start(self) -> bool:
+        ...
+
+    def stop(self) -> bool:
+        ...
+
+    def restart(self) -> None:
+        ...
 
 
 class CameraStatusChecker:
@@ -233,6 +246,7 @@ def create_app(
     telegram_bot: Optional[TelegramBot] = None,
     event_store: Optional[EventStore] = None,
     pipeline_status: Optional[PipelineStatusTracker] = None,
+    pipeline_controller: Optional[PipelineController] = None,
 ) -> web.Application:
     """Create aiohttp app with health endpoints and UI."""
     reporter = HealthReporter(
@@ -346,6 +360,28 @@ def create_app(
         status = 200 if result.get("ok") else 400
         return web.json_response(result, status=status)
 
+    async def pipeline_status_handler(_: web.Request) -> web.Response:
+        payload = pipeline_status.as_dict() if pipeline_status else {"status": "unknown"}
+        return web.json_response({"pipeline": payload})
+
+    async def pipeline_start_handler(_: web.Request) -> web.Response:
+        if not pipeline_controller:
+            return web.json_response({"error": "Pipeline controller not available"}, status=400)
+        started = pipeline_controller.start()
+        return web.json_response({"started": started})
+
+    async def pipeline_stop_handler(_: web.Request) -> web.Response:
+        if not pipeline_controller:
+            return web.json_response({"error": "Pipeline controller not available"}, status=400)
+        stopped = pipeline_controller.stop()
+        return web.json_response({"stopped": stopped})
+
+    async def pipeline_restart_handler(_: web.Request) -> web.Response:
+        if not pipeline_controller:
+            return web.json_response({"error": "Pipeline controller not available"}, status=400)
+        pipeline_controller.restart()
+        return web.json_response({"restarted": True})
+
     async def ui_handler(_: web.Request) -> web.Response:
         html = UI_PATH.read_text(encoding="utf-8")
         return web.Response(text=html, content_type="text/html")
@@ -363,6 +399,10 @@ def create_app(
     app.router.add_put("/api/cameras/{camera_id}", camera_update_handler)
     app.router.add_delete("/api/cameras/{camera_id}", camera_delete_handler)
     app.router.add_post("/api/cameras/{camera_id}/test", camera_test_handler)
+    app.router.add_get("/api/pipeline/status", pipeline_status_handler)
+    app.router.add_post("/api/pipeline/start", pipeline_start_handler)
+    app.router.add_post("/api/pipeline/stop", pipeline_stop_handler)
+    app.router.add_post("/api/pipeline/restart", pipeline_restart_handler)
     app.router.add_get("/ready", ready_handler)
     return app
 
@@ -373,6 +413,7 @@ def run_health_server(
     telegram_bot: Optional[TelegramBot] = None,
     event_store: Optional[EventStore] = None,
     pipeline_status: Optional[PipelineStatusTracker] = None,
+    pipeline_controller: Optional[PipelineController] = None,
     host: str = "0.0.0.0",
     port: int = 8000,
 ) -> None:
@@ -383,6 +424,7 @@ def run_health_server(
         telegram_bot=telegram_bot,
         event_store=event_store,
         pipeline_status=pipeline_status,
+        pipeline_controller=pipeline_controller,
     )
     logger.info("Starting health server on %s:%s", host, port)
     web.run_app(app, host=host, port=port)
