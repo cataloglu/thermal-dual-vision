@@ -302,6 +302,15 @@ const runSaveTests = (language: 'tr' | 'en') => {
       const errorToast = page.locator('[role="status"]').filter({ hasText: /token/i })
       await expect(errorToast.first()).toBeVisible()
     })
+
+    test('Telegram invalid chat id blocked', async ({ page }) => {
+      await page.goto('/settings?tab=telegram')
+      await page.locator('#telegram-enabled').check()
+      await page.getByPlaceholder('Enter chat ID and press Enter').fill('abc123')
+      await page.getByRole('button', { name: /Add|Ekle/i }).click()
+      const errorToast = page.locator('[role="status"]').filter({ hasText: /chat id|sayısal/i })
+      await expect(errorToast.first()).toBeVisible()
+    })
   })
 }
 
