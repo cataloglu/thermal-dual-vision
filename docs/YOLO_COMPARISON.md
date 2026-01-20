@@ -8,13 +8,15 @@ YOLOv8 vs YOLOv9 vs YOLOv11 karşılaştırması ve model seçimi rehberi.
 
 ## 📊 Hızlı Karşılaştırma
 
+**Not**: YOLOv11 sadece karşılaştırma amaçlı (henüz desteklenmiyor, çok yeni). Desteklenen modeller: YOLOv8n/s-person, YOLOv9t/s
+
 | Model | mAP | Speed (T4) | Params | Kullanım |
 |-------|-----|------------|--------|----------|
 | **YOLOv8n** | 37.3 | 1.47ms | 3.2M | ✅ 5+ kamera, hızlı |
 | **YOLOv9t** | 38.3 | 2.30ms | 2.0M | ✅ Daha doğru, az param |
 | **YOLOv8s** | 44.9 | 2.66ms | 11.2M | ✅ 1-4 kamera, doğru |
 | **YOLOv9s** | 46.8 | 3.54ms | 7.1M | ✅ Daha doğru, az param |
-| **YOLOv11n** | 39.5 | 1.55ms | 2.6M | ✅ En yeni, dengeliş |
+| **YOLOv11n** | 39.5 | 1.55ms | 2.6M | ⚠️ Referans (desteklenmiyor) |
 
 ---
 
@@ -97,7 +99,7 @@ YOLOv9s: 7.1M parametre → 46.8 mAP (daha az param, daha doğru!)
 
 ---
 
-### YOLOv11 (2024)
+### YOLOv11 (2024) ⚠️ Desteklenmiyor (Sadece Referans)
 
 **Avantajlar**:
 - ✅ En yeni
@@ -107,10 +109,12 @@ YOLOv9s: 7.1M parametre → 46.8 mAP (daha az param, daha doğru!)
 **Dezavantajlar**:
 - ⚠️ Çok yeni (6 ay)
 - ⚠️ Az test edildi
+- ❌ Henüz projede desteklenmiyor
 
 **Kullanım**:
 - Deneysel
 - Production'da riskli
+- **Bu projede: DESTEKLENMEZ** (YOLOv9 yeterli)
 
 ---
 
