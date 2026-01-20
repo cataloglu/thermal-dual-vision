@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { MdUndo, MdClear, MdSave } from 'react-icons/md'
 
 interface Point {
@@ -13,6 +14,7 @@ interface ZoneEditorProps {
 }
 
 export function ZoneEditor({ snapshotUrl, initialPoints = [], onSave }: ZoneEditorProps) {
+  const { t } = useTranslation()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [points, setPoints] = useState<Point[]>(initialPoints)
   const [hoveredPoint, setHoveredPoint] = useState<number | null>(null)
@@ -182,12 +184,12 @@ export function ZoneEditor({ snapshotUrl, initialPoints = [], onSave }: ZoneEdit
 
       {/* Instructions */}
       <div className="bg-surface2 border-l-4 border-info p-4 rounded-lg text-sm">
-        <p className="text-text mb-2"><strong>Nasıl Kullanılır:</strong></p>
+        <p className="text-text mb-2"><strong>{t('howToUse')}:</strong></p>
         <ul className="text-muted space-y-1">
-          <li>• <strong>Sol tık:</strong> Nokta ekle</li>
-          <li>• <strong>Sağ tık:</strong> Nokta sil</li>
-          <li>• <strong>En az 3 nokta</strong> gerekli</li>
-          <li>• <strong>Maks 20 nokta</strong> eklenebilir</li>
+          <li>• {t('leftClick')}</li>
+          <li>• {t('rightClick')}</li>
+          <li>• {t('minPoints')}</li>
+          <li>• {t('maxPoints')}</li>
         </ul>
       </div>
 
@@ -199,7 +201,7 @@ export function ZoneEditor({ snapshotUrl, initialPoints = [], onSave }: ZoneEdit
           className="flex items-center gap-2 px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <MdSave />
-          Zone Kaydet ({points.length} nokta)
+          {t('saveZone')} ({points.length})
         </button>
         <button
           onClick={handleUndo}
@@ -207,7 +209,7 @@ export function ZoneEditor({ snapshotUrl, initialPoints = [], onSave }: ZoneEdit
           className="flex items-center gap-2 px-4 py-2 bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors disabled:opacity-50"
         >
           <MdUndo />
-          Geri Al
+          {t('undo')}
         </button>
         <button
           onClick={handleClear}
@@ -215,7 +217,7 @@ export function ZoneEditor({ snapshotUrl, initialPoints = [], onSave }: ZoneEdit
           className="flex items-center gap-2 px-4 py-2 bg-error/20 border border-error/50 text-error rounded-lg hover:bg-error/30 transition-colors disabled:opacity-50"
         >
           <MdClear />
-          Temizle
+          {t('clear')}
         </button>
       </div>
     </div>

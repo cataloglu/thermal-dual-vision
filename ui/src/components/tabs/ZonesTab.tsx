@@ -2,6 +2,7 @@
  * Zones tab - Zone/ROI configuration
  */
 import React, { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ZoneEditor } from '../ZoneEditor'
 import { api } from '../../services/api'
 import toast from 'react-hot-toast'
@@ -20,6 +21,7 @@ interface Zone {
 }
 
 export const ZonesTab: React.FC = () => {
+  const { t } = useTranslation()
   const [cameras, setCameras] = useState<Camera[]>([])
   const [selectedCamera, setSelectedCamera] = useState<string>('')
   const [zones, setZones] = useState<Zone[]>([])
@@ -50,7 +52,7 @@ export const ZonesTab: React.FC = () => {
 
   const handleSaveZone = (points: Array<{ x: number; y: number }>) => {
     if (!zoneName) {
-      toast.error('Zone adı gerekli')
+      toast.error(t('zoneName') + ' gerekli')
       return
     }
 
@@ -59,30 +61,30 @@ export const ZonesTab: React.FC = () => {
     
     // TODO: Save zone to backend with polygon data
     console.log('Saving zone:', { name: zoneName, mode: zoneMode, polygon })
-    toast.success(`Zone kaydedildi: ${zoneName}`)
+    toast.success(`${t('saveZone')}: ${zoneName}`)
     setZoneName('')
   }
 
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-medium text-text mb-4">Bölge Ayarları</h3>
+        <h3 className="text-lg font-medium text-text mb-4">{t('zoneSettings')}</h3>
         <p className="text-sm text-muted mb-6">
-          Kamera görüntüsünde algılama bölgeleri tanımlayın
+          {t('zoneDesc')}
         </p>
       </div>
 
       {/* Camera Selection */}
       <div>
         <label className="block text-sm font-medium text-text mb-2">
-          Kamera Seçin
+          {t('selectCamera')}
         </label>
         <select
           value={selectedCamera}
           onChange={(e) => setSelectedCamera(e.target.value)}
           className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
         >
-          <option value="">Kamera seçin...</option>
+          <option value="">{t('selectCamera')}...</option>
           {cameras.map((camera) => (
             <option key={camera.id} value={camera.id}>
               {camera.name}
@@ -103,7 +105,7 @@ export const ZonesTab: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-text mb-2">
-                Zone Adı
+                {t('zoneName')}
               </label>
               <input
                 type="text"
@@ -116,16 +118,16 @@ export const ZonesTab: React.FC = () => {
 
             <div>
               <label className="block text-sm font-medium text-text mb-2">
-                Zone Modu
+                {t('zoneMode')}
               </label>
               <select
                 value={zoneMode}
                 onChange={(e) => setZoneMode(e.target.value as typeof zoneMode)}
                 className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
               >
-                <option value="person">Person (Alarm ver)</option>
-                <option value="motion">Motion (Pre-filter)</option>
-                <option value="both">Both (Her ikisi)</option>
+                <option value="person">Person</option>
+                <option value="motion">Motion</option>
+                <option value="both">Both</option>
               </select>
             </div>
           </div>
@@ -133,7 +135,7 @@ export const ZonesTab: React.FC = () => {
           {/* Existing Zones */}
           {zones.length > 0 && (
             <div>
-              <h4 className="text-sm font-medium text-text mb-3">Kayıtlı Bölgeler</h4>
+              <h4 className="text-sm font-medium text-text mb-3">{t('savedZones')}</h4>
               <div className="space-y-2">
                 {zones.map((zone) => (
                   <div
@@ -154,10 +156,10 @@ export const ZonesTab: React.FC = () => {
                     </div>
                     <div className="flex gap-2">
                       <button className="px-3 py-1 bg-surface2 border border-border text-text rounded hover:bg-surface2/80 transition-colors text-sm">
-                        Düzenle
+                        {t('edit')}
                       </button>
                       <button className="px-3 py-1 bg-error/20 border border-error/50 text-error rounded hover:bg-error/30 transition-colors text-sm">
-                        Sil
+                        {t('delete')}
                       </button>
                     </div>
                   </div>
@@ -170,7 +172,7 @@ export const ZonesTab: React.FC = () => {
 
       {!selectedCamera && (
         <div className="bg-surface1 border border-border rounded-lg p-12 text-center">
-          <p className="text-muted">Lütfen önce bir kamera seçin</p>
+          <p className="text-muted">{t('pleaseSelectCamera')}</p>
         </div>
       )}
     </div>
