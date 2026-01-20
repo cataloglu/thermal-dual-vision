@@ -4,6 +4,7 @@ Configuration models for Smart Motion Detector v2.
 This module contains Pydantic models for all configuration sections.
 All models include validation rules and default values.
 """
+import re
 from typing import List, Literal, Optional
 from pydantic import BaseModel, Field, field_validator
 
@@ -361,6 +362,25 @@ class TelegramConfig(BaseModel):
         le=100,
         description="JPEG quality for snapshots (0-100)"
     )
+
+    @field_validator("bot_token")
+    @classmethod
+    def validate_bot_token(cls, value: str) -> str:
+        """Validate Telegram bot token format."""
+        if not value or value == "***REDACTED***":
+            return value
+        if not re.match(r"^\d+:[A-Za-z0-9_-]{20,}$", value):
+            raise ValueError("bot_token has invalid format")
+        return value
+
+    @field_validator("chat_ids")
+    @classmethod
+    def validate_chat_ids(cls, value: List[str]) -> List[str]:
+        """Validate Telegram chat ID list."""
+        for chat_id in value:
+            if not isinstance(chat_id, str) or not re.match(r"^-?\d+$", chat_id):
+                raise ValueError("chat_ids must be numeric strings")
+        return value
 
 
 class AppearanceConfig(BaseModel):

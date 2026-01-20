@@ -144,6 +144,8 @@
   "maxTokens": "Max Tokens",
   "timeout": "Timeout",
   "enableTelegramNotifications": "Enable Telegram Notifications",
+  "invalidBotToken": "Bot token format is invalid",
+  "invalidChatId": "Chat ID must be a numeric value",
   "chatIDs": "Chat IDs",
   "sendImages": "Send Images",
   "recommended": "Recommended",

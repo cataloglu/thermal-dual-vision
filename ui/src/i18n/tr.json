@@ -144,6 +144,8 @@
   "maxTokens": "Maksimum Token",
   "timeout": "Zaman Aşımı",
   "enableTelegramNotifications": "Telegram Bildirimlerini Etkinleştir",
+  "invalidBotToken": "Bot token formatı geçersiz",
+  "invalidChatId": "Chat ID sayısal olmalı",
   "chatIDs": "Chat ID'ler",
   "sendImages": "Görüntü Gönder",
   "recommended": "Önerilen",

@@ -28,7 +28,7 @@ def mock_config():
     config = Mock()
     config.telegram = Mock()
     config.telegram.enabled = True
-    config.telegram.bot_token = "123456:ABC-DEF"
+    config.telegram.bot_token = "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
     config.telegram.chat_ids = ["123456789"]
     config.telegram.rate_limit_seconds = 5
     config.telegram.cooldown_seconds = 5

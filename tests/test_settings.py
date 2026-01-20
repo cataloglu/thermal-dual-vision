@@ -378,6 +378,40 @@ def test_validation_error_ai_key_format(settings_service):
     assert "api_key" in str(exc_info.value)
 
 
+def test_validation_error_telegram_token_format(settings_service):
+    """Test validation error for invalid Telegram bot token format."""
+    settings_service.load_config()
+
+    partial_data = {
+        "telegram": {
+            "enabled": True,
+            "bot_token": "invalid-token"
+        }
+    }
+
+    with pytest.raises(ValidationError) as exc_info:
+        settings_service.update_settings(partial_data)
+
+    assert "bot_token" in str(exc_info.value)
+
+
+def test_validation_error_telegram_chat_id_format(settings_service):
+    """Test validation error for invalid Telegram chat ID format."""
+    settings_service.load_config()
+
+    partial_data = {
+        "telegram": {
+            "enabled": True,
+            "chat_ids": ["abc123"]
+        }
+    }
+
+    with pytest.raises(ValidationError) as exc_info:
+        settings_service.update_settings(partial_data)
+
+    assert "chat_ids" in str(exc_info.value)
+
+
 def test_singleton_pattern(temp_config_dir):
     """Test that SettingsService is a singleton."""
     # Reset singleton

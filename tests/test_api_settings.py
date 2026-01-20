@@ -147,7 +147,7 @@ def test_get_settings_secrets_masked(client):
             "api_key": "sk-secret-key"
         },
         "telegram": {
-            "bot_token": "secret-token"
+            "bot_token": "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
         }
     }
     client.put("/api/settings", json=update_data)
@@ -216,6 +216,46 @@ def test_put_settings_validation_error_sensitivity(client):
     
     assert detail["error"] is True
     assert detail["code"] == "VALIDATION_ERROR"
+
+
+def test_put_settings_validation_error_bot_token_format(client):
+    """Test PUT /api/settings validation error for invalid bot token."""
+    update_data = {
+        "telegram": {
+            "enabled": True,
+            "bot_token": "invalid-token"
+        }
+    }
+    
+    response = client.put("/api/settings", json=update_data)
+    
+    assert response.status_code == 400
+    data = response.json()
+    detail = data.get("detail", data)
+    
+    assert detail["error"] is True
+    assert detail["code"] == "VALIDATION_ERROR"
+    assert "bot_token" in str(detail)
+
+
+def test_put_settings_validation_error_chat_id_format(client):
+    """Test PUT /api/settings validation error for invalid chat IDs."""
+    update_data = {
+        "telegram": {
+            "enabled": True,
+            "chat_ids": ["abc123"]
+        }
+    }
+    
+    response = client.put("/api/settings", json=update_data)
+    
+    assert response.status_code == 400
+    data = response.json()
+    detail = data.get("detail", data)
+    
+    assert detail["error"] is True
+    assert detail["code"] == "VALIDATION_ERROR"
+    assert "chat_ids" in str(detail)
 
 
 def test_put_settings_validation_error_ai_key_format(client):

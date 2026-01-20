@@ -4,6 +4,7 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FiEye, FiEyeOff } from 'react-icons/fi';
+import toast from 'react-hot-toast';
 import type { TelegramConfig } from '../../types/api';
 
 interface TelegramTabProps {
@@ -17,15 +18,40 @@ export const TelegramTab: React.FC<TelegramTabProps> = ({ config, onChange, onSa
   const [showBotToken, setShowBotToken] = useState(false);
   const [chatIdInput, setChatIdInput] = useState('');
 
+  const isValidBotToken = (value: string) => /^\d+:[A-Za-z0-9_-]{20,}$/.test(value);
+  const isValidChatId = (value: string) => /^-?\d+$/.test(value);
+
   const handleAddChatId = () => {
-    if (chatIdInput.trim() && !config.chat_ids.includes(chatIdInput.trim())) {
-      onChange({ ...config, chat_ids: [...config.chat_ids, chatIdInput.trim()] });
+    const trimmed = chatIdInput.trim();
+    if (trimmed && !isValidChatId(trimmed)) {
+      toast.error(t('invalidChatId'));
+      return;
+    }
+    if (trimmed && !config.chat_ids.includes(trimmed)) {
+      onChange({ ...config, chat_ids: [...config.chat_ids, trimmed] });
       setChatIdInput('');
     }
   };
 
   const handleRemoveChatId = (chatId: string) => {
     onChange({ ...config, chat_ids: config.chat_ids.filter(id => id !== chatId) });
+  };
+
+  const handleSave = () => {
+    if (
+      config.enabled &&
+      config.bot_token &&
+      config.bot_token !== '***REDACTED***' &&
+      !isValidBotToken(config.bot_token)
+    ) {
+      toast.error(t('invalidBotToken'));
+      return;
+    }
+    if (config.enabled && config.chat_ids.some((chatId) => !isValidChatId(chatId))) {
+      toast.error(t('invalidChatId'));
+      return;
+    }
+    onSave();
   };
 
   return (
@@ -159,7 +185,7 @@ export const TelegramTab: React.FC<TelegramTabProps> = ({ config, onChange, onSa
       </div>
 
       <button
-        onClick={onSave}
+        onClick={handleSave}
         className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-opacity-90 transition-colors"
       >
         {t('saveTelegramSettings')}

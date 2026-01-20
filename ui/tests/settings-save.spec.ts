@@ -293,6 +293,15 @@ const runSaveTests = (language: 'tr' | 'en') => {
       await page.getByRole('button', { name: /Telegram Ayarlarını Kaydet|Save Telegram Settings/i }).click()
       await expectSavedToast(page)
     })
+
+    test('Telegram invalid bot token blocked', async ({ page }) => {
+      await page.goto('/settings?tab=telegram')
+      await page.locator('#telegram-enabled').check()
+      await page.locator('input[type="password"]').first().fill('invalid-token')
+      await page.getByRole('button', { name: /Telegram Ayarlarını Kaydet|Save Telegram Settings/i }).click()
+      const errorToast = page.locator('[role="status"]').filter({ hasText: /token/i })
+      await expect(errorToast.first()).toBeVisible()
+    })
   })
 }
 
