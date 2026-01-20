@@ -41,42 +41,7 @@ export function Dashboard() {
   const [lastEvent, setLastEvent] = useState<Event | null>(null)
   const [loading, setLoading] = useState(true)
 
-  // WebSocket connection for real-time updates
-  const { isConnected } = useWebSocket('/api/ws/events', {
-    onEvent: (data) => {
-      console.log('New event received:', data)
-      // Update last event
-      setLastEvent({
-        id: data.id,
-        camera_id: data.camera_id,
-        timestamp: data.timestamp,
-        confidence: data.confidence || 0,
-        event_type: data.event_type,
-        summary: data.summary || null,
-        collage_url: `/api/events/${data.id}/collage`,
-        gif_url: `/api/events/${data.id}/preview.gif`,
-        mp4_url: `/api/events/${data.id}/timelapse.mp4`,
-      })
-      toast.success(`Yeni olay: ${data.camera_id}`)
-    },
-    onStatus: (data) => {
-      console.log('Status update received:', data)
-      // Update health data with status
-      if (health) {
-        setHealth({
-          ...health,
-          cameras: data.cameras || health.cameras,
-          ai: data.ai || health.ai,
-        })
-      }
-    },
-    onConnect: () => {
-      console.log('WebSocket connected')
-    },
-    onDisconnect: () => {
-      console.log('WebSocket disconnected')
-    },
-  })
+  // WebSocket removed (now in Sidebar)
 
   useEffect(() => {
     const fetchData = async () => {
