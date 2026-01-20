@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="320" viewBox="0 0 960 320" role="img" aria-label="Smart Motion Detector logo">
+  <defs>
+    <linearGradient id="heat" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#3B82F6"/>
+      <stop offset="50%" stop-color="#F5A524"/>
+      <stop offset="100%" stop-color="#FF4D4F"/>
+    </linearGradient>
+    <linearGradient id="cool" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0B1020"/>
+      <stop offset="100%" stop-color="#111A2E"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="960" height="320" rx="28" fill="url(#cool)"/>
+
+  <!-- Camera lens ring -->
+  <circle cx="160" cy="160" r="110" fill="none" stroke="url(#heat)" stroke-width="18"/>
+  <circle cx="160" cy="160" r="78" fill="none" stroke="#22304A" stroke-width="10"/>
+
+  <!-- Thermal eye -->
+  <ellipse cx="160" cy="160" rx="70" ry="38" fill="none" stroke="url(#heat)" stroke-width="10"/>
+  <circle cx="160" cy="160" r="18" fill="#E6EAF2"/>
+
+  <!-- Heat wave marks -->
+  <path d="M88 98 C120 70, 200 70, 232 98" fill="none" stroke="#F5A524" stroke-width="6" stroke-linecap="round"/>
+  <path d="M88 222 C120 250, 200 250, 232 222" fill="none" stroke="#FF4D4F" stroke-width="6" stroke-linecap="round"/>
+
+  <!-- Title -->
+  <text x="300" y="150" fill="#E6EAF2" font-family="Segoe UI, Arial, sans-serif" font-size="40" font-weight="700">
+    Smart Motion Detector
+  </text>
+  <text x="300" y="195" fill="#9AA6BF" font-family="Segoe UI, Arial, sans-serif" font-size="22">
+    Thermal + Color " Person-only Detection
+  </text>
+</svg>

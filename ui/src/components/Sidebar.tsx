@@ -32,17 +32,20 @@ export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
   return (
     <aside className="w-60 bg-surface1 border-r border-border flex flex-col h-screen">
       {/* Logo & Title */}
-      <div className="p-6 border-b border-border flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-text">Motion Detector</h1>
-          <p className="text-xs text-muted mt-1">v2.0.0</p>
-        </div>
-        {/* System Status Dot */}
-        <div className="relative">
-          <div className={`w-3 h-3 rounded-full ${statusColors[systemStatus]}`}>
-            {systemStatus === 'ok' && (
-              <div className={`absolute inset-0 rounded-full ${statusColors[systemStatus]} animate-ping opacity-75`} />
-            )}
+      <div className="p-6 border-b border-border">
+        <div className="flex items-center gap-3 mb-3">
+          <img src="/logo.svg" alt="Logo" className="w-10 h-10" />
+          <div className="flex-1">
+            <h1 className="text-lg font-bold text-text">Motion Detector</h1>
+            <p className="text-xs text-muted">v2.0.0</p>
+          </div>
+          {/* System Status Dot */}
+          <div className="relative">
+            <div className={`w-3 h-3 rounded-full ${statusColors[systemStatus]}`}>
+              {systemStatus === 'ok' && (
+                <div className={`absolute inset-0 rounded-full ${statusColors[systemStatus]} animate-ping opacity-75`} />
+              )}
+            </div>
           </div>
         </div>
       </div>

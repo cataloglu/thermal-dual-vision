@@ -1,8 +1,6 @@
 import { ReactNode, useEffect, useState } from 'react'
 import { Sidebar } from './Sidebar'
 import { api } from '../services/api'
-import { MdLanguage } from 'react-icons/md'
-import { useTranslation } from 'react-i18next'
 
 interface LayoutProps {
   children: ReactNode
@@ -10,7 +8,6 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   const [systemStatus, setSystemStatus] = useState<'ok' | 'degraded' | 'down'>('ok')
-  const { i18n } = useTranslation()
 
   useEffect(() => {
     // Poll health status every 10 seconds
@@ -28,12 +25,6 @@ export function Layout({ children }: LayoutProps) {
 
     return () => clearInterval(interval)
   }, [])
-
-  const toggleLanguage = () => {
-    const newLang = i18n.language === 'tr' ? 'en' : 'tr'
-    i18n.changeLanguage(newLang)
-    localStorage.setItem('language', newLang)
-  }
 
   return (
     <div className="flex h-screen bg-background">
