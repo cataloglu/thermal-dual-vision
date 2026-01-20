@@ -335,6 +335,19 @@ class TelegramConfig(BaseModel):
     )
 
 
+class AppearanceConfig(BaseModel):
+    """Appearance configuration (theme and language)."""
+    
+    theme: Literal["slate", "carbon", "pure-black", "matrix"] = Field(
+        default="slate",
+        description="UI theme"
+    )
+    language: Literal["tr", "en"] = Field(
+        default="tr",
+        description="Interface language"
+    )
+
+
 class AppConfig(BaseModel):
     """Main application configuration containing all sections."""
     
@@ -377,4 +390,8 @@ class AppConfig(BaseModel):
     telegram: TelegramConfig = Field(
         default_factory=TelegramConfig,
         description="Telegram notification configuration"
+    )
+    appearance: AppearanceConfig = Field(
+        default_factory=AppearanceConfig,
+        description="Appearance configuration (theme and language)"
     )

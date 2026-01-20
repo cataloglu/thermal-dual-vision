@@ -4,6 +4,7 @@ import { MdContentCopy, MdCheckCircle, MdRefresh } from 'react-icons/md'
 
 export function Diagnostics() {
   const [health, setHealth] = useState<any>(null)
+  const [systemInfo, setSystemInfo] = useState<any>(null)
   const [logs, setLogs] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [logsLoading, setLogsLoading] = useState(false)
@@ -17,6 +18,16 @@ export function Diagnostics() {
       setHealth(data)
     } catch (error) {
       console.error('Failed to fetch health:', error)
+    }
+  }
+
+  const fetchSystemInfo = async () => {
+    try {
+      const response = await fetch('/api/system/info')
+      const data = await response.json()
+      setSystemInfo(data)
+    } catch (error) {
+      console.error('Failed to fetch system info:', error)
     }
   }
 
@@ -35,7 +46,7 @@ export function Diagnostics() {
 
   useEffect(() => {
     const fetchData = async () => {
-      await Promise.all([fetchHealth(), fetchLogs()])
+      await Promise.all([fetchHealth(), fetchSystemInfo(), fetchLogs()])
       setLoading(false)
     }
 
@@ -48,6 +59,7 @@ export function Diagnostics() {
 
     const interval = setInterval(() => {
       fetchHealth()
+      fetchSystemInfo()
       fetchLogs()
     }, 5000)
 
@@ -72,7 +84,7 @@ export function Diagnostics() {
 
   const handleRefresh = async () => {
     setLoading(true)
-    await Promise.all([fetchHealth(), fetchLogs()])
+    await Promise.all([fetchHealth(), fetchSystemInfo(), fetchLogs()])
     setLoading(false)
   }
 
@@ -181,6 +193,32 @@ export function Diagnostics() {
           </div>
         )}
       </div>
+
+      {/* System Info */}
+      {systemInfo && (
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-surface1 border border-border rounded-lg p-6">
+            <h3 className="text-sm font-semibold text-muted mb-2">CPU Kullanımı</h3>
+            <p className="text-text text-2xl font-bold">{systemInfo.cpu?.percent}%</p>
+          </div>
+
+          <div className="bg-surface1 border border-border rounded-lg p-6">
+            <h3 className="text-sm font-semibold text-muted mb-2">Memory Kullanımı</h3>
+            <p className="text-text text-2xl font-bold">
+              {systemInfo.memory?.used_gb} / {systemInfo.memory?.total_gb} GB
+            </p>
+            <p className="text-muted text-sm mt-1">{systemInfo.memory?.percent}%</p>
+          </div>
+
+          <div className="bg-surface1 border border-border rounded-lg p-6">
+            <h3 className="text-sm font-semibold text-muted mb-2">Disk Kullanımı</h3>
+            <p className="text-text text-2xl font-bold">
+              {systemInfo.disk?.used_gb} / {systemInfo.disk?.total_gb} GB
+            </p>
+            <p className="text-muted text-sm mt-1">{systemInfo.disk?.percent}%</p>
+          </div>
+        </div>
+      )}
 
       {/* Additional Info */}
       <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">

@@ -13,7 +13,8 @@ export type TabId =
   | 'recording'
   | 'events'
   | 'ai'
-  | 'telegram';
+  | 'telegram'
+  | 'appearance';
 
 interface Tab {
   id: TabId;
@@ -21,16 +22,17 @@ interface Tab {
 }
 
 const tabs: Tab[] = [
-  { id: 'cameras', label: 'Cameras' },
-  { id: 'detection', label: 'Detection' },
-  { id: 'thermal', label: 'Thermal' },
+  { id: 'cameras', label: 'Kameralar' },
+  { id: 'detection', label: 'Algılama' },
+  { id: 'thermal', label: 'Termal' },
   { id: 'stream', label: 'Stream' },
-  { id: 'zones', label: 'Zones' },
-  { id: 'live', label: 'Live' },
-  { id: 'recording', label: 'Recording' },
-  { id: 'events', label: 'Events' },
+  { id: 'zones', label: 'Bölgeler' },
+  { id: 'live', label: 'Canlı' },
+  { id: 'recording', label: 'Kayıt' },
+  { id: 'events', label: 'Olaylar' },
   { id: 'ai', label: 'AI' },
   { id: 'telegram', label: 'Telegram' },
+  { id: 'appearance', label: 'Görünüm' },
 ];
 
 interface SettingsTabsProps {

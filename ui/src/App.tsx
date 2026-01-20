@@ -6,8 +6,13 @@ import { Live } from './pages/Live'
 import { Events } from './pages/Events'
 import { Settings } from './pages/Settings'
 import { Diagnostics } from './pages/Diagnostics'
+import { useTheme } from './hooks/useTheme'
+import './i18n'
 
 function App() {
+  // Apply theme
+  useTheme()
+
   return (
     <BrowserRouter>
       <Layout>

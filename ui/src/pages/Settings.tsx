@@ -15,6 +15,7 @@ import { RecordingTab } from '../components/tabs/RecordingTab';
 import { EventsTab } from '../components/tabs/EventsTab';
 import { AITab } from '../components/tabs/AITab';
 import { TelegramTab } from '../components/tabs/TelegramTab';
+import { AppearanceTab } from '../components/tabs/AppearanceTab';
 import type { Settings as SettingsType } from '../types/api';
 
 export const Settings: React.FC = () => {
@@ -82,6 +83,9 @@ export const Settings: React.FC = () => {
         break;
       case 'telegram':
         updates.telegram = localSettings.telegram;
+        break;
+      case 'appearance':
+        updates.appearance = localSettings.appearance;
         break;
     }
 
@@ -192,6 +196,9 @@ export const Settings: React.FC = () => {
                 onChange={(telegram) => setLocalSettings({ ...localSettings, telegram })}
                 onSave={handleSave}
               />
+            )}
+            {activeTab === 'appearance' && (
+              <AppearanceTab />
             )}
           </div>
         </div>

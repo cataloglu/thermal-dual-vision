@@ -966,6 +966,63 @@ async def get_logs(lines: int = Query(200, ge=1, le=1000, description="Number of
         )
 
 
+@app.get("/api/system/info")
+async def get_system_info() -> Dict[str, Any]:
+    """
+    Get system information (CPU, memory, disk).
+    
+    Returns:
+        Dict with system metrics
+        
+    Raises:
+        HTTPException: 500 if error occurs
+    """
+    try:
+        import psutil
+        
+        # CPU usage
+        cpu_percent = psutil.cpu_percent(interval=1)
+        
+        # Memory usage
+        memory = psutil.virtual_memory()
+        memory_used_gb = memory.used / (1024 ** 3)
+        memory_total_gb = memory.total / (1024 ** 3)
+        memory_percent = memory.percent
+        
+        # Disk usage
+        disk = psutil.disk_usage('/')
+        disk_used_gb = disk.used / (1024 ** 3)
+        disk_total_gb = disk.total / (1024 ** 3)
+        disk_percent = disk.percent
+        
+        return {
+            "cpu": {
+                "percent": round(cpu_percent, 1)
+            },
+            "memory": {
+                "used_gb": round(memory_used_gb, 2),
+                "total_gb": round(memory_total_gb, 2),
+                "percent": round(memory_percent, 1)
+            },
+            "disk": {
+                "used_gb": round(disk_used_gb, 2),
+                "total_gb": round(disk_total_gb, 2),
+                "percent": round(disk_percent, 1)
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get system info: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": True,
+                "code": "INTERNAL_ERROR",
+                "message": f"Failed to retrieve system info: {str(e)}"
+            }
+        )
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

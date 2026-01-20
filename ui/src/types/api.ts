@@ -90,6 +90,11 @@ export interface TelegramConfig {
   snapshot_quality: number;
 }
 
+export interface AppearanceConfig {
+  theme: 'slate' | 'carbon' | 'pure-black' | 'matrix';
+  language: 'tr' | 'en';
+}
+
 export interface Settings {
   detection: DetectionConfig;
   motion: MotionConfig;
@@ -101,6 +106,7 @@ export interface Settings {
   media: MediaConfig;
   ai: AIConfig;
   telegram: TelegramConfig;
+  appearance: AppearanceConfig;
 }
 
 export interface CameraTestRequest {
