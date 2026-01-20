@@ -6,12 +6,15 @@ import {
   MdSettings, 
   MdSearch 
 } from 'react-icons/md'
+import { useWebSocket } from '../hooks/useWebSocket'
 
 interface SidebarProps {
   systemStatus?: 'ok' | 'degraded' | 'down'
 }
 
 export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
+  const { isConnected } = useWebSocket('ws://localhost:8000/api/ws/events', {})
+  
   const menuItems = [
     { path: '/', icon: MdDashboard, label: 'Kontrol Paneli' },
     { path: '/live', icon: MdVideocam, label: 'Canlı Görüntü' },
@@ -67,6 +70,18 @@ export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
 
       {/* Footer */}
       <div className="p-4 border-t border-border space-y-3">
+        {/* WebSocket Status */}
+        <div className="flex items-center gap-2 px-3 py-2 bg-surface2 border border-border rounded-lg">
+          <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-success' : 'bg-error'} relative`}>
+            {isConnected && (
+              <div className="absolute inset-0 rounded-full bg-success animate-ping opacity-75" />
+            )}
+          </div>
+          <span className="text-xs text-muted">
+            {isConnected ? 'Canlı Bağlantı' : 'Bağlantı Kesildi'}
+          </span>
+        </div>
+        
         {/* Language Toggle */}
         <button
           onClick={() => {
@@ -80,6 +95,7 @@ export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
         >
           🌐 {(localStorage.getItem('language') || 'tr') === 'tr' ? 'TR' : 'EN'}
         </button>
+        
         <p className="text-xs text-muted text-center">
           Akıllı Hareket Algılama
         </p>
