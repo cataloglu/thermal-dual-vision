@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { MdClose, MdDownload, MdDelete } from 'react-icons/md'
 
 interface EventDetailProps {
@@ -18,6 +19,7 @@ interface EventDetailProps {
 }
 
 export function EventDetail({ event, onClose, onDelete }: EventDetailProps) {
+  const { t } = useTranslation()
   const modalRef = useRef<HTMLDivElement>(null)
   const [activeTab, setActiveTab] = useState<'collage' | 'gif' | 'video'>('collage')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -94,7 +96,7 @@ export function EventDetail({ event, onClose, onDelete }: EventDetailProps) {
         <div className="sticky top-0 bg-surface1 border-b border-border p-6 flex items-center justify-between z-10">
           <div>
             <h2 className="text-2xl font-bold text-text mb-1">
-              Event Detayı
+              {t('events')} {t('view')}
             </h2>
             <p className="text-muted text-sm">
               {formatDate(event.timestamp)}
@@ -176,22 +178,22 @@ export function EventDetail({ event, onClose, onDelete }: EventDetailProps) {
           {/* Event Info */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-surface2 border border-border rounded-lg p-4">
-              <h3 className="text-sm font-semibold text-muted mb-2">Kamera</h3>
+              <h3 className="text-sm font-semibold text-muted mb-2">{t('camera')}</h3>
               <p className="text-text font-medium">{event.camera_id}</p>
             </div>
 
             <div className="bg-surface2 border border-border rounded-lg p-4">
-              <h3 className="text-sm font-semibold text-muted mb-2">Güven Skoru</h3>
+              <h3 className="text-sm font-semibold text-muted mb-2">{t('confidence')}</h3>
               <div>{getConfidenceBadge()}</div>
             </div>
 
             <div className="bg-surface2 border border-border rounded-lg p-4">
-              <h3 className="text-sm font-semibold text-muted mb-2">Event Tipi</h3>
+              <h3 className="text-sm font-semibold text-muted mb-2">{t('events')}</h3>
               <p className="text-text font-medium capitalize">{event.event_type}</p>
             </div>
 
             <div className="bg-surface2 border border-border rounded-lg p-4">
-              <h3 className="text-sm font-semibold text-muted mb-2">Event ID</h3>
+              <h3 className="text-sm font-semibold text-muted mb-2">ID</h3>
               <p className="text-text font-mono text-sm">{event.id}</p>
             </div>
           </div>
@@ -199,7 +201,7 @@ export function EventDetail({ event, onClose, onDelete }: EventDetailProps) {
           {/* AI Summary */}
           {event.summary && (
             <div className="bg-surface2 border border-border rounded-lg p-4">
-              <h3 className="text-sm font-semibold text-muted mb-2">AI Özeti</h3>
+              <h3 className="text-sm font-semibold text-muted mb-2">AI</h3>
               <p className="text-text">{event.summary}</p>
             </div>
           )}
@@ -212,7 +214,7 @@ export function EventDetail({ event, onClose, onDelete }: EventDetailProps) {
               className="flex items-center gap-2 px-6 py-3 bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors font-medium"
             >
               <MdDownload />
-              Collage İndir
+              Collage
             </a>
             <a
               href={event.gif_url}
@@ -220,7 +222,7 @@ export function EventDetail({ event, onClose, onDelete }: EventDetailProps) {
               className="flex items-center gap-2 px-6 py-3 bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors"
             >
               <MdDownload />
-              GIF İndir
+              GIF
             </a>
             <a
               href={event.mp4_url}
@@ -228,7 +230,7 @@ export function EventDetail({ event, onClose, onDelete }: EventDetailProps) {
               className="flex items-center gap-2 px-6 py-3 bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors"
             >
               <MdDownload />
-              MP4 İndir
+              MP4
             </a>
 
             {onDelete && (
@@ -237,7 +239,7 @@ export function EventDetail({ event, onClose, onDelete }: EventDetailProps) {
                 className="flex items-center gap-2 px-6 py-3 bg-error/20 text-error border border-error/50 rounded-lg hover:bg-error/30 transition-colors ml-auto"
               >
                 <MdDelete />
-                Sil
+                {t('delete')}
               </button>
             )}
           </div>
@@ -246,20 +248,20 @@ export function EventDetail({ event, onClose, onDelete }: EventDetailProps) {
           {showDeleteConfirm && (
             <div className="bg-error/10 border border-error/50 rounded-lg p-4">
               <p className="text-text mb-4">
-                Bu eventi silmek istediğinize emin misiniz? Bu işlem geri alınamaz.
+                {t('delete')}?
               </p>
               <div className="flex gap-3">
                 <button
                   onClick={handleDelete}
                   className="px-4 py-2 bg-error text-white rounded-lg hover:bg-error/90 transition-colors font-medium"
                 >
-                  Evet, Sil
+                  {t('delete')}
                 </button>
                 <button
                   onClick={() => setShowDeleteConfirm(false)}
                   className="px-4 py-2 bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors"
                 >
-                  İptal
+                  {t('cancel')}
                 </button>
               </div>
             </div>

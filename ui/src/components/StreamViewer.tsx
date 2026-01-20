@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { MdRefresh, MdError, MdCheckCircle } from 'react-icons/md'
 
 interface StreamViewerProps {
@@ -13,6 +14,7 @@ export function StreamViewer({
   streamUrl,
   status = 'connected' 
 }: StreamViewerProps) {
+  const { t } = useTranslation()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
@@ -60,9 +62,9 @@ export function StreamViewer({
   }
 
   const statusLabels = {
-    connected: 'Bağlı',
-    retrying: 'Yeniden Deniyor',
-    down: 'Çevrimdışı',
+    connected: t('connected'),
+    retrying: t('retrying'),
+    down: t('down'),
   }
 
   return (
@@ -83,7 +85,7 @@ export function StreamViewer({
         <div className="absolute inset-0 flex items-center justify-center bg-surface2">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-4 border-accent border-t-transparent mx-auto mb-4" />
-            <p className="text-muted">Yükleniyor...</p>
+            <p className="text-muted">{t('loading')}...</p>
           </div>
         </div>
       )}
@@ -93,16 +95,16 @@ export function StreamViewer({
         <div className="absolute inset-0 flex items-center justify-center bg-surface2">
           <div className="text-center p-6">
             <MdError className="text-red-500 text-5xl mx-auto mb-4" />
-            <p className="text-text mb-2">Stream yüklenemedi</p>
+            <p className="text-text mb-2">{t('error')}</p>
             <p className="text-muted text-sm mb-4">
-              {retryCount > 0 && `Deneme ${retryCount}/3`}
+              {retryCount > 0 && `${retryCount}/3`}
             </p>
             <button
               onClick={handleRetry}
               className="flex items-center gap-2 px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors mx-auto"
             >
               <MdRefresh className="text-lg" />
-              Yeniden Dene
+              {t('refresh')}
             </button>
           </div>
         </div>
@@ -122,7 +124,7 @@ export function StreamViewer({
       {!loading && !error && retryCount > 0 && (
         <div className="absolute bottom-4 right-4 bg-green-500 text-white px-3 py-1 rounded-lg flex items-center gap-2 animate-fade-in">
           <MdCheckCircle />
-          <span className="text-sm">Bağlandı</span>
+          <span className="text-sm">{t('connected')}</span>
         </div>
       )}
     </div>

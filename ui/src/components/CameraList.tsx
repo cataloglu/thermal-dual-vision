@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { MdEdit, MdDelete, MdAdd, MdCheckCircle, MdError, MdWarning } from 'react-icons/md'
 import { api } from '../services/api'
 import toast from 'react-hot-toast'
@@ -22,6 +23,7 @@ interface CameraListProps {
 }
 
 export function CameraList({ onAdd, onEdit, onRefresh }: CameraListProps) {
+  const { t } = useTranslation()
   const [cameras, setCameras] = useState<Camera[]>([])
   const [loading, setLoading] = useState(true)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
@@ -70,13 +72,13 @@ export function CameraList({ onAdd, onEdit, onRefresh }: CameraListProps) {
   const getStatusLabel = (status: string) => {
     switch (status) {
       case 'connected':
-        return 'Bağlı'
+        return t('connected')
       case 'retrying':
-        return 'Yeniden Deniyor'
+        return t('retrying')
       case 'down':
-        return 'Çevrimdışı'
+        return t('down')
       default:
-        return 'Başlatılıyor'
+        return t('loading')
     }
   }
 
@@ -94,25 +96,25 @@ export function CameraList({ onAdd, onEdit, onRefresh }: CameraListProps) {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-medium text-text">Kayıtlı Kameralar</h3>
+        <h3 className="text-lg font-medium text-text">{t('cameras')}</h3>
         <button
           onClick={onAdd}
           className="flex items-center gap-2 px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors"
         >
           <MdAdd className="text-xl" />
-          Kamera Ekle
+          {t('add')}
         </button>
       </div>
 
       {/* No Cameras */}
       {cameras.length === 0 && (
         <div className="bg-surface1 border border-border rounded-lg p-8 text-center">
-          <p className="text-muted mb-4">Henüz kamera eklenmemiş</p>
+          <p className="text-muted mb-4">{t('noCameras')}</p>
           <button
             onClick={onAdd}
             className="px-6 py-3 bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors"
           >
-            İlk Kamerayı Ekle
+            {t('add')} {t('camera')}
           </button>
         </div>
       )}
@@ -137,10 +139,10 @@ export function CameraList({ onAdd, onEdit, onRefresh }: CameraListProps) {
               </div>
               
               <div className="flex items-center gap-4 text-sm text-muted">
-                <span>Kaynak: {camera.detection_source}</span>
-                <span>Roller: {camera.stream_roles.join(', ')}</span>
+                <span>{camera.detection_source}</span>
+                <span>{camera.stream_roles.join(', ')}</span>
                 <span className={camera.enabled ? 'text-green-500' : 'text-red-500'}>
-                  {camera.enabled ? 'Aktif' : 'Pasif'}
+                  {camera.enabled ? t('enabled') : t('disabled')}
                 </span>
               </div>
             </div>
@@ -159,13 +161,13 @@ export function CameraList({ onAdd, onEdit, onRefresh }: CameraListProps) {
                     onClick={() => handleDelete(camera.id)}
                     className="px-3 py-2 bg-error text-white rounded-lg hover:bg-error/90 transition-colors text-sm"
                   >
-                    Evet, Sil
+                    {t('delete')}
                   </button>
                   <button
                     onClick={() => setDeleteConfirm(null)}
                     className="px-3 py-2 bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors text-sm"
                   >
-                    İptal
+                    {t('cancel')}
                   </button>
                 </div>
               ) : (

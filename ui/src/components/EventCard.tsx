@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { MdPlayArrow, MdDownload, MdVisibility } from 'react-icons/md'
 
 interface EventCardProps {
@@ -22,6 +23,7 @@ export function EventCard({
   mp4Url,
   onClick,
 }: EventCardProps) {
+  const { t } = useTranslation()
   const getConfidenceBadge = () => {
     const percentage = Math.round(confidence * 100)
     let colorClass = 'bg-gray-500/20 text-gray-500'
@@ -72,7 +74,7 @@ export function EventCard({
           <div className="flex items-start justify-between mb-2">
             <div className="flex-1 min-w-0">
               <h3 className="text-lg font-semibold text-text mb-1 truncate">
-                Kamera: {cameraId}
+                {t('camera')}: {cameraId}
               </h3>
               <p className="text-muted text-sm">
                 {formatDate(timestamp)}
@@ -95,7 +97,7 @@ export function EventCard({
               className="flex items-center gap-2 px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors text-sm font-medium"
             >
               <MdVisibility />
-              Görüntüle
+              {t('view')}
             </button>
             <a
               href={gifUrl}

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { MdClose } from 'react-icons/md'
 import { testCamera } from '../services/api'
 import type { CameraTestResponse } from '../types/api'
@@ -24,6 +25,7 @@ interface CameraFormModalProps {
 }
 
 export function CameraFormModal({ camera, onClose, onSave }: CameraFormModalProps) {
+  const { t } = useTranslation()
   const [formData, setFormData] = useState({
     name: '',
     type: 'thermal',
@@ -128,7 +130,7 @@ export function CameraFormModal({ camera, onClose, onSave }: CameraFormModalProp
         {/* Header */}
         <div className="sticky top-0 bg-surface1 border-b border-border p-6 flex items-center justify-between">
           <h2 className="text-2xl font-bold text-text">
-            {camera ? 'Kamerayı Düzenle' : 'Yeni Kamera Ekle'}
+            {camera ? t('edit') : t('add')} {t('camera')}
           </h2>
           <button onClick={onClose} className="p-2 hover:bg-surface2 rounded-lg transition-colors">
             <MdClose className="text-2xl text-muted" />
@@ -284,13 +286,13 @@ export function CameraFormModal({ camera, onClose, onSave }: CameraFormModalProp
             disabled={saving || !formData.name}
             className="flex-1 px-6 py-3 bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
           >
-            {saving ? 'Kaydediliyor...' : camera ? 'Güncelle' : 'Kaydet'}
+            {saving ? t('loading') + '...' : t('save')}
           </button>
           <button
             onClick={onClose}
             className="px-6 py-3 bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors"
           >
-            İptal
+            {t('cancel')}
           </button>
         </div>
       </div>
