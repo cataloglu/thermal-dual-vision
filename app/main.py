@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, HTTPException, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
@@ -14,6 +15,7 @@ from app.db.session import get_session, init_db
 from app.models.camera import CameraTestRequest, CameraTestResponse
 from app.services.camera import get_camera_service
 from app.services.events import get_event_service
+from app.services.media import get_media_service
 from app.services.settings import get_settings_service
 
 
@@ -46,6 +48,7 @@ init_db()
 settings_service = get_settings_service()
 camera_service = get_camera_service()
 event_service = get_event_service()
+media_service = get_media_service()
 
 
 @app.get("/")
@@ -422,6 +425,147 @@ async def delete_event(
                 "error": True,
                 "code": "INTERNAL_ERROR",
                 "message": f"Failed to delete event: {str(e)}"
+            }
+        )
+
+
+@app.get("/api/events/{event_id}/collage")
+async def get_event_collage(event_id: str) -> FileResponse:
+    """
+    Get event collage image.
+    
+    Args:
+        event_id: Event ID
+        
+    Returns:
+        JPEG collage image
+        
+    Raises:
+        HTTPException: 404 if media not found
+    """
+    try:
+        media_path = media_service.get_media_path(event_id, "collage")
+        
+        if not media_path or not media_path.exists():
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "error": True,
+                    "code": "MEDIA_NOT_FOUND",
+                    "message": f"Collage not found for event {event_id}"
+                }
+            )
+        
+        return FileResponse(
+            path=str(media_path),
+            media_type="image/jpeg",
+            filename=f"event-{event_id}-collage.jpg"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get collage for event {event_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": True,
+                "code": "INTERNAL_ERROR",
+                "message": f"Failed to retrieve collage: {str(e)}"
+            }
+        )
+
+
+@app.get("/api/events/{event_id}/preview.gif")
+async def get_event_gif(event_id: str) -> FileResponse:
+    """
+    Get event preview GIF.
+    
+    Args:
+        event_id: Event ID
+        
+    Returns:
+        Animated GIF
+        
+    Raises:
+        HTTPException: 404 if media not found
+    """
+    try:
+        media_path = media_service.get_media_path(event_id, "gif")
+        
+        if not media_path or not media_path.exists():
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "error": True,
+                    "code": "MEDIA_NOT_FOUND",
+                    "message": f"GIF not found for event {event_id}"
+                }
+            )
+        
+        return FileResponse(
+            path=str(media_path),
+            media_type="image/gif",
+            filename=f"event-{event_id}-preview.gif"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get GIF for event {event_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": True,
+                "code": "INTERNAL_ERROR",
+                "message": f"Failed to retrieve GIF: {str(e)}"
+            }
+        )
+
+
+@app.get("/api/events/{event_id}/timelapse.mp4")
+async def get_event_mp4(event_id: str) -> FileResponse:
+    """
+    Get event timelapse MP4.
+    
+    Args:
+        event_id: Event ID
+        
+    Returns:
+        MP4 video
+        
+    Raises:
+        HTTPException: 404 if media not found
+    """
+    try:
+        media_path = media_service.get_media_path(event_id, "mp4")
+        
+        if not media_path or not media_path.exists():
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "error": True,
+                    "code": "MEDIA_NOT_FOUND",
+                    "message": f"MP4 not found for event {event_id}"
+                }
+            )
+        
+        return FileResponse(
+            path=str(media_path),
+            media_type="video/mp4",
+            filename=f"event-{event_id}-timelapse.mp4"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get MP4 for event {event_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": True,
+                "code": "INTERNAL_ERROR",
+                "message": f"Failed to retrieve MP4: {str(e)}"
             }
         )
 
