@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { api } from '../services/api'
 import { MdCheckCircle, MdWarning, MdError, MdVideocam, MdSmartToy } from 'react-icons/md'
-import toast from 'react-hot-toast'
 
 interface HealthData {
   status: string
@@ -37,6 +37,7 @@ interface Event {
 }
 
 export function Dashboard() {
+  const { t } = useTranslation()
   const [health, setHealth] = useState<HealthData | null>(null)
   const [lastEvent, setLastEvent] = useState<Event | null>(null)
   const [loading, setLoading] = useState(true)
@@ -120,7 +121,7 @@ export function Dashboard() {
     <div className="p-8">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-text mb-2">Kontrol Paneli</h1>
+        <h1 className="text-3xl font-bold text-text mb-2">{t('dashboard')}</h1>
         <p className="text-muted">Sistem durumu ve özet bilgiler</p>
       </div>
 
@@ -129,24 +130,24 @@ export function Dashboard() {
         {/* System Health Card */}
         <div className="bg-surface1 border border-border rounded-lg p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-text">Sistem Durumu</h3>
+            <h3 className="text-lg font-semibold text-text">{t('systemStatus')}</h3>
             {health && getStatusIcon(health.status)}
           </div>
           
           {health && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-muted text-sm">Durum</span>
+                <span className="text-muted text-sm">{t('status')}</span>
                 {getStatusBadge(health.status)}
               </div>
               
               <div className="flex items-center justify-between">
-                <span className="text-muted text-sm">Versiyon</span>
+                <span className="text-muted text-sm">{t('version')}</span>
                 <span className="text-text font-medium">{health.version}</span>
               </div>
               
               <div className="flex items-center justify-between">
-                <span className="text-muted text-sm">Çalışma Süresi</span>
+                <span className="text-muted text-sm">{t('uptime')}</span>
                 <span className="text-text font-medium">{formatUptime(health.uptime_s)}</span>
               </div>
             </div>
@@ -156,24 +157,24 @@ export function Dashboard() {
         {/* Cameras Summary Card */}
         <div className="bg-surface1 border border-border rounded-lg p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-text">Kameralar</h3>
+            <h3 className="text-lg font-semibold text-text">{t('cameras')}</h3>
             <MdVideocam className="text-accent text-2xl" />
           </div>
           
           {health && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-muted text-sm">Çevrimiçi</span>
+                <span className="text-muted text-sm">{t('online')}</span>
                 <span className="text-green-500 font-bold text-xl">{health.cameras.online}</span>
               </div>
               
               <div className="flex items-center justify-between">
-                <span className="text-muted text-sm">Yeniden Deniyor</span>
+                <span className="text-muted text-sm">{t('retrying')}</span>
                 <span className="text-yellow-500 font-bold text-xl">{health.cameras.retrying}</span>
               </div>
               
               <div className="flex items-center justify-between">
-                <span className="text-muted text-sm">Çevrimdışı</span>
+                <span className="text-muted text-sm">{t('down')}</span>
                 <span className="text-red-500 font-bold text-xl">{health.cameras.down}</span>
               </div>
             </div>
@@ -183,20 +184,20 @@ export function Dashboard() {
         {/* AI Status Card */}
         <div className="bg-surface1 border border-border rounded-lg p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-text">AI Durumu</h3>
+            <h3 className="text-lg font-semibold text-text">{t('aiStatus')}</h3>
             <MdSmartToy className="text-accent text-2xl" />
           </div>
           
           {health && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-muted text-sm">Durum</span>
+                <span className="text-muted text-sm">{t('status')}</span>
                 <span className={`px-3 py-1 rounded-full text-sm font-medium ${
                   health.ai.enabled 
                     ? 'bg-green-500/20 text-green-500' 
                     : 'bg-gray-500/20 text-gray-500'
                 }`}>
-                  {health.ai.enabled ? 'AKTİF' : 'PASİF'}
+                  {health.ai.enabled ? t('enabled').toUpperCase() : t('disabled').toUpperCase()}
                 </span>
               </div>
               
@@ -222,7 +223,7 @@ export function Dashboard() {
         {/* Last Event Card */}
         <div className="bg-surface1 border border-border rounded-lg p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-text">Son Olay</h3>
+            <h3 className="text-lg font-semibold text-text">{t('lastEvent')}</h3>
           </div>
           
           {lastEvent ? (
@@ -240,20 +241,20 @@ export function Dashboard() {
                 {/* Event Info */}
                 <div className="space-y-1">
                   <p className="text-text font-medium truncate">
-                    Kamera: {lastEvent.camera_id}
+                    {t('camera')}: {lastEvent.camera_id}
                   </p>
                   <p className="text-muted text-sm">
                     {new Date(lastEvent.timestamp).toLocaleString('tr-TR')}
                   </p>
                   <p className="text-accent text-sm group-hover:underline">
-                    Detayları Gör →
+                    {t('view')} →
                   </p>
                 </div>
               </div>
             </Link>
           ) : (
             <div className="flex items-center justify-center h-32">
-              <p className="text-muted text-sm">Henüz olay yok</p>
+              <p className="text-muted text-sm">{t('noEvents')}</p>
             </div>
           )}
         </div>

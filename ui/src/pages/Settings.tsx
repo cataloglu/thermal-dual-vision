@@ -5,7 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { useSettings } from '../hooks/useSettings';
-import { SettingsTabs, TabId } from '../components/SettingsTabs';
+import { TabId } from '../components/SettingsTabs';
 import { CamerasTab } from '../components/tabs/CamerasTab';
 import { DetectionTab } from '../components/tabs/DetectionTab';
 import { ThermalTab } from '../components/tabs/ThermalTab';
@@ -21,7 +21,7 @@ import type { Settings as SettingsType } from '../types/api';
 
 export const Settings: React.FC = () => {
   const { settings, loading, error, saveSettings } = useSettings();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const defaultTab = (searchParams.get('tab') as TabId) || 'cameras';
   const [activeTab, setActiveTab] = useState<TabId>(defaultTab);
   const [localSettings, setLocalSettings] = useState<SettingsType | null>(null);

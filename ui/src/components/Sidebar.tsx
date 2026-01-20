@@ -1,5 +1,6 @@
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { 
   MdDashboard, 
   MdVideocam, 
@@ -16,6 +17,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
+  const { t } = useTranslation()
   // WebSocket for real-time status (use relative path for proxy)
   const { isConnected } = useWebSocket('/api/ws/events', {})
   const location = useLocation()
@@ -23,24 +25,24 @@ export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
   const [settingsExpanded, setSettingsExpanded] = useState(location.pathname.startsWith('/settings'))
   
   const menuItems = [
-    { path: '/', icon: MdDashboard, label: 'Kontrol Paneli' },
-    { path: '/live', icon: MdVideocam, label: 'Canlı Görüntü' },
-    { path: '/events', icon: MdEvent, label: 'Olaylar' },
-    { path: '/diagnostics', icon: MdSearch, label: 'Sistem Tanılama' },
+    { path: '/', icon: MdDashboard, label: t('dashboard') },
+    { path: '/live', icon: MdVideocam, label: t('live') },
+    { path: '/events', icon: MdEvent, label: t('events') },
+    { path: '/diagnostics', icon: MdSearch, label: t('diagnostics') },
   ]
 
   const settingsSubItems = [
-    { tab: 'cameras', label: 'Kameralar' },
-    { tab: 'detection', label: 'Algılama' },
-    { tab: 'thermal', label: 'Termal' },
-    { tab: 'stream', label: 'Yayın' },
-    { tab: 'zones', label: 'Bölgeler' },
-    { tab: 'live', label: 'Canlı' },
-    { tab: 'recording', label: 'Kayıt' },
-    { tab: 'events', label: 'Olaylar' },
-    { tab: 'ai', label: 'AI' },
-    { tab: 'telegram', label: 'Telegram' },
-    { tab: 'appearance', label: 'Görünüm' },
+    { tab: 'cameras', label: t('cameras') },
+    { tab: 'detection', label: t('detection') },
+    { tab: 'thermal', label: t('thermal') },
+    { tab: 'stream', label: 'Stream' },
+    { tab: 'zones', label: t('zones') },
+    { tab: 'live', label: t('live') },
+    { tab: 'recording', label: t('recording') },
+    { tab: 'events', label: t('events') },
+    { tab: 'ai', label: t('ai') },
+    { tab: 'telegram', label: t('telegram') },
+    { tab: 'appearance', label: t('appearance') },
   ]
 
   const statusColors = {
@@ -106,7 +108,7 @@ export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
             }`}
           >
             <MdSettings className="text-xl" />
-            <span className="font-medium flex-1 text-left">Ayarlar</span>
+            <span className="font-medium flex-1 text-left">{t('settings')}</span>
             {settingsExpanded ? <MdExpandMore className="text-xl" /> : <MdChevronRight className="text-xl" />}
           </button>
 
@@ -137,7 +139,7 @@ export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
             )}
           </div>
           <span className="text-xs text-muted">
-            {isConnected ? 'Canlı Bağlantı' : 'Bağlantı Kesildi'}
+            {isConnected ? t('liveConnection') : t('connectionLost')}
           </span>
         </div>
         
@@ -156,7 +158,7 @@ export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
         </button>
         
         <p className="text-xs text-muted text-center">
-          Akıllı Hareket Algılama
+          Smart Motion Detector
         </p>
       </div>
     </aside>
