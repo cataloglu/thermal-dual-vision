@@ -3,8 +3,24 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    /* Default theme (Slate) */
+    --color-background: #0F172A;
+    --color-surface1: #1E293B;
+    --color-surface2: #334155;
+    --color-border: #475569;
+    --color-text: #F1F5F9;
+    --color-muted: #94A3B8;
+    --color-accent: #10B981;
+    --color-success: #10B981;
+    --color-warning: #F59E0B;
+    --color-error: #EF4444;
+    --color-info: #3B82F6;
+  }
+
   body {
-    @apply bg-background text-text;
+    background-color: var(--color-background);
+    color: var(--color-text);
     margin: 0;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
       'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
