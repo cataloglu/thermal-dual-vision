@@ -129,6 +129,7 @@ Bu dosya **tamamlanan** ve **yapılacak** phase'leri takip eder.
 - [ ] **Temporal Consistency** (3 consecutive frames, 1 gap tolere)
 - [ ] **Thermal Enhancement** (CLAHE + Kurtosis)
 - [ ] **Confidence Threshold** (ayarlanabilir)
+- [ ] **Auto Detection Source** (gündüz: color, gece: thermal) 🔥 YENİ!
 
 ---
 
