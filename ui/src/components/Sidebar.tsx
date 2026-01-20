@@ -1,10 +1,13 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { useState } from 'react'
 import { 
   MdDashboard, 
   MdVideocam, 
   MdEvent, 
   MdSettings, 
-  MdSearch 
+  MdSearch,
+  MdExpandMore,
+  MdChevronRight
 } from 'react-icons/md'
 import { useWebSocket } from '../hooks/useWebSocket'
 
@@ -13,17 +16,31 @@ interface SidebarProps {
 }
 
 export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
-  // WebSocket for real-time status
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const wsUrl = `${protocol}//localhost:8000/api/ws/events`
-  const { isConnected } = useWebSocket(wsUrl, {})
+  // WebSocket for real-time status (use relative path for proxy)
+  const { isConnected } = useWebSocket('/api/ws/events', {})
+  const location = useLocation()
+  const navigate = useNavigate()
+  const [settingsExpanded, setSettingsExpanded] = useState(location.pathname.startsWith('/settings'))
   
   const menuItems = [
     { path: '/', icon: MdDashboard, label: 'Kontrol Paneli' },
     { path: '/live', icon: MdVideocam, label: 'Canlı Görüntü' },
     { path: '/events', icon: MdEvent, label: 'Olaylar' },
-    { path: '/settings', icon: MdSettings, label: 'Ayarlar' },
     { path: '/diagnostics', icon: MdSearch, label: 'Sistem Tanılama' },
+  ]
+
+  const settingsSubItems = [
+    { tab: 'cameras', label: 'Kameralar' },
+    { tab: 'detection', label: 'Algılama' },
+    { tab: 'thermal', label: 'Termal' },
+    { tab: 'stream', label: 'Yayın' },
+    { tab: 'zones', label: 'Bölgeler' },
+    { tab: 'live', label: 'Canlı' },
+    { tab: 'recording', label: 'Kayıt' },
+    { tab: 'events', label: 'Olaylar' },
+    { tab: 'ai', label: 'AI' },
+    { tab: 'telegram', label: 'Telegram' },
+    { tab: 'appearance', label: 'Görünüm' },
   ]
 
   const statusColors = {
@@ -54,7 +71,7 @@ export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
       </div>
 
       {/* Navigation Menu */}
-      <nav className="flex-1 p-4 space-y-1">
+      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
         {menuItems.map((item) => (
           <NavLink
             key={item.path}
@@ -72,6 +89,42 @@ export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
             <span className="font-medium">{item.label}</span>
           </NavLink>
         ))}
+
+        {/* Settings with submenu */}
+        <div>
+          <button
+            onClick={() => {
+              setSettingsExpanded(!settingsExpanded)
+              if (!settingsExpanded) {
+                navigate('/settings')
+              }
+            }}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+              location.pathname.startsWith('/settings')
+                ? 'bg-accent text-white'
+                : 'text-muted hover:bg-surface2 hover:text-text'
+            }`}
+          >
+            <MdSettings className="text-xl" />
+            <span className="font-medium flex-1 text-left">Ayarlar</span>
+            {settingsExpanded ? <MdExpandMore className="text-xl" /> : <MdChevronRight className="text-xl" />}
+          </button>
+
+          {/* Settings Submenu */}
+          {settingsExpanded && (
+            <div className="ml-8 mt-1 space-y-1">
+              {settingsSubItems.map((item) => (
+                <button
+                  key={item.tab}
+                  onClick={() => navigate(`/settings?tab=${item.tab}`)}
+                  className="w-full text-left px-4 py-2 text-sm rounded-lg text-muted hover:bg-surface2 hover:text-text transition-colors"
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </nav>
 
       {/* Footer */}
