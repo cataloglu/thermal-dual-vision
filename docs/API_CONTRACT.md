@@ -12,6 +12,18 @@ Base URL:
 - **RTSP / token alanları** her zaman maskeli döner: `***REDACTED***`.
 - **Zaman formatı**: ISO-8601 UTC (`2026-01-01T00:00:00Z`).
 - **Error formatı** her endpoint için aynı (aşağıdaki bölüm).
+- **İnsan algılama modeli** seçilebilir (iki seçenek): `yolov8n-person` | `yolov8s-person`.
+- **Algılama kaynağı** kamera bazında seçilebilir: `color` | `thermal` | `auto`.
+- **Live stream modu**: `mjpeg` (default) veya `webrtc` (opsiyonel, go2rtc gerekir).
+- **Ayarlar kalıcıdır** ve restart sonrası korunur.
+- **Stream roles**: `detect` / `live` / `record` (kamera bazında).
+- **Zones**: kamera bazında polygon alanlar; `motion` ve/veya `person` için filtre.
+- **Zone polygon kuralları**:
+  - Min 3 nokta, max 20 nokta
+  - Koordinatlar normalize: `0.0 - 1.0`
+  - Self-intersection kabul edilmez
+- **Record** yalnızca event bazlıdır (sürekli kayıt yok).
+- **Disk temizleme**: retention + disk limitleriyle en eski medya silinir (kullanıcı ayarlayabilir).
 
 ---
 
@@ -61,7 +73,18 @@ Response:
       "rtsp_url_thermal": "***REDACTED***",
       "channel_color": 102,
       "channel_thermal": 202,
+      "detection_source": "thermal",
+      "stream_roles": ["detect", "live"],
       "status": "connected",
+      "zones": [
+        {
+          "id": "zone-1",
+          "name": "Entry",
+          "enabled": true,
+          "mode": "person",
+          "polygon": [[0.1, 0.1], [0.9, 0.1], [0.9, 0.9], [0.1, 0.9]]
+        }
+      ],
       "last_frame_ts": "2026-01-01T00:00:00Z",
       "motion_config": {
         "enabled": true,
@@ -88,6 +111,11 @@ Request body:
   "rtsp_url_color": "",
   "channel_color": 102,
   "channel_thermal": 202,
+  "detection_source": "thermal",
+  "stream_roles": ["detect", "live"],
+  "zones": [
+    { "id": "zone-1", "name": "Entry", "enabled": true, "mode": "person", "polygon": [[0.1, 0.1], [0.9, 0.1], [0.9, 0.9], [0.1, 0.9]] }
+  ],
   "motion_config": {
     "enabled": true,
     "sensitivity": 7,
@@ -110,6 +138,11 @@ Response body:
   "rtsp_url_thermal": "***REDACTED***",
   "channel_color": 102,
   "channel_thermal": 202,
+  "detection_source": "thermal",
+  "stream_roles": ["detect", "live"],
+  "zones": [
+    { "id": "zone-1", "name": "Entry", "enabled": true, "mode": "person", "polygon": [[0.1, 0.1], [0.9, 0.1], [0.9, 0.9], [0.1, 0.9]] }
+  ],
   "status": "connected",
   "last_frame_ts": "2026-01-01T00:00:00Z",
   "motion_config": {
@@ -130,6 +163,11 @@ Request body (partial update):
 {
   "name": "Gate West",
   "enabled": true,
+  "detection_source": "color",
+  "stream_roles": ["detect", "live", "record"],
+  "zones": [
+    { "id": "zone-1", "name": "Entry", "enabled": true, "mode": "motion", "polygon": [[0.2, 0.2], [0.8, 0.2], [0.8, 0.8], [0.2, 0.8]] }
+  ],
   "motion_config": { "enabled": true, "sensitivity": 6, "threshold": 450, "cooldown": 5 }
 }
 ```
@@ -146,6 +184,11 @@ Response body:
   "rtsp_url_thermal": "***REDACTED***",
   "channel_color": 102,
   "channel_thermal": 202,
+  "detection_source": "color",
+  "stream_roles": ["detect", "live", "record"],
+  "zones": [
+    { "id": "zone-1", "name": "Entry", "enabled": true, "mode": "motion", "polygon": [[0.2, 0.2], [0.8, 0.2], [0.8, 0.8], [0.2, 0.8]] }
+  ],
   "status": "connected",
   "last_frame_ts": "2026-01-01T00:00:00Z",
   "motion_config": { "enabled": true, "sensitivity": 6, "threshold": 450, "cooldown": 5, "roi": "" }
@@ -158,6 +201,36 @@ UI: **Settings** (Delete Camera)
 Response body:
 ```json
 { "deleted": true, "id": "cam-1" }
+```
+
+### Camera status enum
+- `connected`
+- `retrying`
+- `down`
+- `initializing`
+
+### POST /api/cameras/test
+UI: **Settings** (Camera Test)
+
+Request body:
+```json
+{
+  "type": "thermal",
+  "rtsp_url_thermal": "rtsp://user:pass@host/stream",
+  "rtsp_url_color": "",
+  "channel_color": 102,
+  "channel_thermal": 202
+}
+```
+
+Response body:
+```json
+{
+  "success": true,
+  "snapshot_base64": "data:image/jpeg;base64,...",
+  "latency_ms": 320,
+  "error_reason": null
+}
 ```
 
 ---
@@ -221,6 +294,19 @@ Response:
 }
 ```
 
+### Event media endpoints
+- `GET /api/events/{id}/collage` → `image/jpeg`
+- `GET /api/events/{id}/preview.gif` → `image/gif`
+- `GET /api/events/{id}/timelapse.mp4` → `video/mp4`
+
+### DELETE /api/events/{id}
+UI: **Events** (Manual delete)
+
+Response:
+```json
+{ "deleted": true, "id": "evt-1" }
+```
+
 ---
 
 ## 5) Live View
@@ -232,18 +318,36 @@ Response:
 ```json
 {
   "streams": [
-    { "camera_id": "cam-1", "name": "Gate", "stream_url": "/api/live/cam-1" }
+    { "camera_id": "cam-1", "name": "Gate", "stream_url": "/api/live/cam-1", "mode": "mjpeg" }
   ]
 }
 ```
 
 ### WebSocket / Stream Notu
 - Live görüntü için **WS veya MJPEG** stream kullanılabilir.
-- API bu dokümanda sadece **stream_url** döndürür; transport detayı backend implementasyonuna bağlıdır.
+- API bu dokümanda **stream_url** ve **mode** döndürür; `webrtc` için go2rtc gereklidir.
+
+### Stream endpoint detayları
+- `mjpeg`: `GET /api/live/{camera_id}.mjpeg`
+- `webrtc`: `GET /api/live/{camera_id}` (webrtc handshake + go2rtc)
 
 ---
 
-## 6) Settings
+## 6) WebSocket
+
+### WS /api/ws/events
+- Push event format:
+```json
+{ "type": "event", "data": { "id": "evt-1", "camera_id": "cam-1", "event_type": "person", "timestamp": "2026-01-01T00:00:00Z" } }
+```
+- Sistem durumu:
+```json
+{ "type": "status", "data": { "cameras": { "online": 1, "retrying": 0, "down": 0 }, "ai": { "enabled": false } } }
+```
+
+---
+
+## 7) Settings
 
 ### GET /api/settings
 UI: **Settings**
@@ -252,9 +356,30 @@ Response:
 ```json
 {
   "motion": {
+    "detector_model": "yolov8n-person",
     "sensitivity": 7,
     "min_area": 500,
-    "cooldown_seconds": 5
+    "cooldown_seconds": 5,
+    "presets": {
+      "thermal_recommended": { "sensitivity": 8, "min_area": 450, "cooldown_seconds": 4 }
+    }
+  },
+  "live": {
+    "stream_mode": "mjpeg",
+    "webrtc": { "enabled": false, "go2rtc_url": "" }
+  },
+  "record": {
+    "enabled": false,
+    "retention_days": 7,
+    "record_segments_seconds": 10,
+    "disk_limit_percent": 80,
+    "cleanup_policy": "oldest_first",
+    "delete_order": ["mp4", "gif", "collage"]
+  },
+  "media": {
+    "retention_days": 7,
+    "cleanup_interval_hours": 24,
+    "disk_limit_percent": 80
   },
   "ai": {
     "enabled": false,
@@ -278,13 +403,32 @@ Response:
 }
 ```
 
+### POST /api/telegram/test
+UI: **Settings** (Telegram Test)
+
+Request body:
+```json
+{
+  "bot_token": "123:abc",
+  "chat_ids": ["123456789"]
+}
+```
+
+Response:
+```json
+{ "success": true, "latency_ms": 420, "error_reason": null }
+```
+
 ### PUT /api/settings
 UI: **Settings**
 
 Request body (partial update):
 ```json
 {
-  "motion": { "sensitivity": 6 },
+  "motion": { "detector_model": "yolov8s-person", "sensitivity": 6, "cooldown_seconds": 4 },
+  "live": { "stream_mode": "webrtc", "webrtc": { "enabled": true, "go2rtc_url": "http://localhost:1984" } },
+  "record": { "enabled": true, "retention_days": 14, "record_segments_seconds": 10, "disk_limit_percent": 85 },
+  "media": { "retention_days": 14, "disk_limit_percent": 85 },
   "ai": { "enabled": true, "api_key": "sk-***" },
   "telegram": { "enabled": true, "chat_ids": ["123456789"] }
 }
@@ -293,7 +437,32 @@ Request body (partial update):
 Response:
 ```json
 {
-  "motion": { "sensitivity": 6, "min_area": 500, "cooldown_seconds": 5 },
+  "motion": {
+    "detector_model": "yolov8s-person",
+    "sensitivity": 6,
+    "min_area": 500,
+    "cooldown_seconds": 4,
+    "presets": {
+      "thermal_recommended": { "sensitivity": 8, "min_area": 450, "cooldown_seconds": 4 }
+    }
+  },
+  "live": {
+    "stream_mode": "webrtc",
+    "webrtc": { "enabled": true, "go2rtc_url": "http://localhost:1984" }
+  },
+  "record": {
+    "enabled": true,
+    "retention_days": 14,
+    "record_segments_seconds": 10,
+    "disk_limit_percent": 85,
+    "cleanup_policy": "oldest_first",
+    "delete_order": ["mp4", "gif", "collage"]
+  },
+  "media": {
+    "retention_days": 14,
+    "cleanup_interval_hours": 24,
+    "disk_limit_percent": 85
+  },
   "ai": { "enabled": true, "api_key": "***REDACTED***", "model": "gpt-4", "max_tokens": 1000, "timeout": 30 },
   "telegram": {
     "enabled": true,
@@ -312,7 +481,22 @@ Response:
 
 ---
 
-## 7) Error format (GLOBAL)
+## 8) Diagnostics
+
+### GET /api/logs
+UI: **Diagnostics**
+
+Query params:
+- `lines` (int, default 200)
+
+Response:
+```json
+{ "lines": ["2026-01-01 00:00:00 INFO ..."] }
+```
+
+---
+
+## 9) Error format (GLOBAL)
 ```json
 {
   "error": true,
@@ -321,9 +505,19 @@ Response:
 }
 ```
 
+### Error code list
+- `VALIDATION_ERROR`
+- `CAMERA_NOT_FOUND`
+- `EVENT_NOT_FOUND`
+- `RTSP_CONNECTION_FAILED`
+- `SNAPSHOT_FAILED`
+- `DISK_FULL`
+- `AI_DISABLED`
+- `INTERNAL_ERROR`
+
 ---
 
-## 8) UI Mapping
+## 10) UI Mapping
 
 | Endpoint | Page |
 | --- | --- |

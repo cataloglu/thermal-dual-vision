@@ -92,6 +92,9 @@ Sidebar menü:
   - küçük status dot
   - stream frame
 - Fullscreen opsiyonel (sonra)
+- Stream mode bilgisi: `mjpeg` / `webrtc`
+- `webrtc` seçiliyse go2rtc gereklilik uyarısı
+- Reconnect durumu (spinner + kısa mesaj)
 
 ### Events
 - Default: newest first
@@ -100,11 +103,18 @@ Sidebar menü:
   - sağ: camera name, time, confidence
   - actions: View / Download GIF / Download MP4
   - AI summary: 2 satır clamp
+- Retention bilgisi (medya süresi) küçük not olarak gösterilebilir
+- “Review” sayfası yok; Events sayfası review rolündedir
 
 ### Settings
 - Sekmeler:
   - Cameras
   - Detection
+  - Detection Source
+  - Detection Model
+  - Zones
+  - Live Stream
+  - Recording
   - AI
   - Telegram
 - Cameras:
@@ -112,6 +122,28 @@ Sidebar menü:
   - Camera type select (color/thermal/dual)
   - RTSP input + “Test” button
   - Test sonucu: snapshot preview + latency + error text
+ - Detection Model:
+  - Tek seçim (radio/select)
+  - Seçenekler: `yolov8n-person` / `yolov8s-person`
+ - Detection Source:
+  - Kamera bazında seçim (color/thermal/auto)
+  - Thermal için “önerilen ayarlar” kısa açıklaması
+  - Motion ayarları UI’dan seçilebilir (preset + manuel)
+ - Zones:
+  - Kamera seçimi + sahne önizleme
+  - Polygon çizimi (add/remove point)
+  - Mod seçimi: `motion` / `person` / `both`
+  - Enable toggle + isim
+ - Live Stream:
+  - Stream modu seçimi: `mjpeg` / `webrtc`
+  - webrtc için go2rtc URL alanı
+ - Recording:
+  - Enable toggle
+  - Retention days
+  - Segment length (seconds)
+  - Disk limit (%) + cleanup policy (oldest first)
+  - Media delete order (mp4 → gif → collage)
+  - Default değerler gösterilir ve değiştirilebilir
 
 ### Diagnostics
 - JSON viewer (pretty)
@@ -138,3 +170,13 @@ Sidebar menü:
 - Placeholder text bırakma (form yoksa sayfa yok sayılır)
 - AI key yok diye crash ettirme
 - RTSP URL’yi loglarda açık yazma
+
+---
+
+## 8) UI Decisions (kilitlenecek maddeler)
+- Settings sekmelerinde alan sırası ve global/per-camera ayrımı
+- Motion preset değerleri (thermal öneri değerleri + manuel override davranışı)
+- Event detail görünümü (ayrı sayfa vs modal) ve içerik listesi
+- Boş/hata durumları için metin ve görünüm
+- Live view stream UX (mjpeg/ws) + reconnect davranışı
+- UI metinleri (başlık/label listesi, TR içerik)

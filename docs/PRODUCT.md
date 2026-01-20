@@ -2,16 +2,24 @@
 
 ## 0) Scope (Değişmez Kurallar)
 - Bu ürün **SADECE insan (person)** algılar.
+- İnsan algılama için **iki model** bulunur ve **seçilebilir**: `yolov8n-person` / `yolov8s-person`.
+- İnsan algılama **kamera bazında** color/thermal seçilebilir (dual kamerada kaynak seçimi).
+- Zone/ROI desteği vardır: hareket ve person algılama alanları kamera bazında seçilir.
 - AI (OpenAI) **opsiyoneldir**:
   - API key yoksa sistem **çalışmaya devam eder**.
   - UI’da “AI Disabled” ve sebep görünür.
 - Dashboard’da **canlı görüntü yok**.
 - Canlı görüntü **ayrı sayfa** (Live).
 - “Yakalanan hareketler / Events” ürünün ana sayfasıdır.
+- “Review” kavramı **Events ile aynıdır** (sadece motion/person event’leri).
 - Her event **kanıt** üretir:
   - 5 kare birleşik görsel (collage)
   - preview GIF
   - ~20 sn hızlandırılmış MP4 (timelapse)
+- Event medya dosyaları **kalıcı değildir**: retention politikası vardır ve ayarlanabilir.
+- Kayıt (record) **sürekli değil**, sadece event bazlıdır.
+- Disk temizleme stratejisi vardır (retention + disk limiti) ve kullanıcı değiştirebilir.
+- Ayarlar **kalıcıdır**: restart sonrası korunur.
 - Placeholder UI kabul edilmez: form varsa **kaydetmeli** ve backend’e **POST/PUT** atmalıdır.
 
 ---
@@ -42,6 +50,7 @@
 - Kamera canlı görüntü grid
 - 1x1 / 2x2 / 3x3
 - Overlay yok
+- Stream modu: `mjpeg` (default) veya `webrtc` (opsiyonel, go2rtc gerektirir)
 
 ### C) Events (Captured)
 - Pagination (sayfalı)
@@ -56,6 +65,9 @@
 **Settings altında sekmeler:**
 - Cameras (CRUD + test)
 - Detection (global defaults + per-camera overrides)
+- Detection Source (color / thermal / auto)
+- Detection Model (iki modelden biri seçilebilir)
+- Zones (motion/person alanları)
 - AI (enable toggle + key + model)
 - Telegram (enable + token + chat id + test)
 
@@ -74,6 +86,9 @@
   - id, name, type, enabled
   - rtsp_url (maskelenir)
   - per-camera motion override (opsiyonel)
+  - detection_source: `color` / `thermal` / `auto`
+  - stream_roles: `detect` / `live` / `record`
+  - zones: motion/person alanları (polygon)
 
 ---
 

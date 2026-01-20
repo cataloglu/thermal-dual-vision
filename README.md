@@ -1,7 +1,95 @@
 # Smart Motion Detector (v2)
 
-Bu repo dokümantasyon odaklıdır. Detaylar için aşağıdaki dosyalara bakın:
+Thermal ve color kamera desteği ile **sadece insan algılama** odaklı akıllı hareket algılama sistemi.
 
-- Ürün tanımı: `docs/PRODUCT.md`
-- API sözleşmesi: `docs/API_CONTRACT.md`
-- Tasarım sistemi: `docs/DESIGN_SYSTEM.md`
+## ✨ Özellikler
+
+- 🎯 **Sadece İnsan Algılama**: YOLOv8 person detection (`yolov8n-person` / `yolov8s-person` model seçimi)
+- 🌡️ **Dual Kamera Desteği**: Color, Thermal veya Dual kamera
+- 🎨 **Modern Dark UI**: Frigate-inspired dashboard
+- 📹 **Event Kanıtları**: Her algılamada collage (5 frame) + GIF + MP4 timelapse
+- 🤖 **Opsiyonel AI**: OpenAI entegrasyonu (key yoksa sistem çalışır)
+- 📱 **Telegram Bildirimleri**: Event'lerde otomatik bildirim
+- 🔄 **Akıllı Retention**: Disk limiti + retention policy ile otomatik temizleme
+- 🎭 **Zone/ROI Desteği**: Kamera bazında polygon alanlar (motion/person filtreleme)
+
+## 🚀 Quick Start
+
+### Docker Compose (Önerilen)
+
+```bash
+# .env dosyası oluştur
+cp env.example .env
+# .env dosyasını düzenle (OPENAI_API_KEY, TELEGRAM_BOT_TOKEN, vb.)
+
+# Başlat
+docker-compose up -d
+
+# UI: http://localhost:5173
+# API: http://localhost:8000
+```
+
+### Manuel Kurulum
+
+```bash
+# Backend
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+python -m app.main
+
+# Frontend (ayrı terminal)
+cd ui
+npm install
+npm run dev
+```
+
+## 📚 Dokümantasyon
+
+- 📖 **Ürün Tanımı**: [`docs/PRODUCT.md`](docs/PRODUCT.md)
+- 🔌 **API Sözleşmesi**: [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md)
+- 🎨 **Tasarım Sistemi**: [`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md)
+- 🏗️ **Mimari**: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+- 🛠️ **Geliştirme**: [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)
+- 🔒 **Güvenlik**: [`docs/SECURITY.md`](docs/SECURITY.md)
+- ⚙️ **Ortam Değişkenleri**: [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md)
+- 💅 **Code Style**: [`docs/CODE_STYLE.md`](docs/CODE_STYLE.md)
+- 🗺️ **Implementation Roadmap**: [`ROADMAP.md`](ROADMAP.md) ⭐
+
+## 🎯 MVP Scope
+
+### In Scope
+- ✅ Multi-camera support (color/thermal/dual)
+- ✅ Person detection only (`yolov8n-person` / `yolov8s-person`)
+- ✅ Event-based recording (collage/gif/mp4) - "Review" özelliği Events sayfasında
+- ✅ Live view (MJPEG/WebRTC)
+- ✅ Zone/ROI configuration (polygon-based)
+- ✅ AI summary (optional - OpenAI)
+- ✅ Telegram notifications
+- ✅ Retention policy + disk cleanup
+
+### Out of Scope
+- ❌ Generic object detection (sadece person)
+- ❌ Face recognition
+- ❌ Continuous recording (sadece event-based)
+
+## 🧪 Test
+
+```bash
+pytest
+```
+
+## 📦 Tech Stack
+
+- **Backend**: Python 3.11 + FastAPI + OpenCV + YOLOv8
+- **Frontend**: React + TypeScript + Vite + Tailwind
+- **Storage**: SQLite + JSON config + filesystem media
+- **Realtime**: WebSocket + MJPEG/WebRTC streams
+
+## 🤝 Contributing
+
+Bu proje MVP aşamasındadır. Katkılar için lütfen önce issue açın.
+
+## 📄 License
+
+MIT
