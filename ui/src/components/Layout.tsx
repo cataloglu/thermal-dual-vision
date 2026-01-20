@@ -42,7 +42,7 @@ export function Layout({ children }: LayoutProps) {
         {/* Language Toggle Button */}
         <button
           onClick={toggleLanguage}
-          className="fixed top-4 right-4 z-20 flex items-center gap-2 px-3 py-2 bg-surface1 border border-border rounded-lg hover:bg-surface2 transition-colors text-text text-sm font-medium"
+          className="fixed top-20 right-4 z-20 flex items-center gap-2 px-3 py-2 bg-surface1 border border-border rounded-lg hover:bg-surface2 transition-colors text-text text-sm font-medium"
           title="Dil değiştir / Change language"
         >
           <MdLanguage className="text-lg" />
