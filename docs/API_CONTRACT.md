@@ -295,9 +295,9 @@ Response:
 ```
 
 ### Event media endpoints
-- `GET /api/events/{id}/collage` → `image/jpeg`
-- `GET /api/events/{id}/preview.gif` → `image/gif`
-- `GET /api/events/{id}/timelapse.mp4` → `video/mp4`
+- `GET /api/events/{id}/collage` → `image/jpeg` (5 frame grid, statik, yüksek kalite)
+- `GET /api/events/{id}/preview.gif` → `image/gif` (timeline animation: 10 frame, 5s, smooth motion, <2MB)
+- `GET /api/events/{id}/timelapse.mp4` → `video/mp4` (20s accelerated, full event)
 
 ### DELETE /api/events/{id}
 UI: **Events** (Manual delete)

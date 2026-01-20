@@ -13,9 +13,9 @@
 - “Yakalanan hareketler / Events” ürünün ana sayfasıdır.
 - “Review” kavramı **Events ile aynıdır** (sadece motion/person event’leri).
 - Her event **kanıt** üretir:
-  - 5 kare birleşik görsel (collage)
-  - preview GIF
-  - ~20 sn hızlandırılmış MP4 (timelapse)
+  - 5 kare birleşik görsel (collage) - statik grid, yüksek kalite
+  - preview GIF (timeline animation) - hareketin başlangıcı → sonu, 10 frame, 5 saniye, smooth
+  - ~20 sn hızlandırılmış MP4 (timelapse) - tam event kaydı, yüksek kalite
 - Event medya dosyaları **kalıcı değildir**: retention politikası vardır ve ayarlanabilir.
 - Kayıt (record) **sürekli değil**, sadece event bazlıdır.
 - Disk temizleme stratejisi vardır (retention + disk limiti) ve kullanıcı değiştirebilir.
