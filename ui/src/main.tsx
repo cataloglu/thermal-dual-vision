@@ -4,7 +4,7 @@ import App from './App.tsx'
 import './index.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
+  // StrictMode disabled to prevent WebSocket double-mount in development
+  // Re-enable for production builds
+  <App />
 )
