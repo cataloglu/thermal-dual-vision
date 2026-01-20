@@ -318,7 +318,7 @@ Response:
 ```json
 {
   "streams": [
-    { "camera_id": "cam-1", "name": "Gate", "stream_url": "/api/live/cam-1", "mode": "mjpeg" }
+    { "camera_id": "cam-1", "name": "Gate", "stream_url": "/api/live/cam-1", "output_mode": "mjpeg" }
   ]
 }
 ```
