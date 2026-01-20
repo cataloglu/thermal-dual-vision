@@ -355,6 +355,14 @@ UI: **Settings**
 Response:
 ```json
 {
+  "detection": {
+    "model": "yolov8n-person",
+    "confidence_threshold": 0.25,
+    "nms_iou_threshold": 0.45,
+    "inference_resolution": [640, 640],
+    "inference_fps": 5,
+    "enable_tracking": false
+  },
   "motion": {
     "detector_model": "yolov8n-person",
     "sensitivity": 7,
@@ -363,6 +371,20 @@ Response:
     "presets": {
       "thermal_recommended": { "sensitivity": 8, "min_area": 450, "cooldown_seconds": 4 }
     }
+  },
+  "thermal": {
+    "enable_enhancement": true,
+    "enhancement_method": "clahe",
+    "clahe_clip_limit": 2.0,
+    "clahe_tile_size": [8, 8],
+    "gaussian_blur_kernel": [3, 3]
+  },
+  "stream": {
+    "mode": "mjpeg",
+    "protocol": "tcp",
+    "buffer_size": 1,
+    "reconnect_delay_seconds": 5,
+    "max_reconnect_attempts": 10
   },
   "live": {
     "stream_mode": "mjpeg",
@@ -375,6 +397,12 @@ Response:
     "disk_limit_percent": 80,
     "cleanup_policy": "oldest_first",
     "delete_order": ["mp4", "gif", "collage"]
+  },
+  "event": {
+    "cooldown_seconds": 5,
+    "frame_buffer_size": 10,
+    "frame_interval": 2,
+    "min_event_duration": 1.0
   },
   "media": {
     "retention_days": 7,
@@ -425,9 +453,13 @@ UI: **Settings**
 Request body (partial update):
 ```json
 {
+  "detection": { "model": "yolov8s-person", "confidence_threshold": 0.3, "inference_fps": 10 },
+  "thermal": { "enable_enhancement": true, "enhancement_method": "clahe" },
+  "stream": { "protocol": "tcp", "buffer_size": 2 },
   "motion": { "detector_model": "yolov8s-person", "sensitivity": 6, "cooldown_seconds": 4 },
   "live": { "stream_mode": "webrtc", "webrtc": { "enabled": true, "go2rtc_url": "http://localhost:1984" } },
   "record": { "enabled": true, "retention_days": 14, "record_segments_seconds": 10, "disk_limit_percent": 85 },
+  "event": { "cooldown_seconds": 3, "frame_buffer_size": 15 },
   "media": { "retention_days": 14, "disk_limit_percent": 85 },
   "ai": { "enabled": true, "api_key": "sk-***" },
   "telegram": { "enabled": true, "chat_ids": ["123456789"] }
@@ -437,6 +469,14 @@ Request body (partial update):
 Response:
 ```json
 {
+  "detection": {
+    "model": "yolov8s-person",
+    "confidence_threshold": 0.3,
+    "nms_iou_threshold": 0.45,
+    "inference_resolution": [640, 640],
+    "inference_fps": 10,
+    "enable_tracking": false
+  },
   "motion": {
     "detector_model": "yolov8s-person",
     "sensitivity": 6,
@@ -445,6 +485,20 @@ Response:
     "presets": {
       "thermal_recommended": { "sensitivity": 8, "min_area": 450, "cooldown_seconds": 4 }
     }
+  },
+  "thermal": {
+    "enable_enhancement": true,
+    "enhancement_method": "clahe",
+    "clahe_clip_limit": 2.0,
+    "clahe_tile_size": [8, 8],
+    "gaussian_blur_kernel": [3, 3]
+  },
+  "stream": {
+    "mode": "mjpeg",
+    "protocol": "tcp",
+    "buffer_size": 2,
+    "reconnect_delay_seconds": 5,
+    "max_reconnect_attempts": 10
   },
   "live": {
     "stream_mode": "webrtc",
@@ -457,6 +511,12 @@ Response:
     "disk_limit_percent": 85,
     "cleanup_policy": "oldest_first",
     "delete_order": ["mp4", "gif", "collage"]
+  },
+  "event": {
+    "cooldown_seconds": 3,
+    "frame_buffer_size": 15,
+    "frame_interval": 2,
+    "min_event_duration": 1.0
   },
   "media": {
     "retention_days": 14,

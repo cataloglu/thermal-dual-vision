@@ -343,6 +343,8 @@ EVENT_FRAME_INTERVAL = 2  # Her 2 frame'de bir kaydet
 
 ## 📝 Önerilen Config Template
 
+**Not**: Bu ayarlar `GET/PUT /api/settings` endpoint'i ile yönetilir. Detaylar için `docs/API_CONTRACT.md` bakın.
+
 ```json
 {
   "detection": {
@@ -350,27 +352,47 @@ EVENT_FRAME_INTERVAL = 2  # Her 2 frame'de bir kaydet
     "confidence_threshold": 0.25,
     "nms_iou_threshold": 0.45,
     "inference_resolution": [640, 640],
-    "inference_fps": 5
+    "inference_fps": 5,
+    "enable_tracking": false
   },
   "thermal": {
     "enable_enhancement": true,
     "enhancement_method": "clahe",
-    "sensitivity": 8,
-    "min_area": 450,
-    "cooldown": 4
+    "clahe_clip_limit": 2.0,
+    "clahe_tile_size": [8, 8],
+    "gaussian_blur_kernel": [3, 3]
   },
   "stream": {
     "mode": "mjpeg",
     "protocol": "tcp",
     "buffer_size": 1,
-    "downscale_resolution": [640, 480]
+    "reconnect_delay_seconds": 5,
+    "max_reconnect_attempts": 10
+  },
+  "motion": {
+    "detector_model": "yolov8n-person",
+    "sensitivity": 8,
+    "min_area": 450,
+    "cooldown_seconds": 4
   },
   "event": {
     "cooldown_seconds": 5,
     "frame_buffer_size": 10,
-    "frame_interval": 2
+    "frame_interval": 2,
+    "min_event_duration": 1.0
   }
 }
+```
+
+**API Kullanımı**:
+```bash
+# Ayarları getir
+curl http://localhost:8000/api/settings
+
+# Ayarları güncelle
+curl -X PUT http://localhost:8000/api/settings \
+  -H "Content-Type: application/json" \
+  -d '{"detection": {"confidence_threshold": 0.3}}'
 ```
 
 ---

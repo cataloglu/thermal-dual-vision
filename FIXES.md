@@ -151,8 +151,30 @@ npm run lint
 
 ---
 
+---
+
+### 🟡 6. Performance Tuning Config Tutarsızlığı (Minor)
+
+**Sorun**:
+`docs/PERFORMANCE_TUNING.md` içinde config ayarları var ama `API_CONTRACT.md`'de tanımlı değil.
+
+**Çözüm**:
+- ✅ `API_CONTRACT.md` güncellendi (yeni config sections eklendi)
+  - `detection`: model, confidence_threshold, inference_fps
+  - `thermal`: enable_enhancement, enhancement_method, clahe settings
+  - `stream`: protocol, buffer_size, reconnect settings
+  - `event`: cooldown_seconds, frame_buffer_size
+- ✅ `PERFORMANCE_TUNING.md` güncellendi (API kullanım örnekleri eklendi)
+- ✅ Config template artık direkt uygulanabilir
+
+**Değişen Dosyalar**:
+- `docs/API_CONTRACT.md` (GET/PUT /api/settings genişletildi)
+- `docs/PERFORMANCE_TUNING.md` (API referansı eklendi)
+
+---
+
 ## 📝 Notlar
 
 - Yan masa analizine teşekkürler! 🙏
-- Tüm sorunlar tespit edildi ve düzeltildi
+- Tüm sorunlar tespit edildi ve düzeltildi (6+1)
 - Proje artık production-ready
