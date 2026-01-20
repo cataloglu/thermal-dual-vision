@@ -244,15 +244,68 @@ class CameraService:
                 "error_reason": f"Color camera failed: {color_result['error_reason']}"
             }
         
-        # Both cameras successful - return thermal snapshot
-        logger.info("Dual camera test successful")
+        # Both cameras successful - combine snapshots side by side
+        logger.info("Dual camera test successful, combining snapshots")
         
-        return {
-            "success": True,
-            "snapshot_base64": thermal_result["snapshot_base64"],
-            "latency_ms": thermal_result["latency_ms"],
-            "error_reason": None
-        }
+        try:
+            # Decode base64 images
+            thermal_b64 = thermal_result["snapshot_base64"].split(',')[1]
+            color_b64 = color_result["snapshot_base64"].split(',')[1]
+            
+            thermal_bytes = base64.b64decode(thermal_b64)
+            color_bytes = base64.b64decode(color_b64)
+            
+            # Convert to numpy arrays
+            thermal_arr = np.frombuffer(thermal_bytes, dtype=np.uint8)
+            color_arr = np.frombuffer(color_bytes, dtype=np.uint8)
+            
+            thermal_img = cv2.imdecode(thermal_arr, cv2.IMREAD_COLOR)
+            color_img = cv2.imdecode(color_arr, cv2.IMREAD_COLOR)
+            
+            # Resize to same height if needed
+            h1, w1 = thermal_img.shape[:2]
+            h2, w2 = color_img.shape[:2]
+            
+            target_height = min(h1, h2)
+            thermal_resized = cv2.resize(thermal_img, (int(w1 * target_height / h1), target_height))
+            color_resized = cv2.resize(color_img, (int(w2 * target_height / h2), target_height))
+            
+            # Combine side by side (thermal left, color right)
+            combined = np.hstack([thermal_resized, color_resized])
+            
+            # Add labels
+            cv2.putText(combined, "THERMAL", (20, 40), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
+            cv2.putText(combined, "COLOR", (thermal_resized.shape[1] + 20, 40), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
+            
+            # Encode combined image
+            encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), self.JPEG_QUALITY]
+            ret, buffer = cv2.imencode('.jpg', combined, encode_param)
+            
+            if not ret:
+                raise ValueError("Failed to encode combined image")
+            
+            # Convert to base64
+            combined_b64 = base64.b64encode(buffer).decode('utf-8')
+            combined_snapshot = f"data:image/jpeg;base64,{combined_b64}"
+            
+            return {
+                "success": True,
+                "snapshot_base64": combined_snapshot,
+                "latency_ms": max(thermal_result["latency_ms"], color_result["latency_ms"]),
+                "error_reason": None
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to combine dual camera snapshots: {e}")
+            # Fallback to thermal only
+            return {
+                "success": True,
+                "snapshot_base64": thermal_result["snapshot_base64"],
+                "latency_ms": thermal_result["latency_ms"],
+                "error_reason": None
+            }
 
 
 # Global singleton instance
