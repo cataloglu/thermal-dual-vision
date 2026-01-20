@@ -1,3 +1,11 @@
+# Thermal Dual Vision v2
+
+This repository is reset to a clean slate for v2.
+
+Documents:
+- `docs/PRODUCT.md`
+- `docs/API_CONTRACT.md`
+- `docs/DESIGN_SYSTEM.md`
 # Thermal Dual Vision - Home Assistant Add-on
 
 AI-powered motion detection with YOLO + GPT-4 Vision. This repository ships a Home Assistant add-on package and a runtime that exposes health endpoints.
