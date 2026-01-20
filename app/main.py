@@ -592,6 +592,66 @@ async def get_event_mp4(event_id: str) -> FileResponse:
         )
 
 
+@app.get("/api/live")
+async def get_live_streams() -> Dict[str, Any]:
+    """
+    Get live stream URLs for all cameras.
+    
+    Returns:
+        Dict containing list of live streams
+        
+    Raises:
+        HTTPException: 500 if error occurs
+    """
+    try:
+        # TODO: Implement camera service integration
+        # For now, return empty list
+        return {
+            "streams": []
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get live streams: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": True,
+                "code": "INTERNAL_ERROR",
+                "message": f"Failed to retrieve live streams: {str(e)}"
+            }
+        )
+
+
+@app.get("/api/cameras")
+async def get_cameras() -> Dict[str, Any]:
+    """
+    Get all cameras.
+    
+    Returns:
+        Dict containing list of cameras
+        
+    Raises:
+        HTTPException: 500 if error occurs
+    """
+    try:
+        # TODO: Implement camera service integration
+        # For now, return empty list
+        return {
+            "cameras": []
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get cameras: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": True,
+                "code": "INTERNAL_ERROR",
+                "message": f"Failed to retrieve cameras: {str(e)}"
+            }
+        )
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

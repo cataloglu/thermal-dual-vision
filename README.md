@@ -58,6 +58,7 @@ npm run dev
 - ⚡ **Performance Tuning**: [`docs/PERFORMANCE_TUNING.md`](docs/PERFORMANCE_TUNING.md) 🔥
 - 🎬 **Media Specification**: [`docs/MEDIA_SPEC.md`](docs/MEDIA_SPEC.md) 📹
 - 🚀 **Advanced Features**: [`docs/ADVANCED_FEATURES.md`](docs/ADVANCED_FEATURES.md) 🏆
+- 🤖 **YOLO Model Comparison**: [`docs/YOLO_COMPARISON.md`](docs/YOLO_COMPARISON.md) 🔥
 - 🗺️ **Implementation Roadmap**: [`ROADMAP.md`](ROADMAP.md) ⭐
 
 ## 🎯 MVP Scope
@@ -85,10 +86,26 @@ pytest
 
 ## 📦 Tech Stack
 
-- **Backend**: Python 3.11 + FastAPI + OpenCV + YOLOv8
+- **Backend**: Python 3.11 + FastAPI + OpenCV + YOLOv8/YOLOv9
 - **Frontend**: React + TypeScript + Vite + Tailwind
 - **Storage**: SQLite + JSON config + filesystem media
 - **Realtime**: WebSocket + MJPEG/WebRTC streams
+- **AI Models**: YOLOv8n/s (person-specific) + YOLOv9t/s (thermal-optimized)
+
+## 🤖 Supported YOLO Models
+
+| Model | Speed | Accuracy | Use Case | Thermal |
+|-------|-------|----------|----------|---------|
+| **YOLOv8n-person** | ⚡⚡⚡ Fast | ⭐⭐⭐ Good | 5+ cameras | ✅ Good |
+| **YOLOv8s-person** | ⚡⚡ Medium | ⭐⭐⭐⭐ High | 1-4 cameras | ✅ Good |
+| **YOLOv9t** | ⚡⚡ Medium | ⭐⭐⭐⭐ High | Thermal optimized | ✅✅ Best |
+| **YOLOv9s** | ⚡ Slower | ⭐⭐⭐⭐⭐ Best | 1-3 cameras, max accuracy | ✅✅ Best |
+
+**Recommendation**: Start with YOLOv8n-person, upgrade to YOLOv9t if false positives are high.
+
+**Why YOLOv9 for thermal?** PGI (Programmable Gradient Information) prevents information loss in low-contrast thermal images, resulting in +0.6% mAP and -49% parameters.
+
+See [`docs/YOLO_COMPARISON.md`](docs/YOLO_COMPARISON.md) for detailed comparison.
 
 ## 🤝 Contributing
 
