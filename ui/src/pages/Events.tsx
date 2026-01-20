@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { EventCard } from '../components/EventCard'
 import { EventDetail } from '../components/EventDetail'
 import { useEvents } from '../hooks/useEvents'
@@ -12,6 +13,7 @@ interface Camera {
 }
 
 export function Events() {
+  const { t } = useTranslation()
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
   const [cameras, setCameras] = useState<Camera[]>([])
   const [showFilters, setShowFilters] = useState(false)
@@ -105,9 +107,9 @@ export function Events() {
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-text mb-2">Olaylar</h1>
+          <h1 className="text-3xl font-bold text-text mb-2">{t('events')}</h1>
           <p className="text-muted">
-            {total > 0 ? `Toplam ${total} olay kaydedildi` : 'Henüz olay kaydı yok'}
+            {total > 0 ? `${t('total')} ${total} ${t('events').toLowerCase()}` : t('noEvents')}
           </p>
         </div>
 
@@ -121,10 +123,10 @@ export function Events() {
           }`}
         >
           <MdFilterList className="text-xl" />
-          Filtrele
+          {t('filter')}
           {hasActiveFilters && (
             <span className="ml-1 px-2 py-0.5 bg-white/20 rounded-full text-xs">
-              Aktif
+              {t('enabled')}
             </span>
           )}
         </button>
@@ -137,14 +139,14 @@ export function Events() {
             {/* Camera Filter */}
             <div>
               <label className="block text-sm font-medium text-muted mb-2">
-                Kamera
+                {t('camera')}
               </label>
               <select
                 value={cameraFilter}
                 onChange={(e) => setCameraFilter(e.target.value)}
                 className="w-full px-4 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:border-accent"
               >
-                <option value="">Tüm Kameralar</option>
+                <option value="">{t('cameras')}</option>
                 {cameras.map((camera) => (
                   <option key={camera.id} value={camera.id}>
                     {camera.name}
@@ -156,7 +158,7 @@ export function Events() {
             {/* Date Filter */}
             <div>
               <label className="block text-sm font-medium text-muted mb-2">
-                Tarih
+                {t('timestamp')}
               </label>
               <input
                 type="date"
@@ -169,7 +171,7 @@ export function Events() {
             {/* Confidence Filter */}
             <div>
               <label className="block text-sm font-medium text-muted mb-2">
-                Minimum Güven: {confidenceFilter}%
+                {t('confidence')}: {confidenceFilter}%
               </label>
               <input
                 type="range"
@@ -191,7 +193,7 @@ export function Events() {
                 className="flex items-center gap-2 px-4 py-2 bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors text-sm"
               >
                 <MdClear />
-                Filtreleri Temizle
+                {t('clearFilters')}
               </button>
             </div>
           )}
@@ -203,15 +205,15 @@ export function Events() {
         <div className="bg-surface1 border border-border rounded-lg p-12 text-center">
           <p className="text-muted mb-4">
             {hasActiveFilters 
-              ? 'Filtre kriterlerine uygun olay bulunamadı' 
-              : 'Henüz olay kaydı yok'}
+              ? t('noData')
+              : t('noEvents')}
           </p>
           {hasActiveFilters && (
             <button
               onClick={handleClearFilters}
               className="px-6 py-3 bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors"
             >
-              Filtreleri Temizle
+              {t('clearFilters')}
             </button>
           )}
         </div>
@@ -245,7 +247,7 @@ export function Events() {
             disabled={page === 1}
             className="px-4 py-2 bg-surface1 border border-border text-text rounded-lg hover:bg-surface2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Önceki
+            {t('previous')}
           </button>
           
           <div className="flex items-center gap-2">
@@ -285,7 +287,7 @@ export function Events() {
             disabled={page === totalPages}
             className="px-4 py-2 bg-surface1 border border-border text-text rounded-lg hover:bg-surface2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Sonraki
+            {t('next')}
           </button>
         </div>
       )}

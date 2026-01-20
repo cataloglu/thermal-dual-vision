@@ -30,11 +30,13 @@ export const DetectionTab: React.FC<DetectionTabProps> = ({ config, onChange, on
             onChange={(e) => onChange({ ...config, model: e.target.value as DetectionConfig['model'] })}
             className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
           >
-            <option value="yolov8n-person">YOLOv8n-person (Hızlı, Edge cihazlar)</option>
-            <option value="yolov8s-person">YOLOv8s-person (Doğru, Sunucu)</option>
+            <option value="yolov8n-person">YOLOv8n-person (Hızlı, 5+ kamera)</option>
+            <option value="yolov8s-person">YOLOv8s-person (Doğru, 1-4 kamera)</option>
+            <option value="yolov9t">YOLOv9t (Thermal optimize, önerilen)</option>
+            <option value="yolov9s">YOLOv9s (En doğru, 1-3 kamera)</option>
           </select>
           <p className="text-xs text-muted mt-1">
-            n = daha hızlı, s = daha doğru
+            YOLOv9 thermal kameralar için optimize edilmiştir (PGI teknolojisi)
           </p>
         </div>
 
@@ -91,6 +93,32 @@ export const DetectionTab: React.FC<DetectionTabProps> = ({ config, onChange, on
             Non-Maximum Suppression eşiği (genellikle 0.45)
           </p>
         </div>
+      </div>
+
+      {/* Model Comparison Info */}
+      <div className="bg-surface2 border-l-4 border-info p-4 rounded-lg">
+        <h4 className="font-semibold text-text mb-2">📊 Model Karşılaştırma</h4>
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between">
+            <span className="text-muted">YOLOv8n:</span>
+            <span className="text-text">⚡⚡⚡ Hızlı, ⭐⭐⭐ İyi</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted">YOLOv8s:</span>
+            <span className="text-text">⚡⚡ Orta, ⭐⭐⭐⭐ Yüksek</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted">YOLOv9t:</span>
+            <span className="text-text">⚡⚡ Orta, ⭐⭐⭐⭐ Yüksek 🌡️ Thermal!</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted">YOLOv9s:</span>
+            <span className="text-text">⚡ Yavaş, ⭐⭐⭐⭐⭐ En İyi</span>
+          </div>
+        </div>
+        <p className="text-xs text-muted mt-3">
+          💡 Thermal kameralar için YOLOv9t önerilir (bilgi kaybı önler)
+        </p>
       </div>
 
       <button

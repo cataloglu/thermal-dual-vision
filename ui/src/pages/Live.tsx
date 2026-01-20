@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { StreamViewer } from '../components/StreamViewer'
 import { api } from '../services/api'
 import { MdGridView } from 'react-icons/md'
@@ -20,6 +21,7 @@ interface LiveStream {
 }
 
 export function Live() {
+  const { t } = useTranslation()
   const [cameras, setCameras] = useState<Camera[]>([])
   const [streams, setStreams] = useState<LiveStream[]>([])
   const [loading, setLoading] = useState(true)
@@ -95,9 +97,9 @@ export function Live() {
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-text mb-2">Canlı Görüntü</h1>
+          <h1 className="text-3xl font-bold text-text mb-2">{t('live')}</h1>
           <p className="text-muted">
-            {liveCameras.length} kamera aktif
+            {liveCameras.length} {t('camera').toLowerCase()} {t('enabled').toLowerCase()}
           </p>
         </div>
 
@@ -123,12 +125,12 @@ export function Live() {
       {/* No Cameras */}
       {liveCameras.length === 0 && (
         <div className="bg-surface1 border border-border rounded-lg p-12 text-center">
-          <p className="text-muted mb-4">Henüz aktif kamera yok</p>
+          <p className="text-muted mb-4">{t('noCameras')}</p>
           <a
             href="/settings"
             className="inline-block px-6 py-3 bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors"
           >
-            Kamera Ekle
+            {t('add')} {t('camera')}
           </a>
         </div>
       )}

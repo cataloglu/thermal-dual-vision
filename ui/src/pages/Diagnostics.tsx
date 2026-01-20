@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { api } from '../services/api'
 import { MdContentCopy, MdCheckCircle, MdRefresh } from 'react-icons/md'
 
 export function Diagnostics() {
+  const { t } = useTranslation()
   const [health, setHealth] = useState<any>(null)
   const [systemInfo, setSystemInfo] = useState<any>(null)
   const [logs, setLogs] = useState<string[]>([])
@@ -104,7 +106,7 @@ export function Diagnostics() {
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-text mb-2">Sistem Tanılama</h1>
+          <h1 className="text-3xl font-bold text-text mb-2">{t('diagnostics')}</h1>
           <p className="text-muted">Sistem durumu ve debug bilgileri</p>
         </div>
 
@@ -117,7 +119,7 @@ export function Diagnostics() {
               onChange={(e) => setAutoRefresh(e.target.checked)}
               className="w-4 h-4 accent-accent"
             />
-            <span className="text-sm text-text">Otomatik Yenile (5s)</span>
+            <span className="text-sm text-text">{t('autoRefresh')} (5s)</span>
           </label>
 
           {/* Refresh Button */}
@@ -127,7 +129,7 @@ export function Diagnostics() {
             className="flex items-center gap-2 px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors disabled:opacity-50"
           >
             <MdRefresh className={loading ? 'animate-spin' : ''} />
-            Yenile
+            {t('refresh')}
           </button>
         </div>
       </div>
@@ -135,7 +137,7 @@ export function Diagnostics() {
       {/* Health JSON */}
       <div className="bg-surface1 border border-border rounded-lg p-6 mb-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-text">Sistem Sağlığı</h2>
+          <h2 className="text-lg font-semibold text-text">{t('systemHealth')}</h2>
           <button
             onClick={handleCopyHealth}
             className="flex items-center gap-2 px-3 py-1.5 bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors text-sm"
@@ -143,12 +145,12 @@ export function Diagnostics() {
             {copiedHealth ? (
               <>
                 <MdCheckCircle className="text-green-500" />
-                Kopyalandı
+                {t('copied')}
               </>
             ) : (
               <>
                 <MdContentCopy />
-                Kopyala
+                {t('copy')}
               </>
             )}
           </button>
@@ -161,7 +163,7 @@ export function Diagnostics() {
       {/* Logs */}
       <div className="bg-surface1 border border-border rounded-lg p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-text">Uygulama Logları (Son 200 satır)</h2>
+          <h2 className="text-lg font-semibold text-text">{t('applicationLogs')} (200)</h2>
           <button
             onClick={handleCopyLogs}
             disabled={logsLoading}
@@ -170,12 +172,12 @@ export function Diagnostics() {
             {copiedLogs ? (
               <>
                 <MdCheckCircle className="text-green-500" />
-                Kopyalandı
+                {t('copied')}
               </>
             ) : (
               <>
                 <MdContentCopy />
-                Kopyala
+                {t('copy')}
               </>
             )}
           </button>
@@ -183,12 +185,12 @@ export function Diagnostics() {
         
         {logsLoading ? (
           <div className="bg-background border border-border rounded-lg p-4 flex items-center justify-center h-96">
-            <div className="text-muted">Loglar yükleniyor...</div>
+            <div className="text-muted">{t('loading')}...</div>
           </div>
         ) : (
           <div className="bg-background border border-border rounded-lg p-4 overflow-auto max-h-96">
             <pre className="text-xs text-text font-mono whitespace-pre-wrap">
-              {logs.length > 0 ? logs.join('\n') : 'Log bulunamadı'}
+              {logs.length > 0 ? logs.join('\n') : t('noData')}
             </pre>
           </div>
         )}
