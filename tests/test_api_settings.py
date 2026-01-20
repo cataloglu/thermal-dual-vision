@@ -218,6 +218,26 @@ def test_put_settings_validation_error_sensitivity(client):
     assert detail["code"] == "VALIDATION_ERROR"
 
 
+def test_put_settings_validation_error_ai_key_format(client):
+    """Test PUT /api/settings validation error for invalid AI API key."""
+    update_data = {
+        "ai": {
+            "enabled": True,
+            "api_key": "invalid-key"
+        }
+    }
+    
+    response = client.put("/api/settings", json=update_data)
+    
+    assert response.status_code == 400
+    data = response.json()
+    detail = data.get("detail", data)
+    
+    assert detail["error"] is True
+    assert detail["code"] == "VALIDATION_ERROR"
+    assert "api_key" in str(detail)
+
+
 def test_put_settings_validation_error_disk_limit(client):
     """Test PUT /api/settings validation error for invalid disk limit."""
     update_data = {
