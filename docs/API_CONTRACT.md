@@ -325,7 +325,7 @@ Response:
 
 ### WebSocket / Stream Notu
 - Live görüntü için **WS veya MJPEG** stream kullanılabilir.
-- API bu dokümanda **stream_url** ve **mode** döndürür; `webrtc` için go2rtc gereklidir.
+- API bu dokümanda **stream_url** ve **output_mode** döndürür; `webrtc` için go2rtc gereklidir.
 
 ### Stream endpoint detayları
 - `mjpeg`: `GET /api/live/{camera_id}.mjpeg`
