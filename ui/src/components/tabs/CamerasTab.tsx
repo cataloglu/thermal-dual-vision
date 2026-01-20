@@ -1,12 +1,31 @@
 /**
- * Cameras tab - Camera test functionality
+ * Cameras tab - Camera management and testing
  */
 import React, { useState } from 'react';
+import { CameraList } from '../CameraList';
+import { CameraFormModal } from '../CameraFormModal';
 import { testCamera } from '../../services/api';
 import type { CameraTestRequest, CameraTestResponse } from '../../types/api';
 import toast from 'react-hot-toast';
 
+interface Camera {
+  id: string
+  name: string
+  type: string
+  enabled: boolean
+  status: string
+  rtsp_url_thermal?: string
+  rtsp_url_color?: string
+  detection_source: string
+  stream_roles: string[]
+}
+
 export const CamerasTab: React.FC = () => {
+  const [showModal, setShowModal] = useState(false);
+  const [editingCamera, setEditingCamera] = useState<Camera | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Camera test form (quick test without saving)
   const [cameraType, setCameraType] = useState<'color' | 'thermal' | 'dual'>('thermal');
   const [thermalUrl, setThermalUrl] = useState('');
   const [colorUrl, setColorUrl] = useState('');
@@ -21,15 +40,15 @@ export const CamerasTab: React.FC = () => {
     };
 
     if (cameraType === 'thermal' && !thermalUrl) {
-      toast.error('Thermal RTSP URL is required');
+      toast.error('Termal RTSP adresi gerekli');
       return;
     }
     if (cameraType === 'color' && !colorUrl) {
-      toast.error('Color RTSP URL is required');
+      toast.error('Renkli RTSP adresi gerekli');
       return;
     }
     if (cameraType === 'dual' && (!thermalUrl || !colorUrl)) {
-      toast.error('Both RTSP URLs are required for dual camera');
+      toast.error('İkili kamera için her iki RTSP adresi gerekli');
       return;
     }
 
@@ -40,103 +59,139 @@ export const CamerasTab: React.FC = () => {
       const response = await testCamera(request);
       setResult(response);
       if (response.success) {
-        toast.success(`Camera test successful! Latency: ${response.latency_ms}ms`);
+        toast.success(`Kamera testi başarılı! Gecikme: ${response.latency_ms}ms`);
       } else {
-        toast.error(response.error_reason || 'Camera test failed');
+        toast.error(response.error_reason || 'Kamera testi başarısız');
       }
     } catch (error) {
-      toast.error('Failed to test camera connection');
+      toast.error('Kamera bağlantısı test edilemedi');
     } finally {
       setTesting(false);
     }
   };
 
+  const handleAdd = () => {
+    setEditingCamera(null);
+    setShowModal(true);
+  };
+
+  const handleEdit = (camera: Camera) => {
+    setEditingCamera(camera);
+    setShowModal(true);
+  };
+
+  const handleSave = () => {
+    setRefreshKey(prev => prev + 1);
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
+      {/* Camera List */}
+      <div key={refreshKey}>
+        <CameraList 
+          onAdd={handleAdd}
+          onEdit={handleEdit}
+          onRefresh={() => setRefreshKey(prev => prev + 1)}
+        />
+      </div>
+
+      {/* Divider */}
+      <div className="border-t border-border" />
+
+      {/* Quick Test Form */}
       <div>
-        <h3 className="text-lg font-medium text-text mb-4">Camera Test</h3>
+        <h3 className="text-lg font-medium text-text mb-4">Hızlı Bağlantı Testi</h3>
         <p className="text-sm text-muted mb-6">
-          Test RTSP camera connection and capture snapshot
+          Kamera kaydetmeden önce RTSP bağlantısını test edin
         </p>
-      </div>
 
-      <div className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-text mb-2">
-            Camera Type
-          </label>
-          <select
-            value={cameraType}
-            onChange={(e) => setCameraType(e.target.value as typeof cameraType)}
-            className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
-          >
-            <option value="thermal">Thermal</option>
-            <option value="color">Color</option>
-            <option value="dual">Dual (Thermal + Color)</option>
-          </select>
-        </div>
-
-        {(cameraType === 'thermal' || cameraType === 'dual') && (
+        <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-text mb-2">
-              Thermal RTSP URL
+              Kamera Tipi
             </label>
-            <input
-              type="text"
-              value={thermalUrl}
-              onChange={(e) => setThermalUrl(e.target.value)}
-              placeholder="rtsp://admin:password@192.168.1.100:554/Streaming/Channels/201"
-              className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent"
-            />
+            <select
+              value={cameraType}
+              onChange={(e) => setCameraType(e.target.value as typeof cameraType)}
+              className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
+            >
+              <option value="thermal">Termal</option>
+              <option value="color">Renkli</option>
+              <option value="dual">İkili (Termal + Renkli)</option>
+            </select>
           </div>
-        )}
 
-        {(cameraType === 'color' || cameraType === 'dual') && (
-          <div>
-            <label className="block text-sm font-medium text-text mb-2">
-              Color RTSP URL
-            </label>
-            <input
-              type="text"
-              value={colorUrl}
-              onChange={(e) => setColorUrl(e.target.value)}
-              placeholder="rtsp://admin:password@192.168.1.100:554/Streaming/Channels/101"
-              className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent"
-            />
-          </div>
-        )}
-
-        <button
-          onClick={handleTest}
-          disabled={testing}
-          className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {testing ? 'Testing...' : 'Test Connection'}
-        </button>
-      </div>
-
-      {result && result.success && result.snapshot_base64 && (
-        <div className="mt-6">
-          <h4 className="text-sm font-medium text-text mb-2">Snapshot</h4>
-          <div className="border border-border rounded-lg overflow-hidden">
-            <img
-              src={result.snapshot_base64}
-              alt="Camera snapshot"
-              className="w-full h-auto"
-            />
-          </div>
-          {result.latency_ms !== undefined && (
-            <p className="text-sm text-muted mt-2">
-              Latency: {result.latency_ms}ms
-            </p>
+          {(cameraType === 'thermal' || cameraType === 'dual') && (
+            <div>
+              <label className="block text-sm font-medium text-text mb-2">
+                Termal RTSP Adresi
+              </label>
+              <input
+                type="text"
+                value={thermalUrl}
+                onChange={(e) => setThermalUrl(e.target.value)}
+                placeholder="rtsp://admin:password@192.168.1.100:554/Streaming/Channels/201"
+                className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent font-mono text-sm"
+              />
+            </div>
           )}
-        </div>
-      )}
 
-      {result && !result.success && (
-        <div className="mt-6 p-4 bg-error bg-opacity-10 border border-error rounded-lg">
-          <p className="text-sm text-error">{result.error_reason}</p>
+          {(cameraType === 'color' || cameraType === 'dual') && (
+            <div>
+              <label className="block text-sm font-medium text-text mb-2">
+                Renkli RTSP Adresi
+              </label>
+              <input
+                type="text"
+                value={colorUrl}
+                onChange={(e) => setColorUrl(e.target.value)}
+                placeholder="rtsp://admin:password@192.168.1.100:554/Streaming/Channels/101"
+                className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent font-mono text-sm"
+              />
+            </div>
+          )}
+
+          <button
+            onClick={handleTest}
+            disabled={testing}
+            className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {testing ? 'Test Ediliyor...' : 'Bağlantıyı Test Et'}
+          </button>
         </div>
+
+        {result && result.success && result.snapshot_base64 && (
+          <div className="mt-6">
+            <h4 className="text-sm font-medium text-text mb-2">Görüntü</h4>
+            <div className="border border-border rounded-lg overflow-hidden">
+              <img
+                src={result.snapshot_base64}
+                alt="Kamera görüntüsü"
+                className="w-full h-auto"
+              />
+            </div>
+            {result.latency_ms !== undefined && (
+              <p className="text-sm text-muted mt-2">
+                Gecikme: {result.latency_ms}ms
+              </p>
+            )}
+          </div>
+        )}
+
+        {result && !result.success && (
+          <div className="mt-6 p-4 bg-error bg-opacity-10 border border-error rounded-lg">
+            <p className="text-sm text-error">{result.error_reason}</p>
+          </div>
+        )}
+      </div>
+
+      {/* Modal */}
+      {showModal && (
+        <CameraFormModal
+          camera={editingCamera}
+          onClose={() => setShowModal(false)}
+          onSave={handleSave}
+        />
       )}
     </div>
   );

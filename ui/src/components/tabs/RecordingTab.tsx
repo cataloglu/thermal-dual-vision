@@ -14,10 +14,27 @@ export const RecordingTab: React.FC<RecordingTabProps> = ({ config, onChange, on
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-medium text-text mb-4">Recording Settings</h3>
+        <h3 className="text-lg font-medium text-text mb-4">Kayıt Ayarları</h3>
         <p className="text-sm text-muted mb-6">
-          Configure event-based recording and retention policy
+          Event bazlı kayıt ve saklama politikası ayarları
         </p>
+      </div>
+
+      {/* Important Notice */}
+      <div className="bg-surface2 border-l-4 border-warning p-4 rounded-lg">
+        <h3 className="font-bold text-warning mb-2">⚠️ ÖNEMLİ: İki Farklı Kayıt Türü</h3>
+        <div className="space-y-3 text-sm">
+          <div>
+            <strong className="text-text">1. Sürekli Kayıt (7/24):</strong>
+            <p className="text-muted">Her şeyi kaydeder (person olsun olmasın)</p>
+            <p className="text-error">❌ KAPALI tutun (NVR zaten yapıyor!)</p>
+          </div>
+          <div>
+            <strong className="text-text">2. Hareket Kayıtları (Event):</strong>
+            <p className="text-muted">Sadece person algılandığında (collage/GIF/MP4)</p>
+            <p className="text-success">✅ HER ZAMAN AÇIK (otomatik)</p>
+          </div>
+        </div>
       </div>
 
       <div className="space-y-4">
@@ -30,7 +47,7 @@ export const RecordingTab: React.FC<RecordingTabProps> = ({ config, onChange, on
             className="w-4 h-4 text-accent bg-surface2 border-border rounded focus:ring-accent"
           />
           <label htmlFor="recording-enabled" className="text-sm font-medium text-text">
-            Enable Recording
+            Sürekli Kayıt (7/24) - Önerilmez
           </label>
         </div>
 
@@ -38,7 +55,7 @@ export const RecordingTab: React.FC<RecordingTabProps> = ({ config, onChange, on
           <>
             <div>
               <label className="block text-sm font-medium text-text mb-2">
-                Retention Days
+                Saklama Süresi (Gün)
               </label>
               <input
                 type="number"
@@ -49,13 +66,13 @@ export const RecordingTab: React.FC<RecordingTabProps> = ({ config, onChange, on
                 className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
               />
               <p className="text-xs text-muted mt-1">
-                How many days to keep recordings
+                Kayıtlar kaç gün saklanacak
               </p>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-text mb-2">
-                Disk Limit: {config.disk_limit_percent}%
+                Disk Limiti: {config.disk_limit_percent}%
               </label>
               <input
                 type="range"
@@ -64,16 +81,16 @@ export const RecordingTab: React.FC<RecordingTabProps> = ({ config, onChange, on
                 step="5"
                 value={config.disk_limit_percent}
                 onChange={(e) => onChange({ ...config, disk_limit_percent: parseInt(e.target.value) })}
-                className="w-full"
+                className="w-full h-2 bg-surface2 rounded-lg appearance-none cursor-pointer accent-accent"
               />
               <p className="text-xs text-muted mt-1">
-                Maximum disk usage percentage (50-95%)
+                Maksimum disk kullanımı yüzdesi (50-95%)
               </p>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-text mb-2">
-                Segment Length (seconds)
+                Segment Uzunluğu (saniye)
               </label>
               <input
                 type="number"
@@ -84,7 +101,7 @@ export const RecordingTab: React.FC<RecordingTabProps> = ({ config, onChange, on
                 className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
               />
               <p className="text-xs text-muted mt-1">
-                Length of each recording segment
+                Her kayıt segmentinin uzunluğu
               </p>
             </div>
           </>
@@ -95,7 +112,7 @@ export const RecordingTab: React.FC<RecordingTabProps> = ({ config, onChange, on
         onClick={onSave}
         className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-opacity-90 transition-colors"
       >
-        Save Recording Settings
+        Kayıt Ayarlarını Kaydet
       </button>
     </div>
   );

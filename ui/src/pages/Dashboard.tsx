@@ -33,6 +33,8 @@ interface Event {
   event_type: string
   summary: string | null
   collage_url: string
+  gif_url: string
+  mp4_url: string
 }
 
 export function Dashboard() {

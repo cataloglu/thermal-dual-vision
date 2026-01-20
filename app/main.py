@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_session, init_db
 from app.models.camera import CameraTestRequest, CameraTestResponse
 from app.services.camera import get_camera_service
+from app.services.camera_crud import get_camera_crud_service
 from app.services.events import get_event_service
 from app.services.media import get_media_service
 from app.services.settings import get_settings_service
@@ -51,6 +52,7 @@ init_db()
 # Initialize services
 settings_service = get_settings_service()
 camera_service = get_camera_service()
+camera_crud_service = get_camera_crud_service()
 event_service = get_event_service()
 media_service = get_media_service()
 retention_worker = get_retention_worker()
@@ -629,21 +631,24 @@ async def get_live_streams() -> Dict[str, Any]:
 
 
 @app.get("/api/cameras")
-async def get_cameras() -> Dict[str, Any]:
+async def get_cameras(db: Session = Depends(get_session)) -> Dict[str, Any]:
     """
     Get all cameras.
     
     Returns:
-        Dict containing list of cameras
+        Dict containing list of cameras with masked RTSP URLs
         
     Raises:
         HTTPException: 500 if error occurs
     """
     try:
-        # TODO: Implement camera service integration
-        # For now, return empty list
+        cameras = camera_crud_service.get_cameras(db)
+        
+        # Convert to dict with masked URLs
+        cameras_list = [camera_crud_service.mask_rtsp_urls(cam) for cam in cameras]
+        
         return {
-            "cameras": []
+            "cameras": cameras_list
         }
         
     except Exception as e:
@@ -654,6 +659,171 @@ async def get_cameras() -> Dict[str, Any]:
                 "error": True,
                 "code": "INTERNAL_ERROR",
                 "message": f"Failed to retrieve cameras: {str(e)}"
+            }
+        )
+
+
+@app.post("/api/cameras")
+async def create_camera(
+    request: Dict[str, Any],
+    db: Session = Depends(get_session)
+) -> Dict[str, Any]:
+    """
+    Create a new camera.
+    
+    Args:
+        request: Camera data
+        db: Database session
+        
+    Returns:
+        Created camera with masked RTSP URLs
+        
+    Raises:
+        HTTPException: 400 if validation fails, 500 if creation fails
+    """
+    try:
+        camera = camera_crud_service.create_camera(
+            db=db,
+            name=request.get("name"),
+            camera_type=request.get("type"),
+            rtsp_url_thermal=request.get("rtsp_url_thermal"),
+            rtsp_url_color=request.get("rtsp_url_color"),
+            channel_color=request.get("channel_color"),
+            channel_thermal=request.get("channel_thermal"),
+            detection_source=request.get("detection_source", "auto"),
+            stream_roles=request.get("stream_roles", ["detect", "live"]),
+            enabled=request.get("enabled", True),
+            zones=request.get("zones", []),
+            motion_config=request.get("motion_config")
+        )
+        
+        return camera_crud_service.mask_rtsp_urls(camera)
+        
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": True,
+                "code": "VALIDATION_ERROR",
+                "message": str(e)
+            }
+        )
+    except Exception as e:
+        logger.error(f"Failed to create camera: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": True,
+                "code": "INTERNAL_ERROR",
+                "message": f"Failed to create camera: {str(e)}"
+            }
+        )
+
+
+@app.put("/api/cameras/{camera_id}")
+async def update_camera(
+    camera_id: str,
+    request: Dict[str, Any],
+    db: Session = Depends(get_session)
+) -> Dict[str, Any]:
+    """
+    Update camera.
+    
+    Args:
+        camera_id: Camera ID
+        request: Update data (partial)
+        db: Database session
+        
+    Returns:
+        Updated camera with masked RTSP URLs
+        
+    Raises:
+        HTTPException: 404 if not found, 400 if validation fails, 500 if update fails
+    """
+    try:
+        camera = camera_crud_service.update_camera(db, camera_id, request)
+        
+        if not camera:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "error": True,
+                    "code": "CAMERA_NOT_FOUND",
+                    "message": f"Camera with id {camera_id} not found"
+                }
+            )
+        
+        return camera_crud_service.mask_rtsp_urls(camera)
+        
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": True,
+                "code": "VALIDATION_ERROR",
+                "message": str(e)
+            }
+        )
+    except Exception as e:
+        logger.error(f"Failed to update camera {camera_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": True,
+                "code": "INTERNAL_ERROR",
+                "message": f"Failed to update camera: {str(e)}"
+            }
+        )
+
+
+@app.delete("/api/cameras/{camera_id}")
+async def delete_camera(
+    camera_id: str,
+    db: Session = Depends(get_session)
+) -> Dict[str, Any]:
+    """
+    Delete camera.
+    
+    Args:
+        camera_id: Camera ID
+        db: Database session
+        
+    Returns:
+        Dict with deleted status
+        
+    Raises:
+        HTTPException: 404 if not found, 500 if deletion fails
+    """
+    try:
+        deleted = camera_crud_service.delete_camera(db, camera_id)
+        
+        if not deleted:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "error": True,
+                    "code": "CAMERA_NOT_FOUND",
+                    "message": f"Camera with id {camera_id} not found"
+                }
+            )
+        
+        return {
+            "deleted": True,
+            "id": camera_id
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete camera {camera_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": True,
+                "code": "INTERNAL_ERROR",
+                "message": f"Failed to delete camera: {str(e)}"
             }
         )
 
