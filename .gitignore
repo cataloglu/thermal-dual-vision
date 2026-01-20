@@ -40,6 +40,7 @@ yarn-error.log*
 dist/
 build/
 *.egg-info/
+ui/test-results/
 
 # Media (test files)
 *.mp4

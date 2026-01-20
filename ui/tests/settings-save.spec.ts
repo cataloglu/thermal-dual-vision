@@ -207,83 +207,90 @@ const mockSettingsApi = async (page: Page) => {
   })
 }
 
-const setTurkish = async (page: Page) => {
+const setLanguage = async (page: Page, language: 'tr' | 'en') => {
   await page.addInitScript(() => {
-    localStorage.setItem('language', 'tr')
-  })
+    localStorage.setItem('language', (window as any).__lang || 'tr')
+  }, { __lang: language })
 }
 
 const expectSavedToast = async (page: Page) => {
   await expect(page.getByText('Settings saved successfully')).toBeVisible()
 }
 
-const inputByLabel = (page: Page, label: string) =>
+const inputByLabel = (page: Page, label: RegExp) =>
   page.locator('label', { hasText: label }).locator('..').locator('input')
 
-const selectByLabel = (page: Page, label: string) =>
+const selectByLabel = (page: Page, label: RegExp) =>
   page.locator('label', { hasText: label }).locator('..').locator('select')
 
-test.beforeEach(async ({ page }) => {
-  await mockSettingsApi(page)
-  await setTurkish(page)
-})
+const runSaveTests = (language: 'tr' | 'en') => {
+  test.describe(`${language.toUpperCase()} settings save`, () => {
+    test.beforeEach(async ({ page }) => {
+      await mockSettingsApi(page)
+      await setLanguage(page, language)
+    })
 
-test('Detection settings save', async ({ page }) => {
-  await page.goto('/settings?tab=detection')
-  await inputByLabel(page, 'Çıkarım FPS').fill('6')
-  await page.getByRole('button', { name: 'Algılama Ayarlarını Kaydet' }).click()
-  await expectSavedToast(page)
-})
+    test('Detection settings save', async ({ page }) => {
+      await page.goto('/settings?tab=detection')
+      await inputByLabel(page, /Çıkarım FPS|Inference FPS/i).fill('6')
+      await page.getByRole('button', { name: /Algılama Ayarlarını Kaydet|Save Detection Settings/i }).click()
+      await expectSavedToast(page)
+    })
 
-test('Thermal settings save', async ({ page }) => {
-  await page.goto('/settings?tab=thermal')
-  await selectByLabel(page, 'Enhancement Method').selectOption('histogram')
-  await page.getByRole('button', { name: 'Termal Ayarları Kaydet' }).click()
-  await expectSavedToast(page)
-})
+    test('Thermal settings save', async ({ page }) => {
+      await page.goto('/settings?tab=thermal')
+      await selectByLabel(page, /İyileştirme Yöntemi|Enhancement Method/i).selectOption('histogram')
+      await page.getByRole('button', { name: /Termal Ayarları Kaydet|Save Thermal Settings/i }).click()
+      await expectSavedToast(page)
+    })
 
-test('Stream settings save', async ({ page }) => {
-  await page.goto('/settings?tab=stream')
-  await inputByLabel(page, 'Buffer Size').fill('2')
-  await page.getByRole('button', { name: 'Yayın Ayarlarını Kaydet' }).click()
-  await expectSavedToast(page)
-})
+    test('Stream settings save', async ({ page }) => {
+      await page.goto('/settings?tab=stream')
+      await inputByLabel(page, /Buffer Size|Buffer Boyutu/i).fill('2')
+      await page.getByRole('button', { name: /Yayın Ayarlarını Kaydet|Save Stream Settings/i }).click()
+      await expectSavedToast(page)
+    })
 
-test('Live settings save', async ({ page }) => {
-  await page.goto('/settings?tab=live')
-  await selectByLabel(page, 'Output Mode').selectOption('webrtc')
-  await page.getByRole('button', { name: 'Canlı Görüntü Ayarlarını Kaydet' }).click()
-  await expectSavedToast(page)
-})
+    test('Live settings save', async ({ page }) => {
+      await page.goto('/settings?tab=live')
+      await selectByLabel(page, /Çıkış Modu|Output Mode/i).selectOption('webrtc')
+      await page.getByRole('button', { name: /Canlı Görüntü Ayarlarını Kaydet|Save Live Settings/i }).click()
+      await expectSavedToast(page)
+    })
 
-test('Recording settings save', async ({ page }) => {
-  await page.goto('/settings?tab=recording')
-  await page.locator('#recording-enabled').check()
-  await inputByLabel(page, 'Saklama Süresi (Gün)').fill('14')
-  await page.getByRole('button', { name: 'Kayıt Ayarlarını Kaydet' }).click()
-  await expectSavedToast(page)
-})
+    test('Recording settings save', async ({ page }) => {
+      await page.goto('/settings?tab=recording')
+      await page.locator('#recording-enabled').check()
+      await inputByLabel(page, /Saklama Süresi \(Gün\)|Retention Days/i).fill('14')
+      await page.getByRole('button', { name: /Kayıt Ayarlarını Kaydet|Save Recording Settings/i }).click()
+      await expectSavedToast(page)
+    })
 
-test('Events settings save', async ({ page }) => {
-  await page.goto('/settings?tab=events')
-  await inputByLabel(page, 'Cooldown (seconds)').fill('3')
-  await page.getByRole('button', { name: 'Olay Ayarlarını Kaydet' }).click()
-  await expectSavedToast(page)
-})
+    test('Events settings save', async ({ page }) => {
+      await page.goto('/settings?tab=events')
+      await inputByLabel(page, /Bekleme Süresi \(saniye\)|Cooldown \(seconds\)/i).fill('3')
+      await page.getByRole('button', { name: /Olay Ayarlarını Kaydet|Save Event Settings/i }).click()
+      await expectSavedToast(page)
+    })
 
-test('AI settings save', async ({ page }) => {
-  await page.goto('/settings?tab=ai')
-  await page.locator('#ai-enabled').check()
-  await inputByLabel(page, 'Model').fill('gpt-4o-mini')
-  await page.getByRole('button', { name: 'AI Ayarlarını Kaydet' }).click()
-  await expectSavedToast(page)
-})
+    test('AI settings save', async ({ page }) => {
+      await page.goto('/settings?tab=ai')
+      await page.locator('#ai-enabled').check()
+      await inputByLabel(page, /Model/i).fill('gpt-4o-mini')
+      await page.getByRole('button', { name: /AI Ayarlarını Kaydet|Save AI Settings/i }).click()
+      await expectSavedToast(page)
+    })
 
-test('Telegram settings save', async ({ page }) => {
-  await page.goto('/settings?tab=telegram')
-  await page.locator('#telegram-enabled').check()
-  await page.getByPlaceholder('Enter chat ID and press Enter').fill('123456789')
-  await page.getByRole('button', { name: 'Add' }).click()
-  await page.getByRole('button', { name: 'Telegram Ayarlarını Kaydet' }).click()
-  await expectSavedToast(page)
-})
+    test('Telegram settings save', async ({ page }) => {
+      await page.goto('/settings?tab=telegram')
+      await page.locator('#telegram-enabled').check()
+      await page.getByPlaceholder('Enter chat ID and press Enter').fill('123456789')
+      await page.getByRole('button', { name: /Add|Ekle/i }).click()
+      await page.getByRole('button', { name: /Telegram Ayarlarını Kaydet|Save Telegram Settings/i }).click()
+      await expectSavedToast(page)
+    })
+  })
+}
+
+runSaveTests('tr')
+runSaveTests('en')
