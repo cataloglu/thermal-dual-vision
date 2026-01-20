@@ -2,14 +2,18 @@
 Smart Motion Detector v2 - Main Entry Point
 """
 import logging
-from typing import Any, Dict
+from datetime import date
+from typing import Any, Dict, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
+from sqlalchemy.orm import Session
 
+from app.db.session import get_session, init_db
 from app.models.camera import CameraTestRequest, CameraTestResponse
 from app.services.camera import get_camera_service
+from app.services.events import get_event_service
 from app.services.settings import get_settings_service
 
 
@@ -35,9 +39,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Initialize database
+init_db()
+
 # Initialize services
 settings_service = get_settings_service()
 camera_service = get_camera_service()
+event_service = get_event_service()
 
 
 @app.get("/")
@@ -225,6 +233,195 @@ async def test_camera(request: CameraTestRequest) -> CameraTestResponse:
                 "error": True,
                 "code": "SNAPSHOT_FAILED",
                 "message": f"Failed to test camera: {str(e)}"
+            }
+        )
+
+
+@app.get("/api/events")
+async def get_events(
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(20, ge=1, le=100, description="Events per page"),
+    camera_id: Optional[str] = Query(None, description="Filter by camera ID"),
+    date: Optional[date] = Query(None, description="Filter by date (YYYY-MM-DD)"),
+    confidence: Optional[float] = Query(None, ge=0.0, le=1.0, description="Minimum confidence"),
+    db: Session = Depends(get_session),
+) -> Dict[str, Any]:
+    """
+    Get events with pagination and filtering.
+    
+    Supports filtering by camera_id, date, and minimum confidence.
+    Results are ordered by timestamp (newest first).
+    
+    Args:
+        page: Page number (1-indexed)
+        page_size: Number of events per page (max 100)
+        camera_id: Filter by camera ID (optional)
+        date: Filter by date (optional)
+        confidence: Minimum confidence threshold (optional)
+        db: Database session
+        
+    Returns:
+        Dict containing page, page_size, total, and events list
+        
+    Raises:
+        HTTPException: 500 if database error occurs
+    """
+    try:
+        result = event_service.get_events(
+            db=db,
+            page=page,
+            page_size=page_size,
+            camera_id=camera_id,
+            date_filter=date,
+            min_confidence=confidence,
+        )
+        
+        # Convert events to dict
+        events_list = []
+        for event in result["events"]:
+            events_list.append({
+                "id": event.id,
+                "camera_id": event.camera_id,
+                "timestamp": event.timestamp.isoformat() + "Z",
+                "confidence": event.confidence,
+                "event_type": event.event_type,
+                "summary": event.summary,
+                "collage_url": event.collage_url or f"/api/events/{event.id}/collage",
+                "gif_url": event.gif_url or f"/api/events/{event.id}/preview.gif",
+                "mp4_url": event.mp4_url or f"/api/events/{event.id}/timelapse.mp4",
+            })
+        
+        return {
+            "page": result["page"],
+            "page_size": result["page_size"],
+            "total": result["total"],
+            "events": events_list,
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get events: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": True,
+                "code": "INTERNAL_ERROR",
+                "message": f"Failed to retrieve events: {str(e)}"
+            }
+        )
+
+
+@app.get("/api/events/{event_id}")
+async def get_event(
+    event_id: str,
+    db: Session = Depends(get_session),
+) -> Dict[str, Any]:
+    """
+    Get event by ID.
+    
+    Returns detailed event information including AI summary and media URLs.
+    
+    Args:
+        event_id: Event ID
+        db: Database session
+        
+    Returns:
+        Dict containing event details
+        
+    Raises:
+        HTTPException: 404 if event not found, 500 if database error
+    """
+    try:
+        event = event_service.get_event_by_id(db=db, event_id=event_id)
+        
+        if not event:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "error": True,
+                    "code": "EVENT_NOT_FOUND",
+                    "message": f"Event with id {event_id} not found"
+                }
+            )
+        
+        return {
+            "id": event.id,
+            "camera_id": event.camera_id,
+            "timestamp": event.timestamp.isoformat() + "Z",
+            "confidence": event.confidence,
+            "event_type": event.event_type,
+            "summary": event.summary,
+            "ai": {
+                "enabled": event.ai_enabled,
+                "reason": event.ai_reason,
+                "text": event.summary,
+            },
+            "media": {
+                "collage_url": event.collage_url or f"/api/events/{event.id}/collage",
+                "gif_url": event.gif_url or f"/api/events/{event.id}/preview.gif",
+                "mp4_url": event.mp4_url or f"/api/events/{event.id}/timelapse.mp4",
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get event {event_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": True,
+                "code": "INTERNAL_ERROR",
+                "message": f"Failed to retrieve event: {str(e)}"
+            }
+        )
+
+
+@app.delete("/api/events/{event_id}")
+async def delete_event(
+    event_id: str,
+    db: Session = Depends(get_session),
+) -> Dict[str, Any]:
+    """
+    Delete event by ID.
+    
+    Args:
+        event_id: Event ID
+        db: Database session
+        
+    Returns:
+        Dict with deleted status and event ID
+        
+    Raises:
+        HTTPException: 404 if event not found, 500 if database error
+    """
+    try:
+        deleted = event_service.delete_event(db=db, event_id=event_id)
+        
+        if not deleted:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "error": True,
+                    "code": "EVENT_NOT_FOUND",
+                    "message": f"Event with id {event_id} not found"
+                }
+            )
+        
+        return {
+            "deleted": True,
+            "id": event_id,
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete event {event_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": True,
+                "code": "INTERNAL_ERROR",
+                "message": f"Failed to delete event: {str(e)}"
             }
         )
 
