@@ -1,0 +1,322 @@
+"""
+Telegram service for Smart Motion Detector v2.
+
+Handles Telegram bot notifications for events.
+"""
+import logging
+import time
+from pathlib import Path
+from typing import Dict, Any, List, Optional
+from datetime import datetime, timedelta
+import asyncio
+
+from telegram import Bot
+from telegram.error import TelegramError
+
+from app.services.settings import get_settings_service
+
+
+logger = logging.getLogger(__name__)
+
+
+class TelegramService:
+    """
+    Telegram notification service.
+    
+    Handles:
+    - Event notifications with media
+    - Rate limiting (5 seconds between messages)
+    - Cooldown mechanism
+    - Connection testing
+    """
+    
+    def __init__(self):
+        """Initialize Telegram service."""
+        self.settings_service = get_settings_service()
+        self.last_message_time: Dict[str, float] = {}
+        self.cooldown_until: Dict[str, float] = {}
+        logger.info("TelegramService initialized")
+    
+    async def send_event_notification(
+        self,
+        event: Dict[str, Any],
+        camera: Optional[Dict[str, Any]] = None,
+        collage_path: Optional[Path] = None,
+        gif_path: Optional[Path] = None
+    ) -> bool:
+        """
+        Send event notification to Telegram.
+        
+        Args:
+            event: Event data (id, camera_id, timestamp, confidence, summary)
+            camera: Camera data (optional, for name)
+            collage_path: Path to collage image (optional)
+            gif_path: Path to GIF animation (optional)
+            
+        Returns:
+            True if sent successfully, False otherwise
+        """
+        try:
+            # Load config
+            config = self.settings_service.load_config()
+            
+            # Check if Telegram is enabled
+            if not config.telegram.enabled:
+                logger.debug("Telegram is disabled")
+                return False
+            
+            # Check bot token
+            if not config.telegram.bot_token or config.telegram.bot_token == "***REDACTED***":
+                logger.warning("Telegram bot token not configured")
+                return False
+            
+            # Check chat IDs
+            if not config.telegram.chat_ids:
+                logger.warning("No Telegram chat IDs configured")
+                return False
+            
+            # Check rate limit
+            camera_id = event.get('camera_id', 'unknown')
+            if not self._check_rate_limit(camera_id, config.telegram.rate_limit_seconds):
+                logger.debug(f"Rate limit active for camera {camera_id}")
+                return False
+            
+            # Check cooldown
+            if not self._check_cooldown(camera_id, config.telegram.cooldown_seconds):
+                logger.debug(f"Cooldown active for camera {camera_id}")
+                return False
+            
+            # Create bot
+            bot = Bot(token=config.telegram.bot_token)
+            
+            # Format message
+            message = self._format_message(event, camera)
+            
+            # Send to all chat IDs
+            success = False
+            for chat_id in config.telegram.chat_ids:
+                try:
+                    # Send photo with caption if collage available
+                    if collage_path and collage_path.exists() and config.telegram.send_images:
+                        with open(collage_path, 'rb') as photo:
+                            await bot.send_photo(
+                                chat_id=chat_id,
+                                photo=photo,
+                                caption=message,
+                                parse_mode='HTML'
+                            )
+                    else:
+                        # Send text only
+                        await bot.send_message(
+                            chat_id=chat_id,
+                            text=message,
+                            parse_mode='HTML'
+                        )
+                    
+                    # Send GIF as document if available
+                    if gif_path and gif_path.exists() and config.telegram.send_images:
+                        with open(gif_path, 'rb') as gif:
+                            await bot.send_document(
+                                chat_id=chat_id,
+                                document=gif,
+                                caption="🎬 Event Animation"
+                            )
+                    
+                    logger.info(f"Telegram notification sent to {chat_id}")
+                    success = True
+                    
+                except TelegramError as e:
+                    logger.error(f"Failed to send to {chat_id}: {e}")
+            
+            # Update rate limit
+            if success:
+                self._update_rate_limit(camera_id)
+            
+            return success
+            
+        except Exception as e:
+            logger.error(f"Telegram notification failed: {e}")
+            return False
+    
+    def _format_message(
+        self,
+        event: Dict[str, Any],
+        camera: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """
+        Format Telegram message.
+        
+        Args:
+            event: Event data
+            camera: Camera data (optional)
+            
+        Returns:
+            Formatted message text
+        """
+        camera_name = camera.get('name', event.get('camera_id', 'Unknown')) if camera else event.get('camera_id', 'Unknown')
+        timestamp = event.get('timestamp', 'Unknown')
+        confidence = event.get('confidence', 0) * 100
+        summary = event.get('summary', 'Hareket algılandı')
+        
+        # Parse timestamp
+        try:
+            dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+            time_str = dt.strftime('%d.%m.%Y %H:%M:%S')
+        except:
+            time_str = timestamp
+        
+        # Format message
+        message = f"""🚨 <b>{camera_name} - Hareket Algılandı</b>
+
+⏰ <b>Zaman:</b> {time_str}
+🎯 <b>Güven:</b> {confidence:.0f}%
+
+📝 <b>Detay:</b>
+{summary}"""
+        
+        return message
+    
+    def _check_rate_limit(self, camera_id: str, rate_limit_seconds: int) -> bool:
+        """
+        Check if rate limit allows sending.
+        
+        Args:
+            camera_id: Camera ID
+            rate_limit_seconds: Rate limit in seconds
+            
+        Returns:
+            True if allowed, False if rate limited
+        """
+        now = time.time()
+        last_time = self.last_message_time.get(camera_id, 0)
+        
+        if now - last_time < rate_limit_seconds:
+            return False
+        
+        return True
+    
+    def _update_rate_limit(self, camera_id: str):
+        """
+        Update rate limit timestamp.
+        
+        Args:
+            camera_id: Camera ID
+        """
+        self.last_message_time[camera_id] = time.time()
+    
+    def _check_cooldown(self, camera_id: str, cooldown_seconds: int) -> bool:
+        """
+        Check if cooldown period has passed.
+        
+        Args:
+            camera_id: Camera ID
+            cooldown_seconds: Cooldown in seconds
+            
+        Returns:
+            True if allowed, False if in cooldown
+        """
+        now = time.time()
+        cooldown_until = self.cooldown_until.get(camera_id, 0)
+        
+        if now < cooldown_until:
+            return False
+        
+        return True
+    
+    def _set_cooldown(self, camera_id: str, cooldown_seconds: int):
+        """
+        Set cooldown period.
+        
+        Args:
+            camera_id: Camera ID
+            cooldown_seconds: Cooldown in seconds
+        """
+        self.cooldown_until[camera_id] = time.time() + cooldown_seconds
+    
+    async def test_connection(
+        self,
+        bot_token: str,
+        chat_ids: List[str]
+    ) -> Dict[str, Any]:
+        """
+        Test Telegram connection.
+        
+        Args:
+            bot_token: Telegram bot token
+            chat_ids: List of chat IDs
+            
+        Returns:
+            Dict with success status and message
+        """
+        try:
+            # Create bot
+            bot = Bot(token=bot_token)
+            
+            # Get bot info
+            start_time = time.time()
+            me = await bot.get_me()
+            latency_ms = int((time.time() - start_time) * 1000)
+            
+            # Test send to first chat ID
+            if chat_ids:
+                test_message = f"✅ Test mesajı başarılı!\n\nBot: @{me.username}\nLatency: {latency_ms}ms"
+                await bot.send_message(
+                    chat_id=chat_ids[0],
+                    text=test_message
+                )
+            
+            return {
+                "success": True,
+                "bot_username": me.username,
+                "latency_ms": latency_ms,
+                "error_reason": None
+            }
+            
+        except TelegramError as e:
+            logger.error(f"Telegram test failed: {e}")
+            return {
+                "success": False,
+                "bot_username": None,
+                "latency_ms": None,
+                "error_reason": str(e)
+            }
+        except Exception as e:
+            logger.error(f"Telegram test error: {e}")
+            return {
+                "success": False,
+                "bot_username": None,
+                "latency_ms": None,
+                "error_reason": str(e)
+            }
+    
+    def is_enabled(self) -> bool:
+        """
+        Check if Telegram is enabled.
+        
+        Returns:
+            True if Telegram is enabled and configured
+        """
+        try:
+            config = self.settings_service.load_config()
+            has_token = config.telegram.bot_token and config.telegram.bot_token != "***REDACTED***"
+            has_chats = bool(config.telegram.chat_ids)
+            return bool(config.telegram.enabled and has_token and has_chats)
+        except Exception:
+            return False
+
+
+# Global singleton instance
+_telegram_service: Optional[TelegramService] = None
+
+
+def get_telegram_service() -> TelegramService:
+    """
+    Get or create the global Telegram service instance.
+    
+    Returns:
+        TelegramService: Global Telegram service instance
+    """
+    global _telegram_service
+    if _telegram_service is None:
+        _telegram_service = TelegramService()
+    return _telegram_service

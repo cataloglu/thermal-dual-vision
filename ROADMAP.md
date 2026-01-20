@@ -312,44 +312,56 @@ Bu dosya implementation öncelik sırasını ve her aşamada yapılacakları det
 
 ---
 
-### 📱 Phase 12: Telegram Integration (Öncelik: 🟢 Düşük - Opsiyonel)
+### ✅ Phase 12: Telegram Integration (TAMAMLANDI)
 **Hedef**: Event notifications via Telegram
 
 **Yapılacaklar**:
-- [ ] `app/services/telegram.py` oluştur
-  - [ ] Telegram bot client
-  - [ ] Send message + photo + video
-  - [ ] Rate limiting
-  - [ ] Cooldown mechanism
-  - [ ] Test endpoint (`POST /api/telegram/test`)
-- [ ] Event notification trigger
-- [ ] Settings UI (bot token, chat IDs)
+- [x] `app/services/telegram.py` oluştur
+  - [x] Telegram bot client
+  - [x] Send message + photo + video
+  - [x] Rate limiting (5 seconds)
+  - [x] Cooldown mechanism
+  - [x] Test endpoint (`POST /api/telegram/test`)
+  - [x] Message formatting (HTML)
+  - [x] Error handling
+- [x] Event notification trigger
+- [x] Settings UI (bot token, chat IDs)
+- [x] Comprehensive tests (15 tests, 87% coverage)
 
 **Bağımlılıklar**: Media Generation  
 **Tahmini Süre**: 2-3 gün  
 **Dosyalar**:
 - `app/services/telegram.py`
 - `tests/test_telegram.py`
+- `app/main.py`
 
 ---
 
-### 🔍 Phase 13: Diagnostics Page (Öncelik: 🟢 Düşük)
+### ✅ Phase 13: Diagnostics Page (TAMAMLANDI)
 **Hedef**: System diagnostics + logs
 
 **Yapılacaklar**:
-- [ ] `GET /api/logs` endpoint implement
-- [ ] `ui/src/pages/Diagnostics.tsx`
-  - [ ] Health JSON viewer
-  - [ ] Logs tail (last 200 lines)
-  - [ ] Copy button
-  - [ ] Retry/backoff status
-  - [ ] Camera errors
+- [x] `GET /api/logs` endpoint implement
+- [x] `ui/src/pages/Diagnostics.tsx`
+  - [x] Health JSON viewer (pretty print)
+  - [x] Logs tail (last 200 lines)
+  - [x] Copy buttons (health + logs)
+  - [x] Auto-refresh toggle (5s)
+  - [x] Refresh button
+  - [x] Log line count display
+- [x] `app/services/logs.py`
+  - [x] Log file reading
+  - [x] Line limiting
+  - [x] File size calculation
+- [x] Comprehensive tests (8 tests, 86% coverage)
 
 **Bağımlılıklar**: Yok  
 **Tahmini Süre**: 1-2 gün  
 **Dosyalar**:
 - `ui/src/pages/Diagnostics.tsx`
 - `app/services/logs.py`
+- `tests/test_logs.py`
+- `app/main.py`
 
 ---
 

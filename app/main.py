@@ -18,6 +18,8 @@ from app.services.events import get_event_service
 from app.services.media import get_media_service
 from app.services.settings import get_settings_service
 from app.services.websocket import get_websocket_manager
+from app.services.telegram import get_telegram_service
+from app.services.logs import get_logs_service
 from app.workers.retention import get_retention_worker
 
 
@@ -53,6 +55,8 @@ event_service = get_event_service()
 media_service = get_media_service()
 retention_worker = get_retention_worker()
 websocket_manager = get_websocket_manager()
+telegram_service = get_telegram_service()
+logs_service = get_logs_service()
 
 
 @app.on_event("startup")
@@ -689,6 +693,107 @@ async def websocket_endpoint(websocket: WebSocket):
                 
     finally:
         await websocket_manager.disconnect(websocket)
+
+
+@app.post("/api/telegram/test")
+async def test_telegram(request: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Test Telegram bot connection.
+    
+    Args:
+        request: Dict with bot_token and chat_ids
+        
+    Returns:
+        Dict with test results
+        
+    Raises:
+        HTTPException: 400 if validation fails, 500 if test fails
+    """
+    try:
+        bot_token = request.get("bot_token")
+        chat_ids = request.get("chat_ids", [])
+        
+        if not bot_token:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": True,
+                    "code": "VALIDATION_ERROR",
+                    "message": "bot_token is required"
+                }
+            )
+        
+        if not chat_ids:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": True,
+                    "code": "VALIDATION_ERROR",
+                    "message": "chat_ids is required"
+                }
+            )
+        
+        # Test connection
+        result = await telegram_service.test_connection(bot_token, chat_ids)
+        
+        if not result["success"]:
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "error": True,
+                    "code": "TELEGRAM_TEST_FAILED",
+                    "message": result["error_reason"]
+                }
+            )
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Telegram test failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": True,
+                "code": "INTERNAL_ERROR",
+                "message": f"Telegram test failed: {str(e)}"
+            }
+        )
+
+
+@app.get("/api/logs")
+async def get_logs(lines: int = Query(200, ge=1, le=1000, description="Number of log lines")) -> Dict[str, Any]:
+    """
+    Get application logs.
+    
+    Args:
+        lines: Number of log lines to return (max 1000)
+        
+    Returns:
+        Dict with log lines
+        
+    Raises:
+        HTTPException: 500 if error occurs
+    """
+    try:
+        log_lines = logs_service.get_logs(lines)
+        
+        return {
+            "lines": log_lines,
+            "count": len(log_lines)
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get logs: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": True,
+                "code": "INTERNAL_ERROR",
+                "message": f"Failed to retrieve logs: {str(e)}"
+            }
+        )
 
 
 if __name__ == "__main__":
