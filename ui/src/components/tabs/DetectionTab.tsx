@@ -14,9 +14,9 @@ export const DetectionTab: React.FC<DetectionTabProps> = ({ config, onChange, on
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-medium text-text mb-4">Detection Settings</h3>
+        <h3 className="text-lg font-medium text-text mb-4">Algılama Ayarları</h3>
         <p className="text-sm text-muted mb-6">
-          Configure YOLOv8 person detection model and inference parameters
+          YOLOv8 kişi algılama modeli ve çıkarım parametrelerini yapılandırın
         </p>
       </div>
 
@@ -30,17 +30,17 @@ export const DetectionTab: React.FC<DetectionTabProps> = ({ config, onChange, on
             onChange={(e) => onChange({ ...config, model: e.target.value as DetectionConfig['model'] })}
             className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
           >
-            <option value="yolov8n-person">YOLOv8n-person (Fast, Edge devices)</option>
-            <option value="yolov8s-person">YOLOv8s-person (Accurate, Server)</option>
+            <option value="yolov8n-person">YOLOv8n-person (Hızlı, Edge cihazlar)</option>
+            <option value="yolov8s-person">YOLOv8s-person (Doğru, Sunucu)</option>
           </select>
           <p className="text-xs text-muted mt-1">
-            n = faster, s = more accurate
+            n = daha hızlı, s = daha doğru
           </p>
         </div>
 
         <div>
           <label className="block text-sm font-medium text-text mb-2">
-            Confidence Threshold: {config.confidence_threshold.toFixed(2)}
+            Güven Eşiği: {config.confidence_threshold.toFixed(2)}
           </label>
           <input
             type="range"
@@ -52,14 +52,14 @@ export const DetectionTab: React.FC<DetectionTabProps> = ({ config, onChange, on
             className="w-full"
           />
           <div className="flex justify-between text-xs text-muted mt-1">
-            <span>0.0 (More detections)</span>
-            <span>1.0 (Fewer, higher confidence)</span>
+            <span>0.0 (Daha fazla algılama)</span>
+            <span>1.0 (Daha az, yüksek güven)</span>
           </div>
         </div>
 
         <div>
           <label className="block text-sm font-medium text-text mb-2">
-            Inference FPS
+            Çıkarım FPS
           </label>
           <input
             type="number"
@@ -70,13 +70,13 @@ export const DetectionTab: React.FC<DetectionTabProps> = ({ config, onChange, on
             className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
           />
           <p className="text-xs text-muted mt-1">
-            How many frames per second to process (1-30)
+            Saniyede kaç kare işlenecek (1-30)
           </p>
         </div>
 
         <div>
           <label className="block text-sm font-medium text-text mb-2">
-            NMS IoU Threshold: {config.nms_iou_threshold.toFixed(2)}
+            NMS IoU Eşiği: {config.nms_iou_threshold.toFixed(2)}
           </label>
           <input
             type="range"
@@ -88,7 +88,7 @@ export const DetectionTab: React.FC<DetectionTabProps> = ({ config, onChange, on
             className="w-full"
           />
           <p className="text-xs text-muted mt-1">
-            Non-Maximum Suppression threshold (typically 0.45)
+            Non-Maximum Suppression eşiği (genellikle 0.45)
           </p>
         </div>
       </div>
@@ -97,7 +97,7 @@ export const DetectionTab: React.FC<DetectionTabProps> = ({ config, onChange, on
         onClick={onSave}
         className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-opacity-90 transition-colors"
       >
-        Save Detection Settings
+        Algılama Ayarlarını Kaydet
       </button>
     </div>
   );
