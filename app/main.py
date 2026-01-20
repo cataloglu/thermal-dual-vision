@@ -8,6 +8,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
 
+from app.models.camera import CameraTestRequest, CameraTestResponse
+from app.services.camera import get_camera_service
 from app.services.settings import get_settings_service
 
 
@@ -33,8 +35,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize settings service
+# Initialize services
 settings_service = get_settings_service()
+camera_service = get_camera_service()
 
 
 @app.get("/")
@@ -139,6 +142,92 @@ async def update_settings(partial_data: Dict[str, Any]) -> Dict[str, Any]:
                 "message": f"Failed to update settings: {str(e)}"
             }
         )
+
+
+@app.post("/api/cameras/test", response_model=CameraTestResponse)
+async def test_camera(request: CameraTestRequest) -> CameraTestResponse:
+    """
+    Test RTSP camera connection and capture snapshot.
+    
+    Tests camera connectivity, measures latency, and returns a snapshot.
+    Supports thermal, color, and dual camera configurations.
+    
+    Args:
+        request: Camera test request with RTSP URLs
+        
+    Returns:
+        CameraTestResponse with snapshot and latency info
+        
+    Raises:
+        HTTPException: 400 if validation fails, 500 if connection fails
+    """
+    try:
+        logger.info(f"Testing camera connection: type={request.type}")
+        
+        # Test based on camera type
+        if request.type == "thermal":
+            result = camera_service.test_rtsp_connection(request.rtsp_url_thermal)
+        elif request.type == "color":
+            result = camera_service.test_rtsp_connection(request.rtsp_url_color)
+        elif request.type == "dual":
+            result = camera_service.test_dual_camera(
+                request.rtsp_url_thermal,
+                request.rtsp_url_color
+            )
+        else:
+            raise ValueError(f"Invalid camera type: {request.type}")
+        
+        # Check if test was successful
+        if not result["success"]:
+            logger.warning(f"Camera test failed: {result['error_reason']}")
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "error": True,
+                    "code": "RTSP_CONNECTION_FAILED",
+                    "message": result["error_reason"]
+                }
+            )
+        
+        logger.info(f"Camera test successful: latency={result['latency_ms']}ms")
+        
+        return CameraTestResponse(
+            success=True,
+            snapshot_base64=result["snapshot_base64"],
+            latency_ms=result["latency_ms"],
+            error_reason=None
+        )
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except ValidationError as e:
+        logger.error(f"Camera test validation failed: {e}")
+        errors = []
+        for error in e.errors():
+            field = ".".join(str(loc) for loc in error["loc"])
+            errors.append(f"{field}: {error['msg']}")
+        
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": True,
+                "code": "VALIDATION_ERROR",
+                "message": "Camera test validation failed",
+                "errors": errors
+            }
+        )
+    except Exception as e:
+        logger.error(f"Camera test failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": True,
+                "code": "SNAPSHOT_FAILED",
+                "message": f"Failed to test camera: {str(e)}"
+            }
+        )
+
 
 if __name__ == "__main__":
     import uvicorn

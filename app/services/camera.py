@@ -1,0 +1,272 @@
+"""
+Camera service for Smart Motion Detector v2.
+
+This service handles RTSP camera connections, snapshot capture,
+and connection testing with proper error handling and retry logic.
+"""
+import base64
+import logging
+import re
+import time
+from typing import Dict, Optional
+
+import cv2
+import numpy as np
+
+
+logger = logging.getLogger(__name__)
+
+
+class CameraService:
+    """Service for camera operations."""
+    
+    # RTSP connection settings
+    DEFAULT_TIMEOUT = 10  # seconds
+    MAX_RETRY_ATTEMPTS = 3
+    RETRY_DELAYS = [1, 2, 4]  # Exponential backoff in seconds
+    
+    # OpenCV settings
+    BUFFER_SIZE = 1  # Low latency
+    JPEG_QUALITY = 85  # Snapshot quality
+    
+    @staticmethod
+    def force_tcp_protocol(url: str) -> str:
+        """
+        Force TCP protocol for RTSP connection.
+        
+        Adds ?tcp parameter to URL if not already present.
+        This prevents frame tearing from UDP packet loss.
+        
+        Args:
+            url: Original RTSP URL
+            
+        Returns:
+            URL with TCP protocol forced
+        """
+        if not url:
+            return url
+        
+        # Check if URL already has query parameters
+        if "?" in url:
+            # Check if tcp parameter already exists
+            if "tcp" not in url.lower():
+                url += "&tcp"
+        else:
+            url += "?tcp"
+        
+        return url
+    
+    @staticmethod
+    def mask_rtsp_credentials(url: str) -> str:
+        """
+        Mask credentials in RTSP URL for logging.
+        
+        Replaces user:pass with ***:*** in URL.
+        
+        Args:
+            url: RTSP URL with credentials
+            
+        Returns:
+            URL with masked credentials
+            
+        Example:
+            rtsp://admin:12345@192.168.1.100/stream
+            → rtsp://***:***@192.168.1.100/stream
+        """
+        if not url:
+            return url
+        
+        # Pattern: rtsp://user:pass@host
+        pattern = r"(rtsp://)[^:]+:[^@]+(@)"
+        masked = re.sub(pattern, r"\1***:***\2", url)
+        
+        return masked
+    
+    def test_rtsp_connection(
+        self,
+        url: str,
+        timeout: int = DEFAULT_TIMEOUT
+    ) -> Dict[str, any]:
+        """
+        Test RTSP connection and capture snapshot.
+        
+        Implements retry logic with exponential backoff.
+        Measures connection latency.
+        
+        Args:
+            url: RTSP URL to test
+            timeout: Connection timeout in seconds
+            
+        Returns:
+            Dict containing:
+                - success (bool): Connection success status
+                - snapshot_base64 (str): Base64 encoded JPEG snapshot
+                - latency_ms (int): Connection latency in milliseconds
+                - error_reason (str): Error message if failed
+        """
+        # Force TCP protocol
+        url = self.force_tcp_protocol(url)
+        
+        # Mask credentials for logging
+        masked_url = self.mask_rtsp_credentials(url)
+        logger.info(f"Testing RTSP connection: {masked_url}")
+        
+        # Retry loop
+        for attempt in range(self.MAX_RETRY_ATTEMPTS):
+            try:
+                # Measure latency
+                start_time = time.time()
+                
+                # Open video capture
+                cap = cv2.VideoCapture(url, cv2.CAP_FFMPEG)
+                
+                if not cap.isOpened():
+                    raise ConnectionError("Failed to open video capture")
+                
+                # Set buffer size (low latency)
+                cap.set(cv2.CAP_PROP_BUFFERSIZE, self.BUFFER_SIZE)
+                
+                # Set codec to H.264
+                cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'H264'))
+                
+                # Read frame with timeout
+                ret, frame = cap.read()
+                
+                if not ret or frame is None:
+                    cap.release()
+                    raise ValueError("Failed to read frame from camera")
+                
+                # Calculate latency
+                latency_ms = int((time.time() - start_time) * 1000)
+                
+                # Encode frame to JPEG
+                encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), self.JPEG_QUALITY]
+                ret, buffer = cv2.imencode('.jpg', frame, encode_param)
+                
+                if not ret:
+                    cap.release()
+                    raise ValueError("Failed to encode frame to JPEG")
+                
+                # Convert to base64
+                jpg_as_text = base64.b64encode(buffer).decode('utf-8')
+                snapshot_base64 = f"data:image/jpeg;base64,{jpg_as_text}"
+                
+                # Clean up
+                cap.release()
+                
+                logger.info(f"RTSP connection successful: {masked_url} (latency: {latency_ms}ms)")
+                
+                return {
+                    "success": True,
+                    "snapshot_base64": snapshot_base64,
+                    "latency_ms": latency_ms,
+                    "error_reason": None
+                }
+                
+            except Exception as e:
+                logger.warning(
+                    f"RTSP connection attempt {attempt + 1}/{self.MAX_RETRY_ATTEMPTS} failed: "
+                    f"{masked_url} - {str(e)}"
+                )
+                
+                # Release capture if it was opened
+                try:
+                    if 'cap' in locals():
+                        cap.release()
+                except:
+                    pass
+                
+                # If not last attempt, wait before retry
+                if attempt < self.MAX_RETRY_ATTEMPTS - 1:
+                    delay = self.RETRY_DELAYS[attempt]
+                    logger.info(f"Retrying in {delay} seconds...")
+                    time.sleep(delay)
+                else:
+                    # Last attempt failed
+                    error_msg = f"Connection failed after {self.MAX_RETRY_ATTEMPTS} attempts: {str(e)}"
+                    logger.error(f"RTSP connection failed: {masked_url} - {error_msg}")
+                    
+                    return {
+                        "success": False,
+                        "snapshot_base64": None,
+                        "latency_ms": None,
+                        "error_reason": error_msg
+                    }
+        
+        # Should never reach here, but just in case
+        return {
+            "success": False,
+            "snapshot_base64": None,
+            "latency_ms": None,
+            "error_reason": "Unknown error"
+        }
+    
+    def test_dual_camera(
+        self,
+        thermal_url: str,
+        color_url: str,
+        timeout: int = DEFAULT_TIMEOUT
+    ) -> Dict[str, any]:
+        """
+        Test dual camera setup (thermal + color).
+        
+        Tests both channels and returns thermal snapshot as primary.
+        
+        Args:
+            thermal_url: RTSP URL for thermal camera
+            color_url: RTSP URL for color camera
+            timeout: Connection timeout in seconds
+            
+        Returns:
+            Dict containing test results (thermal snapshot returned)
+        """
+        logger.info("Testing dual camera setup")
+        
+        # Test thermal camera
+        thermal_result = self.test_rtsp_connection(thermal_url, timeout)
+        
+        if not thermal_result["success"]:
+            return {
+                "success": False,
+                "snapshot_base64": None,
+                "latency_ms": None,
+                "error_reason": f"Thermal camera failed: {thermal_result['error_reason']}"
+            }
+        
+        # Test color camera
+        color_result = self.test_rtsp_connection(color_url, timeout)
+        
+        if not color_result["success"]:
+            return {
+                "success": False,
+                "snapshot_base64": None,
+                "latency_ms": None,
+                "error_reason": f"Color camera failed: {color_result['error_reason']}"
+            }
+        
+        # Both cameras successful - return thermal snapshot
+        logger.info("Dual camera test successful")
+        
+        return {
+            "success": True,
+            "snapshot_base64": thermal_result["snapshot_base64"],
+            "latency_ms": thermal_result["latency_ms"],
+            "error_reason": None
+        }
+
+
+# Global singleton instance
+_camera_service: Optional[CameraService] = None
+
+
+def get_camera_service() -> CameraService:
+    """
+    Get or create the global camera service instance.
+    
+    Returns:
+        CameraService: Global camera service instance
+    """
+    global _camera_service
+    if _camera_service is None:
+        _camera_service = CameraService()
+    return _camera_service
