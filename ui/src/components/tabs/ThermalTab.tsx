@@ -41,16 +41,16 @@ export const ThermalTab: React.FC<ThermalTabProps> = ({ config, onChange, onSave
           <>
             <div>
               <label className="block text-sm font-medium text-text mb-2">
-                İyileştirme Yöntemi
+                {t('enhancementMethod')}
               </label>
               <select
                 value={config.enhancement_method}
                 onChange={(e) => onChange({ ...config, enhancement_method: e.target.value as ThermalConfig['enhancement_method'] })}
                 className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
               >
-                <option value="clahe">CLAHE (Önerilen)</option>
-                <option value="histogram">Histogram Eşitleme</option>
-                <option value="none">Yok</option>
+                <option value="clahe">CLAHE ({t('recommended')})</option>
+                <option value="histogram">Histogram</option>
+                <option value="none">None</option>
               </select>
             </div>
 
@@ -58,7 +58,7 @@ export const ThermalTab: React.FC<ThermalTabProps> = ({ config, onChange, onSave
               <>
                 <div>
                   <label className="block text-sm font-medium text-text mb-2">
-                    CLAHE Clip Limiti: {config.clahe_clip_limit.toFixed(1)}
+                    {t('claheClipLimit')}: {config.clahe_clip_limit.toFixed(1)}
                   </label>
                   <input
                     type="range"
@@ -69,14 +69,11 @@ export const ThermalTab: React.FC<ThermalTabProps> = ({ config, onChange, onSave
                     onChange={(e) => onChange({ ...config, clahe_clip_limit: parseFloat(e.target.value) })}
                     className="w-full"
                   />
-                  <p className="text-xs text-muted mt-1">
-                    Kontrast iyileştirme limiti (1-5)
-                  </p>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-text mb-2">
-                    CLAHE Izgara Boyutu
+                    {t('claheGridSize')}
                   </label>
                   <div className="grid grid-cols-2 gap-4">
                     <input
@@ -89,7 +86,6 @@ export const ThermalTab: React.FC<ThermalTabProps> = ({ config, onChange, onSave
                         clahe_tile_size: [parseInt(e.target.value) || 8, config.clahe_tile_size[1]] 
                       })}
                       className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
-                      placeholder="Genişlik"
                     />
                     <input
                       type="number"
@@ -101,7 +97,6 @@ export const ThermalTab: React.FC<ThermalTabProps> = ({ config, onChange, onSave
                         clahe_tile_size: [config.clahe_tile_size[0], parseInt(e.target.value) || 8] 
                       })}
                       className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
-                      placeholder="Yükseklik"
                     />
                   </div>
                 </div>
@@ -110,7 +105,7 @@ export const ThermalTab: React.FC<ThermalTabProps> = ({ config, onChange, onSave
 
             <div>
               <label className="block text-sm font-medium text-text mb-2">
-                Gaussian Blur Kernel
+                {t('gaussianBlur')}
               </label>
               <div className="grid grid-cols-2 gap-4">
                 <input
@@ -138,9 +133,6 @@ export const ThermalTab: React.FC<ThermalTabProps> = ({ config, onChange, onSave
                   className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
                 />
               </div>
-              <p className="text-xs text-muted mt-1">
-                Gürültü azaltma için bulanıklaştırma (tek sayı olmalı)
-              </p>
             </div>
           </>
         )}

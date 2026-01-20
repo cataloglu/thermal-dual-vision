@@ -46,7 +46,7 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
             className="w-4 h-4 text-accent bg-surface2 border-border rounded focus:ring-accent"
           />
           <label htmlFor="ai-enabled" className="text-sm font-medium text-text">
-            AI Özetlerini Etkinleştir
+            {t('enableAISummaries')}
           </label>
         </div>
 
@@ -54,7 +54,7 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
           <>
             <div>
               <label className="block text-sm font-medium text-text mb-2">
-                API Anahtarı
+                {t('apiKey')}
               </label>
               <div className="relative">
                 <input
@@ -132,7 +132,7 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
 
             <div>
               <label className="block text-sm font-medium text-text mb-2">
-                Maksimum Token
+                {t('maxTokens')}
               </label>
               <input
                 type="number"
@@ -146,7 +146,7 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
 
             <div>
               <label className="block text-sm font-medium text-text mb-2">
-                Zaman Aşımı (saniye)
+                {t('timeout')} ({t('seconds')})
               </label>
               <input
                 type="number"

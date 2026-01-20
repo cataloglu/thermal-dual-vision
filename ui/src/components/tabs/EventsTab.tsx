@@ -26,7 +26,7 @@ export const EventsTab: React.FC<EventsTabProps> = ({ config, onChange, onSave }
       <div className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-text mb-2">
-            Bekleme Süresi (saniye)
+            {t('cooldown')} ({t('seconds')})
           </label>
           <input
             type="number"
@@ -36,14 +36,11 @@ export const EventsTab: React.FC<EventsTabProps> = ({ config, onChange, onSave }
             onChange={(e) => onChange({ ...config, cooldown_seconds: parseInt(e.target.value) || 5 })}
             className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
           />
-          <p className="text-xs text-muted mt-1">
-            Olaylar arası minimum süre (tekrarları önler)
-          </p>
         </div>
 
         <div>
           <label className="block text-sm font-medium text-text mb-2">
-            Kare Tamponu Boyutu
+            {t('frameBuffer')}
           </label>
           <input
             type="number"
@@ -53,14 +50,11 @@ export const EventsTab: React.FC<EventsTabProps> = ({ config, onChange, onSave }
             onChange={(e) => onChange({ ...config, frame_buffer_size: parseInt(e.target.value) || 10 })}
             className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
           />
-          <p className="text-xs text-muted mt-1">
-            Collage oluşturma için kare sayısı
-          </p>
         </div>
 
         <div>
           <label className="block text-sm font-medium text-text mb-2">
-            Kare Aralığı
+            {t('frameInterval')}
           </label>
           <input
             type="number"
@@ -70,14 +64,11 @@ export const EventsTab: React.FC<EventsTabProps> = ({ config, onChange, onSave }
             onChange={(e) => onChange({ ...config, frame_interval: parseInt(e.target.value) || 2 })}
             className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
           />
-          <p className="text-xs text-muted mt-1">
-            Her kaç karede bir yakalama yapılacak
-          </p>
         </div>
 
         <div>
           <label className="block text-sm font-medium text-text mb-2">
-            Minimum Olay Süresi (saniye)
+            {t('minEventDuration')} ({t('seconds')})
           </label>
           <input
             type="number"
@@ -88,9 +79,6 @@ export const EventsTab: React.FC<EventsTabProps> = ({ config, onChange, onSave }
             onChange={(e) => onChange({ ...config, min_event_duration: parseFloat(e.target.value) || 1.0 })}
             className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
           />
-          <p className="text-xs text-muted mt-1">
-            Minimum olay süresi (çok kısa olayları filtreler)
-          </p>
         </div>
       </div>
 

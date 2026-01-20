@@ -26,15 +26,15 @@ export const LiveTab: React.FC<LiveTabProps> = ({ config, onChange, onSave }) =>
       <div className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-text mb-2">
-            Çıkış Modu
+            {t('outputMode')}
           </label>
           <select
             value={config.output_mode}
             onChange={(e) => onChange({ ...config, output_mode: e.target.value as LiveConfig['output_mode'] })}
             className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
           >
-            <option value="mjpeg">MJPEG (Basit, 1-3s gecikme)</option>
-            <option value="webrtc">WebRTC (Düşük gecikme, go2rtc gerekli)</option>
+            <option value="mjpeg">MJPEG ({t('simple')})</option>
+            <option value="webrtc">WebRTC ({t('lowLatency')})</option>
           </select>
         </div>
 
@@ -52,14 +52,14 @@ export const LiveTab: React.FC<LiveTabProps> = ({ config, onChange, onSave }) =>
                 className="w-4 h-4 text-accent bg-surface2 border-border rounded focus:ring-accent"
               />
               <label htmlFor="webrtc-enabled" className="text-sm font-medium text-text">
-                WebRTC'yi Etkinleştir
+                {t('enableWebRTC')}
               </label>
             </div>
 
             {config.webrtc.enabled && (
               <div>
                 <label className="block text-sm font-medium text-text mb-2">
-                  go2rtc URL
+                  {t('go2rtcURL')}
                 </label>
                 <input
                   type="text"
@@ -71,9 +71,6 @@ export const LiveTab: React.FC<LiveTabProps> = ({ config, onChange, onSave }) =>
                   placeholder="http://localhost:1984"
                   className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent"
                 />
-                <p className="text-xs text-muted mt-1">
-                  go2rtc sunucu adresi (WebRTC için gerekli)
-                </p>
               </div>
             )}
           </div>
