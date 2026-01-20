@@ -46,7 +46,7 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
       const ws = new WebSocket(wsUrl)
 
       ws.onopen = () => {
-        console.log('WebSocket connected')
+        // console.log('WebSocket connected') // Removed: too verbose
         setIsConnected(true)
         setError(null)
         reconnectAttemptsRef.current = 0
@@ -77,17 +77,17 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
             onStatus(message.data)
           }
         } catch (err) {
-          console.error('Failed to parse WebSocket message:', err)
+          // Silent: don't spam console
         }
       }
 
-      ws.onerror = (event) => {
-        console.error('WebSocket error:', event)
+      ws.onerror = () => {
+        // Silent: error is expected on first connection attempt
         setError('WebSocket connection error')
       }
 
       ws.onclose = () => {
-        console.log('WebSocket disconnected')
+        // console.log('WebSocket disconnected') // Removed: too verbose
         setIsConnected(false)
         
         if (onDisconnect) {
@@ -97,9 +97,7 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
         // Attempt to reconnect
         if (reconnectAttemptsRef.current < maxReconnectAttempts) {
           reconnectAttemptsRef.current += 1
-          console.log(
-            `Reconnecting... Attempt ${reconnectAttemptsRef.current}/${maxReconnectAttempts}`
-          )
+          // console.log(`Reconnecting... Attempt ${reconnectAttemptsRef.current}/${maxReconnectAttempts}`) // Removed
           
           reconnectTimeoutRef.current = setTimeout(() => {
             connect()
