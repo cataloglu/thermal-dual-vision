@@ -204,7 +204,7 @@ AI Tab:
 
 ---
 
-### 7. **Telegram Test Butonu Eksik**
+### 8. **Telegram Test Butonu Eksik**
 
 **Sorun**:
 Telegram ayarları var ama test butonu yok.
@@ -224,7 +224,7 @@ Telegram Tab:
 
 ---
 
-### 8. **Model Download Progress Yok**
+### 9. **Model Download Progress Yok**
 
 **Sorun**:
 YOLOv8 model ilk kez indirilirken kullanıcı görmüyor.
