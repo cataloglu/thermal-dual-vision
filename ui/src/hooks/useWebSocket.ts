@@ -37,9 +37,10 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
         wsRef.current.close()
       }
 
-      // Create WebSocket URL
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      const wsUrl = `${protocol}//${window.location.host}${url}`
+      // Create WebSocket connection (use URL as-is if starts with ws://)
+      const wsUrl = url.startsWith('ws://') || url.startsWith('wss://') 
+        ? url 
+        : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}${url}`
 
       // Create WebSocket connection
       const ws = new WebSocket(wsUrl)

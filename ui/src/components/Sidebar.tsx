@@ -13,9 +13,10 @@ interface SidebarProps {
 }
 
 export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
-  // WebSocket disabled temporarily (causing reconnect loop)
-  const isConnected = false
-  // const { isConnected } = useWebSocket('/api/ws/events', {})
+  // WebSocket for real-time status
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  const wsUrl = `${protocol}//localhost:8000/api/ws/events`
+  const { isConnected } = useWebSocket(wsUrl, {})
   
   const menuItems = [
     { path: '/', icon: MdDashboard, label: 'Kontrol Paneli' },
