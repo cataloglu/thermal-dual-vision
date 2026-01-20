@@ -170,18 +170,18 @@ Bu dosya implementation öncelik sırasını ve her aşamada yapılacakları det
 
 ---
 
-### 🧹 Phase 7: Retention Worker (Öncelik: 🟢 Düşük)
+### ✅ Phase 7: Retention Worker (TAMAMLANDI)
 **Hedef**: Disk temizleme + retention policy
 
 **Yapılacaklar**:
-- [ ] `app/workers/retention.py` oluştur
-  - [ ] Retention policy (days)
-  - [ ] Disk limit check (%)
-  - [ ] Cleanup strategy (oldest first)
-  - [ ] Delete order (mp4 → gif → collage)
-  - [ ] Scheduled cleanup (cron-like)
-- [ ] Database cleanup (orphan records)
-- [ ] Disk space monitoring
+- [x] `app/workers/retention.py` oluştur
+  - [x] Retention policy (days)
+  - [x] Disk limit check (%)
+  - [x] Cleanup strategy (oldest first)
+  - [x] Delete order (mp4 → gif → collage)
+  - [x] Scheduled cleanup (cron-like)
+- [x] Database cleanup (orphan records)
+- [x] Disk space monitoring
 
 **Bağımlılıklar**: Media Generation  
 **Tahmini Süre**: 2-3 gün  

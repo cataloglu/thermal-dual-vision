@@ -11,9 +11,9 @@ from pydantic import BaseModel, Field, field_validator
 class DetectionConfig(BaseModel):
     """YOLOv8 person detection configuration."""
     
-    model: Literal["yolov8n-person", "yolov8s-person"] = Field(
+    model: Literal["yolov8n-person", "yolov8s-person", "yolov9t", "yolov9s"] = Field(
         default="yolov8n-person",
-        description="Primary model selection for all cameras"
+        description="Primary model selection: yolov8n (fast), yolov8s (accurate), yolov9t (thermal), yolov9s (best)"
     )
     confidence_threshold: float = Field(
         default=0.25,

@@ -17,6 +17,7 @@ from app.services.camera import get_camera_service
 from app.services.events import get_event_service
 from app.services.media import get_media_service
 from app.services.settings import get_settings_service
+from app.workers.retention import get_retention_worker
 
 
 # Configure logging
@@ -49,6 +50,27 @@ settings_service = get_settings_service()
 camera_service = get_camera_service()
 event_service = get_event_service()
 media_service = get_media_service()
+retention_worker = get_retention_worker()
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Application startup event."""
+    logger.info("Starting Smart Motion Detector v2")
+    
+    # Start retention worker
+    retention_worker.start()
+    logger.info("Retention worker started")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Application shutdown event."""
+    logger.info("Shutting down Smart Motion Detector v2")
+    
+    # Stop retention worker
+    retention_worker.stop()
+    logger.info("Retention worker stopped")
 
 
 @app.get("/")

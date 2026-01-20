@@ -316,3 +316,68 @@ def test_disk_usage_below_limit(db_session, retention_worker, test_camera):
         
         # Event should still exist
         assert db_session.query(Event).count() == 1
+
+
+def test_worker_lifecycle(retention_worker):
+    """Test worker start and stop."""
+    # Start worker
+    retention_worker.start()
+    assert retention_worker.running is True
+    assert retention_worker.thread is not None
+    assert retention_worker.thread.is_alive()
+    
+    # Stop worker
+    retention_worker.stop()
+    assert retention_worker.running is False
+
+
+def test_worker_start_already_running(retention_worker):
+    """Test starting worker when already running."""
+    # Start worker
+    retention_worker.start()
+    assert retention_worker.running is True
+    
+    # Try to start again
+    retention_worker.start()
+    assert retention_worker.running is True
+    
+    # Cleanup
+    retention_worker.stop()
+
+
+def test_cleanup_with_db_error(db_session, retention_worker, test_camera, temp_media_dir):
+    """Test cleanup handles database errors gracefully."""
+    # Create event
+    event = Event(
+        id="test-event",
+        camera_id=test_camera.id,
+        timestamp=datetime.utcnow() - timedelta(days=10),
+        confidence=0.8,
+        event_type="person",
+    )
+    db_session.add(event)
+    db_session.commit()
+    
+    # Mock delete_event_media to raise exception
+    with patch.object(retention_worker, 'delete_event_media', side_effect=Exception("Test error")):
+        deleted = retention_worker.cleanup_old_events(db=db_session, retention_days=7)
+        
+        # Should handle error and continue
+        assert deleted == 0
+        
+        # Event should still exist (rollback)
+        assert db_session.query(Event).count() == 1
+
+
+def test_get_retention_worker_singleton():
+    """Test that get_retention_worker returns singleton instance."""
+    from app.workers.retention import get_retention_worker, _retention_worker
+    
+    # Get first instance
+    worker1 = get_retention_worker()
+    
+    # Get second instance
+    worker2 = get_retention_worker()
+    
+    # Should be same instance
+    assert worker1 is worker2
