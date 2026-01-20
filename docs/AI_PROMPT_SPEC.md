@@ -135,7 +135,7 @@ Türkçe, kısa ve net cevap ver (max 10 satır).
   "ai": {
     "enabled": true,
     "api_key": "***REDACTED***",
-    "model": "gpt-4-vision-preview",
+    "model": "gpt-4o",
     "prompt_template": "security_focused",
     "custom_prompt": "Global prompt (tüm kameralar için)",
     "language": "tr",

@@ -272,10 +272,28 @@ class AIConfig(BaseModel):
         default="gpt-4o",
         description="OpenAI model with vision support"
     )
+    prompt_template: Literal["simple", "security_focused", "detailed", "custom"] = Field(
+        default="security_focused",
+        description="Prompt template selection"
+    )
+    custom_prompt: str = Field(
+        default="",
+        description="Custom prompt (if template=custom)"
+    )
+    language: Literal["tr", "en"] = Field(
+        default="tr",
+        description="AI response language"
+    )
     max_tokens: int = Field(
-        default=1000,
+        default=200,
         ge=1,
         description="Maximum tokens per request"
+    )
+    temperature: float = Field(
+        default=0.3,
+        ge=0.0,
+        le=1.0,
+        description="Response consistency (0.0-1.0)"
     )
     timeout: int = Field(
         default=30,

@@ -2,7 +2,7 @@
 
 ## 0) Scope (Değişmez Kurallar)
 - Bu ürün **SADECE insan (person)** algılar.
-- İnsan algılama için **iki model** bulunur ve **seçilebilir**: `yolov8n-person` / `yolov8s-person`.
+- İnsan algılama için **dört model** bulunur ve **seçilebilir**: `yolov8n-person` (hızlı) / `yolov8s-person` (doğru) / `yolov9t` (thermal-optimized) / `yolov9s` (en doğru).
 - İnsan algılama **kamera bazında** color/thermal seçilebilir (dual kamerada kaynak seçimi).
 - Zone/ROI desteği vardır: hareket ve person algılama alanları kamera bazında seçilir.
 - AI (OpenAI) **opsiyoneldir**:

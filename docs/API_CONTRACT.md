@@ -12,7 +12,7 @@ Base URL:
 - **RTSP / token alanları** her zaman maskeli döner: `***REDACTED***`.
 - **Zaman formatı**: ISO-8601 UTC (`2026-01-01T00:00:00Z`).
 - **Error formatı** her endpoint için aynı (aşağıdaki bölüm).
-- **İnsan algılama modeli** seçilebilir (iki seçenek): `yolov8n-person` | `yolov8s-person`.
+- **İnsan algılama modeli** seçilebilir (dört seçenek): `yolov8n-person` | `yolov8s-person` | `yolov9t` | `yolov9s`.
 - **Algılama kaynağı** kamera bazında seçilebilir: `color` | `thermal` | `auto`.
 - **Live stream modu**: `mjpeg` (default) veya `webrtc` (opsiyonel, go2rtc gerekir).
 - **Ayarlar kalıcıdır** ve restart sonrası korunur.
