@@ -66,7 +66,20 @@ export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
       </nav>
 
       {/* Footer */}
-      <div className="p-4 border-t border-border">
+      <div className="p-4 border-t border-border space-y-3">
+        {/* Language Toggle */}
+        <button
+          onClick={() => {
+            const currentLang = localStorage.getItem('language') || 'tr';
+            const newLang = currentLang === 'tr' ? 'en' : 'tr';
+            localStorage.setItem('language', newLang);
+            window.location.reload();
+          }}
+          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-surface2 border border-border rounded-lg hover:bg-accent hover:text-white transition-colors text-text text-sm font-medium"
+          title="Dil değiştir / Change language"
+        >
+          🌐 {(localStorage.getItem('language') || 'tr') === 'tr' ? 'TR' : 'EN'}
+        </button>
         <p className="text-xs text-muted text-center">
           Akıllı Hareket Algılama
         </p>
