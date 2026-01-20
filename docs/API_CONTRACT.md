@@ -476,7 +476,6 @@ Response:
     "enable_tracking": false
   },
   "motion": {
-    "detector_model": "yolov8s-person",
     "sensitivity": 6,
     "min_area": 500,
     "cooldown_seconds": 4,
