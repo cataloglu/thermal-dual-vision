@@ -34,7 +34,7 @@ export const Settings: React.FC = () => {
       <div className="flex items-center justify-center h-screen bg-background">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent mx-auto mb-4"></div>
-          <p className="text-muted">Loading settings...</p>
+          <p className="text-muted">Ayarlar yükleniyor...</p>
         </div>
       </div>
     );
@@ -44,12 +44,12 @@ export const Settings: React.FC = () => {
     return (
       <div className="flex items-center justify-center h-screen bg-background">
         <div className="text-center">
-          <p className="text-error mb-4">{error || 'Failed to load settings'}</p>
+          <p className="text-error mb-4">{error || 'Ayarlar yüklenemedi'}</p>
           <button
             onClick={() => window.location.reload()}
             className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-opacity-90"
           >
-            Retry
+            Yeniden Dene
           </button>
         </div>
       </div>
