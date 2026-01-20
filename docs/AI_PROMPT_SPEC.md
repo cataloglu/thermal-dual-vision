@@ -129,22 +129,61 @@ Türkçe, kısa ve net cevap ver (max 10 satır).
 
 ## 🎯 Config Schema
 
-**API_CONTRACT.md'ye eklenecek**:
+**Global AI Settings**:
 ```json
 {
   "ai": {
     "enabled": true,
     "api_key": "***REDACTED***",
     "model": "gpt-4-vision-preview",
-    "prompt_template": "security_focused",  // "simple" | "security_focused" | "detailed" | "custom"
-    "custom_prompt": "",  // custom seçilirse
-    "language": "tr",  // "tr" | "en"
+    "prompt_template": "security_focused",
+    "custom_prompt": "Global prompt (tüm kameralar için)",
+    "language": "tr",
     "max_tokens": 200,
     "temperature": 0.3,
     "timeout": 30
   }
 }
 ```
+
+**Per-Camera AI Prompt Override** (YENİ! 🔥):
+```json
+{
+  "cameras": [
+    {
+      "id": "cam-1",
+      "name": "Ön Kapı",
+      "ai_prompt_override": "Bu ön kapı kamerası. Ziyaretçi mi yoksa şüpheli kişi mi analiz et.",
+      "use_custom_prompt": true
+    },
+    {
+      "id": "cam-2",
+      "name": "Arka Bahçe",
+      "ai_prompt_override": "Bu arka bahçe. Gece burada kimse olmamalı. Şüpheli mi değerlendir.",
+      "use_custom_prompt": true
+    },
+    {
+      "id": "cam-3",
+      "name": "Garaj",
+      "ai_prompt_override": null,  // Global prompt kullan
+      "use_custom_prompt": false
+    }
+  ]
+}
+```
+
+**Prompt Hierarchy** (Öncelik Sırası):
+```
+1. Camera-level custom prompt (en yüksek)
+   ↓
+2. Global custom prompt
+   ↓
+3. Global template (security_focused)
+   ↓
+4. Default template (simple)
+```
+
+**Avantaj**: Her kamera için özel context! 🎯
 
 ---
 
