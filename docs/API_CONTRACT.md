@@ -75,6 +75,8 @@ Response:
       "channel_thermal": 202,
       "detection_source": "thermal",
       "stream_roles": ["detect", "live"],
+      "ai_prompt_override": "",
+      "use_custom_prompt": false,
       "status": "connected",
       "zones": [
         {
