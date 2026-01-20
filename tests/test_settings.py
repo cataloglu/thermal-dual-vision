@@ -65,7 +65,7 @@ def test_save_and_load_config(settings_service):
     config.detection.confidence_threshold = 0.5
     config.motion.sensitivity = 8
     config.ai.enabled = True
-    config.ai.api_key = "test-api-key-12345"
+    config.ai.api_key = "sk-test-api-key-12345"
     
     # Save config
     settings_service.save_config(config)
@@ -77,7 +77,7 @@ def test_save_and_load_config(settings_service):
     assert loaded_config.detection.confidence_threshold == 0.5
     assert loaded_config.motion.sensitivity == 8
     assert loaded_config.ai.enabled is True
-    assert loaded_config.ai.api_key == "test-api-key-12345"
+    assert loaded_config.ai.api_key == "sk-test-api-key-12345"
 
 
 def test_partial_update(settings_service):
@@ -346,7 +346,7 @@ def test_update_multiple_sections(settings_service):
         },
         "ai": {
             "enabled": True,
-            "api_key": "test-key"
+            "api_key": "sk-test-key"
         }
     }
     
@@ -359,6 +359,23 @@ def test_update_multiple_sections(settings_service):
     assert updated["thermal"]["enable_enhancement"] is False
     assert updated["ai"]["enabled"] is True
     assert updated["ai"]["api_key"] == "***REDACTED***"  # Masked
+
+
+def test_validation_error_ai_key_format(settings_service):
+    """Test validation error for invalid OpenAI API key format."""
+    settings_service.load_config()
+
+    partial_data = {
+        "ai": {
+            "enabled": True,
+            "api_key": "invalid-key"
+        }
+    }
+
+    with pytest.raises(ValidationError) as exc_info:
+        settings_service.update_settings(partial_data)
+
+    assert "api_key" in str(exc_info.value)
 
 
 def test_singleton_pattern(temp_config_dir):

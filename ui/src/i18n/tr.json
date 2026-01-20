@@ -140,6 +140,7 @@
   "claheGridSize": "CLAHE Izgara Boyutu",
   "gaussianBlur": "Gaussian Blur Kernel",
   "enableAISummaries": "AI Özetlerini Etkinleştir",
+  "invalidApiKey": "API anahtarı 'sk-' ile başlamalı",
   "maxTokens": "Maksimum Token",
   "timeout": "Zaman Aşımı",
   "enableTelegramNotifications": "Telegram Bildirimlerini Etkinleştir",

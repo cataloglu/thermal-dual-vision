@@ -140,6 +140,7 @@
   "claheGridSize": "CLAHE Grid Size",
   "gaussianBlur": "Gaussian Blur Kernel",
   "enableAISummaries": "Enable AI Summaries",
+  "invalidApiKey": "API key must start with 'sk-'",
   "maxTokens": "Max Tokens",
   "timeout": "Timeout",
   "enableTelegramNotifications": "Enable Telegram Notifications",

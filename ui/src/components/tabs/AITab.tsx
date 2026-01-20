@@ -4,6 +4,7 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FiEye, FiEyeOff } from 'react-icons/fi';
+import toast from 'react-hot-toast';
 import type { AIConfig } from '../../types/api';
 
 interface AITabProps {
@@ -17,6 +18,19 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
   const [showApiKey, setShowApiKey] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const handleSave = () => {
+    if (
+      config.enabled &&
+      config.api_key &&
+      config.api_key !== '***REDACTED***' &&
+      !config.api_key.startsWith('sk-')
+    ) {
+      toast.error(t('invalidApiKey'));
+      return;
+    }
+    onSave();
+  };
 
   return (
     <div className="space-y-6">
@@ -162,7 +176,7 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
       </div>
 
       <button
-        onClick={onSave}
+        onClick={handleSave}
         className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-opacity-90 transition-colors"
       >
         {t('saveAISettings')}

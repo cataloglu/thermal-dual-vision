@@ -301,6 +301,16 @@ class AIConfig(BaseModel):
         description="API timeout in seconds"
     )
 
+    @field_validator("api_key")
+    @classmethod
+    def validate_api_key(cls, value: str) -> str:
+        """Validate OpenAI API key format."""
+        if not value or value == "***REDACTED***":
+            return value
+        if not value.startswith("sk-"):
+            raise ValueError("api_key must start with sk-")
+        return value
+
 
 class TelegramConfig(BaseModel):
     """Telegram notification configuration."""
