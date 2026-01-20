@@ -2,6 +2,7 @@
  * Events tab - Event generation settings
  */
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { EventConfig } from '../../types/api';
 
 interface EventsTabProps {
@@ -11,12 +12,14 @@ interface EventsTabProps {
 }
 
 export const EventsTab: React.FC<EventsTabProps> = ({ config, onChange, onSave }) => {
+  const { t } = useTranslation();
+  
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-medium text-text mb-4">Event Settings</h3>
+        <h3 className="text-lg font-medium text-text mb-4">{t('eventSettings')}</h3>
         <p className="text-sm text-muted mb-6">
-          Configure event generation and frame buffer settings
+          {t('eventDesc')}
         </p>
       </div>
 
@@ -95,7 +98,7 @@ export const EventsTab: React.FC<EventsTabProps> = ({ config, onChange, onSave }
         onClick={onSave}
         className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-opacity-90 transition-colors"
       >
-        Save Event Settings
+        {t('saveEventSettings')}
       </button>
     </div>
   );

@@ -2,6 +2,7 @@
  * Live tab - Live stream output settings
  */
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { LiveConfig } from '../../types/api';
 
 interface LiveTabProps {
@@ -11,12 +12,14 @@ interface LiveTabProps {
 }
 
 export const LiveTab: React.FC<LiveTabProps> = ({ config, onChange, onSave }) => {
+  const { t } = useTranslation();
+  
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-medium text-text mb-4">Live View Settings</h3>
+        <h3 className="text-lg font-medium text-text mb-4">{t('liveViewSettings')}</h3>
         <p className="text-sm text-muted mb-6">
-          Configure live stream output (backend → browser)
+          {t('liveViewDesc')}
         </p>
       </div>
 
@@ -87,7 +90,7 @@ export const LiveTab: React.FC<LiveTabProps> = ({ config, onChange, onSave }) =>
         onClick={onSave}
         className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-opacity-90 transition-colors"
       >
-        Save Live Settings
+        {t('saveLiveSettings')}
       </button>
     </div>
   );

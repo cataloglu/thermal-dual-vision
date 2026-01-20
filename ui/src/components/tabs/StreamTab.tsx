@@ -2,6 +2,7 @@
  * Stream tab - RTSP stream configuration
  */
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { StreamConfig } from '../../types/api';
 
 interface StreamTabProps {
@@ -11,12 +12,14 @@ interface StreamTabProps {
 }
 
 export const StreamTab: React.FC<StreamTabProps> = ({ config, onChange, onSave }) => {
+  const { t } = useTranslation();
+  
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-medium text-text mb-4">Stream Settings</h3>
+        <h3 className="text-lg font-medium text-text mb-4">{t('streamSettings')}</h3>
         <p className="text-sm text-muted mb-6">
-          Configure RTSP stream ingestion (camera → backend)
+          {t('streamDesc')}
         </p>
       </div>
 
@@ -88,7 +91,7 @@ export const StreamTab: React.FC<StreamTabProps> = ({ config, onChange, onSave }
         onClick={onSave}
         className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-opacity-90 transition-colors"
       >
-        Save Stream Settings
+        {t('saveStreamSettings')}
       </button>
     </div>
   );

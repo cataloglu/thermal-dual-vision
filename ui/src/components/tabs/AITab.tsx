@@ -2,6 +2,7 @@
  * AI tab - OpenAI integration settings
  */
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { FiEye, FiEyeOff } from 'react-icons/fi';
 import type { AIConfig } from '../../types/api';
 
@@ -12,12 +13,13 @@ interface AITabProps {
 }
 
 export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
+  const { t } = useTranslation();
   const [showApiKey, setShowApiKey] = useState(false);
 
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-medium text-text mb-4">AI Integration</h3>
+        <h3 className="text-lg font-medium text-text mb-4">{t('aiIntegration')}</h3>
         <p className="text-sm text-muted mb-6">
           Configure OpenAI integration for event summaries (optional)
         </p>
@@ -123,7 +125,7 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
         onClick={onSave}
         className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-opacity-90 transition-colors"
       >
-        Save AI Settings
+        {t('saveAISettings')}
       </button>
     </div>
   );

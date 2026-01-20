@@ -2,6 +2,7 @@
  * Thermal tab - Thermal image enhancement settings
  */
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { ThermalConfig } from '../../types/api';
 
 interface ThermalTabProps {
@@ -11,12 +12,14 @@ interface ThermalTabProps {
 }
 
 export const ThermalTab: React.FC<ThermalTabProps> = ({ config, onChange, onSave }) => {
+  const { t } = useTranslation();
+  
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-medium text-text mb-4">Thermal Enhancement</h3>
+        <h3 className="text-lg font-medium text-text mb-4">{t('thermalEnhancement')}</h3>
         <p className="text-sm text-muted mb-6">
-          Configure thermal image preprocessing for better detection accuracy
+          {t('thermalDesc')}
         </p>
       </div>
 
@@ -30,7 +33,7 @@ export const ThermalTab: React.FC<ThermalTabProps> = ({ config, onChange, onSave
             className="w-4 h-4 text-accent bg-surface2 border-border rounded focus:ring-accent"
           />
           <label htmlFor="enable-enhancement" className="text-sm font-medium text-text">
-            Enable Thermal Enhancement
+            {t('enableThermalEnhancement')}
           </label>
         </div>
 
@@ -122,7 +125,7 @@ export const ThermalTab: React.FC<ThermalTabProps> = ({ config, onChange, onSave
         onClick={onSave}
         className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-opacity-90 transition-colors"
       >
-        Save Thermal Settings
+        {t('saveThermalSettings')}
       </button>
     </div>
   );

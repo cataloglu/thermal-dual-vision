@@ -2,6 +2,7 @@
  * Telegram tab - Telegram notification settings
  */
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { FiEye, FiEyeOff } from 'react-icons/fi';
 import type { TelegramConfig } from '../../types/api';
 
@@ -12,6 +13,7 @@ interface TelegramTabProps {
 }
 
 export const TelegramTab: React.FC<TelegramTabProps> = ({ config, onChange, onSave }) => {
+  const { t } = useTranslation();
   const [showBotToken, setShowBotToken] = useState(false);
   const [chatIdInput, setChatIdInput] = useState('');
 
@@ -29,15 +31,15 @@ export const TelegramTab: React.FC<TelegramTabProps> = ({ config, onChange, onSa
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-medium text-text mb-4">Telegram Notifications</h3>
+        <h3 className="text-lg font-medium text-text mb-4">{t('telegramNotifications')}</h3>
         <p className="text-sm text-muted mb-6">
-          Configure Telegram bot for event notifications (optional)
+          {t('telegramDesc')}
         </p>
       </div>
 
       <div className="p-4 bg-info bg-opacity-10 border border-info rounded-lg mb-4">
         <p className="text-sm text-info">
-          Telegram notifications are optional. The system works without it.
+          {t('telegramOptional')}
         </p>
       </div>
 
@@ -160,7 +162,7 @@ export const TelegramTab: React.FC<TelegramTabProps> = ({ config, onChange, onSa
         onClick={onSave}
         className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-opacity-90 transition-colors"
       >
-        Save Telegram Settings
+        {t('saveTelegramSettings')}
       </button>
     </div>
   );
