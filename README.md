@@ -54,6 +54,7 @@ npm run dev
 - 🔒 **Güvenlik**: [`docs/SECURITY.md`](docs/SECURITY.md)
 - ⚙️ **Ortam Değişkenleri**: [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md)
 - 💅 **Code Style**: [`docs/CODE_STYLE.md`](docs/CODE_STYLE.md)
+- ⚡ **Performance Tuning**: [`docs/PERFORMANCE_TUNING.md`](docs/PERFORMANCE_TUNING.md) 🔥
 - 🗺️ **Implementation Roadmap**: [`ROADMAP.md`](ROADMAP.md) ⭐
 
 ## 🎯 MVP Scope
