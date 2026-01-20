@@ -1,7 +1,0 @@
-{
-  "project_type": "single",
-  "name": "smart-motion-detector",
-  "language": "python",
-  "framework": "home-assistant-addon",
-  "root_path": "/home/ac/Documents/motion-detector/motion-detector"
-}
