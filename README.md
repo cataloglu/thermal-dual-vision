@@ -56,6 +56,8 @@ npm run dev
 - 💅 **Code Style**: [`docs/CODE_STYLE.md`](docs/CODE_STYLE.md)
 - 📖 **Config Reference**: [`docs/CONFIG_REFERENCE.md`](docs/CONFIG_REFERENCE.md) 📋
 - ⚡ **Performance Tuning**: [`docs/PERFORMANCE_TUNING.md`](docs/PERFORMANCE_TUNING.md) 🔥
+- 🎬 **Media Specification**: [`docs/MEDIA_SPEC.md`](docs/MEDIA_SPEC.md) 📹
+- 🚀 **Advanced Features**: [`docs/ADVANCED_FEATURES.md`](docs/ADVANCED_FEATURES.md) 🏆
 - 🗺️ **Implementation Roadmap**: [`ROADMAP.md`](ROADMAP.md) ⭐
 
 ## 🎯 MVP Scope
