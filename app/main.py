@@ -7,9 +7,11 @@ from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, HTTPException, Depends, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
+import cv2
+import time
 
 from app.db.session import get_session, init_db
 from app.models.camera import CameraTestRequest, CameraTestResponse
@@ -602,7 +604,7 @@ async def get_event_mp4(event_id: str) -> FileResponse:
 
 
 @app.get("/api/live")
-async def get_live_streams() -> Dict[str, Any]:
+async def get_live_streams(db: Session = Depends(get_session)) -> Dict[str, Any]:
     """
     Get live stream URLs for all cameras.
     
@@ -613,12 +615,23 @@ async def get_live_streams() -> Dict[str, Any]:
         HTTPException: 500 if error occurs
     """
     try:
-        # TODO: Implement camera service integration
-        # For now, return empty list
-        return {
-            "streams": []
-        }
-        
+        settings = settings_service.load_config()
+        output_mode = settings.live.output_mode
+        cameras = camera_crud_service.get_cameras(db)
+        streams = []
+
+        for camera in cameras:
+            if not camera.enabled or "live" not in (camera.stream_roles or []):
+                continue
+            streams.append({
+                "camera_id": camera.id,
+                "name": camera.name,
+                "stream_url": f"/api/live/{camera.id}.mjpeg" if output_mode == "mjpeg" else "",
+                "output_mode": output_mode
+            })
+
+        return {"streams": streams}
+
     except Exception as e:
         logger.error(f"Failed to get live streams: {e}")
         raise HTTPException(
@@ -629,6 +642,112 @@ async def get_live_streams() -> Dict[str, Any]:
                 "message": f"Failed to retrieve live streams: {str(e)}"
             }
         )
+
+
+@app.get("/api/live/{camera_id}.mjpeg")
+async def get_live_stream(camera_id: str, db: Session = Depends(get_session)):
+    """
+    Stream live MJPEG feed for a camera.
+
+    Args:
+        camera_id: Camera ID
+        db: Database session
+
+    Returns:
+        StreamingResponse of MJPEG frames
+    """
+    camera = camera_crud_service.get_camera(db, camera_id)
+    if not camera:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": True,
+                "code": "CAMERA_NOT_FOUND",
+                "message": f"Camera not found: {camera_id}"
+            }
+        )
+
+    settings = settings_service.load_config()
+    if settings.live.output_mode == "webrtc":
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error": True,
+                "code": "LIVE_MODE_MISMATCH",
+                "message": "Live output mode is WebRTC; MJPEG stream unavailable."
+            }
+        )
+
+    if camera.type.value == "thermal":
+        stream_url = camera.rtsp_url_thermal
+    elif camera.type.value == "color":
+        stream_url = camera.rtsp_url_color or camera.rtsp_url
+    else:
+        # Dual camera: prefer color unless detection source is thermal
+        if camera.detection_source.value == "thermal" and camera.rtsp_url_thermal:
+            stream_url = camera.rtsp_url_thermal
+        else:
+            stream_url = camera.rtsp_url_color or camera.rtsp_url_thermal
+
+    if not stream_url:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": True,
+                "code": "STREAM_URL_MISSING",
+                "message": "No RTSP URL configured for live stream."
+            }
+        )
+
+    if settings.stream.protocol == "tcp":
+        stream_url = camera_service.force_tcp_protocol(stream_url)
+    logger.info(
+        "Opening live stream for camera %s: %s",
+        camera_id,
+        stream_url
+    )
+
+    cap = cv2.VideoCapture(stream_url, cv2.CAP_FFMPEG)
+    if not cap.isOpened():
+        logger.error(
+            "Failed to open live stream for camera %s: %s",
+            camera_id,
+            stream_url
+        )
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "error": True,
+                "code": "STREAM_CONNECT_FAILED",
+                "message": "Failed to open live stream."
+            }
+        )
+
+    def stream_generator():
+        try:
+            while True:
+                ret, frame = cap.read()
+                if not ret or frame is None:
+                    time.sleep(0.2)
+                    continue
+
+                encode_params = [int(cv2.IMWRITE_JPEG_QUALITY), 80]
+                success, buffer = cv2.imencode(".jpg", frame, encode_params)
+                if not success:
+                    continue
+
+                frame_bytes = buffer.tobytes()
+                yield (
+                    b"--frame\r\n"
+                    b"Content-Type: image/jpeg\r\n\r\n" + frame_bytes + b"\r\n"
+                )
+        finally:
+            cap.release()
+
+    return StreamingResponse(
+        stream_generator(),
+        media_type="multipart/x-mixed-replace; boundary=frame"
+    )
 
 
 @app.get("/api/cameras")

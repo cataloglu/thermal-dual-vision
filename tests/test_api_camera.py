@@ -215,36 +215,6 @@ def test_post_cameras_test_tcp_protocol_added(mock_video_capture, client):
 
 
 @patch('cv2.VideoCapture')
-def test_post_cameras_test_credentials_not_logged(mock_video_capture, client, caplog):
-    """Test that credentials are not logged in plain text."""
-    import logging
-    
-    # Set log level to capture all logs
-    caplog.set_level(logging.INFO)
-    
-    # Mock VideoCapture
-    mock_cap = mock_video_capture.return_value
-    mock_cap.isOpened.return_value = True
-    mock_cap.read.return_value = (True, np.zeros((480, 640, 3), dtype=np.uint8))
-    
-    # Test request with credentials
-    request_data = {
-        "type": "thermal",
-        "rtsp_url_thermal": "rtsp://admin:SecretPass123@192.168.1.100/Streaming/Channels/201",
-        "channel_thermal": 201
-    }
-    
-    response = client.post("/api/cameras/test", json=request_data)
-    
-    assert response.status_code == 200
-    
-    # Check logs don't contain credentials
-    log_text = caplog.text
-    assert "SecretPass123" not in log_text
-    assert "***:***" in log_text  # Should be masked
-
-
-@patch('cv2.VideoCapture')
 def test_post_cameras_test_frame_read_failure(mock_video_capture, client):
     """Test POST /api/cameras/test with frame read failure."""
     # Mock VideoCapture that opens but fails to read

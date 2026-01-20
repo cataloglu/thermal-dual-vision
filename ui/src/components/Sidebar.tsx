@@ -52,7 +52,7 @@ export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
   }
 
   return (
-    <aside className="w-60 bg-surface1 border-r border-border flex flex-col h-screen">
+    <aside className="w-60 bg-surface1 border-r border-border flex flex-col h-screen min-h-0">
       {/* Logo & Title */}
       <div className="p-6 border-b border-border">
         <div className="flex items-center gap-3 mb-3">
@@ -73,7 +73,7 @@ export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
       </div>
 
       {/* Navigation Menu */}
-      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+      <nav className="flex-1 min-h-0 p-4 space-y-1 overflow-y-auto">
         {menuItems.map((item) => (
           <NavLink
             key={item.path}

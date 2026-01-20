@@ -214,9 +214,15 @@ const setLanguage = async (page: Page, language: 'tr' | 'en') => {
 }
 
 const expectSavedToast = async (page: Page) => {
-  const toast = page.locator('[role="status"]').filter({ hasText: /Settings saved successfully/i })
-  await expect(toast.first()).toBeVisible()
+  const toast = page.locator('[role="status"]').filter({ hasText: /Settings saved successfully/i }).last()
+  await expect(toast).toBeVisible()
 }
+
+const inputByLabel = (page: Page, label: RegExp) =>
+  page.locator('label', { hasText: label }).locator('..').locator('input')
+
+const selectByLabel = (page: Page, label: RegExp) =>
+  page.locator('label', { hasText: label }).locator('..').locator('select')
 
 const runSaveTests = (language: 'tr' | 'en') => {
   test.describe(`${language.toUpperCase()} settings save`, () => {
@@ -227,28 +233,28 @@ const runSaveTests = (language: 'tr' | 'en') => {
 
     test('Detection settings save', async ({ page }) => {
       await page.goto('/settings?tab=detection')
-      await page.locator('input[type="number"]').first().fill('6')
+      await inputByLabel(page, /Çıkarım FPS|Inference FPS/i).fill('6')
       await page.getByRole('button', { name: /Algılama Ayarlarını Kaydet|Save Detection Settings/i }).click()
       await expectSavedToast(page)
     })
 
     test('Thermal settings save', async ({ page }) => {
       await page.goto('/settings?tab=thermal')
-      await page.getByRole('combobox').first().selectOption('histogram')
+      await selectByLabel(page, /İyileştirme Yöntemi|Enhancement Method/i).selectOption('histogram')
       await page.getByRole('button', { name: /Termal Ayarları Kaydet|Save Thermal Settings/i }).click()
       await expectSavedToast(page)
     })
 
     test('Stream settings save', async ({ page }) => {
       await page.goto('/settings?tab=stream')
-      await page.locator('input[type="number"]').first().fill('2')
+      await inputByLabel(page, /Buffer Size|Buffer Boyutu/i).fill('2')
       await page.getByRole('button', { name: /Yayın Ayarlarını Kaydet|Save Stream Settings/i }).click()
       await expectSavedToast(page)
     })
 
     test('Live settings save', async ({ page }) => {
       await page.goto('/settings?tab=live')
-      await page.getByRole('combobox').first().selectOption('webrtc')
+      await selectByLabel(page, /Çıkış Modu|Output Mode/i).selectOption('webrtc')
       await page.getByRole('button', { name: /Canlı Görüntü Ayarlarını Kaydet|Save Live Settings/i }).click()
       await expectSavedToast(page)
     })
@@ -256,14 +262,14 @@ const runSaveTests = (language: 'tr' | 'en') => {
     test('Recording settings save', async ({ page }) => {
       await page.goto('/settings?tab=recording')
       await page.locator('#recording-enabled').check()
-      await page.locator('input[type="number"]').first().fill('14')
+      await inputByLabel(page, /Saklama Süresi/i).fill('14')
       await page.getByRole('button', { name: /Kayıt Ayarlarını Kaydet|Save Recording Settings/i }).click()
       await expectSavedToast(page)
     })
 
     test('Events settings save', async ({ page }) => {
       await page.goto('/settings?tab=events')
-      await page.locator('input[type="number"]').first().fill('3')
+      await inputByLabel(page, /Bekleme Süresi|Cooldown/i).fill('3')
       await page.getByRole('button', { name: /Olay Ayarlarını Kaydet|Save Event Settings/i }).click()
       await expectSavedToast(page)
     })
@@ -271,7 +277,7 @@ const runSaveTests = (language: 'tr' | 'en') => {
     test('AI settings save', async ({ page }) => {
       await page.goto('/settings?tab=ai')
       await page.locator('#ai-enabled').check()
-      await page.locator('input[type="text"]').first().fill('gpt-4o-mini')
+      await selectByLabel(page, /Model/i).selectOption('gpt-4o-mini')
       await page.getByRole('button', { name: /AI Ayarlarını Kaydet|Save AI Settings/i }).click()
       await expectSavedToast(page)
     })
@@ -281,8 +287,8 @@ const runSaveTests = (language: 'tr' | 'en') => {
       await page.locator('#ai-enabled').check()
       await page.locator('input[type="password"], input[type="text"]').first().fill('api')
       await page.getByRole('button', { name: /AI Ayarlarını Kaydet|Save AI Settings/i }).click()
-      const errorToast = page.locator('[role="status"]').filter({ hasText: /sk-/i })
-      await expect(errorToast.first()).toBeVisible()
+      const errorToast = page.locator('[role="status"]').filter({ hasText: /sk-/i }).last()
+      await expect(errorToast).toBeVisible()
     })
 
     test('Telegram settings save', async ({ page }) => {
@@ -299,8 +305,8 @@ const runSaveTests = (language: 'tr' | 'en') => {
       await page.locator('#telegram-enabled').check()
       await page.locator('input[type="password"]').first().fill('invalid-token')
       await page.getByRole('button', { name: /Telegram Ayarlarını Kaydet|Save Telegram Settings/i }).click()
-      const errorToast = page.locator('[role="status"]').filter({ hasText: /token/i })
-      await expect(errorToast.first()).toBeVisible()
+      const errorToast = page.locator('[role="status"]').filter({ hasText: /token/i }).last()
+      await expect(errorToast).toBeVisible()
     })
 
     test('Telegram invalid chat id blocked', async ({ page }) => {
@@ -308,8 +314,8 @@ const runSaveTests = (language: 'tr' | 'en') => {
       await page.locator('#telegram-enabled').check()
       await page.getByPlaceholder('Enter chat ID and press Enter').fill('abc123')
       await page.getByRole('button', { name: /Add|Ekle/i }).click()
-      const errorToast = page.locator('[role="status"]').filter({ hasText: /chat id|sayısal/i })
-      await expect(errorToast.first()).toBeVisible()
+      const errorToast = page.locator('[role="status"]').filter({ hasText: /chat id|sayısal/i }).last()
+      await expect(errorToast).toBeVisible()
     })
   })
 }

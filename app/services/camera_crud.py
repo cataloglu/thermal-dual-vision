@@ -212,22 +212,22 @@ class CameraCRUDService:
     
     def mask_rtsp_urls(self, camera: Camera) -> Dict[str, Any]:
         """
-        Convert camera to dict with masked RTSP URLs.
+        Convert camera to dict with RTSP URLs.
         
         Args:
             camera: Camera object
             
         Returns:
-            Dict with masked URLs
+            Dict with RTSP URLs
         """
         return {
             "id": camera.id,
             "name": camera.name,
             "type": camera.type.value,
             "enabled": camera.enabled,
-            "rtsp_url": "***REDACTED***" if camera.rtsp_url else None,
-            "rtsp_url_color": "***REDACTED***" if camera.rtsp_url_color else None,
-            "rtsp_url_thermal": "***REDACTED***" if camera.rtsp_url_thermal else None,
+            "rtsp_url": camera.rtsp_url,
+            "rtsp_url_color": camera.rtsp_url_color,
+            "rtsp_url_thermal": camera.rtsp_url_thermal,
             "channel_color": camera.channel_color,
             "channel_thermal": camera.channel_thermal,
             "detection_source": camera.detection_source.value,

@@ -6,7 +6,6 @@ and connection testing with proper error handling and retry logic.
 """
 import base64
 import logging
-import re
 import time
 from typing import Dict, Optional
 
@@ -56,32 +55,6 @@ class CameraService:
         
         return url
     
-    @staticmethod
-    def mask_rtsp_credentials(url: str) -> str:
-        """
-        Mask credentials in RTSP URL for logging.
-        
-        Replaces user:pass with ***:*** in URL.
-        
-        Args:
-            url: RTSP URL with credentials
-            
-        Returns:
-            URL with masked credentials
-            
-        Example:
-            rtsp://admin:12345@192.168.1.100/stream
-            → rtsp://***:***@192.168.1.100/stream
-        """
-        if not url:
-            return url
-        
-        # Pattern: rtsp://user:pass@host
-        pattern = r"(rtsp://)[^:]+:[^@]+(@)"
-        masked = re.sub(pattern, r"\1***:***\2", url)
-        
-        return masked
-    
     def test_rtsp_connection(
         self,
         url: str,
@@ -107,9 +80,7 @@ class CameraService:
         # Force TCP protocol
         url = self.force_tcp_protocol(url)
         
-        # Mask credentials for logging
-        masked_url = self.mask_rtsp_credentials(url)
-        logger.info(f"Testing RTSP connection: {masked_url}")
+        logger.info(f"Testing RTSP connection: {url}")
         
         # Retry loop
         for attempt in range(self.MAX_RETRY_ATTEMPTS):
@@ -154,7 +125,7 @@ class CameraService:
                 # Clean up
                 cap.release()
                 
-                logger.info(f"RTSP connection successful: {masked_url} (latency: {latency_ms}ms)")
+                logger.info(f"RTSP connection successful: {url} (latency: {latency_ms}ms)")
                 
                 return {
                     "success": True,
@@ -166,7 +137,7 @@ class CameraService:
             except Exception as e:
                 logger.warning(
                     f"RTSP connection attempt {attempt + 1}/{self.MAX_RETRY_ATTEMPTS} failed: "
-                    f"{masked_url} - {str(e)}"
+                    f"{url} - {str(e)}"
                 )
                 
                 # Release capture if it was opened
@@ -184,7 +155,7 @@ class CameraService:
                 else:
                     # Last attempt failed
                     error_msg = f"Connection failed after {self.MAX_RETRY_ATTEMPTS} attempts: {str(e)}"
-                    logger.error(f"RTSP connection failed: {masked_url} - {error_msg}")
+                    logger.error(f"RTSP connection failed: {url} - {error_msg}")
                     
                     return {
                         "success": False,

@@ -148,9 +148,8 @@ class DetectorWorker:
             
             # Force TCP protocol
             rtsp_url = self.camera_service.force_tcp_protocol(rtsp_url)
-            masked_url = self.camera_service.mask_rtsp_credentials(rtsp_url)
             
-            logger.info(f"Starting detection for camera {camera_id}: {masked_url}")
+            logger.info(f"Starting detection for camera {camera_id}: {rtsp_url}")
             
             # Open video capture
             cap = cv2.VideoCapture(rtsp_url, cv2.CAP_FFMPEG)

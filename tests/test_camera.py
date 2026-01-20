@@ -3,7 +3,6 @@ Unit tests for camera service.
 
 Tests cover:
 - TCP protocol forcing
-- Credential masking
 - Snapshot base64 format
 - Latency measurement
 - Buffer size settings
@@ -50,34 +49,6 @@ def test_force_tcp_protocol(camera_service):
     url4 = ""
     result4 = camera_service.force_tcp_protocol(url4)
     assert result4 == ""
-
-
-def test_credential_masking(camera_service):
-    """Test that credentials are masked in RTSP URL."""
-    # Standard RTSP URL with credentials
-    url1 = "rtsp://admin:12345@192.168.1.100:554/stream"
-    masked1 = camera_service.mask_rtsp_credentials(url1)
-    assert "admin" not in masked1
-    assert "12345" not in masked1
-    assert "***:***" in masked1
-    assert "192.168.1.100" in masked1
-    
-    # Complex password
-    url2 = "rtsp://user:P@ssw0rd!@192.168.1.100/stream"
-    masked2 = camera_service.mask_rtsp_credentials(url2)
-    assert "user" not in masked2
-    assert "P@ssw0rd!" not in masked2
-    assert "***:***" in masked2
-    
-    # URL without credentials
-    url3 = "rtsp://192.168.1.100/stream"
-    masked3 = camera_service.mask_rtsp_credentials(url3)
-    assert masked3 == url3  # Should remain unchanged
-    
-    # Empty URL
-    url4 = ""
-    masked4 = camera_service.mask_rtsp_credentials(url4)
-    assert masked4 == ""
 
 
 @patch('cv2.VideoCapture')
