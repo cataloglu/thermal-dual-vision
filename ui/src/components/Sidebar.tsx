@@ -13,7 +13,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
-  const { isConnected } = useWebSocket('ws://localhost:8000/api/ws/events', {})
+  const { isConnected } = useWebSocket('/api/ws/events', {})
   
   const menuItems = [
     { path: '/', icon: MdDashboard, label: 'Kontrol Paneli' },
