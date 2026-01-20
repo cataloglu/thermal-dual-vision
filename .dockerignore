@@ -1,0 +1,43 @@
+# Data files (NEVER copy to image!)
+data/
+*.db
+*.sqlite
+data/**/*
+
+# Config files (local only)
+.env
+.env.local
+config.json
+
+# Media files
+*.mp4
+*.gif
+*.jpg
+*.jpeg
+*.png
+
+# Development
+.git
+.gitignore
+__pycache__
+*.pyc
+.pytest_cache
+.vscode
+.idea
+
+# Node
+node_modules
+dist
+build
+
+# Docs
+docs/
+*.md
+!README.md
+
+# Tests
+tests/
+pytest.ini
+
+# Other
+theme-preview.html

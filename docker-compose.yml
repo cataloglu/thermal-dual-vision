@@ -11,8 +11,7 @@ services:
     env_file:
       - .env
     volumes:
-      - ./app:/app
-      - ./data:/app/data
+      - ./data:/app/data  # Data DIŞARIDA (korunur!)
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/ready"]
