@@ -115,6 +115,8 @@ Request body:
   "channel_thermal": 202,
   "detection_source": "thermal",
   "stream_roles": ["detect", "live"],
+  "ai_prompt_override": "",
+  "use_custom_prompt": false,
   "zones": [
     { "id": "zone-1", "name": "Entry", "enabled": true, "mode": "person", "polygon": [[0.1, 0.1], [0.9, 0.1], [0.9, 0.9], [0.1, 0.9]] }
   ],
@@ -142,6 +144,8 @@ Response body:
   "channel_thermal": 202,
   "detection_source": "thermal",
   "stream_roles": ["detect", "live"],
+  "ai_prompt_override": "",
+  "use_custom_prompt": false,
   "zones": [
     { "id": "zone-1", "name": "Entry", "enabled": true, "mode": "person", "polygon": [[0.1, 0.1], [0.9, 0.1], [0.9, 0.9], [0.1, 0.9]] }
   ],
@@ -167,6 +171,8 @@ Request body (partial update):
   "enabled": true,
   "detection_source": "color",
   "stream_roles": ["detect", "live", "record"],
+  "ai_prompt_override": "Bu arka bahçe kamerası. Şüpheli davranış var mı kontrol et.",
+  "use_custom_prompt": true,
   "zones": [
     { "id": "zone-1", "name": "Entry", "enabled": true, "mode": "motion", "polygon": [[0.2, 0.2], [0.8, 0.2], [0.8, 0.8], [0.2, 0.8]] }
   ],
@@ -188,6 +194,8 @@ Response body:
   "channel_thermal": 202,
   "detection_source": "color",
   "stream_roles": ["detect", "live", "record"],
+  "ai_prompt_override": "Bu arka bahçe kamerası. Şüpheli davranış var mı kontrol et.",
+  "use_custom_prompt": true,
   "zones": [
     { "id": "zone-1", "name": "Entry", "enabled": true, "mode": "motion", "polygon": [[0.2, 0.2], [0.8, 0.2], [0.8, 0.8], [0.2, 0.8]] }
   ],
