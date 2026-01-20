@@ -39,15 +39,6 @@ export function Layout({ children }: LayoutProps) {
     <div className="flex h-screen bg-background">
       <Sidebar systemStatus={systemStatus} />
       <main className="flex-1 overflow-auto relative">
-        {/* Language Toggle Button */}
-        <button
-          onClick={toggleLanguage}
-          className="fixed top-20 right-4 z-20 flex items-center gap-2 px-3 py-2 bg-surface1 border border-border rounded-lg hover:bg-surface2 transition-colors text-text text-sm font-medium"
-          title="Dil değiştir / Change language"
-        >
-          <MdLanguage className="text-lg" />
-          {i18n.language === 'tr' ? 'TR' : 'EN'}
-        </button>
         {children}
       </main>
     </div>
