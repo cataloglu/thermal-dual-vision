@@ -46,7 +46,7 @@ export function Layout({ children }: LayoutProps) {
           title="Dil değiştir / Change language"
         >
           <MdLanguage className="text-lg" />
-          {i18n.language === 'tr' ? '🇹🇷 TR' : '🇬🇧 EN'}
+          {i18n.language === 'tr' ? 'TR' : 'EN'}
         </button>
         {children}
       </main>
