@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../services/api'
-import { useWebSocket } from '../hooks/useWebSocket'
 import { MdCheckCircle, MdWarning, MdError, MdVideocam, MdSmartToy } from 'react-icons/md'
 import toast from 'react-hot-toast'
 
@@ -156,23 +155,8 @@ export function Dashboard() {
     <div className="p-8">
       {/* Header */}
       <div className="mb-8">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-text mb-2">Kontrol Paneli</h1>
-            <p className="text-muted">Sistem durumu ve özet bilgiler</p>
-          </div>
-          {/* WebSocket Status Indicator */}
-          <div className="flex items-center gap-2 px-4 py-2 bg-surface1 border border-border rounded-lg">
-            <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}>
-              {isConnected && (
-                <div className="absolute w-2 h-2 rounded-full bg-green-500 animate-ping" />
-              )}
-            </div>
-            <span className="text-sm text-muted">
-              {isConnected ? 'Canlı Bağlantı' : 'Bağlantı Kesildi'}
-            </span>
-          </div>
-        </div>
+        <h1 className="text-3xl font-bold text-text mb-2">Kontrol Paneli</h1>
+        <p className="text-muted">Sistem durumu ve özet bilgiler</p>
       </div>
 
       {/* Cards Grid */}
