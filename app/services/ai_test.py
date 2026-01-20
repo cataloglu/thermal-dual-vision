@@ -4,7 +4,7 @@ AI test service for Smart Motion Detector v2.
 Handles OpenAI connection testing.
 """
 import logging
-import openai
+from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
@@ -21,10 +21,10 @@ async def test_openai_connection(api_key: str, model: str = "gpt-4o") -> dict:
         Dict with success status and message
     """
     try:
-        openai.api_key = api_key
+        client = OpenAI(api_key=api_key)
         
         # Simple test query
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model=model,
             messages=[
                 {

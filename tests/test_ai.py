@@ -195,15 +195,17 @@ def test_image_not_found(ai_service):
     assert encoded is None
 
 
-@patch('app.services.ai.openai.ChatCompletion.create')
-def test_openai_api_call(mock_openai, ai_service, test_event, test_camera, test_image, mock_config):
+@patch('app.services.ai.OpenAI')
+def test_openai_api_call(mock_openai_class, ai_service, test_event, test_camera, test_image, mock_config):
     """Test OpenAI API call with mocked response."""
-    # Mock OpenAI response
+    # Mock OpenAI client and response
+    mock_client = Mock()
     mock_response = Mock()
     mock_response.choices = [Mock()]
     mock_response.choices[0].message = Mock()
     mock_response.choices[0].message.content = "1 kişi tespit edildi. Ön kapıda bekliyor. Tehdit: Düşük"
-    mock_openai.return_value = mock_response
+    mock_client.chat.completions.create.return_value = mock_response
+    mock_openai_class.return_value = mock_client
     
     with patch.object(ai_service.settings_service, 'load_config', return_value=mock_config):
         result = ai_service.analyze_event(test_event, test_image, test_camera)
@@ -213,8 +215,8 @@ def test_openai_api_call(mock_openai, ai_service, test_event, test_camera, test_
         assert "Düşük" in result
         
         # Verify API was called
-        mock_openai.assert_called_once()
-        call_args = mock_openai.call_args
+        mock_client.chat.completions.create.assert_called_once()
+        call_args = mock_client.chat.completions.create.call_args
         
         # Verify model
         assert call_args.kwargs['model'] == "gpt-4o"
@@ -230,11 +232,13 @@ def test_openai_api_call(mock_openai, ai_service, test_event, test_camera, test_
         assert any(item['type'] == 'image_url' for item in user_content)
 
 
-@patch('app.services.ai.openai.ChatCompletion.create')
-def test_openai_api_error(mock_openai, ai_service, test_event, test_camera, test_image, mock_config):
+@patch('app.services.ai.OpenAI')
+def test_openai_api_error(mock_openai_class, ai_service, test_event, test_camera, test_image, mock_config):
     """Test OpenAI API error handling."""
     # Mock API error
-    mock_openai.side_effect = Exception("API Error")
+    mock_client = Mock()
+    mock_client.chat.completions.create.side_effect = Exception("API Error")
+    mock_openai_class.return_value = mock_client
     
     with patch.object(ai_service.settings_service, 'load_config', return_value=mock_config):
         result = ai_service.analyze_event(test_event, test_image, test_camera)

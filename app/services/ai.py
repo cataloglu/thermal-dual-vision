@@ -7,7 +7,7 @@ import base64
 import logging
 from pathlib import Path
 from typing import Dict, Any, Optional
-import openai
+from openai import OpenAI
 
 from app.services.settings import get_settings_service
 
@@ -133,9 +133,9 @@ class AIService:
             # Call OpenAI API
             logger.info(f"Calling OpenAI API for event {event.get('id', 'unknown')}")
             
-            openai.api_key = config.ai.api_key
+            client = OpenAI(api_key=config.ai.api_key)
             
-            response = openai.ChatCompletion.create(
+            response = client.chat.completions.create(
                 model=config.ai.model,
                 messages=[
                     {
