@@ -43,7 +43,7 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true)
 
   // WebSocket connection for real-time updates
-  const { isConnected } = useWebSocket('ws://localhost:8000/api/ws/events', {
+  const { isConnected } = useWebSocket('/api/ws/events', {
     onEvent: (data) => {
       console.log('New event received:', data)
       // Update last event
