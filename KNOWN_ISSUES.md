@@ -149,7 +149,40 @@ Phase 8-9 (Frontend pages)
 
 ## 🟢 Düşük (Gelecek)
 
-### 6. **AI Prompt Test Butonu Yok**
+### 6. **Theme Selector Yok**
+
+**Sorun**:
+Sadece 1 tema var (Frigate - mavi accent).  
+Kullanıcı tema seçemiyor.
+
+**İstenilen**:
+```
+Settings → Appearance Tab:
+  Theme:
+  ○ Slate Professional (Yeşil) ⭐
+  ○ Carbon Dark (Turkuaz)
+  ○ Pure Black (Kırmızı)
+  ○ Matrix (Neon Yeşil)
+  
+  [Preview] [Save]
+```
+
+**Çözüm**:
+Phase 14 (Theme Selector)
+
+**Dosyalar**:
+- Config'e `appearance.theme` field
+- UI'da Appearance tab
+- Theme switcher (Tailwind config)
+- 4 tema: slate, carbon, pure-black, matrix
+
+**Öncelik**: Düşük  
+**Etki**: Kullanıcı deneyimi (görsel)  
+**Tahmini**: 1-2 saat
+
+---
+
+### 7. **AI Prompt Test Butonu Yok**
 
 **Sorun**:
 AI prompt ayarlıyorsun ama test edemiyorsun.
