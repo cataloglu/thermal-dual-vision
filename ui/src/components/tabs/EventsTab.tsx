@@ -26,7 +26,7 @@ export const EventsTab: React.FC<EventsTabProps> = ({ config, onChange, onSave }
       <div className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-text mb-2">
-            Cooldown (seconds)
+            Bekleme Süresi (saniye)
           </label>
           <input
             type="number"
@@ -37,13 +37,13 @@ export const EventsTab: React.FC<EventsTabProps> = ({ config, onChange, onSave }
             className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
           />
           <p className="text-xs text-muted mt-1">
-            Minimum time between events (prevents duplicates)
+            Olaylar arası minimum süre (tekrarları önler)
           </p>
         </div>
 
         <div>
           <label className="block text-sm font-medium text-text mb-2">
-            Frame Buffer Size
+            Kare Tamponu Boyutu
           </label>
           <input
             type="number"
@@ -54,13 +54,13 @@ export const EventsTab: React.FC<EventsTabProps> = ({ config, onChange, onSave }
             className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
           />
           <p className="text-xs text-muted mt-1">
-            Number of frames to buffer for collage generation
+            Collage oluşturma için kare sayısı
           </p>
         </div>
 
         <div>
           <label className="block text-sm font-medium text-text mb-2">
-            Frame Interval
+            Kare Aralığı
           </label>
           <input
             type="number"
@@ -71,17 +71,17 @@ export const EventsTab: React.FC<EventsTabProps> = ({ config, onChange, onSave }
             className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
           />
           <p className="text-xs text-muted mt-1">
-            Capture every Nth frame
+            Her kaç karede bir yakalama yapılacak
           </p>
         </div>
 
         <div>
           <label className="block text-sm font-medium text-text mb-2">
-            Min Event Duration (seconds)
+            Minimum Olay Süresi (saniye)
           </label>
           <input
             type="number"
-            min="0"
+            min="0.5"
             max="10"
             step="0.5"
             value={config.min_event_duration}
@@ -89,7 +89,7 @@ export const EventsTab: React.FC<EventsTabProps> = ({ config, onChange, onSave }
             className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
           />
           <p className="text-xs text-muted mt-1">
-            Minimum duration for an event to be recorded
+            Minimum olay süresi (çok kısa olayları filtreler)
           </p>
         </div>
       </div>

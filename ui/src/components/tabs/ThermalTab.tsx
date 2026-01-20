@@ -41,27 +41,24 @@ export const ThermalTab: React.FC<ThermalTabProps> = ({ config, onChange, onSave
           <>
             <div>
               <label className="block text-sm font-medium text-text mb-2">
-                Enhancement Method
+                İyileştirme Yöntemi
               </label>
               <select
                 value={config.enhancement_method}
                 onChange={(e) => onChange({ ...config, enhancement_method: e.target.value as ThermalConfig['enhancement_method'] })}
                 className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
               >
-                <option value="clahe">CLAHE (Recommended)</option>
-                <option value="histogram">Histogram Equalization</option>
-                <option value="none">None</option>
+                <option value="clahe">CLAHE (Önerilen)</option>
+                <option value="histogram">Histogram Eşitleme</option>
+                <option value="none">Yok</option>
               </select>
-              <p className="text-xs text-muted mt-1">
-                CLAHE provides best results for thermal images
-              </p>
             </div>
 
             {config.enhancement_method === 'clahe' && (
               <>
                 <div>
                   <label className="block text-sm font-medium text-text mb-2">
-                    CLAHE Clip Limit: {config.clahe_clip_limit.toFixed(1)}
+                    CLAHE Clip Limiti: {config.clahe_clip_limit.toFixed(1)}
                   </label>
                   <input
                     type="range"
@@ -73,50 +70,78 @@ export const ThermalTab: React.FC<ThermalTabProps> = ({ config, onChange, onSave
                     className="w-full"
                   />
                   <p className="text-xs text-muted mt-1">
-                    Controls contrast enhancement strength (default: 2.0)
+                    Kontrast iyileştirme limiti (1-5)
                   </p>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-text mb-2">
-                    CLAHE Tile Size
+                    CLAHE Izgara Boyutu
                   </label>
                   <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <input
-                        type="number"
-                        min="4"
-                        max="16"
-                        value={config.clahe_tile_size[0]}
-                        onChange={(e) => onChange({ 
-                          ...config, 
-                          clahe_tile_size: [parseInt(e.target.value) || 8, config.clahe_tile_size[1]] 
-                        })}
-                        className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
-                        placeholder="Width"
-                      />
-                    </div>
-                    <div>
-                      <input
-                        type="number"
-                        min="4"
-                        max="16"
-                        value={config.clahe_tile_size[1]}
-                        onChange={(e) => onChange({ 
-                          ...config, 
-                          clahe_tile_size: [config.clahe_tile_size[0], parseInt(e.target.value) || 8] 
-                        })}
-                        className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
-                        placeholder="Height"
-                      />
-                    </div>
+                    <input
+                      type="number"
+                      min="4"
+                      max="16"
+                      value={config.clahe_tile_size[0]}
+                      onChange={(e) => onChange({ 
+                        ...config, 
+                        clahe_tile_size: [parseInt(e.target.value) || 8, config.clahe_tile_size[1]] 
+                      })}
+                      className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
+                      placeholder="Genişlik"
+                    />
+                    <input
+                      type="number"
+                      min="4"
+                      max="16"
+                      value={config.clahe_tile_size[1]}
+                      onChange={(e) => onChange({ 
+                        ...config, 
+                        clahe_tile_size: [config.clahe_tile_size[0], parseInt(e.target.value) || 8] 
+                      })}
+                      className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
+                      placeholder="Yükseklik"
+                    />
                   </div>
-                  <p className="text-xs text-muted mt-1">
-                    Grid size for local histogram equalization (default: 8x8)
-                  </p>
                 </div>
               </>
             )}
+
+            <div>
+              <label className="block text-sm font-medium text-text mb-2">
+                Gaussian Blur Kernel
+              </label>
+              <div className="grid grid-cols-2 gap-4">
+                <input
+                  type="number"
+                  min="1"
+                  max="9"
+                  step="2"
+                  value={config.gaussian_blur_kernel[0]}
+                  onChange={(e) => onChange({ 
+                    ...config, 
+                    gaussian_blur_kernel: [parseInt(e.target.value) || 3, config.gaussian_blur_kernel[1]] 
+                  })}
+                  className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
+                />
+                <input
+                  type="number"
+                  min="1"
+                  max="9"
+                  step="2"
+                  value={config.gaussian_blur_kernel[1]}
+                  onChange={(e) => onChange({ 
+                    ...config, 
+                    gaussian_blur_kernel: [config.gaussian_blur_kernel[0], parseInt(e.target.value) || 3] 
+                  })}
+                  className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
+                />
+              </div>
+              <p className="text-xs text-muted mt-1">
+                Gürültü azaltma için bulanıklaştırma (tek sayı olmalı)
+              </p>
+            </div>
           </>
         )}
       </div>

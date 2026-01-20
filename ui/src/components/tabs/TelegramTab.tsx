@@ -53,7 +53,7 @@ export const TelegramTab: React.FC<TelegramTabProps> = ({ config, onChange, onSa
             className="w-4 h-4 text-accent bg-surface2 border-border rounded focus:ring-accent"
           />
           <label htmlFor="telegram-enabled" className="text-sm font-medium text-text">
-            Enable Telegram Notifications
+            Telegram Bildirimlerini Etkinleştir
           </label>
         </div>
 
@@ -86,7 +86,7 @@ export const TelegramTab: React.FC<TelegramTabProps> = ({ config, onChange, onSa
 
             <div>
               <label className="block text-sm font-medium text-text mb-2">
-                Chat IDs
+                Chat ID'ler
               </label>
               <div className="flex space-x-2 mb-2">
                 <input
@@ -132,9 +132,9 @@ export const TelegramTab: React.FC<TelegramTabProps> = ({ config, onChange, onSa
                 onChange={(e) => onChange({ ...config, send_images: e.target.checked })}
                 className="w-4 h-4 text-accent bg-surface2 border-border rounded focus:ring-accent"
               />
-              <label htmlFor="send-images" className="text-sm font-medium text-text">
-                Send Images (Collage)
-              </label>
+          <label htmlFor="send-images" className="text-sm font-medium text-text">
+            Görüntü Gönder (Collage)
+          </label>
             </div>
 
             <div>

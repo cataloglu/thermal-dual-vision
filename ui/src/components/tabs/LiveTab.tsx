@@ -26,15 +26,15 @@ export const LiveTab: React.FC<LiveTabProps> = ({ config, onChange, onSave }) =>
       <div className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-text mb-2">
-            Output Mode
+            Çıkış Modu
           </label>
           <select
             value={config.output_mode}
             onChange={(e) => onChange({ ...config, output_mode: e.target.value as LiveConfig['output_mode'] })}
             className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
           >
-            <option value="mjpeg">MJPEG (Simple, 1-3s latency)</option>
-            <option value="webrtc">WebRTC (Low latency, requires go2rtc)</option>
+            <option value="mjpeg">MJPEG (Basit, 1-3s gecikme)</option>
+            <option value="webrtc">WebRTC (Düşük gecikme, go2rtc gerekli)</option>
           </select>
         </div>
 
@@ -52,14 +52,14 @@ export const LiveTab: React.FC<LiveTabProps> = ({ config, onChange, onSave }) =>
                 className="w-4 h-4 text-accent bg-surface2 border-border rounded focus:ring-accent"
               />
               <label htmlFor="webrtc-enabled" className="text-sm font-medium text-text">
-                Enable WebRTC
+                WebRTC'yi Etkinleştir
               </label>
             </div>
 
             {config.webrtc.enabled && (
               <div>
                 <label className="block text-sm font-medium text-text mb-2">
-                  go2rtc Server URL
+                  go2rtc URL
                 </label>
                 <input
                   type="text"
@@ -72,16 +72,10 @@ export const LiveTab: React.FC<LiveTabProps> = ({ config, onChange, onSave }) =>
                   className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent"
                 />
                 <p className="text-xs text-muted mt-1">
-                  go2rtc server is required for WebRTC streaming
+                  go2rtc sunucu adresi (WebRTC için gerekli)
                 </p>
               </div>
             )}
-
-            <div className="p-4 bg-warning bg-opacity-10 border border-warning rounded-lg">
-              <p className="text-sm text-warning">
-                WebRTC requires go2rtc server to be running separately
-              </p>
-            </div>
           </div>
         )}
       </div>

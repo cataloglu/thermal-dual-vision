@@ -59,6 +59,7 @@ npm run dev
 - 🎬 **Media Specification**: [`docs/MEDIA_SPEC.md`](docs/MEDIA_SPEC.md) 📹
 - 🚀 **Advanced Features**: [`docs/ADVANCED_FEATURES.md`](docs/ADVANCED_FEATURES.md) 🏆
 - 🤖 **YOLO Model Comparison**: [`docs/YOLO_COMPARISON.md`](docs/YOLO_COMPARISON.md) 🔥
+- 🧪 **E2E Tests (Playwright)**: [`docs/E2E_TESTS.md`](docs/E2E_TESTS.md)
 - 🗺️ **Implementation Roadmap**: [`ROADMAP.md`](ROADMAP.md) ⭐
 
 ## 🎯 MVP Scope

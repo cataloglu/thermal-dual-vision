@@ -33,6 +33,12 @@ Her kaydetmeden sonra:
 
 ---
 
+## 1.1) E2E Otomasyon (Playwright)
+- UI save akışlarını otomatik test etmek için Playwright kullanılır.
+- Detaylar: `docs/E2E_TESTS.md`
+
+---
+
 ## 2) Rapor Şablonu
 
 **Test Raporu — Phase 2 UI Save**

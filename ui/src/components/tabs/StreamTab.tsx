@@ -26,24 +26,24 @@ export const StreamTab: React.FC<StreamTabProps> = ({ config, onChange, onSave }
       <div className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-text mb-2">
-            Protocol
+            Protokol
           </label>
           <select
             value={config.protocol}
             onChange={(e) => onChange({ ...config, protocol: e.target.value as StreamConfig['protocol'] })}
             className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
           >
-            <option value="tcp">TCP (Recommended)</option>
+            <option value="tcp">TCP (Önerilen)</option>
             <option value="udp">UDP</option>
           </select>
           <p className="text-xs text-muted mt-1">
-            TCP prevents frame tearing from packet loss
+            TCP paket kaybından kaynaklanan kare yırtılmasını önler
           </p>
         </div>
 
         <div>
           <label className="block text-sm font-medium text-text mb-2">
-            Buffer Size
+            Buffer Boyutu
           </label>
           <input
             type="number"
@@ -54,13 +54,13 @@ export const StreamTab: React.FC<StreamTabProps> = ({ config, onChange, onSave }
             className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
           />
           <p className="text-xs text-muted mt-1">
-            Lower buffer = lower latency (default: 1)
+            Düşük buffer = düşük gecikme (varsayılan: 1)
           </p>
         </div>
 
         <div>
           <label className="block text-sm font-medium text-text mb-2">
-            Reconnect Delay (seconds)
+            Yeniden Bağlanma Gecikmesi (saniye)
           </label>
           <input
             type="number"
@@ -70,11 +70,14 @@ export const StreamTab: React.FC<StreamTabProps> = ({ config, onChange, onSave }
             onChange={(e) => onChange({ ...config, reconnect_delay_seconds: parseInt(e.target.value) || 5 })}
             className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
           />
+          <p className="text-xs text-muted mt-1">
+            Yeniden bağlanma denemeleri arasındaki gecikme
+          </p>
         </div>
 
         <div>
           <label className="block text-sm font-medium text-text mb-2">
-            Max Reconnect Attempts
+            Maksimum Yeniden Bağlanma Denemesi
           </label>
           <input
             type="number"
@@ -84,6 +87,9 @@ export const StreamTab: React.FC<StreamTabProps> = ({ config, onChange, onSave }
             onChange={(e) => onChange({ ...config, max_reconnect_attempts: parseInt(e.target.value) || 10 })}
             className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
           />
+          <p className="text-xs text-muted mt-1">
+            Maksimum yeniden bağlanma deneme sayısı
+          </p>
         </div>
       </div>
 
