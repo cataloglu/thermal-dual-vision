@@ -63,13 +63,16 @@
 
 ### D) Settings
 **Settings altında sekmeler:**
-- Cameras (CRUD + test)
-- Detection (global defaults + per-camera overrides)
-- Detection Source (color / thermal / auto)
-- Detection Model (iki modelden biri seçilebilir)
-- Zones (motion/person alanları)
-- AI (enable toggle + key + model)
-- Telegram (enable + token + chat id + test)
+- **Cameras** (CRUD + test)
+- **Detection** (model: yolov8n/s-person, confidence, inference FPS)
+- **Thermal** (enhancement: CLAHE, preprocessing)
+- **Stream** (protocol: TCP/UDP, buffer size, reconnect)
+- **Zones** (motion/person polygon alanları)
+- **Live Stream** (MJPEG/WebRTC output mode)
+- **Recording** (retention, disk limit, cleanup)
+- **Events** (cooldown, frame buffer, interval)
+- **AI** (enable toggle + key + model)
+- **Telegram** (enable + token + chat id + test)
 
 ### E) Diagnostics
 - /api/health çıktısı

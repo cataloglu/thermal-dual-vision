@@ -364,7 +364,6 @@ Response:
     "enable_tracking": false
   },
   "motion": {
-    "detector_model": "yolov8n-person",
     "sensitivity": 7,
     "min_area": 500,
     "cooldown_seconds": 5,
@@ -380,14 +379,13 @@ Response:
     "gaussian_blur_kernel": [3, 3]
   },
   "stream": {
-    "mode": "mjpeg",
     "protocol": "tcp",
     "buffer_size": 1,
     "reconnect_delay_seconds": 5,
     "max_reconnect_attempts": 10
   },
   "live": {
-    "stream_mode": "mjpeg",
+    "output_mode": "mjpeg",
     "webrtc": { "enabled": false, "go2rtc_url": "" }
   },
   "record": {
@@ -456,8 +454,8 @@ Request body (partial update):
   "detection": { "model": "yolov8s-person", "confidence_threshold": 0.3, "inference_fps": 10 },
   "thermal": { "enable_enhancement": true, "enhancement_method": "clahe" },
   "stream": { "protocol": "tcp", "buffer_size": 2 },
-  "motion": { "detector_model": "yolov8s-person", "sensitivity": 6, "cooldown_seconds": 4 },
-  "live": { "stream_mode": "webrtc", "webrtc": { "enabled": true, "go2rtc_url": "http://localhost:1984" } },
+  "motion": { "sensitivity": 6, "cooldown_seconds": 4 },
+  "live": { "output_mode": "webrtc", "webrtc": { "enabled": true, "go2rtc_url": "http://localhost:1984" } },
   "record": { "enabled": true, "retention_days": 14, "record_segments_seconds": 10, "disk_limit_percent": 85 },
   "event": { "cooldown_seconds": 3, "frame_buffer_size": 15 },
   "media": { "retention_days": 14, "disk_limit_percent": 85 },
@@ -494,14 +492,13 @@ Response:
     "gaussian_blur_kernel": [3, 3]
   },
   "stream": {
-    "mode": "mjpeg",
     "protocol": "tcp",
     "buffer_size": 2,
     "reconnect_delay_seconds": 5,
     "max_reconnect_attempts": 10
   },
   "live": {
-    "stream_mode": "webrtc",
+    "output_mode": "webrtc",
     "webrtc": { "enabled": true, "go2rtc_url": "http://localhost:1984" }
   },
   "record": {

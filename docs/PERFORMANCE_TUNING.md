@@ -363,14 +363,12 @@ EVENT_FRAME_INTERVAL = 2  # Her 2 frame'de bir kaydet
     "gaussian_blur_kernel": [3, 3]
   },
   "stream": {
-    "mode": "mjpeg",
     "protocol": "tcp",
     "buffer_size": 1,
     "reconnect_delay_seconds": 5,
     "max_reconnect_attempts": 10
   },
   "motion": {
-    "detector_model": "yolov8n-person",
     "sensitivity": 8,
     "min_area": 450,
     "cooldown_seconds": 4

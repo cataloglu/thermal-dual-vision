@@ -108,15 +108,16 @@ Sidebar menü:
 
 ### Settings
 - Sekmeler:
-  - Cameras
-  - Detection
-  - Detection Source
-  - Detection Model
-  - Zones
-  - Live Stream
-  - Recording
-  - AI
-  - Telegram
+  - **Cameras** (CRUD + test)
+  - **Detection** (model, confidence, inference settings)
+  - **Thermal** (enhancement, CLAHE, preprocessing)
+  - **Stream** (protocol, buffer, reconnect)
+  - **Zones** (polygon ROI, motion/person areas)
+  - **Live Stream** (MJPEG/WebRTC output mode)
+  - **Recording** (retention, disk limit)
+  - **Events** (cooldown, frame buffer)
+  - **AI** (OpenAI integration)
+  - **Telegram** (notifications)
 - Cameras:
   - “Add camera” form (wizard yok)
   - Camera type select (color/thermal/dual)
