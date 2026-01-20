@@ -23,9 +23,12 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
         </p>
       </div>
 
-      <div className="p-4 bg-info bg-opacity-10 border border-info rounded-lg mb-4">
-        <p className="text-sm text-info">
-          AI integration is optional. The system works without it.
+      <div className="p-4 bg-surface2 border-l-4 border-info rounded-lg mb-4">
+        <p className="text-sm text-text font-medium">
+          ℹ️ AI entegrasyonu opsiyoneldir. Sistem AI olmadan da çalışır.
+        </p>
+        <p className="text-xs text-muted mt-1">
+          AI sadece event'lere açıklama ekler, filtreleme yapmaz.
         </p>
       </div>
 
