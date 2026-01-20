@@ -138,9 +138,9 @@ export const Settings: React.FC = () => {
         </div>
 
         <div className="bg-surface1 border border-border rounded-lg p-6">
-          <SettingsTabs activeTab={activeTab} onTabChange={setActiveTab} />
+          {/* Tab navigation in Sidebar */}
 
-          <div className="mt-6">
+          <div className="mt-0">
             {activeTab === 'cameras' && <CamerasTab />}
             
             {activeTab === 'detection' && localSettings && (
