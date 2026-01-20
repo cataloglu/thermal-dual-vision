@@ -104,7 +104,7 @@ export function Diagnostics() {
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-text mb-2">Diagnostics</h1>
+          <h1 className="text-3xl font-bold text-text mb-2">Sistem Tanılama</h1>
           <p className="text-muted">Sistem durumu ve debug bilgileri</p>
         </div>
 
@@ -117,7 +117,7 @@ export function Diagnostics() {
               onChange={(e) => setAutoRefresh(e.target.checked)}
               className="w-4 h-4 accent-accent"
             />
-            <span className="text-sm text-text">Auto-refresh (5s)</span>
+            <span className="text-sm text-text">Otomatik Yenile (5s)</span>
           </label>
 
           {/* Refresh Button */}
@@ -135,7 +135,7 @@ export function Diagnostics() {
       {/* Health JSON */}
       <div className="bg-surface1 border border-border rounded-lg p-6 mb-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-text">System Health</h2>
+          <h2 className="text-lg font-semibold text-text">Sistem Sağlığı</h2>
           <button
             onClick={handleCopyHealth}
             className="flex items-center gap-2 px-3 py-1.5 bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors text-sm"
@@ -161,7 +161,7 @@ export function Diagnostics() {
       {/* Logs */}
       <div className="bg-surface1 border border-border rounded-lg p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-text">Application Logs (Last 200 lines)</h2>
+          <h2 className="text-lg font-semibold text-text">Uygulama Logları (Son 200 satır)</h2>
           <button
             onClick={handleCopyLogs}
             disabled={logsLoading}

@@ -158,7 +158,7 @@ export function Dashboard() {
       <div className="mb-8">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-text mb-2">Dashboard</h1>
+            <h1 className="text-3xl font-bold text-text mb-2">Kontrol Paneli</h1>
             <p className="text-muted">Sistem durumu ve özet bilgiler</p>
           </div>
           {/* WebSocket Status Indicator */}

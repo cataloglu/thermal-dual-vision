@@ -13,11 +13,11 @@ interface SidebarProps {
 
 export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
   const menuItems = [
-    { path: '/', icon: MdDashboard, label: 'Dashboard' },
+    { path: '/', icon: MdDashboard, label: 'Kontrol Paneli' },
     { path: '/live', icon: MdVideocam, label: 'Canlı Görüntü' },
     { path: '/events', icon: MdEvent, label: 'Olaylar' },
     { path: '/settings', icon: MdSettings, label: 'Ayarlar' },
-    { path: '/diagnostics', icon: MdSearch, label: 'Diagnostics' },
+    { path: '/diagnostics', icon: MdSearch, label: 'Sistem Tanılama' },
   ]
 
   const statusColors = {
@@ -68,7 +68,7 @@ export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
       {/* Footer */}
       <div className="p-4 border-t border-border">
         <p className="text-xs text-muted text-center">
-          Smart Motion Detector
+          Akıllı Hareket Algılama
         </p>
       </div>
     </aside>
