@@ -410,8 +410,12 @@ Response:
   "ai": {
     "enabled": false,
     "api_key": "***REDACTED***",
-    "model": "gpt-4",
-    "max_tokens": 1000,
+    "model": "gpt-4-vision-preview",
+    "prompt_template": "security_focused",
+    "custom_prompt": "",
+    "language": "tr",
+    "max_tokens": 200,
+    "temperature": 0.3,
     "timeout": 30
   },
   "telegram": {
