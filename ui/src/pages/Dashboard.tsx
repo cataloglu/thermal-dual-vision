@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../services/api'
+import { useWebSocket } from '../hooks/useWebSocket'
 import { MdCheckCircle, MdWarning, MdError, MdVideocam, MdSmartToy } from 'react-icons/md'
+import toast from 'react-hot-toast'
 
 interface HealthData {
   status: string
@@ -38,6 +40,43 @@ export function Dashboard() {
   const [lastEvent, setLastEvent] = useState<Event | null>(null)
   const [loading, setLoading] = useState(true)
 
+  // WebSocket connection for real-time updates
+  const { isConnected } = useWebSocket('/api/ws/events', {
+    onEvent: (data) => {
+      console.log('New event received:', data)
+      // Update last event
+      setLastEvent({
+        id: data.id,
+        camera_id: data.camera_id,
+        timestamp: data.timestamp,
+        confidence: data.confidence || 0,
+        event_type: data.event_type,
+        summary: data.summary || null,
+        collage_url: `/api/events/${data.id}/collage`,
+        gif_url: `/api/events/${data.id}/preview.gif`,
+        mp4_url: `/api/events/${data.id}/timelapse.mp4`,
+      })
+      toast.success(`Yeni olay: ${data.camera_id}`)
+    },
+    onStatus: (data) => {
+      console.log('Status update received:', data)
+      // Update health data with status
+      if (health) {
+        setHealth({
+          ...health,
+          cameras: data.cameras || health.cameras,
+          ai: data.ai || health.ai,
+        })
+      }
+    },
+    onConnect: () => {
+      console.log('WebSocket connected')
+    },
+    onDisconnect: () => {
+      console.log('WebSocket disconnected')
+    },
+  })
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -58,9 +97,7 @@ export function Dashboard() {
     }
 
     fetchData()
-    const interval = setInterval(fetchData, 5000) // Refresh every 5s
-
-    return () => clearInterval(interval)
+    // No more polling! WebSocket handles real-time updates
   }, [])
 
   const formatUptime = (seconds: number) => {
@@ -117,8 +154,23 @@ export function Dashboard() {
     <div className="p-8">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-text mb-2">Dashboard</h1>
-        <p className="text-muted">Sistem durumu ve özet bilgiler</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-text mb-2">Dashboard</h1>
+            <p className="text-muted">Sistem durumu ve özet bilgiler</p>
+          </div>
+          {/* WebSocket Status Indicator */}
+          <div className="flex items-center gap-2 px-4 py-2 bg-surface1 border border-border rounded-lg">
+            <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}>
+              {isConnected && (
+                <div className="absolute w-2 h-2 rounded-full bg-green-500 animate-ping" />
+              )}
+            </div>
+            <span className="text-sm text-muted">
+              {isConnected ? 'Canlı Bağlantı' : 'Bağlantı Kesildi'}
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* Cards Grid */}

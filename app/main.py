@@ -5,7 +5,7 @@ import logging
 from datetime import date
 from typing import Any, Dict, Optional
 
-from fastapi import FastAPI, HTTPException, Depends, Query
+from fastapi import FastAPI, HTTPException, Depends, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import ValidationError
@@ -17,6 +17,7 @@ from app.services.camera import get_camera_service
 from app.services.events import get_event_service
 from app.services.media import get_media_service
 from app.services.settings import get_settings_service
+from app.services.websocket import get_websocket_manager
 from app.workers.retention import get_retention_worker
 
 
@@ -51,6 +52,7 @@ camera_service = get_camera_service()
 event_service = get_event_service()
 media_service = get_media_service()
 retention_worker = get_retention_worker()
+websocket_manager = get_websocket_manager()
 
 
 @app.on_event("startup")
@@ -650,6 +652,43 @@ async def get_cameras() -> Dict[str, Any]:
                 "message": f"Failed to retrieve cameras: {str(e)}"
             }
         )
+
+
+@app.websocket("/api/ws/events")
+async def websocket_endpoint(websocket: WebSocket):
+    """
+    WebSocket endpoint for real-time event and status updates.
+    
+    Clients can connect to receive:
+    - Event notifications: {"type": "event", "data": {...}}
+    - Status updates: {"type": "status", "data": {...}}
+    
+    Args:
+        websocket: WebSocket connection
+    """
+    await websocket_manager.connect(websocket)
+    
+    try:
+        # Keep connection alive and handle incoming messages
+        while True:
+            # Wait for any message from client (ping/pong)
+            try:
+                data = await websocket.receive_text()
+                logger.debug(f"Received WebSocket message: {data}")
+                
+                # Echo back for ping/pong
+                if data == "ping":
+                    await websocket.send_text("pong")
+                    
+            except WebSocketDisconnect:
+                logger.info("WebSocket client disconnected")
+                break
+            except Exception as e:
+                logger.error(f"WebSocket error: {e}")
+                break
+                
+    finally:
+        await websocket_manager.disconnect(websocket)
 
 
 if __name__ == "__main__":
