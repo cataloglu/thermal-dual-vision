@@ -268,9 +268,9 @@ class AIConfig(BaseModel):
         default="",
         description="OpenAI API key (will be masked)"
     )
-    model: str = Field(
-        default="gpt-4",
-        description="OpenAI model name"
+    model: Literal["gpt-4o", "gpt-4o-mini", "gpt-4-vision-preview"] = Field(
+        default="gpt-4o",
+        description="OpenAI model with vision support"
     )
     max_tokens: int = Field(
         default=1000,

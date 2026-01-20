@@ -410,7 +410,7 @@ Response:
   "ai": {
     "enabled": false,
     "api_key": "***REDACTED***",
-    "model": "gpt-4-vision-preview",
+    "model": "gpt-4o",
     "prompt_template": "security_focused",
     "custom_prompt": "",
     "language": "tr",
