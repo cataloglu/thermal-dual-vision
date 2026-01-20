@@ -15,6 +15,8 @@ interface AITabProps {
 export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
   const { t } = useTranslation();
   const [showApiKey, setShowApiKey] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   return (
     <div className="space-y-6">
@@ -73,6 +75,44 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
               <p className="text-xs text-muted mt-1">
                 OpenAI API key (starts with sk-)
               </p>
+              
+              {/* Test Button */}
+              <button
+                onClick={async () => {
+                  if (!config.api_key || config.api_key === '***REDACTED***') {
+                    alert('API key gerekli');
+                    return;
+                  }
+                  setTesting(true);
+                  setTestResult(null);
+                  try {
+                    const response = await fetch('/api/ai/test', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ api_key: config.api_key, model: config.model })
+                    });
+                    const data = await response.json();
+                    setTestResult(data);
+                  } catch (error: any) {
+                    setTestResult({ success: false, message: error.message });
+                  } finally {
+                    setTesting(false);
+                  }
+                }}
+                disabled={testing || !config.api_key}
+                className="w-full px-4 py-2 bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors disabled:opacity-50 mt-2"
+              >
+                {testing ? t('loading') + '...' : t('test')}
+              </button>
+              
+              {/* Test Result */}
+              {testResult && (
+                <div className={`mt-2 p-3 rounded-lg ${testResult.success ? 'bg-success/10 border border-success/50' : 'bg-error/10 border border-error/50'}`}>
+                  <p className={`text-sm ${testResult.success ? 'text-success' : 'text-error'}`}>
+                    {testResult.success ? '✅ ' + t('success') : '❌ ' + t('error')}: {testResult.message}
+                  </p>
+                </div>
+              )}
             </div>
 
             <div>

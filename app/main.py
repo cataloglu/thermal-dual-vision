@@ -21,6 +21,7 @@ from app.services.settings import get_settings_service
 from app.services.websocket import get_websocket_manager
 from app.services.telegram import get_telegram_service
 from app.services.logs import get_logs_service
+from app.services.ai_test import test_openai_connection
 from app.workers.retention import get_retention_worker
 
 
@@ -863,6 +864,63 @@ async def websocket_endpoint(websocket: WebSocket):
                 
     finally:
         await websocket_manager.disconnect(websocket)
+
+
+@app.post("/api/ai/test")
+async def test_ai(request: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Test OpenAI API connection.
+    
+    Args:
+        request: Dict with api_key and model
+        
+    Returns:
+        Dict with test results
+        
+    Raises:
+        HTTPException: 400 if validation fails, 500 if test fails
+    """
+    try:
+        api_key = request.get("api_key")
+        model = request.get("model", "gpt-4o")
+        
+        if not api_key:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": True,
+                    "code": "VALIDATION_ERROR",
+                    "message": "api_key is required"
+                }
+            )
+        
+        # Test connection
+        result = await test_openai_connection(api_key, model)
+        
+        if not result["success"]:
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "error": True,
+                    "code": "AI_TEST_FAILED",
+                    "message": result["message"]
+                }
+            )
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"AI test failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": True,
+                "code": "INTERNAL_ERROR",
+                "message": f"AI test failed: {str(e)}"
+            }
+        )
 
 
 @app.post("/api/telegram/test")
