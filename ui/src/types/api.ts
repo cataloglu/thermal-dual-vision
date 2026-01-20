@@ -123,3 +123,11 @@ export interface CameraTestResponse {
   latency_ms?: number;
   error_reason?: string;
 }
+
+export interface Zone {
+  id: string;
+  name: string;
+  enabled: boolean;
+  mode: 'person' | 'motion' | 'both';
+  polygon: Array<[number, number]>;
+}

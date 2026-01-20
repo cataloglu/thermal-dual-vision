@@ -235,7 +235,16 @@ class CameraCRUDService:
             "status": camera.status.value,
             "last_frame_ts": camera.last_frame_ts.isoformat() + "Z" if camera.last_frame_ts else None,
             "motion_config": camera.motion_config,
-            "zones": [],  # TODO: Include zones
+            "zones": [
+                {
+                    "id": zone.id,
+                    "name": zone.name,
+                    "enabled": zone.enabled,
+                    "mode": zone.mode.value,
+                    "polygon": zone.polygon,
+                }
+                for zone in (camera.zones or [])
+            ],
             "created_at": camera.created_at.isoformat() + "Z",
             "updated_at": camera.updated_at.isoformat() + "Z",
         }

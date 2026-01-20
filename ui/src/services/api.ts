@@ -2,7 +2,7 @@
  * API service for Smart Motion Detector v2
  */
 import axios from 'axios';
-import type { Settings, CameraTestRequest, CameraTestResponse } from '../types/api';
+import type { Settings, CameraTestRequest, CameraTestResponse, Zone } from '../types/api';
 
 const apiClient = axios.create({
   baseURL: '/api',
@@ -56,6 +56,31 @@ export const getEvent = async (eventId: string) => {
   return response.data;
 };
 
+export const deleteEvent = async (eventId: string) => {
+  const response = await apiClient.delete(`/events/${eventId}`);
+  return response.data;
+};
+
+export const getCameraSnapshotUrl = (cameraId: string) => `/api/cameras/${cameraId}/snapshot`;
+
+export const getCameraZones = async (cameraId: string): Promise<{ zones: Zone[] }> => {
+  const response = await apiClient.get(`/cameras/${cameraId}/zones`);
+  return response.data;
+};
+
+export const createCameraZone = async (
+  cameraId: string,
+  zone: { name: string; mode: Zone['mode']; polygon: Zone['polygon']; enabled?: boolean }
+): Promise<Zone> => {
+  const response = await apiClient.post(`/cameras/${cameraId}/zones`, zone);
+  return response.data;
+};
+
+export const deleteZone = async (zoneId: string) => {
+  const response = await apiClient.delete(`/zones/${zoneId}`);
+  return response.data;
+};
+
 // Live Streams
 export const getLiveStreams = async () => {
   const response = await apiClient.get('/live');
@@ -70,7 +95,12 @@ export const api = {
   testCamera,
   getEvents,
   getEvent,
+  deleteEvent,
   getLiveStreams,
+  getCameraSnapshotUrl,
+  getCameraZones,
+  createCameraZone,
+  deleteZone,
 };
 
 export default apiClient;

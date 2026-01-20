@@ -3,17 +3,19 @@ Smart Motion Detector v2 - Main Entry Point
 """
 import logging
 from datetime import date
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 
-from fastapi import FastAPI, HTTPException, Depends, Query, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Depends, Query, WebSocket, WebSocketDisconnect, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 import cv2
 import time
+import base64
 
 from app.db.session import get_session, init_db
+from app.db.models import Zone, ZoneMode
 from app.models.camera import CameraTestRequest, CameraTestResponse
 from app.services.camera import get_camera_service
 from app.services.camera_crud import get_camera_crud_service
@@ -62,6 +64,16 @@ retention_worker = get_retention_worker()
 websocket_manager = get_websocket_manager()
 telegram_service = get_telegram_service()
 logs_service = get_logs_service()
+
+
+def _resolve_camera_rtsp_url(camera) -> Optional[str]:
+    if camera.type.value == "thermal":
+        return camera.rtsp_url_thermal
+    if camera.type.value == "color":
+        return camera.rtsp_url_color or camera.rtsp_url
+    if camera.detection_source.value == "thermal" and camera.rtsp_url_thermal:
+        return camera.rtsp_url_thermal
+    return camera.rtsp_url_color or camera.rtsp_url_thermal
 
 
 @app.on_event("startup")
@@ -678,16 +690,7 @@ async def get_live_stream(camera_id: str, db: Session = Depends(get_session)):
             }
         )
 
-    if camera.type.value == "thermal":
-        stream_url = camera.rtsp_url_thermal
-    elif camera.type.value == "color":
-        stream_url = camera.rtsp_url_color or camera.rtsp_url
-    else:
-        # Dual camera: prefer color unless detection source is thermal
-        if camera.detection_source.value == "thermal" and camera.rtsp_url_thermal:
-            stream_url = camera.rtsp_url_thermal
-        else:
-            stream_url = camera.rtsp_url_color or camera.rtsp_url_thermal
+    stream_url = _resolve_camera_rtsp_url(camera)
 
     if not stream_url:
         raise HTTPException(
@@ -748,6 +751,217 @@ async def get_live_stream(camera_id: str, db: Session = Depends(get_session)):
         stream_generator(),
         media_type="multipart/x-mixed-replace; boundary=frame"
     )
+
+
+@app.get("/api/cameras/{camera_id}/snapshot")
+async def get_camera_snapshot(camera_id: str, db: Session = Depends(get_session)):
+    """
+    Get a snapshot for a camera.
+    """
+    camera = camera_crud_service.get_camera(db, camera_id)
+    if not camera:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": True,
+                "code": "CAMERA_NOT_FOUND",
+                "message": f"Camera not found: {camera_id}"
+            }
+        )
+
+    stream_url = _resolve_camera_rtsp_url(camera)
+    if not stream_url:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": True,
+                "code": "STREAM_URL_MISSING",
+                "message": "No RTSP URL configured for snapshot."
+            }
+        )
+
+    settings = settings_service.load_config()
+    if settings.stream.protocol == "tcp":
+        stream_url = camera_service.force_tcp_protocol(stream_url)
+
+    result = camera_service.test_rtsp_connection(stream_url)
+    if not result["success"]:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": True,
+                "code": "RTSP_CONNECTION_FAILED",
+                "message": result["error_reason"] or "Snapshot capture failed"
+            }
+        )
+
+    snapshot_data = result["snapshot_base64"].split(",", 1)[1]
+    image_bytes = base64.b64decode(snapshot_data)
+    return Response(content=image_bytes, media_type="image/jpeg")
+
+
+@app.get("/api/cameras/{camera_id}/zones")
+async def get_camera_zones(camera_id: str, db: Session = Depends(get_session)) -> Dict[str, Any]:
+    camera = camera_crud_service.get_camera(db, camera_id)
+    if not camera:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": True,
+                "code": "CAMERA_NOT_FOUND",
+                "message": f"Camera not found: {camera_id}"
+            }
+        )
+
+    zones = (
+        db.query(Zone)
+        .filter(Zone.camera_id == camera_id)
+        .all()
+    )
+    return {
+        "zones": [
+            {
+                "id": zone.id,
+                "name": zone.name,
+                "enabled": zone.enabled,
+                "mode": zone.mode.value,
+                "polygon": zone.polygon,
+                "created_at": zone.created_at.isoformat() + "Z",
+                "updated_at": zone.updated_at.isoformat() + "Z",
+            }
+            for zone in zones
+        ]
+    }
+
+
+@app.post("/api/cameras/{camera_id}/zones")
+async def create_zone(camera_id: str, request: Dict[str, Any], db: Session = Depends(get_session)) -> Dict[str, Any]:
+    camera = camera_crud_service.get_camera(db, camera_id)
+    if not camera:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": True,
+                "code": "CAMERA_NOT_FOUND",
+                "message": f"Camera not found: {camera_id}"
+            }
+        )
+
+    name = request.get("name", "").strip()
+    mode = request.get("mode", "person")
+    polygon = request.get("polygon", [])
+
+    if not name:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": True,
+                "code": "VALIDATION_ERROR",
+                "message": "Zone name is required"
+            }
+        )
+
+    if not isinstance(polygon, list) or len(polygon) < 3 or len(polygon) > 20:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": True,
+                "code": "VALIDATION_ERROR",
+                "message": "Polygon must have 3-20 points"
+            }
+        )
+
+    for point in polygon:
+        if (
+            not isinstance(point, list)
+            or len(point) != 2
+            or not all(isinstance(value, (int, float)) for value in point)
+            or not (0.0 <= point[0] <= 1.0)
+            or not (0.0 <= point[1] <= 1.0)
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": True,
+                    "code": "VALIDATION_ERROR",
+                    "message": "Polygon points must be [x,y] normalized (0-1)"
+                }
+            )
+
+    zone = Zone(
+        camera_id=camera_id,
+        name=name,
+        enabled=bool(request.get("enabled", True)),
+        mode=ZoneMode(mode),
+        polygon=polygon
+    )
+    db.add(zone)
+    db.commit()
+    db.refresh(zone)
+
+    return {
+        "id": zone.id,
+        "name": zone.name,
+        "enabled": zone.enabled,
+        "mode": zone.mode.value,
+        "polygon": zone.polygon,
+        "created_at": zone.created_at.isoformat() + "Z",
+        "updated_at": zone.updated_at.isoformat() + "Z",
+    }
+
+
+@app.put("/api/zones/{zone_id}")
+async def update_zone(zone_id: str, request: Dict[str, Any], db: Session = Depends(get_session)) -> Dict[str, Any]:
+    zone = db.query(Zone).filter(Zone.id == zone_id).first()
+    if not zone:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": True,
+                "code": "ZONE_NOT_FOUND",
+                "message": f"Zone not found: {zone_id}"
+            }
+        )
+
+    if "name" in request:
+        zone.name = request["name"]
+    if "enabled" in request:
+        zone.enabled = bool(request["enabled"])
+    if "mode" in request:
+        zone.mode = ZoneMode(request["mode"])
+    if "polygon" in request:
+        zone.polygon = request["polygon"]
+
+    db.commit()
+    db.refresh(zone)
+
+    return {
+        "id": zone.id,
+        "name": zone.name,
+        "enabled": zone.enabled,
+        "mode": zone.mode.value,
+        "polygon": zone.polygon,
+        "created_at": zone.created_at.isoformat() + "Z",
+        "updated_at": zone.updated_at.isoformat() + "Z",
+    }
+
+
+@app.delete("/api/zones/{zone_id}")
+async def delete_zone(zone_id: str, db: Session = Depends(get_session)) -> Dict[str, Any]:
+    zone = db.query(Zone).filter(Zone.id == zone_id).first()
+    if not zone:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": True,
+                "code": "ZONE_NOT_FOUND",
+                "message": f"Zone not found: {zone_id}"
+            }
+        )
+
+    db.delete(zone)
+    db.commit()
+    return {"deleted": True, "zone_id": zone_id}
 
 
 @app.get("/api/cameras")

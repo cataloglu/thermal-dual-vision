@@ -16,7 +16,7 @@ interface Zone {
   id: string
   name: string
   enabled: boolean
-  mode: string
+  mode: 'person' | 'motion' | 'both'
   polygon: Array<[number, number]>
 }
 
@@ -43,10 +43,13 @@ export const ZonesTab: React.FC = () => {
 
   useEffect(() => {
     if (selectedCamera) {
-      // TODO: Fetch camera snapshot
-      setSnapshotUrl(`/api/cameras/${selectedCamera}/snapshot`)
-      // TODO: Fetch camera zones
-      setZones([])
+      setSnapshotUrl(`${api.getCameraSnapshotUrl(selectedCamera)}?t=${Date.now()}`)
+      api.getCameraZones(selectedCamera)
+        .then((data) => setZones(data.zones || []))
+        .catch((error) => {
+          console.error('Failed to fetch zones:', error)
+          toast.error(t('error'))
+        })
     }
   }, [selectedCamera])
 
@@ -59,10 +62,32 @@ export const ZonesTab: React.FC = () => {
     // Normalize points to [x, y] array format
     const polygon: Array<[number, number]> = points.map(p => [p.x, p.y])
     
-    // TODO: Save zone to backend with polygon data
-    console.log('Saving zone:', { name: zoneName, mode: zoneMode, polygon })
-    toast.success(`${t('saveZone')}: ${zoneName}`)
-    setZoneName('')
+    api.createCameraZone(selectedCamera, {
+      name: zoneName,
+      mode: zoneMode,
+      polygon
+    })
+      .then((zone) => {
+        setZones((current) => [...current, zone])
+        toast.success(`${t('saveZone')}: ${zoneName}`)
+        setZoneName('')
+      })
+      .catch((error) => {
+        console.error('Failed to save zone:', error)
+        toast.error(t('error'))
+      })
+  }
+
+  const handleDeleteZone = (zoneId: string) => {
+    api.deleteZone(zoneId)
+      .then(() => {
+        setZones((current) => current.filter((zone) => zone.id !== zoneId))
+        toast.success(t('delete'))
+      })
+      .catch((error) => {
+        console.error('Failed to delete zone:', error)
+        toast.error(t('error'))
+      })
   }
 
   return (
@@ -155,10 +180,10 @@ export const ZonesTab: React.FC = () => {
                       </span>
                     </div>
                     <div className="flex gap-2">
-                      <button className="px-3 py-1 bg-surface2 border border-border text-text rounded hover:bg-surface2/80 transition-colors text-sm">
-                        {t('edit')}
-                      </button>
-                      <button className="px-3 py-1 bg-error/20 border border-error/50 text-error rounded hover:bg-error/30 transition-colors text-sm">
+                      <button
+                        onClick={() => handleDeleteZone(zone.id)}
+                        className="px-3 py-1 bg-error/20 border border-error/50 text-error rounded hover:bg-error/30 transition-colors text-sm"
+                      >
                         {t('delete')}
                       </button>
                     </div>

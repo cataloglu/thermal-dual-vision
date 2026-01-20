@@ -62,10 +62,9 @@ export function Events() {
 
   const hasActiveFilters = cameraFilter || dateFilter || confidenceFilter > 0
 
-  const handleDeleteEvent = async (_eventId: string) => {
+  const handleDeleteEvent = async (eventId: string) => {
     try {
-      // TODO: Implement delete API call when backend is ready
-      // await api.deleteEvent(eventId)
+      await api.deleteEvent(eventId)
       toast.success('Event silindi')
       setSelectedEventId(null)
       // Refresh events list
