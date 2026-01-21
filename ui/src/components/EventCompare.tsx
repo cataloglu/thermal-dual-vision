@@ -24,6 +24,7 @@ interface EventCompareProps {
 
 export function EventCompare({ left, right, onClose }: EventCompareProps) {
   const { t } = useTranslation()
+  const isRecent = (value: string) => Date.now() - new Date(value).getTime() < 30000
   useEffect(() => {
     document.body.style.overflow = 'hidden'
     return () => {
@@ -59,7 +60,9 @@ export function EventCompare({ left, right, onClose }: EventCompareProps) {
                 {event.collage_url ? (
                   <img src={event.collage_url} alt="Event collage" className="w-full h-auto" />
                 ) : (
-                  <div className="p-6 text-center text-muted">{t('noData')}</div>
+                  <div className="p-6 text-center text-muted">
+                    {isRecent(event.timestamp) ? t('processing') : t('noData')}
+                  </div>
                 )}
               </div>
               <div className="bg-surface2 border border-border rounded-lg p-4 space-y-2">

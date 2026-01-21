@@ -334,7 +334,9 @@ export function Dashboard() {
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-xs text-muted">
-                      {t('noData')}
+                      {Date.now() - new Date(lastEvent.timestamp).getTime() < 30000
+                        ? t('processing')
+                        : t('noData')}
                     </div>
                   )}
                 </div>

@@ -31,6 +31,7 @@
   "test": "Test Et",
   "loading": "Yükleniyor",
   "noData": "Veri yok",
+  "processing": "Hazırlanıyor",
   "error": "Hata",
   "success": "Başarılı",
   "failed": "Başarısız",

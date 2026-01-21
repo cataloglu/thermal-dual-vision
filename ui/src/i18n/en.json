@@ -31,6 +31,7 @@
   "test": "Test",
   "loading": "Loading",
   "noData": "No data",
+  "processing": "Processing",
   "error": "Error",
   "success": "Success",
   "failed": "Failed",

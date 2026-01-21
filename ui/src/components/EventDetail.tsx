@@ -21,6 +21,10 @@ interface EventDetailProps {
 export function EventDetail({ event, onClose, onDelete }: EventDetailProps) {
   const { t } = useTranslation()
   const modalRef = useRef<HTMLDivElement>(null)
+  const isRecent = (value: string) => Date.now() - new Date(value).getTime() < 30000
+  const collagePending = !event.collage_url && isRecent(event.timestamp)
+  const gifPending = !event.gif_url && isRecent(event.timestamp)
+  const mp4Pending = !event.mp4_url && isRecent(event.timestamp)
   const [activeTab, setActiveTab] = useState<'collage' | 'gif' | 'video'>('collage')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [tagInput, setTagInput] = useState('')
@@ -202,7 +206,9 @@ export function EventDetail({ event, onClose, onDelete }: EventDetailProps) {
                   className="w-full h-auto"
                 />
               ) : (
-                <div className="p-8 text-center text-muted">{t('noData')}</div>
+                <div className="p-8 text-center text-muted">
+                  {collagePending ? t('processing') : t('noData')}
+                </div>
               )
             )}
             {activeTab === 'gif' && (
@@ -213,7 +219,9 @@ export function EventDetail({ event, onClose, onDelete }: EventDetailProps) {
                   className="w-full h-auto"
                 />
               ) : (
-                <div className="p-8 text-center text-muted">{t('noData')}</div>
+                <div className="p-8 text-center text-muted">
+                  {gifPending ? t('processing') : t('noData')}
+                </div>
               )
             )}
             {activeTab === 'video' && (
@@ -228,7 +236,9 @@ export function EventDetail({ event, onClose, onDelete }: EventDetailProps) {
                   Tarayıcınız video oynatmayı desteklemiyor.
                 </video>
               ) : (
-                <div className="p-8 text-center text-muted">{t('noData')}</div>
+                <div className="p-8 text-center text-muted">
+                  {mp4Pending ? t('processing') : t('noData')}
+                </div>
               )
             )}
           </div>

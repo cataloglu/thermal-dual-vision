@@ -30,6 +30,8 @@ export const EventCard = memo(function EventCard({
   onClick,
 }: EventCardProps) {
   const { t } = useTranslation()
+  const isRecent = (value: string) => Date.now() - new Date(value).getTime() < 30000
+  const collagePending = !collageUrl && isRecent(timestamp)
   const getConfidenceBadge = () => {
     const percentage = Math.round(confidence * 100)
     let colorClass = 'bg-gray-500/20 text-gray-500'
@@ -78,7 +80,7 @@ export const EventCard = memo(function EventCard({
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-xs text-muted">
-              {t('noData')}
+              {collagePending ? t('processing') : t('noData')}
             </div>
           )}
         </div>
