@@ -8,9 +8,9 @@ interface Event {
   confidence: number
   event_type: string
   summary: string | null
-  collage_url: string
-  gif_url: string
-  mp4_url: string
+  collage_url: string | null
+  gif_url: string | null
+  mp4_url: string | null
 }
 
 interface EventsResponse {

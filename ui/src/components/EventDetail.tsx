@@ -10,9 +10,9 @@ interface EventDetailProps {
     confidence: number
     event_type: string
     summary: string | null
-    collage_url: string
-    gif_url: string
-    mp4_url: string
+    collage_url: string | null
+    gif_url: string | null
+    mp4_url: string | null
   }
   onClose: () => void
   onDelete?: (eventId: string) => void
@@ -195,29 +195,41 @@ export function EventDetail({ event, onClose, onDelete }: EventDetailProps) {
           {/* Media Preview */}
           <div className="bg-surface2 rounded-lg overflow-hidden">
             {activeTab === 'collage' && (
-              <img
-                src={event.collage_url}
-                alt="Event collage"
-                className="w-full h-auto"
-              />
+              event.collage_url ? (
+                <img
+                  src={event.collage_url}
+                  alt="Event collage"
+                  className="w-full h-auto"
+                />
+              ) : (
+                <div className="p-8 text-center text-muted">{t('noData')}</div>
+              )
             )}
             {activeTab === 'gif' && (
-              <img
-                src={event.gif_url}
-                alt="Event GIF"
-                className="w-full h-auto"
-              />
+              event.gif_url ? (
+                <img
+                  src={event.gif_url}
+                  alt="Event GIF"
+                  className="w-full h-auto"
+                />
+              ) : (
+                <div className="p-8 text-center text-muted">{t('noData')}</div>
+              )
             )}
             {activeTab === 'video' && (
-              <video
-                src={event.mp4_url}
-                controls
-                autoPlay
-                loop
-                className="w-full h-auto"
-              >
-                Tarayıcınız video oynatmayı desteklemiyor.
-              </video>
+              event.mp4_url ? (
+                <video
+                  src={event.mp4_url}
+                  controls
+                  autoPlay
+                  loop
+                  className="w-full h-auto"
+                >
+                  Tarayıcınız video oynatmayı desteklemiyor.
+                </video>
+              ) : (
+                <div className="p-8 text-center text-muted">{t('noData')}</div>
+              )
             )}
           </div>
 
@@ -304,30 +316,51 @@ export function EventDetail({ event, onClose, onDelete }: EventDetailProps) {
 
           {/* Actions */}
           <div className="flex gap-3 pt-4 border-t border-border">
-            <a
-              href={event.collage_url}
-              download
-              className="flex items-center gap-2 px-6 py-3 bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors font-medium"
-            >
-              <MdDownload />
-              Collage
-            </a>
-            <a
-              href={event.gif_url}
-              download
-              className="flex items-center gap-2 px-6 py-3 bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors"
-            >
-              <MdDownload />
-              GIF
-            </a>
-            <a
-              href={event.mp4_url}
-              download
-              className="flex items-center gap-2 px-6 py-3 bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors"
-            >
-              <MdDownload />
-              MP4
-            </a>
+            {event.collage_url ? (
+              <a
+                href={event.collage_url}
+                download
+                className="flex items-center gap-2 px-6 py-3 bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors font-medium"
+              >
+                <MdDownload />
+                Collage
+              </a>
+            ) : (
+              <span className="flex items-center gap-2 px-6 py-3 bg-accent/40 text-white rounded-lg opacity-60 font-medium">
+                <MdDownload />
+                Collage
+              </span>
+            )}
+            {event.gif_url ? (
+              <a
+                href={event.gif_url}
+                download
+                className="flex items-center gap-2 px-6 py-3 bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors"
+              >
+                <MdDownload />
+                GIF
+              </a>
+            ) : (
+              <span className="flex items-center gap-2 px-6 py-3 bg-surface2 border border-border text-muted rounded-lg opacity-60">
+                <MdDownload />
+                GIF
+              </span>
+            )}
+            {event.mp4_url ? (
+              <a
+                href={event.mp4_url}
+                download
+                className="flex items-center gap-2 px-6 py-3 bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors"
+              >
+                <MdDownload />
+                MP4
+              </a>
+            ) : (
+              <span className="flex items-center gap-2 px-6 py-3 bg-surface2 border border-border text-muted rounded-lg opacity-60">
+                <MdDownload />
+                MP4
+              </span>
+            )}
 
             {onDelete && (
               <button

@@ -5,7 +5,7 @@ import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useSettings } from '../hooks/useSettings';
 import { api } from '../services/api';
-import { SettingsTabs, TabId } from '../components/SettingsTabs';
+import { TabId } from '../components/SettingsTabs';
 import { CamerasTab } from '../components/tabs/CamerasTab';
 import { DetectionTab } from '../components/tabs/DetectionTab';
 import { ThermalTab } from '../components/tabs/ThermalTab';
@@ -42,33 +42,6 @@ export const Settings: React.FC = () => {
       setLocalSettings(settings);
     }
   }, [settings, isDirty]);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-background">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent mx-auto mb-4"></div>
-          <p className="text-muted">Ayarlar yükleniyor...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error || !localSettings) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-background">
-        <div className="text-center">
-          <p className="text-error mb-4">{error || 'Ayarlar yüklenemedi'}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-opacity-90"
-          >
-            Yeniden Dene
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   const updateLocalSettings = useCallback((next: SettingsType) => {
     setLocalSettings(next);
@@ -225,6 +198,33 @@ export const Settings: React.FC = () => {
     return null
   }, [activeTab, handleSave, localSettings, updateLocalSettings])
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-background">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent mx-auto mb-4"></div>
+          <p className="text-muted">Ayarlar yükleniyor...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !localSettings) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-background">
+        <div className="text-center">
+          <p className="text-error mb-4">{error || 'Ayarlar yüklenemedi'}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-opacity-90"
+          >
+            Yeniden Dene
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-6xl mx-auto px-6 py-8">
@@ -260,14 +260,6 @@ export const Settings: React.FC = () => {
         </div>
 
         <div className="bg-surface1 border border-border rounded-lg p-6">
-          <SettingsTabs
-            activeTab={activeTab}
-            onTabChange={(tab) => {
-              setActiveTab(tab);
-              navigate(`/settings?tab=${tab}`);
-            }}
-          />
-
           <div className="mt-0">{tabContent}</div>
         </div>
       </div>

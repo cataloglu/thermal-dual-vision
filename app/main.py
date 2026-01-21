@@ -100,6 +100,22 @@ def _resolve_camera_rtsp_url(camera) -> Optional[str]:
     return camera.rtsp_url_color or camera.rtsp_url_thermal
 
 
+def _resolve_media_urls(event) -> Dict[str, Optional[str]]:
+    collage_path = media_service.get_media_path(event.id, "collage")
+    gif_path = media_service.get_media_path(event.id, "gif")
+    mp4_path = media_service.get_media_path(event.id, "mp4")
+
+    collage_url = event.collage_url or f"/api/events/{event.id}/collage"
+    gif_url = event.gif_url or f"/api/events/{event.id}/preview.gif"
+    mp4_url = event.mp4_url or f"/api/events/{event.id}/timelapse.mp4"
+
+    return {
+        "collage_url": collage_url if collage_path and collage_path.exists() else None,
+        "gif_url": gif_url if gif_path and gif_path.exists() else None,
+        "mp4_url": mp4_url if mp4_path and mp4_path.exists() else None,
+    }
+
+
 @app.on_event("startup")
 async def startup_event():
     """Application startup event."""
@@ -417,6 +433,7 @@ async def get_events(
         # Convert events to dict
         events_list = []
         for event in result["events"]:
+            media_urls = _resolve_media_urls(event)
             events_list.append({
                 "id": event.id,
                 "camera_id": event.camera_id,
@@ -424,9 +441,9 @@ async def get_events(
                 "confidence": event.confidence,
                 "event_type": event.event_type,
                 "summary": event.summary,
-                "collage_url": event.collage_url or f"/api/events/{event.id}/collage",
-                "gif_url": event.gif_url or f"/api/events/{event.id}/preview.gif",
-                "mp4_url": event.mp4_url or f"/api/events/{event.id}/timelapse.mp4",
+                "collage_url": media_urls["collage_url"],
+                "gif_url": media_urls["gif_url"],
+                "mp4_url": media_urls["mp4_url"],
             })
         
         return {
@@ -481,6 +498,7 @@ async def get_event(
                 }
             )
         
+        media_urls = _resolve_media_urls(event)
         return {
             "id": event.id,
             "camera_id": event.camera_id,
@@ -494,9 +512,9 @@ async def get_event(
                 "text": event.summary,
             },
             "media": {
-                "collage_url": event.collage_url or f"/api/events/{event.id}/collage",
-                "gif_url": event.gif_url or f"/api/events/{event.id}/preview.gif",
-                "mp4_url": event.mp4_url or f"/api/events/{event.id}/timelapse.mp4",
+                "collage_url": media_urls["collage_url"],
+                "gif_url": media_urls["gif_url"],
+                "mp4_url": media_urls["mp4_url"],
             }
         }
         
@@ -800,29 +818,59 @@ async def get_live_stream(camera_id: str, db: Session = Depends(get_session)):
         stream_url
     )
 
+    def detector_stream_generator():
+        while True:
+            frame = detector_worker.get_latest_frame(camera_id)
+            if frame is None:
+                time.sleep(0.1)
+                continue
+            encode_params = [int(cv2.IMWRITE_JPEG_QUALITY), 80]
+            success, buffer = cv2.imencode(".jpg", frame, encode_params)
+            if not success:
+                time.sleep(0.05)
+                continue
+            frame_bytes = buffer.tobytes()
+            yield (
+                b"--frame\r\n"
+                b"Content-Type: image/jpeg\r\n\r\n" + frame_bytes + b"\r\n"
+            )
+
     cap = cv2.VideoCapture(stream_url, cv2.CAP_FFMPEG)
+    cap.set(cv2.CAP_PROP_BUFFERSIZE, settings.stream.buffer_size)
+    if hasattr(cv2, "CAP_PROP_OPEN_TIMEOUT_MSEC"):
+        cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 5000)
+    if hasattr(cv2, "CAP_PROP_READ_TIMEOUT_MSEC"):
+        cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, 5000)
     if not cap.isOpened():
-        logger.error(
-            "Failed to open live stream for camera %s: %s",
-            camera_id,
-            stream_url
+        logger.warning("Live stream fallback to detector frames for %s", camera_id)
+        return StreamingResponse(
+            detector_stream_generator(),
+            media_type="multipart/x-mixed-replace; boundary=frame"
         )
-        raise HTTPException(
-            status_code=502,
-            detail={
-                "error": True,
-                "code": "STREAM_CONNECT_FAILED",
-                "message": "Failed to open live stream."
-            }
+
+    # Warmup read to fail fast on dead streams
+    warmup_ok, warmup_frame = cap.read()
+    if not warmup_ok or warmup_frame is None:
+        cap.release()
+        logger.warning("Live stream read failed, fallback to detector frames for %s", camera_id)
+        return StreamingResponse(
+            detector_stream_generator(),
+            media_type="multipart/x-mixed-replace; boundary=frame"
         )
 
     def stream_generator():
+        consecutive_failures = 0
         try:
             while True:
                 ret, frame = cap.read()
                 if not ret or frame is None:
+                    consecutive_failures += 1
+                    if consecutive_failures >= 30:
+                        logger.error("Live stream stalled for camera %s", camera_id)
+                        break
                     time.sleep(0.2)
                     continue
+                consecutive_failures = 0
 
                 encode_params = [int(cv2.IMWRITE_JPEG_QUALITY), 80]
                 success, buffer = cv2.imencode(".jpg", frame, encode_params)

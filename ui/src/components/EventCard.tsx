@@ -8,9 +8,9 @@ interface EventCardProps {
   timestamp: string
   confidence: number
   summary: string | null
-  collageUrl: string
-  gifUrl: string
-  mp4Url: string
+  collageUrl: string | null
+  gifUrl: string | null
+  mp4Url: string | null
   selected?: boolean
   onSelect?: (id: string) => void
   onClick: (id: string) => void
@@ -68,13 +68,19 @@ export const EventCard = memo(function EventCard({
           className="flex-shrink-0 w-48 h-36 bg-surface2 rounded-lg overflow-hidden cursor-pointer"
           onClick={() => onClick(id)}
         >
-          <img
-            src={collageUrl}
-            alt="Event collage"
-            loading="lazy"
-            decoding="async"
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-          />
+          {collageUrl ? (
+            <img
+              src={collageUrl}
+              alt="Event collage"
+              loading="lazy"
+              decoding="async"
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-xs text-muted">
+              {t('noData')}
+            </div>
+          )}
         </div>
 
         {/* Event Info */}
@@ -121,25 +127,39 @@ export const EventCard = memo(function EventCard({
               <MdVisibility />
               {t('view')}
             </button>
-            <a
-              href={gifUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="flex items-center gap-2 px-4 py-2 bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors text-sm"
-            >
-              <MdPlayArrow />
-              GIF
-            </a>
-            <a
-              href={mp4Url}
-              download
-              onClick={(e) => e.stopPropagation()}
-              className="flex items-center gap-2 px-4 py-2 bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors text-sm"
-            >
-              <MdDownload />
-              MP4
-            </a>
+            {gifUrl ? (
+              <a
+                href={gifUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="flex items-center gap-2 px-4 py-2 bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors text-sm"
+              >
+                <MdPlayArrow />
+                GIF
+              </a>
+            ) : (
+              <span className="flex items-center gap-2 px-4 py-2 bg-surface2 border border-border text-muted rounded-lg text-sm opacity-60">
+                <MdPlayArrow />
+                GIF
+              </span>
+            )}
+            {mp4Url ? (
+              <a
+                href={mp4Url}
+                download
+                onClick={(e) => e.stopPropagation()}
+                className="flex items-center gap-2 px-4 py-2 bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors text-sm"
+              >
+                <MdDownload />
+                MP4
+              </a>
+            ) : (
+              <span className="flex items-center gap-2 px-4 py-2 bg-surface2 border border-border text-muted rounded-lg text-sm opacity-60">
+                <MdDownload />
+                MP4
+              </span>
+            )}
           </div>
         </div>
       </div>

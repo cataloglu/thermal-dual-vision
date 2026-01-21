@@ -141,10 +141,7 @@ class InferenceService:
         if len(enhanced.shape) == 2:
             enhanced = cv2.cvtColor(enhanced, cv2.COLOR_GRAY2BGR)
         
-        # Resize to inference size
-        resized = cv2.resize(enhanced, self.INFERENCE_SIZE)
-        
-        return resized
+        return enhanced
     
     def preprocess_color(self, frame: np.ndarray) -> np.ndarray:
         """
@@ -156,9 +153,7 @@ class InferenceService:
         Returns:
             Resized frame ready for inference
         """
-        # Resize to inference size
-        resized = cv2.resize(frame, self.INFERENCE_SIZE)
-        return resized
+        return frame
     
     def infer(
         self,

@@ -63,6 +63,8 @@ class DetectorWorker:
         self.frame_buffers: Dict[str, deque] = defaultdict(deque)
         self.frame_counters: Dict[str, int] = defaultdict(int)
         self.frame_buffer_locks: Dict[str, threading.Lock] = defaultdict(threading.Lock)
+        self.latest_frames: Dict[str, np.ndarray] = {}
+        self.latest_frame_locks: Dict[str, threading.Lock] = defaultdict(threading.Lock)
         self.detection_history: Dict[str, deque] = defaultdict(lambda: deque(maxlen=5))
         self.zone_history: Dict[str, Dict[str, deque]] = defaultdict(lambda: defaultdict(lambda: deque(maxlen=5)))
         self.last_event_time: Dict[str, float] = {}
@@ -138,6 +140,8 @@ class DetectorWorker:
         self.zone_cache.clear()
         self.last_status_update.clear()
         self.codec_cache.clear()
+        self.latest_frames.clear()
+        self.latest_frame_locks.clear()
         logger.info("DetectorWorker stopped")
     
     def start_camera_detection(self, camera: Camera) -> None:
@@ -241,6 +245,8 @@ class DetectorWorker:
                     failures = 0
                     with frame_lock:
                         latest_frame["frame"] = frame
+                    with self.latest_frame_locks[camera_id]:
+                        self.latest_frames[camera_id] = frame
 
             reader_thread = threading.Thread(
                 target=reader_loop,
@@ -326,8 +332,8 @@ class DetectorWorker:
                 if not self.inference_service.check_temporal_consistency(
                     detections,
                     list(self.detection_history[camera_id])[:-1],  # Exclude current
-                    min_consecutive_frames=3,
-                    max_gap_frames=1,
+                    min_consecutive_frames=1,
+                    max_gap_frames=2,
                 ):
                     self.event_start_time[camera_id] = None
                     continue
@@ -510,6 +516,9 @@ class DetectorWorker:
         if camera.motion_config:
             motion_settings.update(camera.motion_config)
 
+        if motion_settings.get("enabled", True) is False:
+            return True
+
         sensitivity = int(motion_settings.get("sensitivity", config.motion.sensitivity))
         min_area = int(motion_settings.get("min_area", config.motion.min_area))
         cooldown_seconds = int(
@@ -642,15 +651,14 @@ class DetectorWorker:
                     "bbox": list(best_detection["bbox"]),
                 }
 
-            buffer.append((frame.copy(), best_detection))
+            buffer.append((frame.copy(), best_detection, time.time()))
 
     def _start_media_generation(self, camera: Camera, event_id: str, config) -> None:
-        frames, detections = self._get_event_media_data(camera.id)
-        if len(frames) < 10:
+        frames, detections, timestamps = self._get_event_media_data(camera.id)
+        if len(frames) == 0:
             logger.warning(
-                "Skipping media generation for event %s (frames=%s)",
+                "Skipping media generation for event %s (no frames)",
                 event_id,
-                len(frames),
             )
             return
 
@@ -662,6 +670,7 @@ class DetectorWorker:
                     event_id=event_id,
                     frames=frames,
                     detections=detections,
+                    timestamps=timestamps,
                     camera_name=camera.name or "Camera",
                 )
                 event = db.query(Event).filter(Event.id == event_id).first()
@@ -736,16 +745,28 @@ class DetectorWorker:
 
     def _get_event_media_data(
         self, camera_id: str
-    ) -> Tuple[List[np.ndarray], List[Optional[Dict]]]:
+    ) -> Tuple[List[np.ndarray], List[Optional[Dict]], List[float]]:
         buffer = self.frame_buffers.get(camera_id)
         if not buffer:
-            return [], []
+            return [], [], []
 
         lock = self.frame_buffer_locks[camera_id]
         with lock:
-            frames = [item[0] for item in list(buffer)]
-            detections = [item[1] for item in list(buffer)]
-        return frames, detections
+            items = list(buffer)
+            frames = [item[0] for item in items]
+            detections = [item[1] for item in items]
+            timestamps = [item[2] for item in items if len(item) > 2]
+        if len(timestamps) != len(frames):
+            timestamps = []
+        return frames, detections, timestamps
+
+    def get_latest_frame(self, camera_id: str) -> Optional[np.ndarray]:
+        lock = self.latest_frame_locks[camera_id]
+        with lock:
+            frame = self.latest_frames.get(camera_id)
+            if frame is None:
+                return None
+            return frame.copy()
 
 
 # Global singleton instance

@@ -63,6 +63,8 @@ def test_collage_generation(media_worker, test_frames):
         
         result = media_worker.create_collage(
             frames=test_frames,
+            detections=None,
+            timestamps=None,
             output_path=output_path,
             camera_name="Test Camera",
             timestamp=datetime.now(),
@@ -85,6 +87,8 @@ def test_collage_5_frames(media_worker, test_frames):
         
         media_worker.create_collage(
             frames=test_frames,
+            detections=None,
+            timestamps=None,
             output_path=output_path,
         )
         
@@ -100,8 +104,14 @@ def test_collage_insufficient_frames(media_worker):
     with tempfile.TemporaryDirectory() as tmpdir:
         output_path = os.path.join(tmpdir, "collage.jpg")
         
-        with pytest.raises(ValueError, match="Need at least 5 frames"):
-            media_worker.create_collage(frames, output_path)
+        result = media_worker.create_collage(
+            frames=frames,
+            detections=None,
+            timestamps=None,
+            output_path=output_path,
+        )
+        assert result == output_path
+        assert os.path.exists(output_path)
 
 
 def test_gif_generation(media_worker, test_frames):
@@ -156,8 +166,9 @@ def test_gif_insufficient_frames(media_worker):
     with tempfile.TemporaryDirectory() as tmpdir:
         output_path = os.path.join(tmpdir, "preview.gif")
         
-        with pytest.raises(ValueError, match="Need at least 10 frames"):
-            media_worker.create_timeline_gif(frames, output_path)
+        result = media_worker.create_timeline_gif(frames, output_path)
+        assert result == output_path
+        assert os.path.exists(output_path)
 
 
 def test_mp4_generation(media_worker, test_frames, test_detections):
@@ -218,6 +229,8 @@ def test_collage_overlay_elements(media_worker, test_frames):
         
         media_worker.create_collage(
             frames=test_frames,
+            detections=None,
+            timestamps=None,
             output_path=output_path,
             camera_name="Test Camera",
             timestamp=datetime.now(),

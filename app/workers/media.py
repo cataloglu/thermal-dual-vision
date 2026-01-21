@@ -59,6 +59,8 @@ class MediaWorker:
     def create_collage(
         self,
         frames: List[np.ndarray],
+        detections: Optional[List[Optional[Dict]]],
+        timestamps: Optional[List[float]],
         output_path: str,
         camera_name: str = "Camera",
         timestamp: Optional[datetime] = None,
@@ -71,7 +73,9 @@ class MediaWorker:
         Resolution: 1920x960 (640x480 per frame)
         
         Args:
-            frames: List of frames (at least 5)
+            frames: List of frames
+            detections: Optional list of detections per frame
+            timestamps: Optional list of timestamps per frame (epoch seconds)
             output_path: Output JPEG path
             camera_name: Camera name for overlay
             timestamp: Event timestamp
@@ -83,12 +87,66 @@ class MediaWorker:
         Raises:
             ValueError: If less than 5 frames provided
         """
-        if len(frames) < self.COLLAGE_FRAMES:
-            raise ValueError(f"Need at least {self.COLLAGE_FRAMES} frames for collage")
+        if len(frames) == 0:
+            raise ValueError("Need at least 1 frame for collage")
+
+        def _unique_preserve(items: List[int]) -> List[int]:
+            seen = set()
+            unique = []
+            for item in items:
+                if item in seen:
+                    continue
+                seen.add(item)
+                unique.append(item)
+            return unique
+
+        def _fill_indices(indices: List[int], center_idx: int, total_frames: int) -> List[int]:
+            indices = _unique_preserve(indices)
+            if len(indices) >= self.COLLAGE_FRAMES:
+                return sorted(indices[:self.COLLAGE_FRAMES])
+            remaining = [i for i in range(total_frames) if i not in indices]
+            remaining.sort(key=lambda i: abs(i - center_idx))
+            indices.extend(remaining[: self.COLLAGE_FRAMES - len(indices)])
+            return sorted(indices)
+
+        total = len(frames)
+        best_idx = total // 2
+        if detections:
+            best_conf = -1.0
+            for idx, det in enumerate(detections):
+                if not det:
+                    continue
+                conf = float(det.get("confidence", 0.0))
+                if conf >= best_conf:
+                    best_conf = conf
+                    best_idx = idx
+
+        if timestamps and len(timestamps) == total:
+            center_ts = timestamps[best_idx]
+            target_times = [
+                center_ts - 2.0,
+                center_ts - 1.0,
+                center_ts,
+                center_ts + 1.0,
+                center_ts + 2.0,
+            ]
+            unused = set(range(total))
+            indices = []
+            for target in target_times:
+                if not unused:
+                    break
+                closest = min(unused, key=lambda i: abs(timestamps[i] - target))
+                indices.append(closest)
+                unused.remove(closest)
+            indices = _fill_indices(indices, best_idx, total)
+        else:
+            indices = _fill_indices(
+                [best_idx - 2, best_idx - 1, best_idx, best_idx + 1, best_idx + 2],
+                best_idx,
+                total,
+            )
         
         # Select 5 evenly distributed frames
-        total = len(frames)
-        indices = [int(i * (total - 1) / (self.COLLAGE_FRAMES - 1)) for i in range(self.COLLAGE_FRAMES)]
         selected = [frames[i] for i in indices]
         
         # Resize all frames
@@ -189,12 +247,17 @@ class MediaWorker:
         Raises:
             ValueError: If less than 10 frames provided
         """
-        if len(frames) < self.GIF_FRAMES:
-            raise ValueError(f"Need at least {self.GIF_FRAMES} frames for GIF")
+        if len(frames) == 0:
+            raise ValueError("Need at least 1 frame for GIF")
+
+        frame_count = min(self.GIF_FRAMES, len(frames))
         
         # Select 10 evenly distributed frames
         total = len(frames)
-        indices = [int(i * (total - 1) / (self.GIF_FRAMES - 1)) for i in range(self.GIF_FRAMES)]
+        if frame_count == 1:
+            indices = [0]
+        else:
+            indices = [int(i * (total - 1) / (frame_count - 1)) for i in range(frame_count)]
         selected = [frames[i] for i in indices]
         
         # Process frames
@@ -228,7 +291,7 @@ class MediaWorker:
             )
             
             # Add progress bar (timeline indicator) - Scrypted doesn't have this!
-            progress = idx / (self.GIF_FRAMES - 1)
+            progress = idx / max(frame_count - 1, 1)
             bar_width = int(self.GIF_SIZE[0] * progress)
             cv2.rectangle(
                 img,

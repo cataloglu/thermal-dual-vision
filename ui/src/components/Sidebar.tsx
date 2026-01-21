@@ -1,5 +1,5 @@
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { 
   MdDashboard, 
@@ -22,9 +22,11 @@ export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
   const { t, i18n } = useTranslation()
   // WebSocket for real-time status (use relative path for proxy)
   const [eventBadge, setEventBadge] = useState(0)
-  const { isConnected, reconnect } = useWebSocket('/api/ws/events', {
-    onEvent: () => setEventBadge((prev) => prev + 1),
-  })
+  const handleEvent = useCallback(() => {
+    setEventBadge((prev) => prev + 1)
+  }, [])
+  const wsOptions = useMemo(() => ({ onEvent: handleEvent }), [handleEvent])
+  const { isConnected, reconnect } = useWebSocket('/api/ws/events', wsOptions)
   const location = useLocation()
   const navigate = useNavigate()
   const [settingsExpanded, setSettingsExpanded] = useState(location.pathname.startsWith('/settings'))

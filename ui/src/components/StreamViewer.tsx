@@ -22,9 +22,10 @@ export function StreamViewer({
   const [retryCount, setRetryCount] = useState(0)
   const [recording, setRecording] = useState(false)
   const [recordingLoading, setRecordingLoading] = useState(false)
-  const [isVisible, setIsVisible] = useState(false)
+  const [isVisible, setIsVisible] = useState(true)
   const imgRef = useRef<HTMLImageElement>(null)
   const retryTimeoutRef = useRef<number | null>(null)
+  const loadingTimeoutRef = useRef<number | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const maxRetries = 10
 
@@ -35,10 +36,21 @@ export function StreamViewer({
       window.clearTimeout(retryTimeoutRef.current)
       retryTimeoutRef.current = null
     }
+    if (loadingTimeoutRef.current) {
+      window.clearTimeout(loadingTimeoutRef.current)
+      loadingTimeoutRef.current = null
+    }
   }, [streamUrl])
 
   useEffect(() => {
-    if (!containerRef.current) return
+    if (!containerRef.current) {
+      setIsVisible(true)
+      return
+    }
+    if (typeof IntersectionObserver === 'undefined') {
+      setIsVisible(true)
+      return
+    }
     const observer = new IntersectionObserver(
       ([entry]) => {
         setIsVisible(entry.isIntersecting)
@@ -76,8 +88,21 @@ export function StreamViewer({
       if (retryTimeoutRef.current) {
         window.clearTimeout(retryTimeoutRef.current)
       }
+      if (loadingTimeoutRef.current) {
+        window.clearTimeout(loadingTimeoutRef.current)
+      }
     }
   }, [])
+
+  useEffect(() => {
+    if (!isVisible || !streamUrl) return
+    if (loadingTimeoutRef.current) {
+      window.clearTimeout(loadingTimeoutRef.current)
+    }
+    loadingTimeoutRef.current = window.setTimeout(() => {
+      setLoading(false)
+    }, 2000)
+  }, [isVisible, streamUrl])
 
   const handleLoad = () => {
     if (!isVisible) return
@@ -210,7 +235,7 @@ export function StreamViewer({
         src={effectiveStreamUrl}
         alt={cameraName}
         loading="lazy"
-        className={`w-full h-full object-contain ${loading || error ? 'hidden' : 'block'}`}
+        className={`w-full h-full object-contain ${error ? 'hidden' : 'block'}`}
         onLoad={handleLoad}
         onError={handleError}
       />

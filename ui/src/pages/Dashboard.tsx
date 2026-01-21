@@ -33,9 +33,9 @@ interface Event {
   confidence: number
   event_type: string
   summary: string | null
-  collage_url: string
-  gif_url: string
-  mp4_url: string
+  collage_url: string | null
+  gif_url: string | null
+  mp4_url: string | null
 }
 
 interface HealthSnapshot {
@@ -326,11 +326,17 @@ export function Dashboard() {
               <div className="space-y-3">
                 {/* Collage Thumbnail */}
                 <div className="aspect-video bg-surface2 rounded-lg overflow-hidden">
-                  <img 
-                    src={lastEvent.collage_url} 
-                    alt="Event collage"
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                  />
+                  {lastEvent.collage_url ? (
+                    <img 
+                      src={lastEvent.collage_url} 
+                      alt="Event collage"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-xs text-muted">
+                      {t('noData')}
+                    </div>
+                  )}
                 </div>
                 
                 {/* Event Info */}

@@ -35,6 +35,7 @@ class MediaService:
         event_id: str,
         frames: List[np.ndarray],
         detections: List[Optional[Dict]],
+        timestamps: Optional[List[float]] = None,
         camera_name: str = "Camera",
     ) -> Dict[str, str]:
         """
@@ -47,6 +48,7 @@ class MediaService:
             event_id: Event ID
             frames: List of event frames
             detections: List of detections (one per frame)
+            timestamps: Optional list of frame timestamps (epoch seconds)
             camera_name: Camera name for overlay
             
         Returns:
@@ -60,8 +62,8 @@ class MediaService:
         if not event:
             raise ValueError(f"Event {event_id} not found")
         
-        if len(frames) < 10:
-            raise ValueError(f"Need at least 10 frames, got {len(frames)}")
+        if len(frames) == 0:
+            raise ValueError("Need at least 1 frame, got 0")
         
         # Create event media directory
         event_dir = self.MEDIA_DIR / event_id
@@ -74,42 +76,39 @@ class MediaService:
         
         # Generate media in parallel
         with ThreadPoolExecutor(max_workers=3) as executor:
-            # Submit all tasks
-            collage_future = executor.submit(
+            futures = []
+            futures.append(executor.submit(
                 self.media_worker.create_collage,
                 frames,
+                detections,
+                timestamps,
                 collage_path,
                 camera_name,
                 event.timestamp,
                 event.confidence,
-            )
-            
-            gif_future = executor.submit(
+            ))
+            futures.append(executor.submit(
                 self.media_worker.create_timeline_gif,
                 frames,
                 gif_path,
                 camera_name,
                 event.timestamp,
-            )
-            
-            mp4_future = executor.submit(
+            ))
+            futures.append(executor.submit(
                 self.media_worker.create_timelapse_mp4,
                 frames,
                 detections,
                 mp4_path,
                 camera_name,
                 event.timestamp,
-            )
-            
-            # Wait for all to complete
-            collage_future.result()
-            gif_future.result()
-            mp4_future.result()
+            ))
+            for future in futures:
+                future.result()
         
         # Update event with media URLs
-        event.collage_url = f"/api/events/{event_id}/collage"
-        event.gif_url = f"/api/events/{event_id}/preview.gif"
-        event.mp4_url = f"/api/events/{event_id}/timelapse.mp4"
+        event.collage_url = f"/api/events/{event_id}/collage" if os.path.exists(collage_path) else None
+        event.gif_url = f"/api/events/{event_id}/preview.gif" if os.path.exists(gif_path) else None
+        event.mp4_url = f"/api/events/{event_id}/timelapse.mp4" if os.path.exists(mp4_path) else None
         db.commit()
         
         logger.info(f"Event media generated: {event_id}")

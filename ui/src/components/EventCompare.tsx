@@ -9,7 +9,7 @@ interface EventCompareProps {
     timestamp: string
     confidence: number
     event_type: string
-    collage_url: string
+    collage_url: string | null
   }
   right: {
     id: string
@@ -17,7 +17,7 @@ interface EventCompareProps {
     timestamp: string
     confidence: number
     event_type: string
-    collage_url: string
+    collage_url: string | null
   }
   onClose: () => void
 }
@@ -56,7 +56,11 @@ export function EventCompare({ left, right, onClose }: EventCompareProps) {
           {[left, right].map((event) => (
             <div key={event.id} className="space-y-3">
               <div className="bg-surface2 rounded-lg overflow-hidden">
-                <img src={event.collage_url} alt="Event collage" className="w-full h-auto" />
+                {event.collage_url ? (
+                  <img src={event.collage_url} alt="Event collage" className="w-full h-auto" />
+                ) : (
+                  <div className="p-6 text-center text-muted">{t('noData')}</div>
+                )}
               </div>
               <div className="bg-surface2 border border-border rounded-lg p-4 space-y-2">
                 <div className="flex justify-between text-sm text-muted">
