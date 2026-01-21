@@ -641,7 +641,10 @@ class DetectorWorker:
                 self.frame_buffers[camera_id] = buffer
 
             self.frame_counters[camera_id] += 1
-            if self.frame_counters[camera_id] % frame_interval != 0:
+            should_sample = self.frame_counters[camera_id] % frame_interval == 0
+            if not should_sample and len(buffer) == 0:
+                should_sample = True
+            if not should_sample:
                 return
 
             best_detection = max(detections, key=lambda d: d["confidence"]) if detections else None
@@ -747,8 +750,11 @@ class DetectorWorker:
         self, camera_id: str
     ) -> Tuple[List[np.ndarray], List[Optional[Dict]], List[float]]:
         buffer = self.frame_buffers.get(camera_id)
-        if not buffer:
-            return [], [], []
+        if not buffer or len(buffer) == 0:
+            frame = self.get_latest_frame(camera_id)
+            if frame is None:
+                return [], [], []
+            return [frame], [None], [time.time()]
 
         lock = self.frame_buffer_locks[camera_id]
         with lock:
