@@ -101,6 +101,7 @@ class MediaWorker:
             return unique
 
         def _fill_indices(indices: List[int], center_idx: int, total_frames: int) -> List[int]:
+            indices = [i for i in indices if 0 <= i < total_frames]
             indices = _unique_preserve(indices)
             if len(indices) >= self.COLLAGE_FRAMES:
                 return sorted(indices[:self.COLLAGE_FRAMES])
