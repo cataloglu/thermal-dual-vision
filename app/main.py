@@ -17,7 +17,7 @@ import time
 import base64
 
 from app.db.session import get_session, init_db
-from app.db.models import Zone, ZoneMode
+from app.db.models import Zone, ZoneMode, Camera, CameraStatus
 from app.models.camera import CameraTestRequest, CameraTestResponse
 from app.models.config import AppConfig
 from app.services.camera import get_camera_service
@@ -46,6 +46,7 @@ logging.basicConfig(
     ],
 )
 logger = logging.getLogger(__name__)
+APP_START_TS = time.time()
 
 recording_state: Dict[str, bool] = {}
 
@@ -142,13 +143,36 @@ async def ready():
 @app.get("/api/health")
 async def health():
     """Health check endpoint."""
+    uptime_s = max(0, int(time.time() - APP_START_TS))
+    db = next(get_session())
+    try:
+        online = db.query(Camera).filter(Camera.status == CameraStatus.CONNECTED).count()
+        retrying = db.query(Camera).filter(Camera.status == CameraStatus.RETRYING).count()
+        down = db.query(Camera).filter(Camera.status == CameraStatus.DOWN).count()
+    except Exception:
+        online = retrying = down = 0
+    finally:
+        db.close()
+
+    try:
+        config = settings_service.load_config()
+        has_key = bool(config.ai.api_key) and config.ai.api_key != "***REDACTED***"
+        ai_enabled = bool(config.ai.enabled and has_key)
+        ai_reason = "" if ai_enabled else ("no_api_key" if config.ai.enabled else "not_configured")
+    except Exception:
+        ai_enabled = False
+        ai_reason = "not_configured"
+
+    pipeline_status = "ok" if detector_worker.running else "down"
+    telegram_status = "ok" if telegram_service.is_enabled() else "disabled"
+
     return {
-        "status": "ok",
+        "status": "ok" if pipeline_status == "ok" else "degraded",
         "version": "2.0.0",
-        "uptime_s": 0,
-        "ai": {"enabled": False, "reason": "not_configured"},
-        "cameras": {"online": 0, "retrying": 0, "down": 0},
-        "components": {"pipeline": "ok", "telegram": "disabled", "mqtt": "disabled"}
+        "uptime_s": uptime_s,
+        "ai": {"enabled": ai_enabled, "reason": ai_reason},
+        "cameras": {"online": online, "retrying": retrying, "down": down},
+        "components": {"pipeline": pipeline_status, "telegram": telegram_status, "mqtt": "disabled"},
     }
 
 

@@ -11,6 +11,7 @@ This worker handles YOLOv8 person detection pipeline including:
 import logging
 import threading
 import time
+import asyncio
 from collections import defaultdict, deque
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple, Any
@@ -24,9 +25,11 @@ from app.db.models import Camera, Event, CameraStatus
 from app.db.session import get_session
 from app.services.camera import CameraService
 from app.services.events import get_event_service
+from app.services.ai import get_ai_service
 from app.services.inference import get_inference_service
 from app.services.media import get_media_service
 from app.services.settings import get_settings_service
+from app.services.telegram import get_telegram_service
 from app.services.time_utils import get_detection_source
 from app.services.websocket import get_websocket_manager
 
@@ -50,13 +53,16 @@ class DetectorWorker:
         self.camera_service = CameraService()
         self.inference_service = get_inference_service()
         self.event_service = get_event_service()
+        self.ai_service = get_ai_service()
         self.settings_service = get_settings_service()
         self.media_service = get_media_service()
         self.websocket_manager = get_websocket_manager()
+        self.telegram_service = get_telegram_service()
         
         # Per-camera state
         self.frame_buffers: Dict[str, deque] = defaultdict(deque)
         self.frame_counters: Dict[str, int] = defaultdict(int)
+        self.frame_buffer_locks: Dict[str, threading.Lock] = defaultdict(threading.Lock)
         self.detection_history: Dict[str, deque] = defaultdict(lambda: deque(maxlen=5))
         self.zone_history: Dict[str, Dict[str, deque]] = defaultdict(lambda: defaultdict(lambda: deque(maxlen=5)))
         self.last_event_time: Dict[str, float] = {}
@@ -121,6 +127,17 @@ class DetectorWorker:
             thread.join(timeout=5)
         
         self.threads.clear()
+        self.frame_buffers.clear()
+        self.frame_counters.clear()
+        self.frame_buffer_locks.clear()
+        self.detection_history.clear()
+        self.zone_history.clear()
+        self.last_event_time.clear()
+        self.event_start_time.clear()
+        self.motion_state.clear()
+        self.zone_cache.clear()
+        self.last_status_update.clear()
+        self.codec_cache.clear()
         logger.info("DetectorWorker stopped")
     
     def start_camera_detection(self, camera: Camera) -> None:
@@ -607,23 +624,25 @@ class DetectorWorker:
         frame_interval: int,
         buffer_size: int,
     ) -> None:
-        buffer = self.frame_buffers[camera_id]
-        if buffer.maxlen != buffer_size:
-            buffer = deque(buffer, maxlen=buffer_size)
-            self.frame_buffers[camera_id] = buffer
+        lock = self.frame_buffer_locks[camera_id]
+        with lock:
+            buffer = self.frame_buffers[camera_id]
+            if buffer.maxlen != buffer_size:
+                buffer = deque(buffer, maxlen=buffer_size)
+                self.frame_buffers[camera_id] = buffer
 
-        self.frame_counters[camera_id] += 1
-        if self.frame_counters[camera_id] % frame_interval != 0:
-            return
+            self.frame_counters[camera_id] += 1
+            if self.frame_counters[camera_id] % frame_interval != 0:
+                return
 
-        best_detection = max(detections, key=lambda d: d["confidence"]) if detections else None
-        if best_detection:
-            best_detection = {
-                **best_detection,
-                "bbox": list(best_detection["bbox"]),
-            }
+            best_detection = max(detections, key=lambda d: d["confidence"]) if detections else None
+            if best_detection:
+                best_detection = {
+                    **best_detection,
+                    "bbox": list(best_detection["bbox"]),
+                }
 
-        buffer.append((frame.copy(), best_detection))
+            buffer.append((frame.copy(), best_detection))
 
     def _start_media_generation(self, camera: Camera, event_id: str, config) -> None:
         frames, detections = self._get_event_media_data(camera.id)
@@ -645,6 +664,65 @@ class DetectorWorker:
                     detections=detections,
                     camera_name=camera.name or "Camera",
                 )
+                event = db.query(Event).filter(Event.id == event_id).first()
+                if event:
+                    collage_path = self.media_service.get_media_path(event_id, "collage")
+                    gif_path = self.media_service.get_media_path(event_id, "gif")
+
+                    summary = None
+                    if collage_path:
+                        summary = self.ai_service.analyze_event(
+                            {
+                                "id": event.id,
+                                "camera_id": event.camera_id,
+                                "timestamp": event.timestamp.isoformat() + "Z",
+                                "confidence": event.confidence,
+                            },
+                            collage_path=collage_path,
+                            camera={"id": camera.id, "name": camera.name},
+                        )
+                    if summary:
+                        event.summary = summary
+                        event.ai_enabled = True
+                        event.ai_reason = None
+                    elif config.ai.enabled:
+                        has_key = bool(config.ai.api_key) and config.ai.api_key != "***REDACTED***"
+                        event.ai_enabled = bool(has_key)
+                        event.ai_reason = "no_api_key" if not has_key else "analysis_failed"
+                    db.commit()
+
+                    try:
+                        asyncio.run(
+                            self.telegram_service.send_event_notification(
+                                event={
+                                    "id": event.id,
+                                    "camera_id": event.camera_id,
+                                    "timestamp": event.timestamp.isoformat() + "Z",
+                                    "confidence": event.confidence,
+                                    "summary": event.summary,
+                                },
+                                camera={"id": camera.id, "name": camera.name},
+                                collage_path=collage_path,
+                                gif_path=gif_path,
+                            )
+                        )
+                    except RuntimeError:
+                        loop = asyncio.new_event_loop()
+                        loop.run_until_complete(
+                            self.telegram_service.send_event_notification(
+                                event={
+                                    "id": event.id,
+                                    "camera_id": event.camera_id,
+                                    "timestamp": event.timestamp.isoformat() + "Z",
+                                    "confidence": event.confidence,
+                                    "summary": event.summary,
+                                },
+                                camera={"id": camera.id, "name": camera.name},
+                                collage_path=collage_path,
+                                gif_path=gif_path,
+                            )
+                        )
+                        loop.close()
             except Exception as e:
                 logger.error("Failed to generate media for event %s: %s", event_id, e)
             finally:
@@ -663,8 +741,10 @@ class DetectorWorker:
         if not buffer:
             return [], []
 
-        frames = [item[0] for item in buffer]
-        detections = [item[1] for item in buffer]
+        lock = self.frame_buffer_locks[camera_id]
+        with lock:
+            frames = [item[0] for item in list(buffer)]
+            detections = [item[1] for item in list(buffer)]
         return frames, detections
 
 
