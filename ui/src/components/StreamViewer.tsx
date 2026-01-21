@@ -22,6 +22,7 @@ export function StreamViewer({
   const [retryCount, setRetryCount] = useState(0)
   const [recording, setRecording] = useState(false)
   const [recordingLoading, setRecordingLoading] = useState(false)
+  const [isVisible, setIsVisible] = useState(false)
   const imgRef = useRef<HTMLImageElement>(null)
   const retryTimeoutRef = useRef<number | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -35,6 +36,28 @@ export function StreamViewer({
       retryTimeoutRef.current = null
     }
   }, [streamUrl])
+
+  useEffect(() => {
+    if (!containerRef.current) return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsVisible(entry.isIntersecting)
+      },
+      { rootMargin: '200px', threshold: 0.1 }
+    )
+    observer.observe(containerRef.current)
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
+    if (isVisible) return
+    setLoading(true)
+    setError(false)
+    setRetryCount(0)
+    if (imgRef.current) {
+      imgRef.current.src = ''
+    }
+  }, [isVisible])
 
   useEffect(() => {
     const loadRecording = async () => {
@@ -57,12 +80,14 @@ export function StreamViewer({
   }, [])
 
   const handleLoad = () => {
+    if (!isVisible) return
     setLoading(false)
     setError(false)
     setRetryCount(0)
   }
 
   const handleError = () => {
+    if (!isVisible) return
     setLoading(false)
     setError(true)
     
@@ -134,6 +159,7 @@ export function StreamViewer({
   }
 
   const resolvedStatus = status || 'retrying'
+  const effectiveStreamUrl = isVisible ? streamUrl : ''
 
   return (
     <div ref={containerRef} className="relative bg-surface2 rounded-lg overflow-hidden aspect-video border border-border">
@@ -181,8 +207,9 @@ export function StreamViewer({
       {/* MJPEG Stream */}
       <img
         ref={imgRef}
-        src={streamUrl}
+        src={effectiveStreamUrl}
         alt={cameraName}
+        loading="lazy"
         className={`w-full h-full object-contain ${loading || error ? 'hidden' : 'block'}`}
         onLoad={handleLoad}
         onError={handleError}

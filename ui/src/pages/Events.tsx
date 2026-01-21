@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useCallback, useMemo, useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { EventCard } from '../components/EventCard'
 import { EventDetail } from '../components/EventDetail'
@@ -28,6 +28,7 @@ export function Events() {
   const [cameraFilter, setCameraFilter] = useState<string>('')
   const [dateFilter, setDateFilter] = useState<string>('')
   const [confidenceFilter, setConfidenceFilter] = useState<number>(0)
+  const [confidenceInput, setConfidenceInput] = useState<number>(0)
 
   // Fetch events with filters
   const debouncedCameraFilter = useDebounce(cameraFilter, 300)
@@ -55,14 +56,16 @@ export function Events() {
     minConfidence: debouncedConfidenceFilter > 0 ? debouncedConfidenceFilter / 100 : undefined,
   })
 
-  useWebSocket('/api/ws/events', {
-    onEvent: (data) => {
-      if (cameraFilter || dateFilter || confidenceFilter > 0) {
-        return
-      }
-      prependEvent(data)
-    },
-  })
+  const handleEvent = useCallback((data: any) => {
+    if (cameraFilter || dateFilter || confidenceFilter > 0) {
+      return
+    }
+    prependEvent(data)
+  }, [cameraFilter, dateFilter, confidenceFilter, prependEvent])
+
+  const wsOptions = useMemo(() => ({ onEvent: handleEvent }), [handleEvent])
+
+  useWebSocket('/api/ws/events', wsOptions)
 
   // Fetch cameras for filter dropdown
   useEffect(() => {
@@ -98,7 +101,27 @@ export function Events() {
     setCameraFilter('')
     setDateFilter('')
     setConfidenceFilter(0)
+    setConfidenceInput(0)
   }
+
+  const handleSelect = useCallback((eventId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(eventId)) {
+        next.delete(eventId)
+      } else {
+        next.add(eventId)
+      }
+      return next
+    })
+  }, [])
+
+  const handleOpen = useCallback((eventId: string) => {
+    setSelectedEventId(eventId)
+  }, [])
+  const commitConfidence = useCallback(() => {
+    setConfidenceFilter(confidenceInput)
+  }, [confidenceInput])
 
   const hasActiveFilters = Boolean(cameraFilter || dateFilter || confidenceFilter > 0)
 
@@ -303,15 +326,19 @@ export function Events() {
             {/* Confidence Filter */}
             <div>
               <label className="block text-sm font-medium text-muted mb-2">
-                {t('confidence')}: {confidenceFilter}%
+                {t('confidence')}: {confidenceInput}%
               </label>
               <input
                 type="range"
                 min="0"
                 max="100"
                 step="5"
-                value={confidenceFilter}
-                onChange={(e) => setConfidenceFilter(Number(e.target.value))}
+                value={confidenceInput}
+                onChange={(e) => setConfidenceInput(Number(e.target.value))}
+                onPointerUp={commitConfidence}
+                onMouseUp={commitConfidence}
+                onTouchEnd={commitConfidence}
+                onKeyUp={commitConfidence}
                 className="w-full h-2 bg-surface2 rounded-lg appearance-none cursor-pointer accent-accent"
               />
             </div>
@@ -383,18 +410,8 @@ export function Events() {
               gifUrl={event.gif_url}
               mp4Url={event.mp4_url}
               selected={selectedIds.has(event.id)}
-              onSelect={() => {
-                setSelectedIds((prev) => {
-                  const next = new Set(prev)
-                  if (next.has(event.id)) {
-                    next.delete(event.id)
-                  } else {
-                    next.add(event.id)
-                  }
-                  return next
-                })
-              }}
-              onClick={() => setSelectedEventId(event.id)}
+              onSelect={handleSelect}
+              onClick={handleOpen}
             />
           ))}
         </div>

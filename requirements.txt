@@ -12,3 +12,4 @@ imageio
 imageio-ffmpeg
 httpx
 websockets
+psutil

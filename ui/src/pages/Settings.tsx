@@ -1,7 +1,7 @@
 /**
  * Settings page - Main settings interface
  */
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useSettings } from '../hooks/useSettings';
 import { api } from '../services/api';
@@ -70,7 +70,12 @@ export const Settings: React.FC = () => {
     );
   }
 
-  const handleSave = async () => {
+  const updateLocalSettings = useCallback((next: SettingsType) => {
+    setLocalSettings(next);
+    setIsDirty(true);
+  }, []);
+
+  const handleSave = useCallback(async () => {
     const updates: Partial<SettingsType> = {};
     
     switch (activeTab) {
@@ -108,12 +113,7 @@ export const Settings: React.FC = () => {
       setLocalSettings(settings);
       setIsDirty(false);
     }
-  };
-
-  const updateLocalSettings = (next: SettingsType) => {
-    setLocalSettings(next);
-    setIsDirty(true);
-  };
+  }, [activeTab, localSettings, saveSettings, settings]);
 
   const handleExport = async () => {
     if (!settings) return;
@@ -223,7 +223,7 @@ export const Settings: React.FC = () => {
     }
     if (activeTab === 'appearance') return <AppearanceTab />
     return null
-  }, [activeTab, localSettings])
+  }, [activeTab, handleSave, localSettings, updateLocalSettings])
 
   return (
     <div className="min-h-screen bg-background">

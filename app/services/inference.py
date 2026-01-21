@@ -4,6 +4,7 @@ Inference service for Smart Motion Detector v2.
 This service handles YOLOv8 model loading, preprocessing, and inference.
 """
 import logging
+import shutil
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -64,12 +65,20 @@ class InferenceService:
             if model_path.exists():
                 source = str(model_path)
             elif root_path.exists():
-                source = str(root_path)
-                logger.warning(
-                    "Model found in repo root (%s); consider moving to %s",
-                    root_path,
-                    self.MODELS_DIR,
-                )
+                if not model_path.exists():
+                    try:
+                        shutil.move(str(root_path), str(model_path))
+                        logger.info("Moved model from repo root to %s", model_path)
+                        source = str(model_path)
+                    except Exception as move_error:
+                        logger.warning(
+                            "Failed to move model from repo root (%s): %s",
+                            root_path,
+                            move_error,
+                        )
+                        source = str(root_path)
+                else:
+                    source = str(model_path)
             else:
                 source = model_filename
 

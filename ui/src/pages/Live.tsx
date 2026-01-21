@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { StreamViewer } from '../components/StreamViewer'
@@ -60,16 +60,18 @@ export function Live() {
     return () => undefined
   }, [])
 
-  useWebSocket('/api/ws/events', {
-    onStatus: (data) => {
-      if (!data?.camera_id) return
-      setCameras((prev) =>
-        prev.map((cam) =>
-          cam.id === data.camera_id ? { ...cam, status: data.status } : cam
-        )
+  const handleStatus = useCallback((data: any) => {
+    if (!data?.camera_id) return
+    setCameras((prev) =>
+      prev.map((cam) =>
+        cam.id === data.camera_id ? { ...cam, status: data.status } : cam
       )
-    },
-  })
+    )
+  }, [])
+
+  const wsOptions = useMemo(() => ({ onStatus: handleStatus }), [handleStatus])
+
+  useWebSocket('/api/ws/events', wsOptions)
 
   const getGridClass = () => {
     switch (gridMode) {

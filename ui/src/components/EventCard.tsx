@@ -12,11 +12,12 @@ interface EventCardProps {
   gifUrl: string
   mp4Url: string
   selected?: boolean
-  onSelect?: () => void
-  onClick: () => void
+  onSelect?: (id: string) => void
+  onClick: (id: string) => void
 }
 
 export const EventCard = memo(function EventCard({
+  id,
   cameraId,
   timestamp,
   confidence,
@@ -65,7 +66,7 @@ export const EventCard = memo(function EventCard({
         {/* Collage Thumbnail */}
         <div 
           className="flex-shrink-0 w-48 h-36 bg-surface2 rounded-lg overflow-hidden cursor-pointer"
-          onClick={onClick}
+          onClick={() => onClick(id)}
         >
           <img
             src={collageUrl}
@@ -94,7 +95,7 @@ export const EventCard = memo(function EventCard({
                   checked={selected}
                   onChange={(e) => {
                     e.stopPropagation()
-                    onSelect()
+                    onSelect(id)
                   }}
                   className="w-4 h-4 accent-accent"
                   aria-label={t('select')}
@@ -114,7 +115,7 @@ export const EventCard = memo(function EventCard({
           {/* Actions */}
           <div className="flex gap-2 mt-auto">
             <button
-              onClick={onClick}
+              onClick={() => onClick(id)}
               className="flex items-center gap-2 px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors text-sm font-medium"
             >
               <MdVisibility />

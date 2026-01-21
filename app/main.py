@@ -62,7 +62,6 @@ def _load_cors_origins() -> List[str]:
     return [
         "http://localhost:5173",
         "http://127.0.0.1:5173",
-        "https://yourdomain.com",
     ]
 
 # CORS

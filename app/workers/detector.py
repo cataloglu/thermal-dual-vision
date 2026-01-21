@@ -64,6 +64,7 @@ class DetectorWorker:
         self.motion_state: Dict[str, Dict[str, Any]] = defaultdict(dict)
         self.zone_cache: Dict[str, Dict[str, Any]] = defaultdict(dict)
         self.last_status_update: Dict[str, float] = {}
+        self.codec_cache: Dict[str, str] = {}
         
         logger.info("DetectorWorker initialized")
     
@@ -181,7 +182,7 @@ class DetectorWorker:
             logger.info(f"Starting detection for camera {camera_id}: {rtsp_url}")
             
             # Open video capture with codec fallback
-            cap = self._open_capture(rtsp_url, config)
+            cap = self._open_capture(rtsp_url, config, camera_id)
             
             if not cap.isOpened():
                 logger.error(f"Failed to open camera {camera_id}")
@@ -200,7 +201,7 @@ class DetectorWorker:
                 failures = 0
                 while self.running and not reader_stop.is_set():
                     if cap is None or not cap.isOpened():
-                        cap = self._open_capture(rtsp_url, config)
+                        cap = self._open_capture(rtsp_url, config, camera_id)
                         if cap is None or not cap.isOpened():
                             failures = 0
                             time.sleep(1)
@@ -351,7 +352,9 @@ class DetectorWorker:
                 logger.info(f"Released camera {camera_id}")
                 self._update_camera_status(camera_id, CameraStatus.DOWN, None)
             if reader_thread:
-                reader_thread.join(timeout=1)
+                reader_thread.join(timeout=5)
+                if reader_thread.is_alive():
+                    logger.warning("Reader thread did not stop cleanly for camera %s", camera_id)
 
     def _update_camera_status(
         self,
@@ -451,8 +454,12 @@ class DetectorWorker:
         except Exception as e:
             logger.error(f"Failed to create event: {e}")
 
-    def _open_capture(self, rtsp_url: str, config) -> cv2.VideoCapture:
+    def _open_capture(self, rtsp_url: str, config, camera_id: Optional[str] = None) -> cv2.VideoCapture:
         codec_fallbacks = [None, "H264", "H265", "MJPG"]
+        if camera_id:
+            cached_codec = self.codec_cache.get(camera_id)
+            if cached_codec and cached_codec != "AUTO":
+                codec_fallbacks = [cached_codec] + [c for c in codec_fallbacks if c != cached_codec]
         for codec in codec_fallbacks:
             cap = cv2.VideoCapture(rtsp_url, cv2.CAP_FFMPEG)
             cap.set(cv2.CAP_PROP_BUFFERSIZE, config.stream.buffer_size)
@@ -461,8 +468,12 @@ class DetectorWorker:
             if cap.isOpened():
                 ret, _ = cap.read()
                 if ret:
+                    if camera_id:
+                        self.codec_cache[camera_id] = codec or "AUTO"
                     if codec:
                         logger.info("Opened camera with codec %s", codec)
+                    else:
+                        logger.info("Opened camera with default codec")
                     return cap
             cap.release()
         return cv2.VideoCapture(rtsp_url, cv2.CAP_FFMPEG)

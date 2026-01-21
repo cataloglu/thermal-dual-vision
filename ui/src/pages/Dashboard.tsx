@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { api } from '../services/api'
@@ -51,49 +51,65 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [healthHistory, setHealthHistory] = useState<HealthSnapshot[]>([])
 
-  const { } = useWebSocket('/api/ws/events', {
-    onEvent: (data) => {
-      setLastEvent(data)
-    },
-    onStatus: (data) => {
-      setHealth((prev) => {
-        if (!prev) return prev
-        const counts = data?.counts
-        if (!counts) return prev
-        const next = {
-          ...prev,
-          cameras: {
-            online: counts.online ?? prev.cameras.online,
-            retrying: counts.retrying ?? prev.cameras.retrying,
-            down: counts.down ?? prev.cameras.down,
-          },
-        }
-        setHealthHistory((hist) => [
-          ...hist,
-          {
-            timestamp: new Date().toISOString(),
-            status: next.status,
-            cameras: next.cameras,
-          },
-        ].slice(-6))
-        return next
-      })
-    },
-  })
+  const pushHealthSnapshot = useCallback((next: HealthData) => {
+    setHealthHistory((hist) => {
+      const last = hist[hist.length - 1]
+      const isDuplicate =
+        last &&
+        last.status === next.status &&
+        last.cameras.online === next.cameras.online &&
+        last.cameras.retrying === next.cameras.retrying &&
+        last.cameras.down === next.cameras.down
+      if (isDuplicate) return hist
+      return [
+        ...hist,
+        {
+          timestamp: new Date().toISOString(),
+          status: next.status,
+          cameras: next.cameras,
+        },
+      ].slice(-6)
+    })
+  }, [])
+
+  const handleEvent = useCallback((data: any) => {
+    setLastEvent(data)
+  }, [])
+
+  const handleStatus = useCallback((data: any) => {
+    setHealth((prev) => {
+      if (!prev) return prev
+      const counts = data?.counts
+      if (!counts) return prev
+      const next = {
+        ...prev,
+        cameras: {
+          online: counts.online ?? prev.cameras.online,
+          retrying: counts.retrying ?? prev.cameras.retrying,
+          down: counts.down ?? prev.cameras.down,
+        },
+      }
+      pushHealthSnapshot(next)
+      return next
+    })
+  }, [pushHealthSnapshot])
+
+  const wsOptions = useMemo(
+    () => ({
+      onEvent: handleEvent,
+      onStatus: handleStatus,
+    }),
+    [handleEvent, handleStatus]
+  )
+
+  const { } = useWebSocket('/api/ws/events', wsOptions)
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         const healthData = await api.getHealth()
         setHealth(healthData)
-        setHealthHistory((hist) => [
-          ...hist,
-          {
-            timestamp: new Date().toISOString(),
-            status: healthData.status,
-            cameras: healthData.cameras,
-          },
-        ].slice(-6))
+        pushHealthSnapshot(healthData)
       } catch (error) {
         console.error('Failed to fetch health:', error)
       }
