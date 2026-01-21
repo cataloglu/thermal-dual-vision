@@ -58,6 +58,7 @@ logs/
 # Models (optional - büyük dosyalar)
 models/*.pt
 !models/.gitkeep
+*.pt
 
 # Test
 .pytest_cache/
