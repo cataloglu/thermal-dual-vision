@@ -23,6 +23,9 @@ export function EventDetail({ event, onClose, onDelete }: EventDetailProps) {
   const modalRef = useRef<HTMLDivElement>(null)
   const [activeTab, setActiveTab] = useState<'collage' | 'gif' | 'video'>('collage')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [tagInput, setTagInput] = useState('')
+  const [tags, setTags] = useState<string[]>([])
+  const [note, setNote] = useState('')
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -47,6 +50,28 @@ export function EventDetail({ event, onClose, onDelete }: EventDetailProps) {
       document.body.style.overflow = 'unset'
     }
   }, [onClose])
+
+  useEffect(() => {
+    const raw = localStorage.getItem('event_meta')
+    if (!raw) return
+    try {
+      const meta = JSON.parse(raw) as Record<string, { tags: string[]; note: string }>
+      const entry = meta[event.id]
+      if (entry) {
+        setTags(entry.tags || [])
+        setNote(entry.note || '')
+      }
+    } catch {
+      // ignore malformed storage
+    }
+  }, [event.id])
+
+  const persistMeta = (nextTags: string[], nextNote: string) => {
+    const raw = localStorage.getItem('event_meta')
+    const meta = raw ? JSON.parse(raw) : {}
+    meta[event.id] = { tags: nextTags, note: nextNote }
+    localStorage.setItem('event_meta', JSON.stringify(meta))
+  }
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
@@ -84,6 +109,27 @@ export function EventDetail({ event, onClose, onDelete }: EventDetailProps) {
       onDelete(event.id)
       onClose()
     }
+  }
+
+  const handleAddTag = () => {
+    const trimmed = tagInput.trim()
+    if (!trimmed) return
+    if (tags.includes(trimmed)) return
+    const next = [...tags, trimmed]
+    setTags(next)
+    setTagInput('')
+    persistMeta(next, note)
+  }
+
+  const handleRemoveTag = (tag: string) => {
+    const next = tags.filter((t) => t !== tag)
+    setTags(next)
+    persistMeta(next, note)
+  }
+
+  const handleNoteChange = (value: string) => {
+    setNote(value)
+    persistMeta(tags, value)
   }
 
   return (
@@ -205,6 +251,56 @@ export function EventDetail({ event, onClose, onDelete }: EventDetailProps) {
               <p className="text-text">{event.summary}</p>
             </div>
           )}
+
+          {/* Tags & Notes */}
+          <div className="bg-surface2 border border-border rounded-lg p-4 space-y-4">
+            <div>
+              <h3 className="text-sm font-semibold text-muted mb-2">{t('tags')}</h3>
+              <div className="flex gap-2 mb-2">
+                <input
+                  type="text"
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleAddTag()
+                  }}
+                  placeholder={t('addTag')}
+                  className="flex-1 px-3 py-2 bg-surface1 border border-border rounded-lg text-text placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent"
+                />
+                <button
+                  onClick={handleAddTag}
+                  className="px-3 py-2 bg-surface1 border border-border text-text rounded-lg hover:bg-surface1/80 transition-colors"
+                >
+                  {t('add')}
+                </button>
+              </div>
+              {tags.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="px-2 py-1 bg-surface1 border border-border text-text rounded-lg text-sm flex items-center gap-2"
+                    >
+                      {tag}
+                      <button onClick={() => handleRemoveTag(tag)} className="text-error">
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-muted mb-2">{t('notes')}</h3>
+              <textarea
+                value={note}
+                onChange={(e) => handleNoteChange(e.target.value)}
+                placeholder={t('addNote')}
+                rows={3}
+                className="w-full px-3 py-2 bg-surface1 border border-border rounded-lg text-text placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent"
+              />
+            </div>
+          </div>
 
           {/* Actions */}
           <div className="flex gap-3 pt-4 border-t border-border">

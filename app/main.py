@@ -2,9 +2,11 @@
 Smart Motion Detector v2 - Main Entry Point
 """
 import logging
+from pathlib import Path
 from datetime import date
 from typing import Any, Dict, Optional, List
 
+import os
 from fastapi import FastAPI, HTTPException, Depends, Query, WebSocket, WebSocketDisconnect, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
@@ -17,6 +19,7 @@ import base64
 from app.db.session import get_session, init_db
 from app.db.models import Zone, ZoneMode
 from app.models.camera import CameraTestRequest, CameraTestResponse
+from app.models.config import AppConfig
 from app.services.camera import get_camera_service
 from app.services.camera_crud import get_camera_crud_service
 from app.services.events import get_event_service
@@ -27,14 +30,24 @@ from app.services.telegram import get_telegram_service
 from app.services.logs import get_logs_service
 from app.services.ai_test import test_openai_connection
 from app.workers.retention import get_retention_worker
+from app.workers.detector import get_detector_worker
 
 
 # Configure logging
+log_dir = Path("logs")
+log_dir.mkdir(parents=True, exist_ok=True)
+log_file = log_dir / "app.log"
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler(log_file, encoding="utf-8"),
+    ],
 )
 logger = logging.getLogger(__name__)
+
+recording_state: Dict[str, bool] = {}
 
 app = FastAPI(
     title="Smart Motion Detector API",
@@ -42,10 +55,20 @@ app = FastAPI(
     description="Person detection with thermal/color camera support"
 )
 
+def _load_cors_origins() -> List[str]:
+    raw = os.getenv("CORS_ORIGINS", "").strip()
+    if raw:
+        return [origin.strip() for origin in raw.split(",") if origin.strip()]
+    return [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "https://yourdomain.com",
+    ]
+
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Production'da değiştir
+    allow_origins=_load_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -61,6 +84,7 @@ camera_crud_service = get_camera_crud_service()
 event_service = get_event_service()
 media_service = get_media_service()
 retention_worker = get_retention_worker()
+detector_worker = get_detector_worker()
 websocket_manager = get_websocket_manager()
 telegram_service = get_telegram_service()
 logs_service = get_logs_service()
@@ -85,6 +109,10 @@ async def startup_event():
     retention_worker.start()
     logger.info("Retention worker started")
 
+    # Start detector worker
+    detector_worker.start()
+    logger.info("Detector worker started")
+
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -94,6 +122,10 @@ async def shutdown_event():
     # Stop retention worker
     retention_worker.stop()
     logger.info("Retention worker stopped")
+
+    # Stop detector worker
+    detector_worker.stop()
+    logger.info("Detector worker stopped")
 
 
 @app.get("/")
@@ -149,6 +181,41 @@ async def get_settings() -> Dict[str, Any]:
             }
         )
 
+
+@app.get("/api/settings/defaults")
+async def get_default_settings() -> Dict[str, Any]:
+    try:
+        defaults = settings_service.get_default_config()
+        return settings_service._mask_secrets(defaults)
+    except Exception as e:
+        logger.error(f"Failed to load default settings: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": True,
+                "code": "INTERNAL_ERROR",
+                "message": f"Failed to load defaults: {str(e)}",
+            },
+        )
+
+
+@app.post("/api/settings/reset")
+async def reset_settings() -> Dict[str, Any]:
+    try:
+        defaults = settings_service.get_default_config()
+        settings_service.save_config(AppConfig(**defaults))
+        logger.info("Settings reset to defaults")
+        return settings_service.get_settings()
+    except Exception as e:
+        logger.error(f"Failed to reset settings: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": True,
+                "code": "INTERNAL_ERROR",
+                "message": f"Failed to reset settings: {str(e)}",
+            },
+        )
 
 @app.put("/api/settings")
 async def update_settings(partial_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -1030,7 +1097,13 @@ async def create_camera(
             zones=request.get("zones", []),
             motion_config=request.get("motion_config")
         )
-        
+
+        if camera.enabled and "detect" in (camera.stream_roles or []):
+            try:
+                detector_worker.start_camera_detection(camera)
+            except Exception as e:
+                logger.error("Failed to start detection for camera %s: %s", camera.id, e)
+
         return camera_crud_service.mask_rtsp_urls(camera)
         
     except ValueError as e:
@@ -1087,6 +1160,12 @@ async def update_camera(
                 }
             )
         
+        if camera.enabled and "detect" in (camera.stream_roles or []):
+            try:
+                detector_worker.start_camera_detection(camera)
+            except Exception as e:
+                logger.error("Failed to start detection for camera %s: %s", camera.id, e)
+
         return camera_crud_service.mask_rtsp_urls(camera)
         
     except HTTPException:
@@ -1161,6 +1240,52 @@ async def delete_camera(
             }
         )
 
+
+@app.get("/api/cameras/{camera_id}/record")
+async def get_recording_status(camera_id: str, db: Session = Depends(get_session)) -> Dict[str, Any]:
+    camera = camera_crud_service.get_camera(db, camera_id)
+    if not camera:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": True,
+                "code": "CAMERA_NOT_FOUND",
+                "message": f"Camera not found: {camera_id}",
+            },
+        )
+    return {"camera_id": camera_id, "recording": recording_state.get(camera_id, False)}
+
+
+@app.post("/api/cameras/{camera_id}/record/start")
+async def start_recording(camera_id: str, db: Session = Depends(get_session)) -> Dict[str, Any]:
+    camera = camera_crud_service.get_camera(db, camera_id)
+    if not camera:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": True,
+                "code": "CAMERA_NOT_FOUND",
+                "message": f"Camera not found: {camera_id}",
+            },
+        )
+    recording_state[camera_id] = True
+    return {"camera_id": camera_id, "recording": True}
+
+
+@app.post("/api/cameras/{camera_id}/record/stop")
+async def stop_recording(camera_id: str, db: Session = Depends(get_session)) -> Dict[str, Any]:
+    camera = camera_crud_service.get_camera(db, camera_id)
+    if not camera:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": True,
+                "code": "CAMERA_NOT_FOUND",
+                "message": f"Camera not found: {camera_id}",
+            },
+        )
+    recording_state[camera_id] = False
+    return {"camera_id": camera_id, "recording": False}
 
 @app.websocket("/api/ws/events")
 async def websocket_endpoint(websocket: WebSocket):

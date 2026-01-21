@@ -54,12 +54,26 @@ class InferenceService:
             Exception: If model loading fails
         """
         try:
-            model_path = self.MODELS_DIR / f"{model_name}.pt"
-            
-            logger.info(f"Loading YOLOv8 model: {model_name}")
-            
-            # Load model (auto-downloads if not exists)
-            self.model = YOLO(str(model_path) if model_path.exists() else f"{model_name}.pt")
+            model_filename = f"{model_name}.pt"
+            model_path = self.MODELS_DIR / model_filename
+            root_path = Path.cwd() / model_filename
+
+            logger.info("Loading YOLO model: %s", model_name)
+
+            # Load model from local paths or auto-download if missing
+            if model_path.exists():
+                source = str(model_path)
+            elif root_path.exists():
+                source = str(root_path)
+                logger.warning(
+                    "Model found in repo root (%s); consider moving to %s",
+                    root_path,
+                    self.MODELS_DIR,
+                )
+            else:
+                source = model_filename
+
+            self.model = YOLO(source)
             self.model_name = model_name
             
             # Warmup inference

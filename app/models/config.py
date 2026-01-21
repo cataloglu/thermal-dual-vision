@@ -38,6 +38,18 @@ class DetectionConfig(BaseModel):
         le=30,
         description="Frames per second for inference"
     )
+    aspect_ratio_min: float = Field(
+        default=0.2,
+        ge=0.0,
+        le=5.0,
+        description="Minimum person aspect ratio (width/height)"
+    )
+    aspect_ratio_max: float = Field(
+        default=1.2,
+        ge=0.0,
+        le=5.0,
+        description="Maximum person aspect ratio (width/height)"
+    )
     enable_tracking: bool = Field(
         default=False,
         description="Enable object tracking (future feature)"
@@ -51,6 +63,15 @@ class DetectionConfig(BaseModel):
             raise ValueError("inference_resolution must have exactly 2 values [width, height]")
         if any(x <= 0 for x in v):
             raise ValueError("Resolution values must be positive")
+        return v
+
+    @field_validator("aspect_ratio_max")
+    @classmethod
+    def validate_aspect_ratio(cls, v: float, info) -> float:
+        values = info.data
+        min_ratio = values.get("aspect_ratio_min")
+        if min_ratio is not None and v < min_ratio:
+            raise ValueError("aspect_ratio_max must be >= aspect_ratio_min")
         return v
 
 

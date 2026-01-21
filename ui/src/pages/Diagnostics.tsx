@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api } from '../services/api'
-import { MdContentCopy, MdCheckCircle, MdRefresh } from 'react-icons/md'
+import { MdContentCopy, MdCheckCircle, MdRefresh, MdDownload } from 'react-icons/md'
+import { LoadingState } from '../components/LoadingState'
 
 export function Diagnostics() {
   const { t } = useTranslation()
@@ -13,6 +14,8 @@ export function Diagnostics() {
   const [copiedHealth, setCopiedHealth] = useState(false)
   const [copiedLogs, setCopiedLogs] = useState(false)
   const [autoRefresh, setAutoRefresh] = useState(false)
+  const [logFilter, setLogFilter] = useState('')
+  const isRefreshingRef = useRef(false)
 
   const fetchHealth = async () => {
     try {
@@ -25,8 +28,7 @@ export function Diagnostics() {
 
   const fetchSystemInfo = async () => {
     try {
-      const response = await fetch('/api/system/info')
-      const data = await response.json()
+      const data = await api.getSystemInfo()
       setSystemInfo(data)
     } catch (error) {
       console.error('Failed to fetch system info:', error)
@@ -36,8 +38,7 @@ export function Diagnostics() {
   const fetchLogs = async () => {
     try {
       setLogsLoading(true)
-      const response = await fetch('/api/logs?lines=200')
-      const data = await response.json()
+      const data = await api.getLogs(200)
       setLogs(data.lines || [])
     } catch (error) {
       console.error('Failed to fetch logs:', error)
@@ -48,7 +49,9 @@ export function Diagnostics() {
 
   useEffect(() => {
     const fetchData = async () => {
-      await Promise.all([fetchHealth(), fetchSystemInfo(), fetchLogs()])
+      await fetchHealth()
+      await fetchSystemInfo()
+      await fetchLogs()
       setLoading(false)
     }
 
@@ -59,10 +62,13 @@ export function Diagnostics() {
   useEffect(() => {
     if (!autoRefresh) return
 
-    const interval = setInterval(() => {
-      fetchHealth()
-      fetchSystemInfo()
-      fetchLogs()
+    const interval = setInterval(async () => {
+      if (isRefreshingRef.current) return
+      isRefreshingRef.current = true
+      await fetchHealth()
+      await fetchSystemInfo()
+      await fetchLogs()
+      isRefreshingRef.current = false
     }, 5000)
 
     return () => clearInterval(interval)
@@ -86,19 +92,29 @@ export function Diagnostics() {
 
   const handleRefresh = async () => {
     setLoading(true)
-    await Promise.all([fetchHealth(), fetchSystemInfo(), fetchLogs()])
+    await fetchHealth()
+    await fetchSystemInfo()
+    await fetchLogs()
     setLoading(false)
   }
 
+  const filteredLogs = logs.filter((line) =>
+    logFilter ? line.toLowerCase().includes(logFilter.toLowerCase()) : true
+  )
+
+  const handleDownloadLogs = () => {
+    const content = filteredLogs.join('\n')
+    const blob = new Blob([content], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `logs-${new Date().toISOString().slice(0, 10)}.txt`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
   if (loading) {
-    return (
-      <div className="p-8">
-        <div className="animate-pulse space-y-6">
-          <div className="h-8 bg-surface1 rounded w-48" />
-          <div className="h-96 bg-surface1 rounded-lg" />
-        </div>
-      </div>
-    )
+    return <LoadingState variant="panel" />
   }
 
   return (
@@ -155,7 +171,7 @@ export function Diagnostics() {
             )}
           </button>
         </div>
-        <pre className="bg-background border border-border rounded-lg p-4 overflow-auto max-h-[400px] text-sm text-text font-mono">
+        <pre className="bg-background border border-border rounded-lg p-4 overflow-auto max-h-[60vh] text-sm text-text font-mono">
           {JSON.stringify(health, null, 2)}
         </pre>
       </div>
@@ -164,23 +180,42 @@ export function Diagnostics() {
       <div className="bg-surface1 border border-border rounded-lg p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-text">{t('applicationLogs')} (200)</h2>
-          <button
-            onClick={handleCopyLogs}
-            disabled={logsLoading}
-            className="flex items-center gap-2 px-3 py-1.5 bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors text-sm disabled:opacity-50"
-          >
-            {copiedLogs ? (
-              <>
-                <MdCheckCircle className="text-green-500" />
-                {t('copied')}
-              </>
-            ) : (
-              <>
-                <MdContentCopy />
-                {t('copy')}
-              </>
-            )}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleDownloadLogs}
+              className="flex items-center gap-2 px-3 py-1.5 bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors text-sm"
+            >
+              <MdDownload />
+              {t('download')}
+            </button>
+            <button
+              onClick={handleCopyLogs}
+              disabled={logsLoading}
+              className="flex items-center gap-2 px-3 py-1.5 bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors text-sm disabled:opacity-50"
+            >
+              {copiedLogs ? (
+                <>
+                  <MdCheckCircle className="text-green-500" />
+                  {t('copied')}
+                </>
+              ) : (
+                <>
+                  <MdContentCopy />
+                  {t('copy')}
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        <div className="mb-4">
+          <input
+            type="text"
+            value={logFilter}
+            onChange={(e) => setLogFilter(e.target.value)}
+            placeholder={t('filter')}
+            className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent text-sm"
+          />
         </div>
         
         {logsLoading ? (
@@ -190,7 +225,7 @@ export function Diagnostics() {
         ) : (
           <div className="bg-background border border-border rounded-lg p-4 overflow-auto max-h-96">
             <pre className="text-xs text-text font-mono whitespace-pre-wrap">
-              {logs.length > 0 ? logs.join('\n') : t('noData')}
+              {filteredLogs.length > 0 ? filteredLogs.join('\n') : t('noData')}
             </pre>
           </div>
         )}
@@ -201,23 +236,23 @@ export function Diagnostics() {
         <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-surface1 border border-border rounded-lg p-6">
             <h3 className="text-sm font-semibold text-muted mb-2">CPU Kullanımı</h3>
-            <p className="text-text text-2xl font-bold">{systemInfo.cpu?.percent}%</p>
+            <p className="text-text text-2xl font-bold">{systemInfo.cpu?.percent ?? '-' }%</p>
           </div>
 
           <div className="bg-surface1 border border-border rounded-lg p-6">
             <h3 className="text-sm font-semibold text-muted mb-2">Memory Kullanımı</h3>
             <p className="text-text text-2xl font-bold">
-              {systemInfo.memory?.used_gb} / {systemInfo.memory?.total_gb} GB
+              {systemInfo.memory?.used_gb ?? '-'} / {systemInfo.memory?.total_gb ?? '-'} GB
             </p>
-            <p className="text-muted text-sm mt-1">{systemInfo.memory?.percent}%</p>
+            <p className="text-muted text-sm mt-1">{systemInfo.memory?.percent ?? '-'}%</p>
           </div>
 
           <div className="bg-surface1 border border-border rounded-lg p-6">
             <h3 className="text-sm font-semibold text-muted mb-2">Disk Kullanımı</h3>
             <p className="text-text text-2xl font-bold">
-              {systemInfo.disk?.used_gb} / {systemInfo.disk?.total_gb} GB
+              {systemInfo.disk?.used_gb ?? '-'} / {systemInfo.disk?.total_gb ?? '-'} GB
             </p>
-            <p className="text-muted text-sm mt-1">{systemInfo.disk?.percent}%</p>
+            <p className="text-muted text-sm mt-1">{systemInfo.disk?.percent ?? '-'}%</p>
           </div>
         </div>
       )}

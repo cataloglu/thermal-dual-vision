@@ -80,6 +80,19 @@ class WebSocketManager:
         
         await self._broadcast(message)
         logger.debug("Broadcasted status update")
+
+    def broadcast_event_sync(self, event_data: Dict[str, Any]) -> None:
+        self._run_async(self.broadcast_event(event_data))
+
+    def broadcast_status_sync(self, status_data: Dict[str, Any]) -> None:
+        self._run_async(self.broadcast_status(status_data))
+
+    def _run_async(self, coro: asyncio.Future) -> None:
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(coro)
+        except RuntimeError:
+            asyncio.run(coro)
     
     async def _broadcast(self, message: Dict[str, Any]):
         """

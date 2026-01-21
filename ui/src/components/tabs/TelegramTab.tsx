@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { FiEye, FiEyeOff } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import type { TelegramConfig } from '../../types/api';
+import { api } from '../../services/api';
 
 interface TelegramTabProps {
   config: TelegramConfig;
@@ -17,6 +18,7 @@ export const TelegramTab: React.FC<TelegramTabProps> = ({ config, onChange, onSa
   const { t } = useTranslation();
   const [showBotToken, setShowBotToken] = useState(false);
   const [chatIdInput, setChatIdInput] = useState('');
+  const [testing, setTesting] = useState(false);
 
   const isValidBotToken = (value: string) => /^\d+:[A-Za-z0-9_-]{20,}$/.test(value);
   const isValidChatId = (value: string) => /^-?\d+$/.test(value);
@@ -52,6 +54,26 @@ export const TelegramTab: React.FC<TelegramTabProps> = ({ config, onChange, onSa
       return;
     }
     onSave();
+  };
+
+  const handleTest = async () => {
+    if (!config.bot_token || config.bot_token === '***REDACTED***') {
+      toast.error(t('invalidBotToken'));
+      return;
+    }
+    if (config.chat_ids.length === 0) {
+      toast.error(t('invalidChatId'));
+      return;
+    }
+    setTesting(true);
+    try {
+      await api.testTelegram({ bot_token: config.bot_token, chat_ids: config.chat_ids });
+      toast.success('Telegram bağlantısı başarılı');
+    } catch (error) {
+      toast.error('Telegram test başarısız');
+    } finally {
+      setTesting(false);
+    }
   };
 
   return (
@@ -184,12 +206,21 @@ export const TelegramTab: React.FC<TelegramTabProps> = ({ config, onChange, onSa
         )}
       </div>
 
-      <button
-        onClick={handleSave}
-        className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-opacity-90 transition-colors"
-      >
-        {t('saveTelegramSettings')}
-      </button>
+      <div className="flex items-center gap-3">
+        <button
+          onClick={handleTest}
+          disabled={testing}
+          className="px-4 py-2 bg-surface2 border border-border text-text rounded-lg hover:bg-opacity-90 transition-colors disabled:opacity-50"
+        >
+          {testing ? t('loading') + '...' : t('test')}
+        </button>
+        <button
+          onClick={handleSave}
+          className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-opacity-90 transition-colors"
+        >
+          {t('saveTelegramSettings')}
+        </button>
+      </div>
     </div>
   );
 };

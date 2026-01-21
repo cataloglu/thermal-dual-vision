@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MdPlayArrow, MdDownload, MdVisibility } from 'react-icons/md'
 
@@ -10,10 +11,12 @@ interface EventCardProps {
   collageUrl: string
   gifUrl: string
   mp4Url: string
+  selected?: boolean
+  onSelect?: () => void
   onClick: () => void
 }
 
-export function EventCard({
+export const EventCard = memo(function EventCard({
   cameraId,
   timestamp,
   confidence,
@@ -21,6 +24,8 @@ export function EventCard({
   collageUrl,
   gifUrl,
   mp4Url,
+  selected = false,
+  onSelect,
   onClick,
 }: EventCardProps) {
   const { t } = useTranslation()
@@ -65,6 +70,8 @@ export function EventCard({
           <img
             src={collageUrl}
             alt="Event collage"
+            loading="lazy"
+            decoding="async"
             className="w-full h-full object-cover group-hover:scale-105 transition-transform"
           />
         </div>
@@ -80,7 +87,21 @@ export function EventCard({
                 {formatDate(timestamp)}
               </p>
             </div>
-            {getConfidenceBadge()}
+            <div className="flex items-center gap-3">
+              {onSelect && (
+                <input
+                  type="checkbox"
+                  checked={selected}
+                  onChange={(e) => {
+                    e.stopPropagation()
+                    onSelect()
+                  }}
+                  className="w-4 h-4 accent-accent"
+                  aria-label={t('select')}
+                />
+              )}
+              {getConfidenceBadge()}
+            </div>
           </div>
 
           {/* AI Summary */}
@@ -123,4 +144,4 @@ export function EventCard({
       </div>
     </div>
   )
-}
+})

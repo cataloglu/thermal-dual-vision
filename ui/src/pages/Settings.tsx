@@ -1,11 +1,11 @@
 /**
  * Settings page - Main settings interface
  */
-import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { Toaster } from 'react-hot-toast';
+import React, { useMemo, useState, useEffect } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useSettings } from '../hooks/useSettings';
-import { TabId } from '../components/SettingsTabs';
+import { api } from '../services/api';
+import { SettingsTabs, TabId } from '../components/SettingsTabs';
 import { CamerasTab } from '../components/tabs/CamerasTab';
 import { DetectionTab } from '../components/tabs/DetectionTab';
 import { ThermalTab } from '../components/tabs/ThermalTab';
@@ -22,23 +22,26 @@ import type { Settings as SettingsType } from '../types/api';
 export const Settings: React.FC = () => {
   const { settings, loading, error, saveSettings } = useSettings();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const defaultTab = (searchParams.get('tab') as TabId) || 'cameras';
   const [activeTab, setActiveTab] = useState<TabId>(defaultTab);
   const [localSettings, setLocalSettings] = useState<SettingsType | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
 
   // Sync activeTab with URL
   useEffect(() => {
     const tab = searchParams.get('tab') as TabId;
     if (tab) {
       setActiveTab(tab);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   }, [searchParams]);
 
   React.useEffect(() => {
-    if (settings) {
+    if (settings && !isDirty) {
       setLocalSettings(settings);
     }
-  }, [settings]);
+  }, [settings, isDirty]);
 
   if (loading) {
     return (
@@ -103,115 +106,169 @@ export const Settings: React.FC = () => {
     const success = await saveSettings(updates);
     if (success) {
       setLocalSettings(settings);
+      setIsDirty(false);
     }
   };
 
+  const updateLocalSettings = (next: SettingsType) => {
+    setLocalSettings(next);
+    setIsDirty(true);
+  };
+
+  const handleExport = async () => {
+    if (!settings) return;
+    const blob = new Blob([JSON.stringify(settings, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `config-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImport = async (file: File) => {
+    try {
+      const text = await file.text();
+      const payload = JSON.parse(text) as SettingsType;
+      await api.updateSettings(payload);
+      window.location.reload();
+    } catch (error) {
+      console.error('Failed to import settings:', error);
+    }
+  };
+
+  const handleReset = async () => {
+    try {
+      await api.resetSettings();
+      window.location.reload();
+    } catch (error) {
+      console.error('Failed to reset settings:', error);
+    }
+  };
+
+  const tabContent = useMemo(() => {
+    if (activeTab === 'cameras') return <CamerasTab />
+    if (activeTab === 'detection' && localSettings) {
+      return (
+        <DetectionTab
+          config={localSettings.detection}
+          onChange={(detection) => updateLocalSettings({ ...localSettings, detection })}
+          onSave={handleSave}
+        />
+      )
+    }
+    if (activeTab === 'thermal' && localSettings) {
+      return (
+        <ThermalTab
+          config={localSettings.thermal}
+          onChange={(thermal) => updateLocalSettings({ ...localSettings, thermal })}
+          onSave={handleSave}
+        />
+      )
+    }
+    if (activeTab === 'stream' && localSettings) {
+      return (
+        <StreamTab
+          config={localSettings.stream}
+          onChange={(stream) => updateLocalSettings({ ...localSettings, stream })}
+          onSave={handleSave}
+        />
+      )
+    }
+    if (activeTab === 'zones') return <ZonesTab />
+    if (activeTab === 'live' && localSettings) {
+      return (
+        <LiveTab
+          config={localSettings.live}
+          onChange={(live) => updateLocalSettings({ ...localSettings, live })}
+          onSave={handleSave}
+        />
+      )
+    }
+    if (activeTab === 'recording' && localSettings) {
+      return (
+        <RecordingTab
+          config={localSettings.record}
+          onChange={(record) => updateLocalSettings({ ...localSettings, record })}
+          onSave={handleSave}
+        />
+      )
+    }
+    if (activeTab === 'events' && localSettings) {
+      return (
+        <EventsTab
+          config={localSettings.event}
+          onChange={(event) => updateLocalSettings({ ...localSettings, event })}
+          onSave={handleSave}
+        />
+      )
+    }
+    if (activeTab === 'ai' && localSettings) {
+      return (
+        <AITab
+          config={localSettings.ai}
+          onChange={(ai) => updateLocalSettings({ ...localSettings, ai })}
+          onSave={handleSave}
+        />
+      )
+    }
+    if (activeTab === 'telegram' && localSettings) {
+      return (
+        <TelegramTab
+          config={localSettings.telegram}
+          onChange={(telegram) => updateLocalSettings({ ...localSettings, telegram })}
+          onSave={handleSave}
+        />
+      )
+    }
+    if (activeTab === 'appearance') return <AppearanceTab />
+    return null
+  }, [activeTab, localSettings])
+
   return (
     <div className="min-h-screen bg-background">
-      <Toaster
-        position="top-right"
-        toastOptions={{
-          style: {
-            background: '#111A2E',
-            color: '#E6EAF2',
-            border: '1px solid #22304A',
-          },
-          success: {
-            iconTheme: {
-              primary: '#2ECC71',
-              secondary: '#111A2E',
-            },
-          },
-          error: {
-            iconTheme: {
-              primary: '#FF4D4F',
-              secondary: '#111A2E',
-            },
-          },
-        }}
-      />
-
       <div className="max-w-6xl mx-auto px-6 py-8">
-        <div className="mb-8">
+        <div className="mb-8 flex items-start justify-between">
           <h1 className="text-3xl font-bold text-text mb-2">Settings</h1>
           <p className="text-muted">Configure detection, cameras, and notifications</p>
         </div>
+        <div className="flex items-center gap-3 mb-6">
+          <button
+            onClick={handleExport}
+            className="px-4 py-2 bg-surface1 border border-border text-text rounded-lg hover:bg-surface2 transition-colors"
+          >
+            Export
+          </button>
+          <label className="px-4 py-2 bg-surface1 border border-border text-text rounded-lg hover:bg-surface2 transition-colors cursor-pointer">
+            Import
+            <input
+              type="file"
+              accept="application/json"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleImport(file);
+              }}
+            />
+          </label>
+          <button
+            onClick={handleReset}
+            className="px-4 py-2 bg-error text-white rounded-lg hover:bg-error/90 transition-colors"
+          >
+            Reset
+          </button>
+        </div>
 
         <div className="bg-surface1 border border-border rounded-lg p-6">
-          {/* Tab navigation in Sidebar */}
+          <SettingsTabs
+            activeTab={activeTab}
+            onTabChange={(tab) => {
+              setActiveTab(tab);
+              navigate(`/settings?tab=${tab}`);
+            }}
+          />
 
-          <div className="mt-0">
-            {activeTab === 'cameras' && <CamerasTab />}
-            
-            {activeTab === 'detection' && localSettings && (
-              <DetectionTab
-                config={localSettings.detection}
-                onChange={(detection) => setLocalSettings({ ...localSettings, detection })}
-                onSave={handleSave}
-              />
-            )}
-            
-            {activeTab === 'thermal' && localSettings && (
-              <ThermalTab
-                config={localSettings.thermal}
-                onChange={(thermal) => setLocalSettings({ ...localSettings, thermal })}
-                onSave={handleSave}
-              />
-            )}
-            
-            {activeTab === 'stream' && localSettings && (
-              <StreamTab
-                config={localSettings.stream}
-                onChange={(stream) => setLocalSettings({ ...localSettings, stream })}
-                onSave={handleSave}
-              />
-            )}
-            
-            {activeTab === 'zones' && <ZonesTab />}
-            
-            {activeTab === 'live' && localSettings && (
-              <LiveTab
-                config={localSettings.live}
-                onChange={(live) => setLocalSettings({ ...localSettings, live })}
-                onSave={handleSave}
-              />
-            )}
-            
-            {activeTab === 'recording' && localSettings && (
-              <RecordingTab
-                config={localSettings.record}
-                onChange={(record) => setLocalSettings({ ...localSettings, record })}
-                onSave={handleSave}
-              />
-            )}
-            
-            {activeTab === 'events' && localSettings && (
-              <EventsTab
-                config={localSettings.event}
-                onChange={(event) => setLocalSettings({ ...localSettings, event })}
-                onSave={handleSave}
-              />
-            )}
-            
-            {activeTab === 'ai' && localSettings && (
-              <AITab
-                config={localSettings.ai}
-                onChange={(ai) => setLocalSettings({ ...localSettings, ai })}
-                onSave={handleSave}
-              />
-            )}
-            
-            {activeTab === 'telegram' && localSettings && (
-              <TelegramTab
-                config={localSettings.telegram}
-                onChange={(telegram) => setLocalSettings({ ...localSettings, telegram })}
-                onSave={handleSave}
-              />
-            )}
-            {activeTab === 'appearance' && (
-              <AppearanceTab />
-            )}
-          </div>
+          <div className="mt-0">{tabContent}</div>
         </div>
       </div>
     </div>

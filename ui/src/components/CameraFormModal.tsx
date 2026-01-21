@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MdClose } from 'react-icons/md'
-import { testCamera } from '../services/api'
+import { api, testCamera } from '../services/api'
 import type { CameraTestResponse } from '../types/api'
 import toast from 'react-hot-toast'
 
@@ -41,6 +41,7 @@ export function CameraFormModal({ camera, onClose, onSave }: CameraFormModalProp
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<CameraTestResponse | null>(null)
   const [saving, setSaving] = useState(false)
+  const [errors, setErrors] = useState<string[]>([])
 
   useEffect(() => {
     if (camera) {
@@ -59,8 +60,15 @@ export function CameraFormModal({ camera, onClose, onSave }: CameraFormModalProp
   }, [camera])
 
   const handleTest = async () => {
+    const validationErrors = validate()
+    if (validationErrors.length > 0) {
+      setErrors(validationErrors)
+      toast.error('Test için gerekli alanları doldurun')
+      return
+    }
     setTesting(true)
     setTestResult(null)
+    setErrors([])
 
     try {
       const response = await testCamera({
@@ -83,25 +91,20 @@ export function CameraFormModal({ camera, onClose, onSave }: CameraFormModalProp
   }
 
   const handleSave = async () => {
-    if (!formData.name) {
-      toast.error('Kamera adı gerekli')
+    const validationErrors = validate()
+    if (validationErrors.length > 0) {
+      setErrors(validationErrors)
+      toast.error('Eksik veya hatalı alanlar var')
       return
     }
 
     setSaving(true)
 
     try {
-      const url = camera ? `/api/cameras/${camera.id}` : '/api/cameras'
-      const method = camera ? 'PUT' : 'POST'
-      
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to save camera')
+      if (camera) {
+        await api.updateCamera(camera.id as string, formData)
+      } else {
+        await api.createCamera(formData)
       }
 
       toast.success(camera ? 'Kamera güncellendi' : 'Kamera eklendi')
@@ -122,6 +125,35 @@ export function CameraFormModal({ camera, onClose, onSave }: CameraFormModalProp
         ? prev.stream_roles.filter(r => r !== role)
         : [...prev.stream_roles, role]
     }))
+  }
+
+  const validate = () => {
+    const nextErrors: string[] = []
+    if (!formData.name.trim()) {
+      nextErrors.push('Kamera adı gerekli')
+    }
+    const isRtsp = (value: string) => value.trim().startsWith('rtsp://')
+    if (formData.type === 'thermal' || formData.type === 'dual') {
+      if (!formData.rtsp_url_thermal.trim()) {
+        nextErrors.push('Termal RTSP adresi gerekli')
+      } else if (!isRtsp(formData.rtsp_url_thermal)) {
+        nextErrors.push('Termal RTSP adresi rtsp:// ile başlamalı')
+      }
+    }
+    if (formData.type === 'color' || formData.type === 'dual') {
+      if (!formData.rtsp_url_color.trim()) {
+        nextErrors.push('Renkli RTSP adresi gerekli')
+      } else if (!isRtsp(formData.rtsp_url_color)) {
+        nextErrors.push('Renkli RTSP adresi rtsp:// ile başlamalı')
+      }
+    }
+    if (formData.channel_color && formData.channel_color < 1) {
+      nextErrors.push('Renkli kanal numarası geçersiz')
+    }
+    if (formData.channel_thermal && formData.channel_thermal < 1) {
+      nextErrors.push('Termal kanal numarası geçersiz')
+    }
+    return nextErrors
   }
 
   return (
@@ -179,7 +211,7 @@ export function CameraFormModal({ camera, onClose, onSave }: CameraFormModalProp
                 type="text"
                 value={formData.rtsp_url_thermal}
                 onChange={(e) => setFormData({ ...formData, rtsp_url_thermal: e.target.value })}
-                placeholder="rtsp://admin:password@192.168.1.100:554/Streaming/Channels/201"
+                placeholder="rtsp://192.168.1.100:554/Streaming/Channels/201"
                 className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent font-mono text-sm"
               />
             </div>
@@ -195,11 +227,39 @@ export function CameraFormModal({ camera, onClose, onSave }: CameraFormModalProp
                 type="text"
                 value={formData.rtsp_url_color}
                 onChange={(e) => setFormData({ ...formData, rtsp_url_color: e.target.value })}
-                placeholder="rtsp://admin:password@192.168.1.100:554/Streaming/Channels/101"
+                placeholder="rtsp://192.168.1.100:554/Streaming/Channels/101"
                 className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent font-mono text-sm"
               />
             </div>
           )}
+
+          {/* Channel Numbers */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-text mb-2">
+                Renkli Kanal
+              </label>
+              <input
+                type="number"
+                min={1}
+                value={formData.channel_color ?? 102}
+                onChange={(e) => setFormData({ ...formData, channel_color: Number(e.target.value) })}
+                className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-text mb-2">
+                Termal Kanal
+              </label>
+              <input
+                type="number"
+                min={1}
+                value={formData.channel_thermal ?? 202}
+                onChange={(e) => setFormData({ ...formData, channel_thermal: Number(e.target.value) })}
+                className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
+              />
+            </div>
+          </div>
 
           {/* Detection Source */}
           <div>
@@ -250,11 +310,22 @@ export function CameraFormModal({ camera, onClose, onSave }: CameraFormModalProp
             </label>
           </div>
 
+          {/* Validation Errors */}
+          {errors.length > 0 && (
+            <div className="bg-error/10 border border-error/50 rounded-lg p-4">
+              <ul className="text-sm text-error space-y-1">
+                {errors.map((err) => (
+                  <li key={err}>• {err}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {/* Test Button */}
           <div className="pt-4 border-t border-border">
             <button
               onClick={handleTest}
-              disabled={testing}
+              disabled={testing || validate().length > 0}
               className="w-full px-4 py-2 bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors disabled:opacity-50"
             >
               {testing ? 'Test Ediliyor...' : 'Bağlantıyı Test Et'}

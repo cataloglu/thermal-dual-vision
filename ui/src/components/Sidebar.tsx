@@ -1,5 +1,5 @@
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { 
   MdDashboard, 
@@ -8,7 +8,9 @@ import {
   MdSettings, 
   MdSearch,
   MdExpandMore,
-  MdChevronRight
+  MdChevronRight,
+  MdLanguage,
+  MdRefresh
 } from 'react-icons/md'
 import { useWebSocket } from '../hooks/useWebSocket'
 
@@ -17,12 +19,21 @@ interface SidebarProps {
 }
 
 export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   // WebSocket for real-time status (use relative path for proxy)
-  const { isConnected } = useWebSocket('/api/ws/events', {})
+  const [eventBadge, setEventBadge] = useState(0)
+  const { isConnected, reconnect } = useWebSocket('/api/ws/events', {
+    onEvent: () => setEventBadge((prev) => prev + 1),
+  })
   const location = useLocation()
   const navigate = useNavigate()
   const [settingsExpanded, setSettingsExpanded] = useState(location.pathname.startsWith('/settings'))
+
+  useEffect(() => {
+    if (location.pathname.startsWith('/events') && eventBadge > 0) {
+      setEventBadge(0)
+    }
+  }, [location.pathname, eventBadge])
   
   const menuItems = [
     { path: '/', icon: MdDashboard, label: t('dashboard') },
@@ -89,6 +100,11 @@ export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
           >
             <item.icon className="text-xl" />
             <span className="font-medium">{item.label}</span>
+            {item.path === '/events' && eventBadge > 0 && (
+              <span className="ml-auto bg-error text-white text-xs px-2 py-0.5 rounded-full">
+                {eventBadge}
+              </span>
+            )}
           </NavLink>
         ))}
 
@@ -141,20 +157,30 @@ export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
           <span className="text-xs text-muted">
             {isConnected ? t('liveConnection') : t('connectionLost')}
           </span>
+          {!isConnected && (
+            <button
+              onClick={reconnect}
+              className="ml-auto text-muted hover:text-text"
+              title={t('reconnect')}
+            >
+              <MdRefresh />
+            </button>
+          )}
         </div>
         
         {/* Language Toggle */}
         <button
           onClick={() => {
-            const currentLang = localStorage.getItem('language') || 'tr';
-            const newLang = currentLang === 'tr' ? 'en' : 'tr';
-            localStorage.setItem('language', newLang);
-            window.location.reload();
+            const currentLang = localStorage.getItem('language') || 'tr'
+            const newLang = currentLang === 'tr' ? 'en' : 'tr'
+            localStorage.setItem('language', newLang)
+            i18n.changeLanguage(newLang)
           }}
           className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-surface2 border border-border rounded-lg hover:bg-accent hover:text-white transition-colors text-text text-sm font-medium"
           title="Dil değiştir / Change language"
         >
-          🌐 {(localStorage.getItem('language') || 'tr') === 'tr' ? 'TR' : 'EN'}
+          <MdLanguage />
+          {(localStorage.getItem('language') || 'tr') === 'tr' ? 'TR' : 'EN'}
         </button>
         
         <p className="text-xs text-muted text-center">

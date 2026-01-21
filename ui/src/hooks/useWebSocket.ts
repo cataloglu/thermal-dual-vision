@@ -27,8 +27,34 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const reconnectAttemptsRef = useRef(0)
+  const shouldReconnectRef = useRef(true)
   const [isConnected, setIsConnected] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const resolveWsUrl = useCallback(() => {
+    const envWsBase = import.meta.env.VITE_WS_URL as string | undefined
+    const envApiBase = import.meta.env.VITE_API_URL as string | undefined
+    const wsBase =
+      envWsBase ||
+      (envApiBase && envApiBase.startsWith('http')
+        ? envApiBase.replace(/^http/, 'ws')
+        : '')
+
+    const normalizedPath = url.startsWith('/') ? url : `/${url}`
+
+    if (wsBase) {
+      const base = wsBase.replace(/\/+$/, '')
+      const path =
+        base.endsWith('/api') && normalizedPath.startsWith('/api/')
+          ? normalizedPath.slice(4)
+          : normalizedPath
+      return `${base}${path}`
+    }
+
+    return url.startsWith('ws://') || url.startsWith('wss://')
+      ? url
+      : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}${normalizedPath}`
+  }, [url])
 
   const connect = useCallback(() => {
     try {
@@ -37,10 +63,7 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
         wsRef.current.close()
       }
 
-      // Create WebSocket connection (use URL as-is if starts with ws://)
-      const wsUrl = url.startsWith('ws://') || url.startsWith('wss://') 
-        ? url 
-        : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}${url}`
+      const wsUrl = resolveWsUrl()
 
       // Create WebSocket connection
       const ws = new WebSocket(wsUrl)
@@ -95,6 +118,10 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
         }
 
         // Attempt to reconnect
+        if (!shouldReconnectRef.current) {
+          return
+        }
+
         if (reconnectAttemptsRef.current < maxReconnectAttempts) {
           reconnectAttemptsRef.current += 1
           // console.log(`Reconnecting... Attempt ${reconnectAttemptsRef.current}/${maxReconnectAttempts}`) // Removed
@@ -112,13 +139,23 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
       console.error('Failed to create WebSocket:', err)
       setError('Failed to create WebSocket connection')
     }
-  }, [url, onEvent, onStatus, onConnect, onDisconnect, reconnectInterval, maxReconnectAttempts])
+  }, [
+    resolveWsUrl,
+    onEvent,
+    onStatus,
+    onConnect,
+    onDisconnect,
+    reconnectInterval,
+    maxReconnectAttempts,
+  ])
 
   useEffect(() => {
+    shouldReconnectRef.current = true
     connect()
 
     return () => {
       // Cleanup
+      shouldReconnectRef.current = false
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current)
       }

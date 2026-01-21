@@ -1,15 +1,18 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { StreamViewer } from '../components/StreamViewer'
 import { api } from '../services/api'
 import { MdGridView } from 'react-icons/md'
+import { useWebSocket } from '../hooks/useWebSocket'
+import { LoadingState } from '../components/LoadingState'
 
 interface Camera {
   id: string
   name: string
   type: string
   enabled: boolean
-  status: 'connected' | 'retrying' | 'down'
+  status: 'connected' | 'retrying' | 'down' | 'initializing'
   stream_roles: string[]
 }
 
@@ -26,6 +29,7 @@ export function Live() {
   const [streams, setStreams] = useState<LiveStream[]>([])
   const [loading, setLoading] = useState(true)
   const [gridMode, setGridMode] = useState<1 | 2 | 3>(2) // 1x1, 2x2, 3x3
+  const [visibleCount, setVisibleCount] = useState(6)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -45,19 +49,27 @@ export function Live() {
     }
 
     fetchData()
-    
-    // Refresh camera status every 5 seconds
-    const interval = setInterval(async () => {
-      try {
-        const camerasData = await api.getCameras()
-        setCameras(camerasData.cameras)
-      } catch (error) {
-        console.error('Failed to refresh cameras:', error)
+    const savedGrid = localStorage.getItem('live_grid_mode')
+    if (savedGrid) {
+      const mode = Number(savedGrid)
+      if (mode === 1 || mode === 2 || mode === 3) {
+        setGridMode(mode)
       }
-    }, 5000)
-
-    return () => clearInterval(interval)
+    }
+    
+    return () => undefined
   }, [])
+
+  useWebSocket('/api/ws/events', {
+    onStatus: (data) => {
+      if (!data?.camera_id) return
+      setCameras((prev) =>
+        prev.map((cam) =>
+          cam.id === data.camera_id ? { ...cam, status: data.status } : cam
+        )
+      )
+    },
+  })
 
   const getGridClass = () => {
     switch (gridMode) {
@@ -72,24 +84,20 @@ export function Live() {
     }
   }
 
+  useEffect(() => {
+    localStorage.setItem('live_grid_mode', String(gridMode))
+  }, [gridMode])
+
+  const outputMode = useMemo(() => streams[0]?.output_mode || 'mjpeg', [streams])
+
   // Filter cameras that have 'live' in stream_roles
   const liveCameras = cameras.filter(cam => 
     cam.enabled && cam.stream_roles.includes('live')
   )
+  const visibleCameras = useMemo(() => liveCameras.slice(0, visibleCount), [liveCameras, visibleCount])
 
   if (loading) {
-    return (
-      <div className="p-8">
-        <div className="animate-pulse space-y-6">
-          <div className="h-8 bg-surface1 rounded w-48" />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {[1, 2].map((i) => (
-              <div key={i} className="aspect-video bg-surface1 rounded-lg" />
-            ))}
-          </div>
-        </div>
-      </div>
-    )
+    return <LoadingState variant="list" listCount={2} />
   }
 
   return (
@@ -126,19 +134,19 @@ export function Live() {
       {liveCameras.length === 0 && (
         <div className="bg-surface1 border border-border rounded-lg p-12 text-center">
           <p className="text-muted mb-4">{t('noCameras')}</p>
-          <a
-            href="/settings"
+          <Link
+            to="/settings"
             className="inline-block px-6 py-3 bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors"
           >
             {t('add')} {t('camera')}
-          </a>
+          </Link>
         </div>
       )}
 
       {/* Camera Grid */}
       {liveCameras.length > 0 && (
         <div className={`grid ${getGridClass()} gap-6`}>
-          {liveCameras.map((camera) => {
+          {visibleCameras.map((camera) => {
             const stream = streams.find(s => s.camera_id === camera.id)
             const streamUrl = stream?.stream_url || `/api/live/${camera.id}.mjpeg`
             
@@ -155,11 +163,22 @@ export function Live() {
         </div>
       )}
 
+      {liveCameras.length > visibleCount && (
+        <div className="mt-6 flex justify-center">
+          <button
+            onClick={() => setVisibleCount((prev) => prev + 6)}
+            className="px-4 py-2 bg-surface1 border border-border text-text rounded-lg hover:bg-surface2 transition-colors"
+          >
+            {t('loadMore')}
+          </button>
+        </div>
+      )}
+
       {/* Stream Mode Info */}
       <div className="mt-8 bg-surface1 border border-border rounded-lg p-4">
         <p className="text-muted text-sm">
-          <span className="font-semibold text-text">Stream Modu:</span> MJPEG
-          {streams.length > 0 && streams[0].output_mode === 'webrtc' && (
+          <span className="font-semibold text-text">Stream Modu:</span> {outputMode.toUpperCase()}
+          {outputMode === 'webrtc' && (
             <span className="ml-2 text-yellow-500">
               (WebRTC aktif - go2rtc gerekli)
             </span>

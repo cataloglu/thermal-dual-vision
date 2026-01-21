@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { api } from '../services/api'
 import { MdCheckCircle, MdWarning, MdError, MdVideocam, MdSmartToy } from 'react-icons/md'
+import { useWebSocket } from '../hooks/useWebSocket'
+import { LoadingState } from '../components/LoadingState'
 
 interface HealthData {
   status: string
@@ -36,34 +38,81 @@ interface Event {
   mp4_url: string
 }
 
+interface HealthSnapshot {
+  timestamp: string
+  status: string
+  cameras: HealthData['cameras']
+}
+
 export function Dashboard() {
   const { t } = useTranslation()
   const [health, setHealth] = useState<HealthData | null>(null)
   const [lastEvent, setLastEvent] = useState<Event | null>(null)
   const [loading, setLoading] = useState(true)
+  const [healthHistory, setHealthHistory] = useState<HealthSnapshot[]>([])
 
-  // WebSocket removed (now in Sidebar)
+  const { } = useWebSocket('/api/ws/events', {
+    onEvent: (data) => {
+      setLastEvent(data)
+    },
+    onStatus: (data) => {
+      setHealth((prev) => {
+        if (!prev) return prev
+        const counts = data?.counts
+        if (!counts) return prev
+        const next = {
+          ...prev,
+          cameras: {
+            online: counts.online ?? prev.cameras.online,
+            retrying: counts.retrying ?? prev.cameras.retrying,
+            down: counts.down ?? prev.cameras.down,
+          },
+        }
+        setHealthHistory((hist) => [
+          ...hist,
+          {
+            timestamp: new Date().toISOString(),
+            status: next.status,
+            cameras: next.cameras,
+          },
+        ].slice(-6))
+        return next
+      })
+    },
+  })
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [healthData, eventsData] = await Promise.all([
-          api.getHealth(),
-          api.getEvents({ page: 1, page_size: 1 })
-        ])
-        
+        const healthData = await api.getHealth()
         setHealth(healthData)
+        setHealthHistory((hist) => [
+          ...hist,
+          {
+            timestamp: new Date().toISOString(),
+            status: healthData.status,
+            cameras: healthData.cameras,
+          },
+        ].slice(-6))
+      } catch (error) {
+        console.error('Failed to fetch health:', error)
+      }
+
+      try {
+        const eventsData = await api.getEvents({ page: 1, page_size: 1 })
         if (eventsData.events.length > 0) {
           setLastEvent(eventsData.events[0])
         }
       } catch (error) {
-        console.error('Failed to fetch dashboard data:', error)
+        console.error('Failed to fetch events:', error)
       } finally {
         setLoading(false)
       }
     }
 
     fetchData()
+    const interval = setInterval(fetchData, 60000)
+    return () => clearInterval(interval)
     // No more polling! WebSocket handles real-time updates
   }, [])
 
@@ -71,11 +120,24 @@ export function Dashboard() {
     const days = Math.floor(seconds / 86400)
     const hours = Math.floor((seconds % 86400) / 3600)
     const minutes = Math.floor((seconds % 3600) / 60)
-    
-    if (days > 0) return `${days}g ${hours}s`
+    const secs = Math.floor(seconds % 60)
+
+    if (days > 0) return `${days}g ${hours}s ${minutes}d`
     if (hours > 0) return `${hours}s ${minutes}d`
-    return `${minutes}d`
+    if (minutes > 0) return `${minutes}d ${secs}sn`
+    return `${secs}sn`
   }
+
+  const aiReason = useMemo(() => {
+    if (!health) return ''
+    if (health.ai.enabled) return ''
+    const reason = health.ai.reason
+    const reasonMap: Record<string, string> = {
+      no_api_key: t('aiReasonNoApiKey'),
+      not_configured: t('aiReasonNotConfigured'),
+    }
+    return reasonMap[reason] || reason
+  }, [health, t])
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -103,26 +165,31 @@ export function Dashboard() {
   }
 
   if (loading) {
-    return (
-      <div className="p-8">
-        <div className="animate-pulse space-y-6">
-          <div className="h-8 bg-surface1 rounded w-48" />
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-40 bg-surface1 rounded-lg" />
-            ))}
-          </div>
-        </div>
-      </div>
-    )
+    return <LoadingState variant="cards" cardCount={4} />
   }
 
   return (
     <div className="p-8">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-text mb-2">{t('dashboard')}</h1>
-        <p className="text-muted">Sistem durumu ve özet bilgiler</p>
+      <div className="mb-8 flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-text mb-2">{t('dashboard')}</h1>
+          <p className="text-muted">Sistem durumu ve özet bilgiler</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Link
+            to="/settings?tab=cameras"
+            className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors"
+          >
+            {t('add')} {t('camera')}
+          </Link>
+          <Link
+            to="/live"
+            className="px-4 py-2 bg-surface1 border border-border text-text rounded-lg hover:bg-surface2 transition-colors"
+          >
+            {t('live')}
+          </Link>
+        </div>
       </div>
 
       {/* Cards Grid */}
@@ -150,6 +217,18 @@ export function Dashboard() {
                 <span className="text-muted text-sm">{t('uptime')}</span>
                 <span className="text-text font-medium">{formatUptime(health.uptime_s)}</span>
               </div>
+            </div>
+          )}
+          {healthHistory.length > 1 && (
+            <div className="mt-4 border-t border-border pt-3 space-y-1">
+              {healthHistory.slice(-5).map((item) => (
+                <div key={item.timestamp} className="flex items-center justify-between text-xs text-muted">
+                  <span>{new Date(item.timestamp).toLocaleTimeString('tr-TR')}</span>
+                  <span className="text-text">
+                    {item.cameras.online}/{item.cameras.retrying}/{item.cameras.down}
+                  </span>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -204,7 +283,7 @@ export function Dashboard() {
               {!health.ai.enabled && (
                 <div className="pt-2">
                   <p className="text-muted text-sm">
-                    Sebep: {health.ai.reason === 'no_api_key' ? 'API key yok' : health.ai.reason}
+                    {t('reason')}: {aiReason}
                   </p>
                 </div>
               )}

@@ -1,29 +1,60 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { MdRefresh, MdError, MdCheckCircle } from 'react-icons/md'
+import { MdRefresh, MdError, MdCheckCircle, MdFullscreen, MdPhotoCamera } from 'react-icons/md'
+import { api } from '../services/api'
 
 interface StreamViewerProps {
   cameraId: string
   cameraName: string
   streamUrl: string
-  status?: 'connected' | 'retrying' | 'down'
+  status?: 'connected' | 'retrying' | 'down' | 'initializing'
 }
 
 export function StreamViewer({ 
+  cameraId,
   cameraName, 
   streamUrl,
-  status = 'connected' 
+  status 
 }: StreamViewerProps) {
   const { t } = useTranslation()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
+  const [recording, setRecording] = useState(false)
+  const [recordingLoading, setRecordingLoading] = useState(false)
   const imgRef = useRef<HTMLImageElement>(null)
+  const retryTimeoutRef = useRef<number | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const maxRetries = 10
 
   useEffect(() => {
     setLoading(true)
     setError(false)
+    if (retryTimeoutRef.current) {
+      window.clearTimeout(retryTimeoutRef.current)
+      retryTimeoutRef.current = null
+    }
   }, [streamUrl])
+
+  useEffect(() => {
+    const loadRecording = async () => {
+      try {
+        const data = await api.getRecordingStatus(cameraId)
+        setRecording(Boolean(data.recording))
+      } catch {
+        setRecording(false)
+      }
+    }
+    loadRecording()
+  }, [cameraId])
+
+  useEffect(() => {
+    return () => {
+      if (retryTimeoutRef.current) {
+        window.clearTimeout(retryTimeoutRef.current)
+      }
+    }
+  }, [])
 
   const handleLoad = () => {
     setLoading(false)
@@ -35,9 +66,9 @@ export function StreamViewer({
     setLoading(false)
     setError(true)
     
-    // Auto-retry up to 3 times
-    if (retryCount < 3) {
-      setTimeout(() => {
+    // Auto-retry up to 10 times
+    if (retryCount < maxRetries) {
+      retryTimeoutRef.current = window.setTimeout(() => {
         setRetryCount(prev => prev + 1)
         if (imgRef.current) {
           imgRef.current.src = `${streamUrl}?t=${Date.now()}`
@@ -50,8 +81,41 @@ export function StreamViewer({
     setRetryCount(0)
     setError(false)
     setLoading(true)
+    if (retryTimeoutRef.current) {
+      window.clearTimeout(retryTimeoutRef.current)
+      retryTimeoutRef.current = null
+    }
     if (imgRef.current) {
       imgRef.current.src = `${streamUrl}?t=${Date.now()}`
+    }
+  }
+
+  const handleSnapshot = () => {
+    const url = api.getCameraSnapshotUrl(cameraId)
+    window.open(url, '_blank')
+  }
+
+  const handleFullscreen = () => {
+    if (!containerRef.current) return
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => undefined)
+    } else {
+      containerRef.current.requestFullscreen().catch(() => undefined)
+    }
+  }
+
+  const handleRecordingToggle = async () => {
+    setRecordingLoading(true)
+    try {
+      if (recording) {
+        const data = await api.stopRecording(cameraId)
+        setRecording(Boolean(data.recording))
+      } else {
+        const data = await api.startRecording(cameraId)
+        setRecording(Boolean(data.recording))
+      }
+    } finally {
+      setRecordingLoading(false)
     }
   }
 
@@ -59,23 +123,27 @@ export function StreamViewer({
     connected: 'bg-green-500',
     retrying: 'bg-yellow-500',
     down: 'bg-red-500',
+    initializing: 'bg-blue-500',
   }
 
   const statusLabels = {
     connected: t('connected'),
     retrying: t('retrying'),
     down: t('down'),
+    initializing: t('initializing'),
   }
 
+  const resolvedStatus = status || 'retrying'
+
   return (
-    <div className="relative bg-surface2 rounded-lg overflow-hidden aspect-video border border-border">
+    <div ref={containerRef} className="relative bg-surface2 rounded-lg overflow-hidden aspect-video border border-border">
       {/* Camera Name & Status Overlay */}
       <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/60 to-transparent p-4">
         <div className="flex items-center justify-between">
           <h3 className="text-white font-semibold">{cameraName}</h3>
           <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${statusColors[status]}`} />
-            <span className="text-white text-sm">{statusLabels[status]}</span>
+            <div className={`w-2 h-2 rounded-full ${statusColors[resolvedStatus]}`} />
+            <span className="text-white text-sm">{statusLabels[resolvedStatus]}</span>
           </div>
         </div>
       </div>
@@ -97,7 +165,7 @@ export function StreamViewer({
             <MdError className="text-red-500 text-5xl mx-auto mb-4" />
             <p className="text-text mb-2">{t('error')}</p>
             <p className="text-muted text-sm mb-4">
-              {retryCount > 0 && `${retryCount}/3`}
+              {retryCount}/{maxRetries}
             </p>
             <button
               onClick={handleRetry}
@@ -119,6 +187,33 @@ export function StreamViewer({
         onLoad={handleLoad}
         onError={handleError}
       />
+
+      {!error && (
+        <div className="absolute bottom-4 left-4 flex items-center gap-2">
+          <button
+            onClick={handleSnapshot}
+            className="px-3 py-2 bg-surface1/80 text-white rounded-lg hover:bg-surface1 transition-colors"
+            title={t('snapshot')}
+          >
+            <MdPhotoCamera />
+          </button>
+          <button
+            onClick={handleRecordingToggle}
+            disabled={recordingLoading}
+            className={`px-3 py-2 rounded-lg transition-colors ${recording ? 'bg-error text-white' : 'bg-surface1/80 text-white hover:bg-surface1'}`}
+            title={recording ? t('stopRecording') : t('startRecording')}
+          >
+            {recording ? '●' : '○'}
+          </button>
+          <button
+            onClick={handleFullscreen}
+            className="px-3 py-2 bg-surface1/80 text-white rounded-lg hover:bg-surface1 transition-colors"
+            title={t('fullscreen')}
+          >
+            <MdFullscreen />
+          </button>
+        </div>
+      )}
 
       {/* Success Indicator (brief) */}
       {!loading && !error && retryCount > 0 && (

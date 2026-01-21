@@ -4,8 +4,18 @@
 import axios from 'axios';
 import type { Settings, CameraTestRequest, CameraTestResponse, Zone } from '../types/api';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL ?? '/api';
+
+const joinApiUrl = (path: string) => {
+  const normalized = path.startsWith('/') ? path : `/${path}`;
+  if (API_BASE_URL.startsWith('http')) {
+    return `${API_BASE_URL.replace(/\/+$/, '')}${normalized}`;
+  }
+  return `${API_BASE_URL}${normalized}`;
+};
+
 const apiClient = axios.create({
-  baseURL: '/api',
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -14,6 +24,16 @@ const apiClient = axios.create({
 // Health & System
 export const getHealth = async () => {
   const response = await apiClient.get('/health');
+  return response.data;
+};
+
+export const getSystemInfo = async () => {
+  const response = await apiClient.get('/system/info');
+  return response.data;
+};
+
+export const getLogs = async (lines = 200) => {
+  const response = await apiClient.get('/logs', { params: { lines } });
   return response.data;
 };
 
@@ -28,14 +48,59 @@ export const updateSettings = async (settings: Partial<Settings>): Promise<Setti
   return response.data;
 };
 
+export const getDefaultSettings = async (): Promise<Settings> => {
+  const response = await apiClient.get<Settings>('/settings/defaults');
+  return response.data;
+};
+
+export const resetSettings = async (): Promise<Settings> => {
+  const response = await apiClient.post<Settings>('/settings/reset');
+  return response.data;
+};
+
 // Cameras
 export const getCameras = async () => {
   const response = await apiClient.get('/cameras');
   return response.data;
 };
 
+export const createCamera = async (payload: Record<string, unknown>) => {
+  const response = await apiClient.post('/cameras', payload);
+  return response.data;
+};
+
+export const updateCamera = async (cameraId: string, payload: Record<string, unknown>) => {
+  const response = await apiClient.put(`/cameras/${cameraId}`, payload);
+  return response.data;
+};
+
+export const deleteCamera = async (cameraId: string) => {
+  const response = await apiClient.delete(`/cameras/${cameraId}`);
+  return response.data;
+};
+
+export const getRecordingStatus = async (cameraId: string) => {
+  const response = await apiClient.get(`/cameras/${cameraId}/record`);
+  return response.data;
+};
+
+export const startRecording = async (cameraId: string) => {
+  const response = await apiClient.post(`/cameras/${cameraId}/record/start`);
+  return response.data;
+};
+
+export const stopRecording = async (cameraId: string) => {
+  const response = await apiClient.post(`/cameras/${cameraId}/record/stop`);
+  return response.data;
+};
+
 export const testCamera = async (request: CameraTestRequest): Promise<CameraTestResponse> => {
   const response = await apiClient.post<CameraTestResponse>('/cameras/test', request);
+  return response.data;
+};
+
+export const testTelegram = async (payload: { bot_token: string; chat_ids: string[] }) => {
+  const response = await apiClient.post('/telegram/test', payload);
   return response.data;
 };
 
@@ -61,7 +126,8 @@ export const deleteEvent = async (eventId: string) => {
   return response.data;
 };
 
-export const getCameraSnapshotUrl = (cameraId: string) => `/api/cameras/${cameraId}/snapshot`;
+export const getCameraSnapshotUrl = (cameraId: string) =>
+  joinApiUrl(`/cameras/${cameraId}/snapshot`);
 
 export const getCameraZones = async (cameraId: string): Promise<{ zones: Zone[] }> => {
   const response = await apiClient.get(`/cameras/${cameraId}/zones`);
@@ -89,10 +155,21 @@ export const getLiveStreams = async () => {
 
 export const api = {
   getHealth,
+  getSystemInfo,
+  getLogs,
   getSettings,
   updateSettings,
+  getDefaultSettings,
+  resetSettings,
   getCameras,
+  createCamera,
+  updateCamera,
+  deleteCamera,
+  getRecordingStatus,
+  startRecording,
+  stopRecording,
   testCamera,
+  testTelegram,
   getEvents,
   getEvent,
   deleteEvent,

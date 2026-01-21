@@ -46,9 +46,9 @@ export function CameraList({ onAdd, onEdit, onRefresh }: CameraListProps) {
 
   const handleDelete = async (cameraId: string) => {
     try {
-      await fetch(`/api/cameras/${cameraId}`, { method: 'DELETE' })
+      await api.deleteCamera(cameraId)
       toast.success('Kamera silindi')
-      fetchCameras()
+      setCameras((prev) => prev.filter((cam) => cam.id !== cameraId))
       if (onRefresh) onRefresh()
     } catch (error) {
       console.error('Failed to delete camera:', error)
@@ -64,6 +64,8 @@ export function CameraList({ onAdd, onEdit, onRefresh }: CameraListProps) {
         return <MdCheckCircle className="text-green-500" />
       case 'retrying':
         return <MdWarning className="text-yellow-500" />
+      case 'initializing':
+        return <MdWarning className="text-blue-500" />
       default:
         return <MdError className="text-red-500" />
     }
@@ -77,6 +79,8 @@ export function CameraList({ onAdd, onEdit, onRefresh }: CameraListProps) {
         return t('retrying')
       case 'down':
         return t('down')
+      case 'initializing':
+        return t('initializing')
       default:
         return t('loading')
     }
