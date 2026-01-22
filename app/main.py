@@ -1673,7 +1673,7 @@ async def test_ai_event(
 
 
 class TelegramTestRequest(BaseModel):
-    bot_token: str
+    bot_token: Optional[str] = None
     chat_ids: List[str]
     event_id: Optional[str] = None
 
@@ -1698,8 +1698,12 @@ async def test_telegram(
     try:
         bot_token = request.bot_token
         chat_ids = request.chat_ids
-        
-        if not bot_token:
+
+        if not bot_token or bot_token == "***REDACTED***":
+            config = settings_service.load_config()
+            bot_token = config.telegram.bot_token
+
+        if not bot_token or bot_token == "***REDACTED***":
             raise HTTPException(
                 status_code=400,
                 detail={

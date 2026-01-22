@@ -142,6 +142,7 @@
   "botToken": "Bot Token",
   "botTokenSet": "Bot token ayarlı.",
   "botTokenNotSet": "Bot token ayarlı değil.",
+  "botTokenSavedHidden": "Kaydedildi (gizli)",
   "telegramTestSample": "Örnek Telegram mesajı gönder",
   "telegramTestSuccess": "Telegram test mesajı gönderildi",
   "telegramTestFailed": "Telegram test başarısız",

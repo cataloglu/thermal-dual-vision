@@ -143,6 +143,7 @@
   "botToken": "Bot Token",
   "botTokenSet": "Bot token is set.",
   "botTokenNotSet": "Bot token is not set.",
+  "botTokenSavedHidden": "Saved (hidden)",
   "telegramTestSample": "Send sample Telegram message",
   "telegramTestSuccess": "Telegram test message sent",
   "telegramTestFailed": "Telegram test failed",

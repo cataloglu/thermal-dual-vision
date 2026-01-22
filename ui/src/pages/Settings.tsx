@@ -103,28 +103,6 @@ export const Settings: React.FC = () => {
     }
   }, [activeTab, localSettings, saveSettings]);
 
-  const handleExport = async () => {
-    if (!settings) return;
-    const blob = new Blob([JSON.stringify(settings, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `config-${new Date().toISOString().slice(0, 10)}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const handleImport = async (file: File) => {
-    try {
-      const text = await file.text();
-      const payload = JSON.parse(text) as SettingsType;
-      await api.updateSettings(payload);
-      window.location.reload();
-    } catch (error) {
-      console.error('Failed to import settings:', error);
-    }
-  };
-
   const handleReset = async () => {
     try {
       await api.resetSettings();
@@ -268,29 +246,12 @@ export const Settings: React.FC = () => {
           <p className="text-muted">Configure detection, cameras, and notifications</p>
         </div>
         <div className="flex items-center gap-3 mb-6">
-          <button
-            onClick={handleExport}
-            className="px-4 py-2 bg-surface1 border border-border text-text rounded-lg hover:bg-surface2 transition-colors"
-          >
-            Export
-          </button>
-          <label className="px-4 py-2 bg-surface1 border border-border text-text rounded-lg hover:bg-surface2 transition-colors cursor-pointer">
-            Import
-            <input
-              type="file"
-              accept="application/json"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleImport(file);
-              }}
-            />
-          </label>
+          {/* Export/Import kaldırıldı - kullanıcı karıştırıyor */}
           <button
             onClick={handleReset}
             className="px-4 py-2 bg-error text-white rounded-lg hover:bg-error/90 transition-colors"
           >
-            Reset
+            Reset to Defaults
           </button>
         </div>
 

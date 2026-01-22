@@ -24,9 +24,13 @@ export const TelegramTab: React.FC<TelegramTabProps> = ({ config, onChange, onSa
   const [lastTestedToken, setLastTestedToken] = useState<string | null>(null);
   const [testSuccess, setTestSuccess] = useState(false);
   const maskedDisplay = '********';
+  const tokenIsSaved = isBotMasked || Boolean(botTokenDraft);
+  const tokenStatusText = isBotMasked ? t('botTokenSavedHidden') : (botTokenDraft ? t('botTokenSet') : t('botTokenNotSet'));
+  const tokenStatusClass = tokenIsSaved ? 'bg-success/10 text-success border-success/40' : 'bg-error/10 text-error border-error/40';
 
   const isValidBotToken = (value: string) => /^\d+:[A-Za-z0-9_-]{20,}$/.test(value);
   const isValidChatId = (value: string) => /^-?\d+$/.test(value);
+  const normalizeToken = (value: string) => (value === maskedDisplay ? '' : value.trim());
 
   const handleAddChatId = () => {
     const trimmed = chatIdInput.trim();
@@ -68,11 +72,13 @@ export const TelegramTab: React.FC<TelegramTabProps> = ({ config, onChange, onSa
     if (!nextConfig) {
       return;
     }
+    const rawToken = normalizeToken(nextConfig.bot_token || '');
+    const effectiveToken = (isBotMasked && !botTokenDraft) ? '***REDACTED***' : rawToken;
     if (
       nextConfig.enabled &&
-      nextConfig.bot_token &&
-      nextConfig.bot_token !== '***REDACTED***' &&
-      !isValidBotToken(nextConfig.bot_token)
+      effectiveToken &&
+      effectiveToken !== '***REDACTED***' &&
+      !isValidBotToken(effectiveToken)
     ) {
       toast.error(t('invalidBotToken'));
       return;
@@ -81,8 +87,8 @@ export const TelegramTab: React.FC<TelegramTabProps> = ({ config, onChange, onSa
       toast.error(t('invalidChatId'));
       return;
     }
-    if (nextConfig.enabled && nextConfig.bot_token && nextConfig.bot_token !== '***REDACTED***') {
-      if (!testSuccess || lastTestedToken !== nextConfig.bot_token) {
+    if (nextConfig.enabled && effectiveToken && effectiveToken !== '***REDACTED***') {
+      if (!testSuccess || lastTestedToken !== effectiveToken) {
         toast.error(t('telegramTokenTestRequired'));
         return;
       }
@@ -103,7 +109,13 @@ export const TelegramTab: React.FC<TelegramTabProps> = ({ config, onChange, onSa
     if (!nextConfig) {
       return;
     }
-    if (!botTokenDraft || botTokenDraft === '***REDACTED***') {
+    const trimmedToken = normalizeToken(botTokenDraft);
+    const usingSavedToken = !trimmedToken && isBotMasked;
+    if (!trimmedToken && !usingSavedToken) {
+      toast.error(t('invalidBotToken'));
+      return;
+    }
+    if (trimmedToken && !isValidBotToken(trimmedToken)) {
       toast.error(t('invalidBotToken'));
       return;
     }
@@ -113,11 +125,17 @@ export const TelegramTab: React.FC<TelegramTabProps> = ({ config, onChange, onSa
     }
     setTesting(true);
     try {
-      await api.testTelegram({ bot_token: botTokenDraft, chat_ids: nextConfig.chat_ids });
+      const payload = { chat_ids: nextConfig.chat_ids } as { chat_ids: string[]; bot_token?: string };
+      if (trimmedToken) {
+        payload.bot_token = trimmedToken;
+      }
+      await api.testTelegram(payload);
       setTestSuccess(true);
-      setLastTestedToken(botTokenDraft);
-      onChange({ ...nextConfig, bot_token: botTokenDraft });
-      onSave({ ...nextConfig, bot_token: botTokenDraft });
+      if (trimmedToken) {
+        setLastTestedToken(trimmedToken);
+        onChange({ ...nextConfig, bot_token: trimmedToken });
+        onSave({ ...nextConfig, bot_token: trimmedToken });
+      }
       toast.success(t('telegramTestSuccess'));
     } catch (error) {
       toast.error(t('telegramTestFailed'));
@@ -158,9 +176,14 @@ export const TelegramTab: React.FC<TelegramTabProps> = ({ config, onChange, onSa
         {config.enabled && (
           <>
             <div>
-              <label className="block text-sm font-medium text-text mb-2">
-                {t('botToken')}
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-text">
+                  {t('botToken')}
+                </label>
+                <span className={`text-xs px-2 py-0.5 rounded-full border ${tokenStatusClass}`}>
+                  {tokenStatusText}
+                </span>
+              </div>
               <div className="relative">
                 <input
                   type={showBotToken ? 'text' : 'password'}
@@ -305,29 +328,11 @@ export const TelegramTab: React.FC<TelegramTabProps> = ({ config, onChange, onSa
               </p>
             </div>
 
-            {/* TASK 16: Event Types */}
-            <div>
-              <label className="block text-sm font-medium text-text mb-2">
-                Event Types to Notify
-              </label>
-              <div className="space-y-2">
-                {['person', 'vehicle', 'animal', 'other'].map((type) => (
-                  <label key={type} className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={config.event_types.includes(type)}
-                      onChange={(e) => {
-                        const next = e.target.checked 
-                          ? [...config.event_types, type] 
-                          : config.event_types.filter(t => t !== type)
-                        onChange({ ...config, event_types: next })
-                      }}
-                      className="w-4 h-4 accent-accent"
-                    />
-                    <span className="text-text capitalize">{type}</span>
-                  </label>
-                ))}
-              </div>
+            {/* Event Types kaldırıldı - sadece person algılıyoruz */}
+            <div className="bg-info/10 border border-info/40 rounded-lg p-4">
+              <p className="text-info text-sm">
+                ℹ️ Sadece <strong>Person</strong> algılaması yapılıyor. Vehicle, Animal algılaması yok.
+              </p>
             </div>
 
             {/* TASK 17: Cooldown */}

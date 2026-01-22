@@ -38,20 +38,8 @@ export const RecordingTab: React.FC<RecordingTabProps> = ({ config, onChange, on
       </div>
 
       <div className="space-y-4">
-        <div className="flex items-center space-x-3">
-          <input
-            type="checkbox"
-            id="recording-enabled"
-            checked={config.enabled}
-            onChange={(e) => onChange({ ...config, enabled: e.target.checked })}
-            className="w-4 h-4 text-accent bg-surface2 border-border rounded focus:ring-accent"
-          />
-          <label htmlFor="recording-enabled" className="text-sm font-medium text-text">
-            Sürekli Kayıt (7/24) - Önerilmez
-          </label>
-        </div>
-
-        {config.enabled && (
+        {/* Sürekli kayıt kaldırıldı - sadece event bazlı kayıt var */}
+        {(
           <>
             <div>
               <label className="block text-sm font-medium text-text mb-2">
@@ -172,6 +160,16 @@ export const RecordingTab: React.FC<RecordingTabProps> = ({ config, onChange, on
             </div>
           </>
         )}
+
+        {/* Event bazlı kayıt her zaman aktif bilgisi */}
+        <div className="bg-success/10 border border-success/40 rounded-lg p-4">
+          <p className="text-success text-sm font-semibold mb-1">
+            ✅ Event Kayıtları Aktif
+          </p>
+          <p className="text-muted text-xs">
+            Person algılandığında otomatik olarak collage, GIF ve MP4 oluşturulur
+          </p>
+        </div>
       </div>
 
       <button

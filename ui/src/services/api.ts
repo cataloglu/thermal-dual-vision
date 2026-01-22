@@ -99,7 +99,7 @@ export const testCamera = async (request: CameraTestRequest): Promise<CameraTest
   return response.data;
 };
 
-export const testTelegram = async (payload: { bot_token: string; chat_ids: string[]; event_id?: string }) => {
+export const testTelegram = async (payload: { bot_token?: string; chat_ids: string[]; event_id?: string }) => {
   const response = await apiClient.post('/telegram/test', payload);
   return response.data;
 };
