@@ -85,8 +85,8 @@ export const TelegramTab: React.FC<TelegramTabProps> = ({ config, onChange, onSa
         </p>
       </div>
 
-      <div className="p-4 bg-info bg-opacity-10 border border-info rounded-lg mb-4">
-        <p className="text-sm text-info">
+      <div className="p-4 bg-info/20 border border-info/40 rounded-lg mb-4">
+        <p className="text-sm text-text">
           {t('telegramOptional')}
         </p>
       </div>

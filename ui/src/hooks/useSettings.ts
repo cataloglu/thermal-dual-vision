@@ -6,6 +6,19 @@ import { getSettings, updateSettings } from '../services/api';
 import type { Settings } from '../types/api';
 import toast from 'react-hot-toast';
 
+const MASKED_VALUE = '***REDACTED***'
+
+const mergeMaskedSecrets = (data: Settings, updates: Partial<Settings>) => {
+  const merged = { ...data }
+  if (updates.ai?.api_key && data.ai?.api_key === MASKED_VALUE) {
+    merged.ai = { ...data.ai, api_key: updates.ai.api_key }
+  }
+  if (updates.telegram?.bot_token && data.telegram?.bot_token === MASKED_VALUE) {
+    merged.telegram = { ...data.telegram, bot_token: updates.telegram.bot_token }
+  }
+  return merged
+}
+
 export const useSettings = () => {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
@@ -30,9 +43,10 @@ export const useSettings = () => {
   const saveSettings = async (updates: Partial<Settings>) => {
     try {
       const data = await updateSettings(updates);
-      setSettings(data);
+      const merged = mergeMaskedSecrets(data, updates);
+      setSettings(merged);
       toast.success('Settings saved successfully');
-      return data;
+      return merged;
     } catch (err) {
       const error = err as { response?: { data?: { detail?: { message?: string } } }; message?: string };
       const errorMsg = error.response?.data?.detail?.message || error.message || 'Failed to save settings';
