@@ -30,7 +30,7 @@ export const EventsTab: React.FC<EventsTabProps> = ({ config, onChange, onSave }
           </label>
           <input
             type="number"
-            min="0"
+            min="1"
             max="60"
             value={config.cooldown_seconds}
             onChange={(e) => onChange({ ...config, cooldown_seconds: parseInt(e.target.value) || 5 })}

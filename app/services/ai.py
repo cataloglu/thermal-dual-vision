@@ -16,119 +16,31 @@ logger = logging.getLogger(__name__)
 
 
 # Prompt templates
-SIMPLE_TEMPLATE_TR = """
-Bu thermal kamera görüntüsünde ne görüyorsun?
-Kişi sayısı, ne yaptıkları ve şüpheli bir durum var mı kısaca açıkla.
-"""
+THERMAL_PROMPT_TR = (
+    "TERMAL güvenlik kamerası görüntüsü. Türkçe yaz, renk uydurma. "
+    "Isıya göre anlat: çok sıcak/sıcak/ılık/soğuk/çok soğuk. "
+    "Detaylı ama kısa bir güvenlik raporu yaz (3-6 satır). "
+    'İnsan varsa "Kamerada X kişi tespit edildi..." ile başla (emin değilsen "en az X"). '
+    'İnsan yoksa "Kamerada insan tespit edilmedi (no human)." yaz. '
+    "İnsan/araç/hayvan sayısını ve hareket/konum bilgisini ekle. "
+    "Termal sahnede dikkat çeken sıcak/ılık/soğuk alanları belirt. "
+    'İnsan/araç/hayvan yoksa ve belirgin hedef yoksa "Muhtemel yanlış alarm." ekle. '
+    'İnsan/araç/hayvan varsa "yanlış alarm" yazma. '
+    'Görüntü çok karanlık/bulanık/boşsa ve hedef yoksa "Görüntü seçilemiyor, muhtemel yanlış alarm." yaz. '
+    "Liste/numara kullanabilirsin, emoji kullanma."
+)
 
-SECURITY_FOCUSED_TEMPLATE_TR = """
-Sen bir ev güvenlik sistemi AI asistanısın.
-Bu thermal kamera görüntüsünü analiz et:
-
-Kamera: {camera_name}
-Zaman: {timestamp}
-Confidence: {confidence:.0%}
-
-Şunları Türkçe olarak belirt:
-1. İnsan var mı? Kaç kişi?
-2. Ne görüyorsun? (görünüm, hareket, konum)
-3. Şüpheli durum var mı?
-4. Yanlış alarm olabilir mi? (ağaç, gölge, hayvan, araba)
-5. Tehdit seviyesi: Düşük/Orta/Yüksek
-
-Kısa ve net cevap ver (max 5 satır).
-"""
-
-DETAILED_TEMPLATE_TR = """
-Sen bir profesyonel güvenlik analisti AI'sısın.
-Bu thermal kamera görüntü serisini (5 frame) analiz et:
-
-Kamera: {camera_name}
-Zaman: {timestamp}
-YOLOv8 Confidence: {confidence:.0%}
-
-Detaylı analiz yap:
-
-1. İNSAN TESPİTİ:
-   - Kaç kişi var?
-   - Nerede konumlanmışlar?
-   - Ne yapıyorlar?
-
-2. GÖRSEL DETAYLAR:
-   - Kıyafet rengi/tipi (varsa)
-   - Boy/yapı
-   - Taşıdığı eşya var mı?
-
-3. HAREKET ANALİZİ:
-   - Hareket yönü
-   - Hız (yavaş, normal, hızlı)
-   - Davranış (normal, şüpheli)
-
-4. DURUM DEĞERLENDİRMESİ:
-   - Şüpheli durum var mı?
-   - Yanlış alarm olabilir mi?
-   - Tehdit seviyesi: Düşük/Orta/Yüksek
-   - Önerilen aksiyon
-
-Türkçe, kısa ve net cevap ver (max 10 satır).
-"""
-
-SIMPLE_TEMPLATE_EN = """
-What do you see in this thermal camera image?
-Briefly describe the number of people, what they are doing, and whether anything looks suspicious.
-"""
-
-SECURITY_FOCUSED_TEMPLATE_EN = """
-You are a home security AI assistant.
-Analyze this thermal camera image:
-
-Camera: {camera_name}
-Time: {timestamp}
-Confidence: {confidence:.0%}
-
-Provide the following in English:
-1. Are there people? How many?
-2. What do you see? (appearance, movement, location)
-3. Any suspicious behavior?
-4. Could it be a false alarm? (tree, shadow, animal, car)
-5. Threat level: Low/Medium/High
-
-Be concise (max 5 lines).
-"""
-
-DETAILED_TEMPLATE_EN = """
-You are a professional security analyst AI.
-Analyze this thermal image sequence (5 frames):
-
-Camera: {camera_name}
-Time: {timestamp}
-YOLO Confidence: {confidence:.0%}
-
-Provide a detailed analysis:
-
-1. HUMAN DETECTION:
-   - How many people?
-   - Where are they located?
-   - What are they doing?
-
-2. VISUAL DETAILS:
-   - Clothing color/type (if visible)
-   - Height/build
-   - Carrying any objects?
-
-3. MOTION ANALYSIS:
-   - Direction of movement
-   - Speed (slow/normal/fast)
-   - Behavior (normal/suspicious)
-
-4. SITUATION ASSESSMENT:
-   - Suspicious activity?
-   - Possible false alarm?
-   - Threat level: Low/Medium/High
-   - Recommended action
-
-Be concise (max 10 lines).
-"""
+COLOR_PROMPT_TR = (
+    "Renkli güvenlik kamerası görüntüsü. Türkçe yaz. "
+    "Detaylı ama kısa bir güvenlik raporu yaz (3-6 satır). "
+    'İnsan varsa "Kamerada X kişi tespit edildi..." ile başla (emin değilsen "en az X"). '
+    'İnsan yoksa "Kamerada insan tespit edilmedi (no human)." yaz. '
+    "İnsan/araç/hayvan sayısını ve hareket/konum bilgisini ekle. "
+    'İnsan/araç/hayvan yoksa ve belirgin hedef yoksa "Muhtemel yanlış alarm." ekle. '
+    'İnsan/araç/hayvan varsa "yanlış alarm" yazma. '
+    'Görüntü çok karanlık/bulanık/boşsa ve hedef yoksa "Görüntü seçilemiyor, muhtemel yanlış alarm." yaz. '
+    "Liste/numara kullanabilirsin, emoji kullanma."
+)
 
 
 class AIService:
@@ -197,7 +109,7 @@ class AIService:
                 messages=[
                     {
                         "role": "system",
-                        "content": "Sen bir ev güvenlik sistemi AI asistanısın. Kısa ve net cevap ver."
+                        "content": "Kısa ama detaylı bir güvenlik raporu üret."
                     },
                     {
                         "role": "user",
@@ -238,8 +150,8 @@ class AIService:
         Get AI prompt for event with hierarchy:
         1. Camera-level custom prompt (highest priority)
         2. Global custom prompt
-        3. Global template (security_focused/simple/detailed)
-        4. Default (simple)
+        3. Global template (default/custom)
+        4. Default (thermal)
         
         Args:
             event: Event data
@@ -261,32 +173,27 @@ class AIService:
                 base_prompt = config.ai.custom_prompt
                 logger.debug("Using global custom prompt")
             else:
-                base_prompt = SECURITY_FOCUSED_TEMPLATE_TR
+                base_prompt = THERMAL_PROMPT_TR
                 logger.debug("Custom template selected but empty, using default")
 
-        # 3. Global template
+        # 3. Global template (default: color/thermal)
         elif hasattr(config.ai, 'prompt_template'):
-            template = config.ai.prompt_template
-            language = getattr(config.ai, 'language', 'tr')
-            if language == "en":
-                templates = {
-                    "security_focused": SECURITY_FOCUSED_TEMPLATE_EN,
-                    "detailed": DETAILED_TEMPLATE_EN,
-                    "simple": SIMPLE_TEMPLATE_EN,
-                }
-            else:
-                templates = {
-                    "security_focused": SECURITY_FOCUSED_TEMPLATE_TR,
-                    "detailed": DETAILED_TEMPLATE_TR,
-                    "simple": SIMPLE_TEMPLATE_TR,
-                }
-            base_prompt = templates.get(template, templates["security_focused"])
-            logger.debug(f"Using template: {template} ({language})")
+            source = None
+            if camera:
+                camera_type = camera.get("type")
+                if camera_type == "thermal":
+                    source = "thermal"
+                elif camera_type == "color":
+                    source = "color"
+                else:
+                    source = camera.get("detection_source") or camera_type
+            base_prompt = COLOR_PROMPT_TR if source == "color" else THERMAL_PROMPT_TR
+            logger.debug("Using default prompt (%s)", source or "thermal")
 
         # 4. Default
         else:
-            base_prompt = SECURITY_FOCUSED_TEMPLATE_TR
-            logger.debug("Using default security_focused template")
+            base_prompt = THERMAL_PROMPT_TR
+            logger.debug("Using default thermal prompt")
         
         # Format with context
         camera_name = camera.get('name', 'Unknown') if camera else event.get('camera_id', 'Unknown')
@@ -301,6 +208,7 @@ class AIService:
         )
         
         return prompt
+
     
     def _encode_image(self, image_path: Path) -> Optional[str]:
         """

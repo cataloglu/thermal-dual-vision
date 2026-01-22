@@ -683,6 +683,7 @@ class DetectorWorker:
 
                     summary = None
                     if collage_path:
+                        detection_source = get_detection_source(camera.detection_source.value)
                         summary = self.ai_service.analyze_event(
                             {
                                 "id": event.id,
@@ -691,7 +692,12 @@ class DetectorWorker:
                                 "confidence": event.confidence,
                             },
                             collage_path=collage_path,
-                            camera={"id": camera.id, "name": camera.name},
+                            camera={
+                                "id": camera.id,
+                                "name": camera.name,
+                                "type": camera.type.value if camera.type else None,
+                                "detection_source": detection_source,
+                            },
                         )
                     if summary:
                         event.summary = summary

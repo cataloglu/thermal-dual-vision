@@ -1,7 +1,7 @@
 /**
  * Telegram tab - Telegram notification settings
  */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FiEye, FiEyeOff } from 'react-icons/fi';
 import toast from 'react-hot-toast';
@@ -20,7 +20,9 @@ export const TelegramTab: React.FC<TelegramTabProps> = ({ config, onChange, onSa
   const [chatIdInput, setChatIdInput] = useState('');
   const [testing, setTesting] = useState(false);
   const isBotMasked = config.bot_token === '***REDACTED***';
-  const [editBotToken, setEditBotToken] = useState(!isBotMasked);
+  const [botTokenDraft, setBotTokenDraft] = useState('');
+  const [lastTestedToken, setLastTestedToken] = useState<string | null>(null);
+  const [testSuccess, setTestSuccess] = useState(false);
 
   const isValidBotToken = (value: string) => /^\d+:[A-Za-z0-9_-]{20,}$/.test(value);
   const isValidChatId = (value: string) => /^-?\d+$/.test(value);
@@ -55,11 +57,25 @@ export const TelegramTab: React.FC<TelegramTabProps> = ({ config, onChange, onSa
       toast.error(t('invalidChatId'));
       return;
     }
+    if (config.enabled && config.bot_token && config.bot_token !== '***REDACTED***') {
+      if (!testSuccess || lastTestedToken !== config.bot_token) {
+        toast.error(t('telegramTokenTestRequired'));
+        return;
+      }
+    }
     onSave();
   };
 
+  useEffect(() => {
+    if (config.bot_token && !isBotMasked) {
+      setBotTokenDraft(config.bot_token);
+      setLastTestedToken(config.bot_token);
+      setTestSuccess(true);
+    }
+  }, [config.bot_token, isBotMasked]);
+
   const handleTest = async () => {
-    if (!config.bot_token || config.bot_token === '***REDACTED***') {
+    if (!botTokenDraft || botTokenDraft === '***REDACTED***') {
       toast.error(t('invalidBotToken'));
       return;
     }
@@ -69,10 +85,14 @@ export const TelegramTab: React.FC<TelegramTabProps> = ({ config, onChange, onSa
     }
     setTesting(true);
     try {
-      await api.testTelegram({ bot_token: config.bot_token, chat_ids: config.chat_ids });
-      toast.success('Telegram bağlantısı başarılı');
+      await api.testTelegramSample({ bot_token: botTokenDraft, chat_ids: config.chat_ids });
+      setTestSuccess(true);
+      setLastTestedToken(botTokenDraft);
+      onChange({ ...config, bot_token: botTokenDraft });
+      onSave();
+      toast.success(t('telegramTestSuccess'));
     } catch (error) {
-      toast.error('Telegram test başarısız');
+      toast.error(t('telegramTestFailed'));
     } finally {
       setTesting(false);
     }
@@ -116,10 +136,13 @@ export const TelegramTab: React.FC<TelegramTabProps> = ({ config, onChange, onSa
               <div className="relative">
                 <input
                   type={showBotToken ? 'text' : 'password'}
-                  value={isBotMasked && !editBotToken ? '' : config.bot_token}
-                  onChange={(e) => onChange({ ...config, bot_token: e.target.value })}
-                  placeholder={isBotMasked && !editBotToken ? t('botTokenSet') : '123456:ABC-DEF...'}
-                  disabled={isBotMasked && !editBotToken}
+                  value={botTokenDraft}
+                  onChange={(e) => {
+                    setBotTokenDraft(e.target.value);
+                    setTestSuccess(false);
+                    onChange({ ...config, bot_token: e.target.value });
+                  }}
+                  placeholder={isBotMasked ? t('botTokenSet') : '123456:ABC-DEF...'}
                   className="w-full px-3 py-2 pr-10 bg-surface2 border border-border rounded-lg text-text placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent"
                 />
                 <button
@@ -133,15 +156,9 @@ export const TelegramTab: React.FC<TelegramTabProps> = ({ config, onChange, onSa
               <p className="text-xs text-muted mt-1">
                 Get from @BotFather on Telegram
               </p>
-              {isBotMasked && !editBotToken && (
-                <button
-                  type="button"
-                  onClick={() => setEditBotToken(true)}
-                  className="mt-2 px-3 py-1 text-xs bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors"
-                >
-                  {t('change')}
-                </button>
-              )}
+              <p className="text-xs text-muted mt-1">
+                {(isBotMasked || botTokenDraft) ? t('botTokenSet') : t('botTokenNotSet')}
+              </p>
             </div>
 
             <div>
@@ -214,25 +231,24 @@ export const TelegramTab: React.FC<TelegramTabProps> = ({ config, onChange, onSa
                 JPEG quality for snapshots (0-100)
               </p>
             </div>
+
+            <button
+              onClick={handleTest}
+              disabled={testing}
+              className="w-full px-4 py-2 bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors disabled:opacity-50"
+            >
+              {testing ? t('loading') + '...' : t('telegramTestSample')}
+            </button>
           </>
         )}
       </div>
 
-      <div className="flex items-center gap-3">
-        <button
-          onClick={handleTest}
-          disabled={testing}
-          className="px-4 py-2 bg-surface2 border border-border text-text rounded-lg hover:bg-opacity-90 transition-colors disabled:opacity-50"
-        >
-          {testing ? t('loading') + '...' : t('test')}
-        </button>
-        <button
-          onClick={handleSave}
-          className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-opacity-90 transition-colors"
-        >
-          {t('saveTelegramSettings')}
-        </button>
-      </div>
+      <button
+        onClick={handleSave}
+        className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-opacity-90 transition-colors"
+      >
+        {t('saveTelegramSettings')}
+      </button>
     </div>
   );
 };

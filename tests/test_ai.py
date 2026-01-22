@@ -32,7 +32,7 @@ def mock_config():
     config.ai.model = "gpt-4o"
     config.ai.max_tokens = 200
     config.ai.temperature = 0.3
-    config.ai.prompt_template = "security_focused"
+    config.ai.prompt_template = "default"
     config.ai.custom_prompt = None
     return config
 
@@ -118,21 +118,21 @@ def test_prompt_hierarchy_template(ai_service, test_event, mock_config):
     camera = {
         "name": "Front Door",
         "use_custom_prompt": False,
-        "ai_prompt_override": None
+        "ai_prompt_override": None,
+        "type": "thermal"
     }
     
     mock_config.ai.custom_prompt = None
-    mock_config.ai.prompt_template = "security_focused"
+    mock_config.ai.prompt_template = "default"
     
     with patch.object(ai_service.settings_service, 'load_config', return_value=mock_config):
         prompt = ai_service._get_prompt_for_event(test_event, camera)
         
-        assert "güvenlik sistemi" in prompt.lower()
-        assert "Front Door" in prompt
+        assert "termal" in prompt.lower()
 
 
 def test_prompt_hierarchy_default(ai_service, test_event, mock_config):
-    """Test that default simple template is used as fallback."""
+    """Test that default prompt is used as fallback."""
     camera = {
         "name": "Front Door",
         "use_custom_prompt": False,
@@ -145,7 +145,7 @@ def test_prompt_hierarchy_default(ai_service, test_event, mock_config):
     with patch.object(ai_service.settings_service, 'load_config', return_value=mock_config):
         prompt = ai_service._get_prompt_for_event(test_event, camera)
         
-        assert "thermal kamera" in prompt.lower()
+        assert "termal" in prompt.lower()
 
 
 def test_ai_disabled_graceful(ai_service, test_event, test_camera, test_image, mock_config):
@@ -274,16 +274,15 @@ def test_prompt_formatting(ai_service, test_event, mock_config):
     camera = {
         "name": "Test Camera",
         "use_custom_prompt": False,
-        "ai_prompt_override": None
+        "ai_prompt_override": None,
+        "type": "color"
     }
     
     mock_config.ai.custom_prompt = None
-    mock_config.ai.prompt_template = "security_focused"
+    mock_config.ai.prompt_template = "default"
     
     with patch.object(ai_service.settings_service, 'load_config', return_value=mock_config):
         prompt = ai_service._get_prompt_for_event(test_event, camera)
         
-        # Verify context is included
-        assert "Test Camera" in prompt
-        assert "2026-01-20" in prompt
-        assert "85%" in prompt
+        assert "renkli" in prompt.lower()
+        assert "{camera_name}" not in prompt

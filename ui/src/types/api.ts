@@ -73,7 +73,7 @@ export interface AIConfig {
   enabled: boolean;
   api_key: string;
   model: string;
-  prompt_template: 'simple' | 'security_focused' | 'detailed' | 'custom';
+  prompt_template: 'default' | 'custom';
   custom_prompt: string;
   language: 'tr' | 'en';
   max_tokens: number;

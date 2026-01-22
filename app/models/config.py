@@ -238,7 +238,7 @@ class EventConfig(BaseModel):
     
     cooldown_seconds: int = Field(
         default=5,
-        ge=0,
+        ge=1,
         description="Minimum time between events"
     )
     frame_buffer_size: int = Field(
@@ -294,9 +294,9 @@ class AIConfig(BaseModel):
         default="gpt-4o",
         description="OpenAI model with vision support"
     )
-    prompt_template: Literal["simple", "security_focused", "detailed", "custom"] = Field(
-        default="security_focused",
-        description="Prompt template selection"
+    prompt_template: Literal["default", "custom"] = Field(
+        default="default",
+        description="Prompt template selection (default or custom)"
     )
     custom_prompt: str = Field(
         default="",
@@ -331,6 +331,16 @@ class AIConfig(BaseModel):
             return value
         if not value.startswith("sk-"):
             raise ValueError("api_key must start with sk-")
+        return value
+
+    @field_validator("prompt_template", mode="before")
+    @classmethod
+    def normalize_prompt_template(cls, value: Optional[str]) -> str:
+        """Normalize legacy prompt template values."""
+        if not value:
+            return "default"
+        if value in {"simple", "security_focused", "detailed"}:
+            return "default"
         return value
 
 

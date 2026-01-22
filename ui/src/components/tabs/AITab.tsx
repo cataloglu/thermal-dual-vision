@@ -1,11 +1,12 @@
 /**
  * AI tab - OpenAI integration settings
  */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FiEye, FiEyeOff } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import type { AIConfig } from '../../types/api';
+import { api } from '../../services/api';
 
 interface AITabProps {
   config: AIConfig;
@@ -19,21 +20,36 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const isKeyMasked = config.api_key === '***REDACTED***';
-  const [editApiKey, setEditApiKey] = useState(!isKeyMasked);
+  const [apiKeyDraft, setApiKeyDraft] = useState('');
+  const [lastTestedKey, setLastTestedKey] = useState<string | null>(null);
+  const [testSuccess, setTestSuccess] = useState(false);
+  useEffect(() => {
+    if (config.api_key && !isKeyMasked) {
+      setApiKeyDraft(config.api_key);
+      setLastTestedKey(config.api_key);
+      setTestSuccess(true);
+    }
+  }, [config.api_key, isKeyMasked]);
+  const [eventsLoading, setEventsLoading] = useState(false);
+  const [eventsError, setEventsError] = useState<string | null>(null);
+  const [events, setEvents] = useState<any[]>([]);
+  const [selectedEventId, setSelectedEventId] = useState<string>('');
+  const [aiTestLoading, setAiTestLoading] = useState(false);
+  const [aiTestResult, setAiTestResult] = useState<any | null>(null);
+  const [aiTestError, setAiTestError] = useState<string | null>(null);
 
   const templatePreview = () => {
     if (config.prompt_template === 'custom') {
       return config.custom_prompt || t('promptPreviewCustomEmpty');
     }
-    switch (config.prompt_template) {
-      case 'simple':
-        return t('promptPreviewSimple');
-      case 'detailed':
-        return t('promptPreviewDetailed');
-      case 'security_focused':
-      default:
-        return t('promptPreviewSecurity');
-    }
+    return (
+      'TERMAL (varsayılan): Türkçe, renk uydurma, ısıya göre anlat. ' +
+      '"Kamerada X kişi tespit edildi..." / "Kamerada insan tespit edilmedi (no human)." ' +
+      'Belirgin hedef yoksa "Muhtemel yanlış alarm." Tek cümle.\n\n' +
+      'COLOR (varsayılan): Türkçe. İnsan/araç/hayvan say ve kısaca tarif et. ' +
+      '"Kamerada X kişi tespit edildi..." / "Kamerada insan tespit edilmedi (no human)." ' +
+      'Belirgin hedef yoksa "Muhtemel yanlış alarm." Tek cümle.'
+    );
   };
 
   const handleSave = () => {
@@ -46,8 +62,58 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
       toast.error(t('invalidApiKey'));
       return;
     }
+    if (config.enabled && config.api_key && config.api_key !== '***REDACTED***') {
+      if (!testSuccess || lastTestedKey !== config.api_key) {
+        toast.error(t('aiKeyTestRequired'));
+        return;
+      }
+    }
     onSave();
   };
+
+  const loadEvents = async () => {
+    setEventsLoading(true);
+    setEventsError(null);
+    try {
+      const data = await api.getEvents({ page: 1, page_size: 20 });
+      const eventList = Array.isArray(data?.events) ? data.events : [];
+      setEvents(eventList);
+      if (!selectedEventId && eventList.length > 0) {
+        setSelectedEventId(eventList[0].id);
+      }
+    } catch (error: any) {
+      setEventsError(error?.response?.data?.detail?.message ?? error?.message ?? t('error'));
+    } finally {
+      setEventsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadEvents();
+  }, []);
+
+  useEffect(() => {
+    setAiTestResult(null);
+    setAiTestError(null);
+  }, [selectedEventId]);
+
+  const handleTestEvent = async () => {
+    if (!selectedEventId) return;
+    setAiTestLoading(true);
+    setAiTestError(null);
+    setAiTestResult(null);
+    try {
+      const result = await api.testAiEvent(selectedEventId);
+      setAiTestResult(result);
+    } catch (error: any) {
+      setAiTestError(error?.response?.data?.detail?.message ?? error?.message ?? t('error'));
+    } finally {
+      setAiTestLoading(false);
+    }
+  };
+
+  const selectedEvent = events.find((event) => event.id === selectedEventId);
+  const selectedEventImage = selectedEvent?.collage_url || selectedEvent?.gif_url || null;
 
   return (
     <div className="space-y-6">
@@ -90,10 +156,13 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
               <div className="relative">
                 <input
                   type={showApiKey ? 'text' : 'password'}
-                  value={isKeyMasked && !editApiKey ? '' : config.api_key}
-                  onChange={(e) => onChange({ ...config, api_key: e.target.value })}
-                  placeholder={isKeyMasked && !editApiKey ? t('apiKeySet') : 'sk-...'}
-                  disabled={isKeyMasked && !editApiKey}
+                  value={apiKeyDraft}
+                  onChange={(e) => {
+                    setApiKeyDraft(e.target.value);
+                    setTestSuccess(false);
+                    onChange({ ...config, api_key: e.target.value });
+                  }}
+                  placeholder={isKeyMasked ? t('apiKeySet') : 'sk-...'}
                   className="w-full px-3 py-2 pr-10 bg-surface2 border border-border rounded-lg text-text placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent"
                 />
                 <button
@@ -108,22 +177,13 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
                 OpenAI API key (starts with sk-)
               </p>
               <p className="text-xs text-muted mt-1">
-                {isKeyMasked ? t('apiKeySet') : t('apiKeyNotSet')}
+                {(isKeyMasked || apiKeyDraft) ? t('apiKeySet') : t('apiKeyNotSet')}
               </p>
-              {isKeyMasked && !editApiKey && (
-                <button
-                  type="button"
-                  onClick={() => setEditApiKey(true)}
-                  className="mt-2 px-3 py-1 text-xs bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors"
-                >
-                  {t('change')}
-                </button>
-              )}
               
               {/* Test Button */}
               <button
                 onClick={async () => {
-                  if (!config.api_key || config.api_key === '***REDACTED***') {
+                  if (!apiKeyDraft || apiKeyDraft === '***REDACTED***') {
                     alert('API key gerekli');
                     return;
                   }
@@ -133,17 +193,23 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
                     const response = await fetch('/api/ai/test', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ api_key: config.api_key, model: config.model })
+                      body: JSON.stringify({ api_key: apiKeyDraft, model: config.model })
                     });
                     const data = await response.json();
                     setTestResult(data);
+                    if (data.success) {
+                      setTestSuccess(true);
+                      setLastTestedKey(apiKeyDraft);
+                      onChange({ ...config, api_key: apiKeyDraft });
+                      onSave();
+                    }
                   } catch (error: any) {
                     setTestResult({ success: false, message: error.message });
                   } finally {
                     setTesting(false);
                   }
                 }}
-                disabled={testing || !config.api_key}
+                disabled={testing || !apiKeyDraft}
                 className="w-full px-4 py-2 bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors disabled:opacity-50 mt-2"
               >
                 {testing ? t('loading') + '...' : t('test')}
@@ -183,9 +249,7 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
                 onChange={(e) => onChange({ ...config, prompt_template: e.target.value as AIConfig['prompt_template'] })}
                 className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
               >
-                <option value="simple">simple</option>
-                <option value="security_focused">security_focused</option>
-                <option value="detailed">detailed</option>
+                <option value="default">default (color/thermal)</option>
                 <option value="custom">custom</option>
               </select>
             </div>
@@ -193,6 +257,7 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
             <div className="p-3 rounded-lg border border-border bg-surface2">
               <p className="text-xs text-muted mb-2">{t('promptPreview')}</p>
               <pre className="text-xs text-text whitespace-pre-wrap">{templatePreview()}</pre>
+              <p className="text-xs text-muted mt-2">{t('promptLanguageHint')}</p>
             </div>
 
             {config.prompt_template === 'custom' && (
@@ -210,20 +275,6 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
                 <p className="text-xs text-muted mt-1">{t('promptVarsHint')}</p>
               </div>
             )}
-
-            <div>
-              <label className="block text-sm font-medium text-text mb-2">
-                {t('language')}
-              </label>
-              <select
-                value={config.language}
-                onChange={(e) => onChange({ ...config, language: e.target.value as AIConfig['language'] })}
-                className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
-              >
-                <option value="tr">Türkçe</option>
-                <option value="en">English</option>
-              </select>
-            </div>
 
             <div>
               <label className="block text-sm font-medium text-text mb-2">
@@ -271,6 +322,94 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
           </>
         )}
       </div>
+
+      {config.enabled && (
+        <div className="p-4 rounded-lg border border-border bg-surface2">
+          <div className="flex items-center justify-between gap-4 mb-4">
+            <div>
+              <p className="text-sm font-medium text-text">{t('aiEventTestTitle')}</p>
+              <p className="text-xs text-muted">{t('aiEventTestDesc')}</p>
+            </div>
+            <button
+              onClick={loadEvents}
+              disabled={eventsLoading}
+              className="px-3 py-1 text-xs bg-surface1/80 text-text rounded-lg hover:bg-surface1 transition-colors disabled:opacity-50"
+            >
+              {eventsLoading ? t('loading') + '...' : t('refresh')}
+            </button>
+          </div>
+
+          {eventsError && (
+            <p className="text-xs text-error mb-3">{eventsError}</p>
+          )}
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <label className="block text-xs font-medium text-muted mb-2">
+                {t('aiEventSelect')}
+              </label>
+              <select
+                value={selectedEventId}
+                onChange={(e) => setSelectedEventId(e.target.value)}
+                className="w-full px-3 py-2 bg-surface1 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
+              >
+                {events.length === 0 && (
+                  <option value="">{t('aiEventNoEvents')}</option>
+                )}
+                {events.map((event) => (
+                  <option key={event.id} value={event.id}>
+                    {new Date(event.timestamp).toLocaleString()} • {event.camera_id}
+                  </option>
+                ))}
+              </select>
+
+              <button
+                onClick={handleTestEvent}
+                disabled={!selectedEventId || aiTestLoading}
+                className="mt-3 w-full px-4 py-2 bg-accent text-white rounded-lg hover:bg-opacity-90 transition-colors disabled:opacity-50"
+              >
+                {aiTestLoading ? t('loading') + '...' : t('aiEventRun')}
+              </button>
+
+              {aiTestError && (
+                <p className="text-xs text-error mt-2">{aiTestError}</p>
+              )}
+            </div>
+
+            <div>
+              <p className="text-xs text-muted mb-2">{t('aiEventImage')}</p>
+              {selectedEventImage ? (
+                <img
+                  src={selectedEventImage}
+                  alt={t('aiEventImage')}
+                  className="w-full rounded-lg border border-border object-contain bg-surface1"
+                />
+              ) : (
+                <div className="text-xs text-muted border border-dashed border-border rounded-lg p-3 bg-surface1">
+                  {t('aiEventNoImage')}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {aiTestResult?.summary && (
+            <div className="mt-4 space-y-3">
+              <div>
+                <p className="text-xs text-muted mb-2">{t('aiEventPrompt')}</p>
+                <pre className="text-xs text-text whitespace-pre-wrap bg-surface1 border border-border rounded-lg p-3">
+                  {aiTestResult.prompt}
+                </pre>
+              </div>
+              <div>
+                <p className="text-xs text-muted mb-2">{t('aiEventResult')}</p>
+                <pre className="text-sm text-text whitespace-pre-wrap bg-surface1 border border-border rounded-lg p-3">
+                  {aiTestResult.summary}
+                </pre>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <button
         onClick={handleSave}

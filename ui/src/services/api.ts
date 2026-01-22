@@ -104,6 +104,16 @@ export const testTelegram = async (payload: { bot_token: string; chat_ids: strin
   return response.data;
 };
 
+export const testTelegramSample = async (payload: { bot_token: string; chat_ids: string[]; event_id?: string }) => {
+  const response = await apiClient.post('/telegram/test-sample', payload);
+  return response.data;
+};
+
+export const testAiEvent = async (eventId: string) => {
+  const response = await apiClient.post('/ai/test-event', { event_id: eventId });
+  return response.data;
+};
+
 // Events
 export const getEvents = async (params: {
   page?: number;
@@ -170,6 +180,8 @@ export const api = {
   stopRecording,
   testCamera,
   testTelegram,
+  testTelegramSample,
+  testAiEvent,
   getEvents,
   getEvent,
   deleteEvent,
