@@ -383,9 +383,125 @@ export interface DetectionConfig {
 
 ---
 
+## 21. Backend: Startup delay ekle - kameralar için 10 saniye bekleme
+**Dosya:** `app/main.py` (startup_event fonksiyonu)
+**Sorun:**
+- Sistem başlarken kameralar hemen bağlanmaya çalışıyor
+- Backend henüz hazır değil (detector worker, services başlamadı)
+- Kameralar "connection failed" hatası veriyor
+- 10 saniye sonra retry ediyor ama ilk başlangıç kötü görünüyor
+**Yapılacak:**
+- `@app.on_event("startup")` içine 10 saniye delay ekle
+- Kameralar başlamadan önce backend tamamen hazır olsun
+- Log ekle: "Waiting 10 seconds for services to initialize..."
+```python
+@app.on_event("startup")
+async def startup_event():
+    """Initialize application on startup."""
+    logger.info("Starting Smart Motion Detector v2...")
+    
+    # Initialize database
+    init_db()
+    logger.info("Database initialized")
+    
+    # Start detector worker
+    detector_worker.start()
+    logger.info("Detector worker started")
+    
+    # Start retention worker
+    retention_worker.start()
+    logger.info("Retention worker started")
+    
+    # EKLE: Wait for services to fully initialize
+    logger.info("Waiting 10 seconds for services to initialize...")
+    await asyncio.sleep(10)
+    
+    # Start cameras
+    db = next(get_session())
+    try:
+        cameras = camera_crud_service.get_all_cameras(db)
+        for camera in cameras:
+            if camera.status == CameraStatus.CONNECTED:
+                detector_worker.add_camera(camera.id, camera.stream_url)
+                logger.info(f"Camera {camera.id} added to detector")
+    finally:
+        db.close()
+    
+    logger.info("Application startup complete")
+```
+
+---
+
+## 22. Frontend: Settings sayfası - Export/Import kaldır, Reset ekle
+**Dosya:** `ui/src/pages/Settings.tsx`
+**Sorun:**
+- Her sayfanın üstünde Export JSON, Export CSV, Import JSON butonları var
+- Export/Import gereksiz, kullanıcı karıştırıyor
+- Reset butonu yok, varsayılana döndüremiyorsun
+**Yapılacak:**
+- Export JSON butonunu kaldır (satır ~230)
+- Export CSV butonunu kaldır (satır ~240)
+- Import JSON butonunu kaldır (satır ~250)
+- "Reset to Defaults" butonu ekle
+- Butona basınca onay modal aç: "Tüm ayarlar varsayılana dönecek, emin misiniz?"
+- Onaylarsa: `await api.resetSettings()` çağır
+- Backend'e `POST /api/settings/reset` endpoint ekle
+```typescript
+// Settings.tsx - Export/Import butonlarını kaldır, Reset ekle
+<div className="flex items-center gap-3">
+  <button
+    onClick={async () => {
+      if (confirm('Tüm ayarlar varsayılana dönecek. Emin misiniz?')) {
+        try {
+          await api.resetSettings()
+          toast.success('Ayarlar varsayılana döndürüldü')
+          window.location.reload()
+        } catch (error) {
+          toast.error('Reset başarısız')
+        }
+      }
+    }}
+    className="flex items-center gap-2 px-4 py-2 bg-error text-white rounded-lg hover:bg-error/90"
+  >
+    <MdRefresh />
+    Reset to Defaults
+  </button>
+  {isDirty && (
+    <button onClick={handleSave} className="px-4 py-2 bg-accent text-white rounded-lg">
+      Save Changes
+    </button>
+  )}
+</div>
+```
+
+---
+
+## 23. Frontend: Varsayılan tema pure-black yap
+**Dosya:** `app/models/config.py` (satır 407-417)
+**Sorun:**
+- Varsayılan tema "slate" (gri)
+- Kullanıcı pure-black istiyor (siyah)
+**Yapılacak:**
+- AppearanceConfig'de `default="slate"` → `default="pure-black"` yap
+```python
+class AppearanceConfig(BaseModel):
+    """Appearance configuration (theme and language)."""
+    
+    theme: Literal["slate", "carbon", "pure-black", "matrix"] = Field(
+        default="pure-black",  # DEĞIŞTIR: slate → pure-black
+        description="UI theme"
+    )
+    language: Literal["tr", "en"] = Field(
+        default="tr",
+        description="Interface language"
+    )
+```
+
+---
+
 ## ÖZET
-- **Toplam:** 20 görev
-- **Backend:** 2 görev (bulk delete API, recordings API kontrol)
-- **Frontend:** 18 görev (yeni sayfalar, tab'lar, form alanları)
+- **Toplam:** 23 görev
+- **Backend:** 4 görev (bulk delete API, recordings API kontrol, startup delay, reset endpoint)
+- **Frontend:** 19 görev (yeni sayfalar, tab'lar, form alanları, settings düzenleme)
 - **Yeni Dosyalar:** 3 (Recordings.tsx, MotionTab.tsx, MediaTab.tsx)
-- **Güncellenecek Dosyalar:** 8 (Events.tsx, main.py, api.ts, DetectionTab.tsx, TelegramTab.tsx, RecordingTab.tsx, Settings.tsx, Sidebar.tsx, App.tsx)
+- **Güncellenecek Dosyalar:** 9 (Events.tsx, main.py, config.py, api.ts, DetectionTab.tsx, TelegramTab.tsx, RecordingTab.tsx, Settings.tsx, Sidebar.tsx, App.tsx)
