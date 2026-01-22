@@ -134,7 +134,8 @@ export const RecordingTab: React.FC<RecordingTabProps> = ({ config, onChange, on
                     <span className="text-muted">{index + 1}.</span>
                     <span className="flex-1 capitalize text-text">{type}</span>
                     <button
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.preventDefault()
                         if (index === 0) return
                         const next = [...config.delete_order]
                         ;[next[index], next[index - 1]] = [next[index - 1], next[index]]
@@ -146,7 +147,8 @@ export const RecordingTab: React.FC<RecordingTabProps> = ({ config, onChange, on
                       ↑
                     </button>
                     <button
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.preventDefault()
                         if (index === config.delete_order.length - 1) return
                         const next = [...config.delete_order]
                         ;[next[index], next[index + 1]] = [next[index + 1], next[index]]
