@@ -18,6 +18,27 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
   const [showApiKey, setShowApiKey] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const isKeyMasked = config.api_key === '***REDACTED***';
+
+  const templatePreview = () => {
+    const lang = config.language ?? 'tr';
+    const previews = {
+      tr: {
+        simple: t('promptPreviewSimpleTr'),
+        security_focused: t('promptPreviewSecurityTr'),
+        detailed: t('promptPreviewDetailedTr'),
+      },
+      en: {
+        simple: t('promptPreviewSimpleEn'),
+        security_focused: t('promptPreviewSecurityEn'),
+        detailed: t('promptPreviewDetailedEn'),
+      },
+    } as const;
+    if (config.prompt_template === 'custom') {
+      return config.custom_prompt || t('promptPreviewCustomEmpty');
+    }
+    return previews[lang]?.[config.prompt_template] || '';
+  };
 
   const handleSave = () => {
     if (
@@ -89,6 +110,9 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
               <p className="text-xs text-muted mt-1">
                 OpenAI API key (starts with sk-)
               </p>
+              <p className="text-xs text-muted mt-1">
+                {isKeyMasked ? t('apiKeySet') : t('apiKeyNotSet')}
+              </p>
               
               {/* Test Button */}
               <button
@@ -158,6 +182,11 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
                 <option value="detailed">detailed</option>
                 <option value="custom">custom</option>
               </select>
+            </div>
+
+            <div className="p-3 rounded-lg border border-border bg-surface2">
+              <p className="text-xs text-muted mb-2">{t('promptPreview')}</p>
+              <pre className="text-xs text-text whitespace-pre-wrap">{templatePreview()}</pre>
             </div>
 
             {config.prompt_template === 'custom' && (
