@@ -10,8 +10,7 @@ import {
   MdExpandMore,
   MdChevronRight,
   MdLanguage,
-  MdRefresh,
-  MdVideoLibrary
+  MdRefresh
 } from 'react-icons/md'
 import { useWebSocket } from '../hooks/useWebSocket'
 
@@ -42,7 +41,6 @@ export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
     { path: '/', icon: MdDashboard, label: t('dashboard') },
     { path: '/live', icon: MdVideocam, label: t('live') },
     { path: '/events', icon: MdEvent, label: t('events') },
-    { path: '/recordings', icon: MdVideoLibrary, label: t('recording') },
     { path: '/diagnostics', icon: MdSearch, label: t('diagnostics') },
   ]
 

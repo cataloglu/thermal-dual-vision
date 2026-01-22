@@ -12,31 +12,28 @@ Thermal kamera projesi var, çalışıyor ama bazı ayarlar/sayfalar eksik. Back
 - **Backend:** Python + FastAPI
 - **Frontend:** React + TypeScript + Tailwind
 
-## Görevler (23 tane)
+## Görevler (20 tane)
 
 1. Events toplu silme düzelt
 2. Backend bulk delete API
-3. Backend recordings API kontrol
-4. Recordings sayfası
-5. Recordings route
-6. MotionTab yap
-7. MotionTab entegre et
-8. MediaTab yap
-9. MediaTab entegre et
-10. DetectionConfig type güncelle
-11. DetectionTab inference_resolution
-12. DetectionTab aspect_ratio
-13. DetectionTab enable_tracking
-14. TelegramTab rate_limit_seconds
-15. TelegramTab video_speed
-16. TelegramTab event_types
-17. TelegramTab cooldown_seconds
-18. TelegramTab max_messages_per_min
-19. RecordingTab cleanup_policy
-20. RecordingTab delete_order
-21. Backend startup delay (10 saniye)
-22. Settings Export/Import kaldır, Reset ekle
-23. Varsayılan tema pure-black yap
+3. MotionTab yap
+4. MotionTab entegre et
+5. MediaTab yap
+6. MediaTab entegre et
+7. DetectionConfig type güncelle
+8. DetectionTab inference_resolution
+9. DetectionTab aspect_ratio
+10. DetectionTab enable_tracking
+11. TelegramTab rate_limit_seconds
+12. TelegramTab video_speed
+13. TelegramTab event_types
+14. TelegramTab cooldown_seconds
+15. TelegramTab max_messages_per_min
+16. RecordingTab cleanup_policy
+17. RecordingTab delete_order
+18. Backend startup delay (10 saniye)
+19. Settings Export/Import kaldır, Reset ekle
+20. Varsayılan tema pure-black yap
 
 **Detaylar:** TODO.md'de her görev için kod örneği var
 

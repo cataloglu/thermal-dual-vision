@@ -26,50 +26,7 @@
 
 ---
 
-## 3. Backend: /api/recordings endpoints kontrol et
-**Dosya:** `app/main.py`
-**Sorun:**
-- Kayıt sistemi var ama kayıtları listeleyecek/izleyecek API yok
-- StreamViewer'da kayıt başlat/durdur var (satır 157-168) ama kayıtlar nerede?
-**Kontrol edilecek:**
-- `GET /api/recordings?camera_id=xxx&start_date=xxx&end_date=xxx` var mı?
-- `GET /api/recordings/{recording_id}/stream` var mı?
-- `DELETE /api/recordings/{recording_id}` var mı?
-- Yoksa ekle, varsa frontend'e bağla
-
----
-
-## 4. Frontend: Recordings.tsx sayfası oluştur
-**Dosya:** `ui/src/pages/Recordings.tsx` (yeni dosya)
-**Sorun:**
-- Kayıtları görecek sayfa hiç yok
-- Kullanıcı kayıt yaptı ama nerede olduğunu bilmiyor
-**Yapılacak:**
-- Kamera dropdown filtresi
-- Tarih aralığı filtresi (start_date, end_date)
-- Kayıt listesi (thumbnail, süre, boyut, tarih)
-- İzle butonu (modal'da video player)
-- Sil butonu (onay ile)
-- İndir butonu (download link)
-- Pagination (Events.tsx'teki gibi)
-
----
-
-## 5. Frontend: Recordings route ekle
-**Dosyalar:** 
-- `ui/src/components/Sidebar.tsx` (satır 40-45)
-- `ui/src/App.tsx`
-**Sorun:**
-- Sidebar'da Recordings linki yok
-- Route tanımlı değil
-**Yapılacak:**
-- Sidebar.tsx satır 44'e ekle: `{ path: '/recordings', icon: MdVideoLibrary, label: t('recordings') }`
-- App.tsx'e route ekle: `<Route path="/recordings" element={<Recordings />} />`
-- MdVideoLibrary icon'u import et: `import { MdVideoLibrary } from 'react-icons/md'`
-
----
-
-## 6. Frontend: MotionTab.tsx oluştur
+## 3. Frontend: MotionTab.tsx oluştur
 **Dosya:** `ui/src/components/tabs/MotionTab.tsx` (yeni dosya)
 **Sorun:**
 - Backend'de MotionConfig var (app/models/config.py satır 86-114)
@@ -85,7 +42,7 @@
 
 ---
 
-## 7. Frontend: MotionTab'ı Settings.tsx'e ekle
+## 4. Frontend: MotionTab'ı Settings.tsx'e ekle
 **Dosya:** `ui/src/pages/Settings.tsx`
 **Sorun:**
 - MotionTab var ama Settings'e entegre değil
@@ -102,7 +59,7 @@ if (activeTab === 'motion' && localSettings) {
 
 ---
 
-## 8. Frontend: MediaTab.tsx oluştur
+## 5. Frontend: MediaTab.tsx oluştur
 **Dosya:** `ui/src/components/tabs/MediaTab.tsx` (yeni dosya)
 **Sorun:**
 - Backend'de MediaConfig var (app/models/config.py satır 261-279)
@@ -116,7 +73,7 @@ if (activeTab === 'motion' && localSettings) {
 
 ---
 
-## 9. Frontend: MediaTab'ı Settings.tsx'e ekle
+## 6. Frontend: MediaTab'ı Settings.tsx'e ekle
 **Dosya:** `ui/src/pages/Settings.tsx`
 **Yapılacak:**
 - Satır 15'e import: `import { MediaTab } from '../components/tabs/MediaTab';`
@@ -126,7 +83,7 @@ if (activeTab === 'motion' && localSettings) {
 
 ---
 
-## 10. Frontend: api.ts DetectionConfig'e aspect_ratio ekle
+## 7. Frontend: api.ts DetectionConfig'e aspect_ratio ekle
 **Dosya:** `ui/src/types/api.ts` (satır 5-12)
 **Sorun:**
 - Backend'de aspect_ratio_min, aspect_ratio_max var (app/models/config.py satır 12-56)
@@ -147,7 +104,7 @@ export interface DetectionConfig {
 
 ---
 
-## 11. Frontend: DetectionTab'a inference_resolution ekle
+## 8. Frontend: DetectionTab'a inference_resolution ekle
 **Dosya:** `ui/src/components/tabs/DetectionTab.tsx`
 **Sorun:**
 - Backend'de inference_resolution var (tuple: [width, height])
@@ -169,7 +126,7 @@ export interface DetectionConfig {
 
 ---
 
-## 12. Frontend: DetectionTab'a aspect_ratio ekle
+## 9. Frontend: DetectionTab'a aspect_ratio ekle
 **Dosya:** `ui/src/components/tabs/DetectionTab.tsx`
 **Sorun:**
 - Backend'de aspect_ratio_min (0.3), aspect_ratio_max (3.0) var
@@ -194,7 +151,7 @@ export interface DetectionConfig {
 
 ---
 
-## 13. Frontend: DetectionTab'a enable_tracking ekle
+## 10. Frontend: DetectionTab'a enable_tracking ekle
 **Dosya:** `ui/src/components/tabs/DetectionTab.tsx`
 **Sorun:**
 - Backend'de enable_tracking var (gelecek özellik)
@@ -212,7 +169,7 @@ export interface DetectionConfig {
 
 ---
 
-## 14. Frontend: TelegramTab'a rate_limit_seconds ekle
+## 11. Frontend: TelegramTab'a rate_limit_seconds ekle
 **Dosya:** `ui/src/components/tabs/TelegramTab.tsx`
 **Sorun:**
 - Backend'de rate_limit_seconds var (default 10)
@@ -232,7 +189,7 @@ export interface DetectionConfig {
 
 ---
 
-## 15. Frontend: TelegramTab'a video_speed ekle
+## 12. Frontend: TelegramTab'a video_speed ekle
 **Dosya:** `ui/src/components/tabs/TelegramTab.tsx`
 **Sorun:**
 - Backend'de video_speed var (default 2.0)
@@ -252,7 +209,7 @@ export interface DetectionConfig {
 
 ---
 
-## 16. Frontend: TelegramTab'a event_types ekle
+## 13. Frontend: TelegramTab'a event_types ekle
 **Dosya:** `ui/src/components/tabs/TelegramTab.tsx`
 **Sorun:**
 - Backend'de event_types var (default: ["person", "vehicle", "animal", "other"])
@@ -283,7 +240,7 @@ export interface DetectionConfig {
 
 ---
 
-## 17. Frontend: TelegramTab'a cooldown_seconds ekle
+## 14. Frontend: TelegramTab'a cooldown_seconds ekle
 **Dosya:** `ui/src/components/tabs/TelegramTab.tsx`
 **Sorun:**
 - Backend'de cooldown_seconds var (default 30)
@@ -303,7 +260,7 @@ export interface DetectionConfig {
 
 ---
 
-## 18. Frontend: TelegramTab'a max_messages_per_min ekle
+## 15. Frontend: TelegramTab'a max_messages_per_min ekle
 **Dosya:** `ui/src/components/tabs/TelegramTab.tsx`
 **Sorun:**
 - Backend'de max_messages_per_min var (default 5)
@@ -323,7 +280,7 @@ export interface DetectionConfig {
 
 ---
 
-## 19. Frontend: RecordingTab'a cleanup_policy ekle
+## 16. Frontend: RecordingTab'a cleanup_policy ekle
 **Dosya:** `ui/src/components/tabs/RecordingTab.tsx`
 **Sorun:**
 - Backend'de cleanup_policy var (default "oldest_first")
@@ -346,7 +303,7 @@ export interface DetectionConfig {
 
 ---
 
-## 20. Frontend: RecordingTab'a delete_order ekle
+## 17. Frontend: RecordingTab'a delete_order ekle
 **Dosya:** `ui/src/components/tabs/RecordingTab.tsx`
 **Sorun:**
 - Backend'de delete_order var (default ["mp4", "gif", "collage"])
@@ -383,7 +340,7 @@ export interface DetectionConfig {
 
 ---
 
-## 21. Backend: Startup delay ekle - kameralar için 10 saniye bekleme
+## 18. Backend: Startup delay ekle - kameralar için 10 saniye bekleme
 **Dosya:** `app/main.py` (startup_event fonksiyonu)
 **Sorun:**
 - Sistem başlarken kameralar hemen bağlanmaya çalışıyor
@@ -432,7 +389,7 @@ async def startup_event():
 
 ---
 
-## 22. Frontend: Settings sayfası - Export/Import kaldır, Reset ekle
+## 19. Frontend: Settings sayfası - Export/Import kaldır, Reset ekle
 **Dosya:** `ui/src/pages/Settings.tsx`
 **Sorun:**
 - Her sayfanın üstünde Export JSON, Export CSV, Import JSON butonları var
@@ -476,7 +433,7 @@ async def startup_event():
 
 ---
 
-## 23. Frontend: Varsayılan tema pure-black yap
+## 20. Frontend: Varsayılan tema pure-black yap
 **Dosya:** `app/models/config.py` (satır 407-417)
 **Sorun:**
 - Varsayılan tema "slate" (gri)
@@ -500,8 +457,8 @@ class AppearanceConfig(BaseModel):
 ---
 
 ## ÖZET
-- **Toplam:** 23 görev
-- **Backend:** 4 görev (bulk delete API, recordings API kontrol, startup delay, reset endpoint)
-- **Frontend:** 19 görev (yeni sayfalar, tab'lar, form alanları, settings düzenleme)
-- **Yeni Dosyalar:** 3 (Recordings.tsx, MotionTab.tsx, MediaTab.tsx)
-- **Güncellenecek Dosyalar:** 9 (Events.tsx, main.py, config.py, api.ts, DetectionTab.tsx, TelegramTab.tsx, RecordingTab.tsx, Settings.tsx, Sidebar.tsx, App.tsx)
+- **Toplam:** 20 görev
+- **Backend:** 3 görev (bulk delete API, startup delay, reset endpoint + tema)
+- **Frontend:** 17 görev (tab'lar, form alanları, settings düzenleme)
+- **Yeni Dosyalar:** 2 (MotionTab.tsx, MediaTab.tsx)
+- **Güncellenecek Dosyalar:** 8 (Events.tsx, main.py, config.py, api.ts, DetectionTab.tsx, TelegramTab.tsx, RecordingTab.tsx, Settings.tsx, Sidebar.tsx)
