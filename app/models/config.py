@@ -373,10 +373,6 @@ class TelegramConfig(BaseModel):
         ge=1,
         description="Video acceleration factor"
     )
-    event_types: List[str] = Field(
-        default=["person"],
-        description="Event types to send notifications for"
-    )
     cooldown_seconds: int = Field(
         default=5,
         ge=0,
