@@ -49,6 +49,9 @@ export const Settings: React.FC = () => {
   }, []);
 
   const handleSave = useCallback(async () => {
+    if (!localSettings) {
+      return
+    }
     const updates: Partial<SettingsType> = {};
     
     switch (activeTab) {
@@ -81,12 +84,12 @@ export const Settings: React.FC = () => {
         break;
     }
 
-    const success = await saveSettings(updates);
-    if (success) {
-      setLocalSettings(settings);
+    const saved = await saveSettings(updates);
+    if (saved) {
+      setLocalSettings(saved);
       setIsDirty(false);
     }
-  }, [activeTab, localSettings, saveSettings, settings]);
+  }, [activeTab, localSettings, saveSettings]);
 
   const handleExport = async () => {
     if (!settings) return;

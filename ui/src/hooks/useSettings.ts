@@ -32,12 +32,12 @@ export const useSettings = () => {
       const data = await updateSettings(updates);
       setSettings(data);
       toast.success('Settings saved successfully');
-      return true;
+      return data;
     } catch (err) {
       const error = err as { response?: { data?: { detail?: { message?: string } } }; message?: string };
       const errorMsg = error.response?.data?.detail?.message || error.message || 'Failed to save settings';
       toast.error(errorMsg);
-      return false;
+      return null;
     }
   };
 
