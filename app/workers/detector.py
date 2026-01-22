@@ -186,6 +186,25 @@ class DetectorWorker:
             # Get settings
             config = self.settings_service.load_config()
             last_config_refresh = time.time()
+
+            # Initialize cooldown from last persisted event to survive restarts
+            db = next(get_session())
+            try:
+                latest = (
+                    db.query(Event)
+                    .filter(Event.camera_id == camera_id)
+                    .order_by(Event.timestamp.desc())
+                    .first()
+                )
+                if latest and latest.timestamp:
+                    self.last_event_time[camera_id] = latest.timestamp.timestamp()
+                    logger.info(
+                        "Loaded last event time for camera %s: %s",
+                        camera_id,
+                        latest.timestamp.isoformat(),
+                    )
+            finally:
+                db.close()
             
             # Determine detection source (auto mode support)
             detection_source = get_detection_source(camera.detection_source.value)
@@ -474,6 +493,24 @@ class DetectorWorker:
             db = next(get_session())
             
             try:
+                # Enforce cooldown against persisted events (handles restarts/multi-process)
+                if config.event.cooldown_seconds > 0:
+                    latest = (
+                        db.query(Event)
+                        .filter(Event.camera_id == camera.id)
+                        .order_by(Event.timestamp.desc())
+                        .first()
+                    )
+                    if latest and latest.timestamp:
+                        elapsed = (datetime.utcnow() - latest.timestamp).total_seconds()
+                        if elapsed < config.event.cooldown_seconds:
+                            logger.info(
+                                "Event suppressed by cooldown (db) camera=%s remaining=%.1fs",
+                                camera.id,
+                                config.event.cooldown_seconds - elapsed,
+                            )
+                            return
+
                 # Create event
                 event = self.event_service.create_event(
                     db=db,

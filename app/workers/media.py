@@ -100,15 +100,10 @@ class MediaWorker:
                 unique.append(item)
             return unique
 
-        def _fill_indices(indices: List[int], center_idx: int, total_frames: int) -> List[int]:
-            indices = [i for i in indices if 0 <= i < total_frames]
-            indices = _unique_preserve(indices)
-            if len(indices) >= self.COLLAGE_FRAMES:
-                return sorted(indices[:self.COLLAGE_FRAMES])
-            remaining = [i for i in range(total_frames) if i not in indices]
-            remaining.sort(key=lambda i: abs(i - center_idx))
-            indices.extend(remaining[: self.COLLAGE_FRAMES - len(indices)])
-            return sorted(indices)
+        def _pick_closest_index(unused: set, target_idx: int) -> Optional[int]:
+            if not unused:
+                return None
+            return min(unused, key=lambda i: abs(i - target_idx))
 
         total = len(frames)
         best_idx = total // 2
@@ -133,19 +128,30 @@ class MediaWorker:
             ]
             unused = set(range(total))
             indices = []
-            for target in target_times:
+            for slot, target in enumerate(target_times):
                 if not unused:
                     break
-                closest = min(unused, key=lambda i: abs(timestamps[i] - target))
+                if slot == 2 and best_idx in unused:
+                    closest = best_idx
+                else:
+                    closest = min(unused, key=lambda i: abs(timestamps[i] - target))
                 indices.append(closest)
                 unused.remove(closest)
-            indices = _fill_indices(indices, best_idx, total)
         else:
-            indices = _fill_indices(
-                [best_idx - 2, best_idx - 1, best_idx, best_idx + 1, best_idx + 2],
-                best_idx,
-                total,
-            )
+            unused = set(range(total))
+            target_indices = [best_idx - 2, best_idx - 1, best_idx, best_idx + 1, best_idx + 2]
+            indices = []
+            for slot, target in enumerate(target_indices):
+                if not unused:
+                    break
+                if slot == 2 and best_idx in unused:
+                    closest = best_idx
+                else:
+                    closest = _pick_closest_index(unused, target)
+                if closest is None:
+                    break
+                indices.append(closest)
+                unused.remove(closest)
         
         def _draw_badge(img: np.ndarray, text: str) -> None:
             (w, h), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.9, 2)
@@ -191,8 +197,8 @@ class MediaWorker:
                     2
                 )
             
-            # Add confidence on last frame
-            if idx == self.COLLAGE_FRAMES - 1:
+            # Add confidence on event frame (middle frame #3)
+            if idx == 2:
                 cv2.putText(
                     img,
                     f"{confidence:.0%}",

@@ -23,6 +23,7 @@ THERMAL_PROMPT_TR = (
     "Kamera: {camera_name}\n"
     "Kişi tespit edildi: X (yoksa 0 yaz)\n"
     "Not: Kişi yoksa 'Muhtemel yanlış alarm.' yaz; kişi varsa kısa hareket/konum ekle.\n"
+    "Bu tek bir kolaj görselidir, video değildir; akış uydurma.\n"
     "Kolaj 5 kare: 1-2 olay öncesi, 3 olay anı, 4-5 olay sonrası. Numaralara göre yorumla.\n"
     "Emin değilsen sayıyı 'en az X' yaz."
 )
@@ -33,6 +34,7 @@ COLOR_PROMPT_TR = (
     "Kamera: {camera_name}\n"
     "Kişi tespit edildi: X (yoksa 0 yaz)\n"
     "Not: Kişi yoksa 'Muhtemel yanlış alarm.' yaz; kişi varsa kısa hareket/konum ekle.\n"
+    "Bu tek bir kolaj görselidir, video değildir; akış uydurma.\n"
     "Kolaj 5 kare: 1-2 olay öncesi, 3 olay anı, 4-5 olay sonrası. Numaralara göre yorumla.\n"
     "Emin değilsen sayıyı 'en az X' yaz."
 )

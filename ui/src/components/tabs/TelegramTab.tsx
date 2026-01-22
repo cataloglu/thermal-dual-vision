@@ -16,7 +16,7 @@ interface TelegramTabProps {
 
 export const TelegramTab: React.FC<TelegramTabProps> = ({ config, onChange, onSave }) => {
   const { t } = useTranslation();
-  const [showBotToken, setShowBotToken] = useState(false);
+  const [showBotToken, setShowBotToken] = useState(true);
   const [chatIdInput, setChatIdInput] = useState('');
   const [testing, setTesting] = useState(false);
   const isBotMasked = config.bot_token === '***REDACTED***';
