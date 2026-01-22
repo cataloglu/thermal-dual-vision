@@ -12,25 +12,33 @@ Thermal kamera projesi var, çalışıyor ama bazı ayarlar/sayfalar eksik. Back
 - **Backend:** Python + FastAPI
 - **Frontend:** React + TypeScript + Tailwind
 
-## Görevler (20 tane)
+## Görevler (23 tane)
 
-### 🔴 Acil (1-5)
-1. Events sayfası - toplu silme düzelt (Select All üste, checkbox büyüt)
-2. Backend - bulk delete API ekle
-3. Backend - recordings API kontrol et
-4. Frontend - Recordings sayfası yap
-5. Frontend - Recordings route ekle
+1. Events toplu silme düzelt
+2. Backend bulk delete API
+3. Backend recordings API kontrol
+4. Recordings sayfası
+5. Recordings route
+6. MotionTab yap
+7. MotionTab entegre et
+8. MediaTab yap
+9. MediaTab entegre et
+10. DetectionConfig type güncelle
+11. DetectionTab inference_resolution
+12. DetectionTab aspect_ratio
+13. DetectionTab enable_tracking
+14. TelegramTab rate_limit_seconds
+15. TelegramTab video_speed
+16. TelegramTab event_types
+17. TelegramTab cooldown_seconds
+18. TelegramTab max_messages_per_min
+19. RecordingTab cleanup_policy
+20. RecordingTab delete_order
+21. Backend startup delay (10 saniye)
+22. Settings Export/Import kaldır, Reset ekle
+23. Varsayılan tema pure-black yap
 
-### 🟡 Önemli (6-9)
-6-7. MotionTab yap + entegre et
-8-9. MediaTab yap + entegre et
-
-### 🟢 Orta (10-18)
-10-13. DetectionTab'a 4 alan ekle
-14-18. TelegramTab'a 5 alan ekle
-
-### ⚪ Düşük (19-20)
-19-20. RecordingTab'a 2 alan ekle
+**Detaylar:** TODO.md'de her görev için kod örneği var
 
 ## Nasıl Başlayacaksın?
 
@@ -118,20 +126,55 @@ export const MotionTab: React.FC<MotionTabProps> = ({ config, onChange, onSave }
 - Loading state göster
 - Toast notification ver (başarı/hata)
 
-## Test
+## ⚠️ ÖNEMLİ: HER GÖREV İÇİN ZORUNLU
 
-Her görev bitince:
-- [ ] Kod çalışıyor
-- [ ] Console'da error yok
-- [ ] UI responsive
-- [ ] Dark theme uyumlu
+### 1. Görevi Yap
+### 2. TEST ET (atla geçme!)
+### 3. Console'a bak (F12)
+### 4. Çalışıyor mu? ✅ Sonraki göreve geç / ❌ Düzelt
+
+## Test Nasıl Yapılır?
+
+```bash
+# Frontend başlat
+cd ui
+npm run dev
+
+# Tarayıcıda aç
+http://localhost:5173
+
+# Yaptığın özelliği test et
+# Örnek: MotionTab yaptıysan
+# → Settings > Motion > Değerleri değiştir > Save > F5 yenile > Değerler kaldı mı?
+
+# Console'a bak (F12 > Console)
+# Error var mı? ❌ Varsa düzelt, ✅ Yoksa sonraki göreve geç
+```
+
+## 🚨 Hata Alırsan Ne Yapacaksın?
+
+### "Type 'MotionConfig' not found"
+→ `ui/src/types/api.ts` açmadın, type'ı ekle
+
+### "Cannot find module './MotionTab'"
+→ Import path yanlış, `../components/tabs/MotionTab` olacak
+
+### "config.motion is undefined"
+→ Settings.tsx'de case eklememiş olabilirsin
+
+### Console'da kırmızı error var
+→ F12 bas, Console tab'ına bak, error'u oku, TODO.md'de ara
+
+### Sayfa yenileyince değerler kayboldu
+→ Save fonksiyonu çalışmıyor, api.ts'ye bak
 
 ## Soru?
 
 1. TODO.md bak
 2. Benzer component bak
 3. Backend model bak (`app/models/config.py`)
-4. Sor
+4. Console'a bak (F12)
+5. Sor
 
 ## Örnek: MotionTab Yapma (Görev 6)
 
