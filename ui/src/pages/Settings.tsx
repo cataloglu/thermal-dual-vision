@@ -2,18 +2,20 @@
  * Settings page - Main settings interface
  */
 import React, { useCallback, useMemo, useState, useEffect } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useSettings } from '../hooks/useSettings';
 import { api } from '../services/api';
 import { TabId } from '../components/SettingsTabs';
 import { CamerasTab } from '../components/tabs/CamerasTab';
 import { DetectionTab } from '../components/tabs/DetectionTab';
+import { MotionTab } from '../components/tabs/MotionTab';
 import { ThermalTab } from '../components/tabs/ThermalTab';
 import { StreamTab } from '../components/tabs/StreamTab';
 import { ZonesTab } from '../components/tabs/ZonesTab';
 import { LiveTab } from '../components/tabs/LiveTab';
 import { RecordingTab } from '../components/tabs/RecordingTab';
 import { EventsTab } from '../components/tabs/EventsTab';
+import { MediaTab } from '../components/tabs/MediaTab';
 import { AITab } from '../components/tabs/AITab';
 import { TelegramTab } from '../components/tabs/TelegramTab';
 import { AppearanceTab } from '../components/tabs/AppearanceTab';
@@ -22,7 +24,6 @@ import type { Settings as SettingsType } from '../types/api';
 export const Settings: React.FC = () => {
   const { settings, loading, error, saveSettings } = useSettings();
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
   const defaultTab = (searchParams.get('tab') as TabId) || 'cameras';
   const [activeTab, setActiveTab] = useState<TabId>(defaultTab);
   const [localSettings, setLocalSettings] = useState<SettingsType | null>(null);
@@ -59,6 +60,9 @@ export const Settings: React.FC = () => {
         case 'detection':
           updates.detection = localSettings.detection;
           break;
+        case 'motion':
+          updates.motion = localSettings.motion;
+          break;
         case 'thermal':
           updates.thermal = localSettings.thermal;
           break;
@@ -73,6 +77,9 @@ export const Settings: React.FC = () => {
           break;
         case 'events':
           updates.event = localSettings.event;
+          break;
+        case 'media':
+          updates.media = localSettings.media;
           break;
         case 'ai':
           updates.ai = localSettings.ai;
@@ -135,6 +142,15 @@ export const Settings: React.FC = () => {
         />
       )
     }
+    if (activeTab === 'motion' && localSettings) {
+      return (
+        <MotionTab
+          config={localSettings.motion}
+          onChange={(motion) => updateLocalSettings({ ...localSettings, motion })}
+          onSave={handleSave}
+        />
+      )
+    }
     if (activeTab === 'thermal' && localSettings) {
       return (
         <ThermalTab
@@ -177,6 +193,15 @@ export const Settings: React.FC = () => {
         <EventsTab
           config={localSettings.event}
           onChange={(event) => updateLocalSettings({ ...localSettings, event })}
+          onSave={handleSave}
+        />
+      )
+    }
+    if (activeTab === 'media' && localSettings) {
+      return (
+        <MediaTab
+          config={localSettings.media}
+          onChange={(media) => updateLocalSettings({ ...localSettings, media })}
           onSave={handleSave}
         />
       )

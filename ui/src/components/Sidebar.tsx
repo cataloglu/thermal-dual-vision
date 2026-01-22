@@ -10,7 +10,8 @@ import {
   MdExpandMore,
   MdChevronRight,
   MdLanguage,
-  MdRefresh
+  MdRefresh,
+  MdVideoLibrary
 } from 'react-icons/md'
 import { useWebSocket } from '../hooks/useWebSocket'
 
@@ -41,18 +42,21 @@ export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
     { path: '/', icon: MdDashboard, label: t('dashboard') },
     { path: '/live', icon: MdVideocam, label: t('live') },
     { path: '/events', icon: MdEvent, label: t('events') },
+    { path: '/recordings', icon: MdVideoLibrary, label: t('recording') },
     { path: '/diagnostics', icon: MdSearch, label: t('diagnostics') },
   ]
 
   const settingsSubItems = [
     { tab: 'cameras', label: t('cameras') },
     { tab: 'detection', label: t('detection') },
+    { tab: 'motion', label: 'Motion' },
     { tab: 'thermal', label: t('thermal') },
     { tab: 'stream', label: 'Stream' },
     { tab: 'zones', label: t('zones') },
     { tab: 'live', label: t('live') },
     { tab: 'recording', label: t('recording') },
     { tab: 'events', label: t('events') },
+    { tab: 'media', label: 'Media' },
     { tab: 'ai', label: t('ai') },
     { tab: 'telegram', label: t('telegram') },
     { tab: 'appearance', label: t('appearance') },

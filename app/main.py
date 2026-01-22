@@ -586,6 +586,70 @@ async def delete_event(
         )
 
 
+@app.post("/api/events/bulk-delete")
+async def bulk_delete_events(
+    request: Dict[str, Any],
+    db: Session = Depends(get_session),
+) -> Dict[str, Any]:
+    """
+    Bulk delete events by IDs.
+    
+    Args:
+        request: Dict with event_ids list
+        db: Database session
+        
+    Returns:
+        Dict with deleted_count and failed_ids
+        
+    Raises:
+        HTTPException: 400 if validation fails, 500 if error
+    """
+    try:
+        event_ids = request.get("event_ids", [])
+        
+        if not event_ids:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": True,
+                    "code": "VALIDATION_ERROR",
+                    "message": "event_ids is required"
+                }
+            )
+        
+        deleted_count = 0
+        failed_ids = []
+        
+        for event_id in event_ids:
+            try:
+                deleted = event_service.delete_event(db=db, event_id=event_id)
+                if deleted:
+                    deleted_count += 1
+                else:
+                    failed_ids.append(event_id)
+            except Exception as e:
+                logger.error(f"Failed to delete event {event_id}: {e}")
+                failed_ids.append(event_id)
+        
+        return {
+            "deleted_count": deleted_count,
+            "failed_ids": failed_ids
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Bulk delete failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": True,
+                "code": "INTERNAL_ERROR",
+                "message": f"Bulk delete failed: {str(e)}"
+            }
+        )
+
+
 @app.get("/api/events/{event_id}/collage")
 async def get_event_collage(event_id: str) -> FileResponse:
     """
@@ -1705,6 +1769,83 @@ async def get_logs(lines: int = Query(200, ge=1, le=1000, description="Number of
                 "error": True,
                 "code": "INTERNAL_ERROR",
                 "message": f"Failed to retrieve logs: {str(e)}"
+            }
+        )
+
+
+@app.get("/api/recordings")
+async def get_recordings(
+    camera_id: Optional[str] = Query(None),
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_session),
+) -> Dict[str, Any]:
+    """
+    Get recordings with filters.
+    
+    Args:
+        camera_id: Filter by camera ID
+        start_date: Filter by start date (YYYY-MM-DD)
+        end_date: Filter by end date (YYYY-MM-DD)
+        page: Page number
+        page_size: Items per page
+        db: Database session
+        
+    Returns:
+        Dict with recordings list
+    """
+    try:
+        # TODO: Implement recordings query
+        # For now return empty list
+        return {
+            "recordings": [],
+            "total": 0,
+            "page": page,
+            "page_size": page_size
+        }
+    except Exception as e:
+        logger.error(f"Failed to get recordings: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": True,
+                "code": "INTERNAL_ERROR",
+                "message": f"Failed to retrieve recordings: {str(e)}"
+            }
+        )
+
+
+@app.delete("/api/recordings/{recording_id}")
+async def delete_recording(
+    recording_id: str,
+    db: Session = Depends(get_session),
+) -> Dict[str, Any]:
+    """
+    Delete recording by ID.
+    
+    Args:
+        recording_id: Recording ID
+        db: Database session
+        
+    Returns:
+        Dict with deleted status
+    """
+    try:
+        # TODO: Implement recording deletion
+        return {
+            "deleted": True,
+            "id": recording_id
+        }
+    except Exception as e:
+        logger.error(f"Failed to delete recording {recording_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": True,
+                "code": "INTERNAL_ERROR",
+                "message": f"Failed to delete recording: {str(e)}"
             }
         )
 

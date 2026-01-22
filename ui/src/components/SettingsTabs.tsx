@@ -6,12 +6,14 @@ import React from 'react';
 export type TabId = 
   | 'cameras'
   | 'detection'
+  | 'motion'
   | 'thermal'
   | 'stream'
   | 'zones'
   | 'live'
   | 'recording'
   | 'events'
+  | 'media'
   | 'ai'
   | 'telegram'
   | 'appearance';
