@@ -123,54 +123,48 @@ export const RecordingTab: React.FC<RecordingTabProps> = ({ config, onChange, on
               </p>
             </div>
 
-            {/* TASK 20: Delete Order */}
+            {/* TASK 20: Delete Order - FIXED */}
             <div>
               <label className="block text-sm font-medium text-text mb-2">
                 Delete Order
               </label>
               <div className="space-y-2">
-                {config.delete_order.map((type, index) => {
-                  const moveUp = () => {
-                    if (index === 0) return
-                    const next = [...config.delete_order]
-                    const temp = next[index]
-                    next[index] = next[index - 1]
-                    next[index - 1] = temp
-                    onChange({ ...config, delete_order: next })
-                  }
-                  
-                  const moveDown = () => {
-                    if (index === config.delete_order.length - 1) return
-                    const next = [...config.delete_order]
-                    const temp = next[index]
-                    next[index] = next[index + 1]
-                    next[index + 1] = temp
-                    onChange({ ...config, delete_order: next })
-                  }
-                  
-                  return (
-                    <div key={type} className="flex items-center gap-2 p-2 bg-surface2 rounded">
-                      <span className="text-muted">{index + 1}.</span>
-                      <span className="flex-1 capitalize text-text">{type}</span>
-                      <button
-                        type="button"
-                        onClick={moveUp}
-                        disabled={index === 0}
-                        className="px-2 py-1 bg-surface1 border border-border text-text rounded hover:bg-surface1/80 disabled:opacity-30 text-sm"
-                      >
-                        ↑
-                      </button>
-                      <button
-                        type="button"
-                        onClick={moveDown}
-                        disabled={index === config.delete_order.length - 1}
-                        className="px-2 py-1 bg-surface1 border border-border text-text rounded hover:bg-surface1/80 disabled:opacity-30 text-sm"
-                      >
-                        ↓
-                      </button>
-                    </div>
-                  )
-                })}
+                {config.delete_order.map((type, idx) => (
+                  <div key={`${type}-${idx}`} className="flex items-center gap-2 p-2 bg-surface2 rounded">
+                    <span className="text-muted">{idx + 1}.</span>
+                    <span className="flex-1 capitalize text-text">{type}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (idx === 0) return
+                        const next = [...config.delete_order]
+                        const temp = next[idx]
+                        next[idx] = next[idx - 1]
+                        next[idx - 1] = temp
+                        onChange({ ...config, delete_order: next })
+                      }}
+                      disabled={idx === 0}
+                      className="px-2 py-1 bg-surface1 border border-border text-text rounded hover:bg-surface1/80 disabled:opacity-30 text-sm"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (idx === config.delete_order.length - 1) return
+                        const next = [...config.delete_order]
+                        const temp = next[idx]
+                        next[idx] = next[idx + 1]
+                        next[idx + 1] = temp
+                        onChange({ ...config, delete_order: next })
+                      }}
+                      disabled={idx === config.delete_order.length - 1}
+                      className="px-2 py-1 bg-surface1 border border-border text-text rounded hover:bg-surface1/80 disabled:opacity-30 text-sm"
+                    >
+                      ↓
+                    </button>
+                  </div>
+                ))}
               </div>
               <p className="text-xs text-muted mt-1">
                 Order in which media types are deleted (first = deleted first)
