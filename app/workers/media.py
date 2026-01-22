@@ -147,6 +147,27 @@ class MediaWorker:
                 total,
             )
         
+        def _draw_badge(img: np.ndarray, text: str) -> None:
+            (w, h), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.9, 2)
+            pad = 10
+            x, y = 10, 10
+            cv2.rectangle(
+                img,
+                (x, y),
+                (x + w + pad * 2, y + h + pad * 2),
+                self.COLOR_ACCENT,
+                -1,
+            )
+            cv2.putText(
+                img,
+                text,
+                (x + pad, y + h + pad),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.9,
+                self.COLOR_WHITE,
+                2,
+            )
+
         # Select 5 evenly distributed frames
         selected = [frames[i] for i in indices]
         
@@ -155,23 +176,15 @@ class MediaWorker:
         for idx, frame in enumerate(selected):
             img = cv2.resize(frame, self.COLLAGE_FRAME_SIZE)
             
-            # Add frame number
-            cv2.putText(
-                img,
-                f"{idx + 1}/{self.COLLAGE_FRAMES}",
-                (10, 30),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.7,
-                self.COLOR_WHITE,
-                2
-            )
+            # Add frame number badge (1-5)
+            _draw_badge(img, str(idx + 1))
             
             # Add timestamp on first frame
             if idx == 0 and timestamp:
                 cv2.putText(
                     img,
                     timestamp.strftime("%H:%M:%S"),
-                    (10, 60),
+                    (10, 70),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.6,
                     self.COLOR_WHITE,
@@ -266,6 +279,28 @@ class MediaWorker:
         for idx, frame in enumerate(selected):
             # Resize
             img = cv2.resize(frame, self.GIF_SIZE)
+
+            # Add frame number badge
+            badge_text = str(idx + 1)
+            (w, h), _ = cv2.getTextSize(badge_text, cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2)
+            pad = 8
+            x, y = 10, 10
+            cv2.rectangle(
+                img,
+                (x, y),
+                (x + w + pad * 2, y + h + pad * 2),
+                self.COLOR_ACCENT,
+                -1,
+            )
+            cv2.putText(
+                img,
+                badge_text,
+                (x + pad, y + h + pad),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.8,
+                self.COLOR_WHITE,
+                2,
+            )
             
             # Add timestamp
             if timestamp:
@@ -273,7 +308,7 @@ class MediaWorker:
                 cv2.putText(
                     img,
                     frame_time.strftime("%H:%M:%S"),
-                    (10, 30),
+                    (10, 40),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.7,
                     self.COLOR_WHITE,

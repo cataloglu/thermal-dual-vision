@@ -73,6 +73,8 @@ class DetectorWorker:
         self.zone_cache: Dict[str, Dict[str, Any]] = defaultdict(dict)
         self.last_status_update: Dict[str, float] = {}
         self.codec_cache: Dict[str, str] = {}
+        self.last_detection_log: Dict[str, float] = {}
+        self.last_gate_log: Dict[str, float] = {}
         
         logger.info("DetectorWorker initialized")
     
@@ -183,6 +185,7 @@ class DetectorWorker:
         try:
             # Get settings
             config = self.settings_service.load_config()
+            last_config_refresh = time.time()
             
             # Determine detection source (auto mode support)
             detection_source = get_detection_source(camera.detection_source.value)
@@ -257,6 +260,9 @@ class DetectorWorker:
             
             while self.running:
                 current_time = time.time()
+                if current_time - last_config_refresh >= 5:
+                    config = self.settings_service.load_config()
+                    last_config_refresh = current_time
                 
                 # Dynamic FPS based on CPU load
                 if current_time - last_cpu_check >= 5.0:
@@ -327,6 +333,24 @@ class DetectorWorker:
                 # Update detection history
                 detections = self._filter_detections_by_zones(camera, detections, frame.shape)
                 self.detection_history[camera_id].append(detections)
+
+                # Periodic detection log (every 5s)
+                last_log = self.last_detection_log.get(camera_id, 0.0)
+                if current_time - last_log >= 5:
+                    best_conf = max((d.get("confidence", 0.0) for d in detections), default=0.0)
+                    logger.info(
+                        "Detections camera=%s count=%s best_conf=%.2f",
+                        camera_id,
+                        len(detections),
+                        best_conf,
+                    )
+                    self.last_detection_log[camera_id] = current_time
+
+                def _log_gate(reason: str) -> None:
+                    last_gate = self.last_gate_log.get(camera_id, 0.0)
+                    if current_time - last_gate >= 5:
+                        logger.info("Event gate camera=%s %s", camera_id, reason)
+                        self.last_gate_log[camera_id] = current_time
                 
                 # Check temporal consistency
                 if not self.inference_service.check_temporal_consistency(
@@ -336,24 +360,34 @@ class DetectorWorker:
                     max_gap_frames=2,
                 ):
                     self.event_start_time[camera_id] = None
+                    _log_gate("temporal_consistency_failed")
                     continue
                 
                 # Check if person detected
                 if len(detections) == 0:
                     self.event_start_time[camera_id] = None
+                    _log_gate("no_detections")
                     continue
 
                 # Enforce minimum event duration
                 start_time = self.event_start_time.get(camera_id)
                 if start_time is None:
                     self.event_start_time[camera_id] = current_time
+                    _log_gate("event_started_waiting_min_duration")
                     continue
                 if current_time - start_time < config.event.min_event_duration:
+                    _log_gate(
+                        f"min_duration_wait elapsed={current_time - start_time:.1f}s "
+                        f"required={config.event.min_event_duration:.1f}s"
+                    )
                     continue
                 
                 # Check event cooldown
                 last_event = self.last_event_time.get(camera_id, 0)
                 if current_time - last_event < config.event.cooldown_seconds:
+                    _log_gate(
+                        f"cooldown_active remaining={config.event.cooldown_seconds - (current_time - last_event):.1f}s"
+                    )
                     continue
                 
                 # Create event

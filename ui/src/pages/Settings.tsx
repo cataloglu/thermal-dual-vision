@@ -48,40 +48,42 @@ export const Settings: React.FC = () => {
     setIsDirty(true);
   }, []);
 
-  const handleSave = useCallback(async () => {
+  const handleSave = useCallback(async (override?: Partial<SettingsType>) => {
     if (!localSettings) {
       return
     }
-    const updates: Partial<SettingsType> = {};
+    const updates: Partial<SettingsType> = override ?? {};
     
-    switch (activeTab) {
-      case 'detection':
-        updates.detection = localSettings.detection;
-        break;
-      case 'thermal':
-        updates.thermal = localSettings.thermal;
-        break;
-      case 'stream':
-        updates.stream = localSettings.stream;
-        break;
-      case 'live':
-        updates.live = localSettings.live;
-        break;
-      case 'recording':
-        updates.record = localSettings.record;
-        break;
-      case 'events':
-        updates.event = localSettings.event;
-        break;
-      case 'ai':
-        updates.ai = localSettings.ai;
-        break;
-      case 'telegram':
-        updates.telegram = localSettings.telegram;
-        break;
-      case 'appearance':
-        updates.appearance = localSettings.appearance;
-        break;
+    if (!override) {
+      switch (activeTab) {
+        case 'detection':
+          updates.detection = localSettings.detection;
+          break;
+        case 'thermal':
+          updates.thermal = localSettings.thermal;
+          break;
+        case 'stream':
+          updates.stream = localSettings.stream;
+          break;
+        case 'live':
+          updates.live = localSettings.live;
+          break;
+        case 'recording':
+          updates.record = localSettings.record;
+          break;
+        case 'events':
+          updates.event = localSettings.event;
+          break;
+        case 'ai':
+          updates.ai = localSettings.ai;
+          break;
+        case 'telegram':
+          updates.telegram = localSettings.telegram;
+          break;
+        case 'appearance':
+          updates.appearance = localSettings.appearance;
+          break;
+      }
     }
 
     const saved = await saveSettings(updates);
@@ -193,7 +195,9 @@ export const Settings: React.FC = () => {
         <TelegramTab
           config={localSettings.telegram}
           onChange={(telegram) => updateLocalSettings({ ...localSettings, telegram })}
-          onSave={handleSave}
+          onSave={(nextTelegram) =>
+            handleSave({ telegram: nextTelegram ?? localSettings.telegram })
+          }
         />
       )
     }

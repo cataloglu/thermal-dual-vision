@@ -18,28 +18,23 @@ logger = logging.getLogger(__name__)
 # Prompt templates
 THERMAL_PROMPT_TR = (
     "TERMAL güvenlik kamerası görüntüsü. Türkçe yaz, renk uydurma. "
-    "Isıya göre anlat: çok sıcak/sıcak/ılık/soğuk/çok soğuk. "
-    "Detaylı ama kısa bir güvenlik raporu yaz (3-6 satır). "
-    'İnsan varsa "Kamerada X kişi tespit edildi..." ile başla (emin değilsen "en az X"). '
-    'İnsan yoksa "Kamerada insan tespit edilmedi (no human)." yaz. '
-    "İnsan/araç/hayvan sayısını ve hareket/konum bilgisini ekle. "
-    "Termal sahnede dikkat çeken sıcak/ılık/soğuk alanları belirt. "
-    'İnsan/araç/hayvan yoksa ve belirgin hedef yoksa "Muhtemel yanlış alarm." ekle. '
-    'İnsan/araç/hayvan varsa "yanlış alarm" yazma. '
-    'Görüntü çok karanlık/bulanık/boşsa ve hedef yoksa "Görüntü seçilemiyor, muhtemel yanlış alarm." yaz. '
-    "Liste/numara kullanabilirsin, emoji kullanma."
+    "Isı/sıcaklık ile ilgili hiçbir şey yazma (sıcak/ılık/soğuk dahil). "
+    "Çıktıyı tam şu formatta yaz (2-3 satır):\n"
+    "Kamera: {camera_name}\n"
+    "Kişi tespit edildi: X (yoksa 0 yaz)\n"
+    "Not: Kişi yoksa 'Muhtemel yanlış alarm.' yaz; kişi varsa kısa hareket/konum ekle.\n"
+    "Kolaj 5 kare: 1-2 olay öncesi, 3 olay anı, 4-5 olay sonrası. Numaralara göre yorumla.\n"
+    "Emin değilsen sayıyı 'en az X' yaz."
 )
 
 COLOR_PROMPT_TR = (
     "Renkli güvenlik kamerası görüntüsü. Türkçe yaz. "
-    "Detaylı ama kısa bir güvenlik raporu yaz (3-6 satır). "
-    'İnsan varsa "Kamerada X kişi tespit edildi..." ile başla (emin değilsen "en az X"). '
-    'İnsan yoksa "Kamerada insan tespit edilmedi (no human)." yaz. '
-    "İnsan/araç/hayvan sayısını ve hareket/konum bilgisini ekle. "
-    'İnsan/araç/hayvan yoksa ve belirgin hedef yoksa "Muhtemel yanlış alarm." ekle. '
-    'İnsan/araç/hayvan varsa "yanlış alarm" yazma. '
-    'Görüntü çok karanlık/bulanık/boşsa ve hedef yoksa "Görüntü seçilemiyor, muhtemel yanlış alarm." yaz. '
-    "Liste/numara kullanabilirsin, emoji kullanma."
+    "Çıktıyı tam şu formatta yaz (2-3 satır):\n"
+    "Kamera: {camera_name}\n"
+    "Kişi tespit edildi: X (yoksa 0 yaz)\n"
+    "Not: Kişi yoksa 'Muhtemel yanlış alarm.' yaz; kişi varsa kısa hareket/konum ekle.\n"
+    "Kolaj 5 kare: 1-2 olay öncesi, 3 olay anı, 4-5 olay sonrası. Numaralara göre yorumla.\n"
+    "Emin değilsen sayıyı 'en az X' yaz."
 )
 
 

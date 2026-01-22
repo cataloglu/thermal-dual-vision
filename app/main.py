@@ -1566,8 +1566,17 @@ async def test_ai_event(
         )
 
 
+class TelegramTestRequest(BaseModel):
+    bot_token: str
+    chat_ids: List[str]
+    event_id: Optional[str] = None
+
+
 @app.post("/api/telegram/test")
-async def test_telegram(request: Dict[str, Any]) -> Dict[str, Any]:
+async def test_telegram(
+    request: TelegramTestRequest,
+    db: Session = Depends(get_session),
+) -> Dict[str, Any]:
     """
     Test Telegram bot connection.
     
@@ -1581,8 +1590,8 @@ async def test_telegram(request: Dict[str, Any]) -> Dict[str, Any]:
         HTTPException: 400 if validation fails, 500 if test fails
     """
     try:
-        bot_token = request.get("bot_token")
-        chat_ids = request.get("chat_ids", [])
+        bot_token = request.bot_token
+        chat_ids = request.chat_ids
         
         if not bot_token:
             raise HTTPException(
@@ -1604,7 +1613,38 @@ async def test_telegram(request: Dict[str, Any]) -> Dict[str, Any]:
                 }
             )
         
-        # Test connection
+        # Try to send a sample with latest event media (if available)
+        event = None
+        if request.event_id:
+            event = event_service.get_event_by_id(db=db, event_id=request.event_id)
+        if not event:
+            event = db.query(Event).order_by(Event.timestamp.desc()).first()
+
+        if event:
+            camera_name = "Test Camera"
+            camera = db.query(Camera).filter(Camera.id == event.camera_id).first()
+            if camera and camera.name:
+                camera_name = camera.name
+
+            message = f"🧪 Telegram test\n📹 {camera_name}"
+            collage_path = media_service.get_media_path(event.id, "collage")
+            gif_path = media_service.get_media_path(event.id, "gif")
+
+            bot = Bot(token=bot_token)
+            for chat_id in chat_ids:
+                if collage_path and collage_path.exists():
+                    with open(collage_path, "rb") as photo:
+                        await bot.send_photo(chat_id=chat_id, photo=photo, caption=message)
+                else:
+                    await bot.send_message(chat_id=chat_id, text=message)
+
+                if gif_path and gif_path.exists():
+                    with open(gif_path, "rb") as gif:
+                        await bot.send_document(chat_id=chat_id, document=gif, caption="🎬 Event Animation")
+
+            return {"success": True, "message": "Telegram test message sent"}
+
+        # Fallback: basic connection test
         result = await telegram_service.test_connection(bot_token, chat_ids)
         
         if not result["success"]:
@@ -1633,86 +1673,6 @@ async def test_telegram(request: Dict[str, Any]) -> Dict[str, Any]:
         )
 
 
-class TelegramSampleTestRequest(BaseModel):
-    bot_token: str
-    chat_ids: List[str]
-    event_id: Optional[str] = None
-
-
-@app.post("/api/telegram/test-sample")
-async def test_telegram_sample(
-    request: TelegramSampleTestRequest,
-    db: Session = Depends(get_session),
-) -> Dict[str, Any]:
-    """
-    Send a sample Telegram message with an event image if available.
-    """
-    try:
-        if not request.bot_token:
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": True,
-                    "code": "VALIDATION_ERROR",
-                    "message": "bot_token is required"
-                }
-            )
-        if not request.chat_ids:
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": True,
-                    "code": "VALIDATION_ERROR",
-                    "message": "chat_ids is required"
-                }
-            )
-
-        event = None
-        if request.event_id:
-            event = event_service.get_event_by_id(db=db, event_id=request.event_id)
-        if not event:
-            event = db.query(Event).order_by(Event.timestamp.desc()).first()
-
-        camera_name = "Test Camera"
-        if event:
-            camera = db.query(Camera).filter(Camera.id == event.camera_id).first()
-            if camera and camera.name:
-                camera_name = camera.name
-
-        message = f"🧪 Telegram test\n📹 {camera_name}"
-
-        collage_path = None
-        gif_path = None
-        if event:
-            collage_path = media_service.get_media_path(event.id, "collage")
-            gif_path = media_service.get_media_path(event.id, "gif")
-
-        bot = Bot(token=request.bot_token)
-        for chat_id in request.chat_ids:
-            if collage_path and collage_path.exists():
-                with open(collage_path, "rb") as photo:
-                    await bot.send_photo(chat_id=chat_id, photo=photo, caption=message)
-            else:
-                await bot.send_message(chat_id=chat_id, text=message)
-
-            if gif_path and gif_path.exists():
-                with open(gif_path, "rb") as gif:
-                    await bot.send_document(chat_id=chat_id, document=gif, caption="🎬 Event Animation")
-
-        return {"success": True, "message": "Telegram test message sent"}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Telegram test sample failed: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error": True,
-                "code": "INTERNAL_ERROR",
-                "message": f"Telegram test failed: {str(e)}"
-            }
-        )
 
 
 @app.get("/api/logs")

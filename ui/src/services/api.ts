@@ -99,13 +99,8 @@ export const testCamera = async (request: CameraTestRequest): Promise<CameraTest
   return response.data;
 };
 
-export const testTelegram = async (payload: { bot_token: string; chat_ids: string[] }) => {
+export const testTelegram = async (payload: { bot_token: string; chat_ids: string[]; event_id?: string }) => {
   const response = await apiClient.post('/telegram/test', payload);
-  return response.data;
-};
-
-export const testTelegramSample = async (payload: { bot_token: string; chat_ids: string[]; event_id?: string }) => {
-  const response = await apiClient.post('/telegram/test-sample', payload);
   return response.data;
 };
 
@@ -180,7 +175,6 @@ export const api = {
   stopRecording,
   testCamera,
   testTelegram,
-  testTelegramSample,
   testAiEvent,
   getEvents,
   getEvent,

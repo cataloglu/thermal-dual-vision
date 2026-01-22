@@ -11,7 +11,7 @@ import { api } from '../../services/api';
 interface TelegramTabProps {
   config: TelegramConfig;
   onChange: (config: TelegramConfig) => void;
-  onSave: () => void;
+  onSave: (nextConfig?: TelegramConfig) => void;
 }
 
 export const TelegramTab: React.FC<TelegramTabProps> = ({ config, onChange, onSave }) => {
@@ -23,6 +23,7 @@ export const TelegramTab: React.FC<TelegramTabProps> = ({ config, onChange, onSa
   const [botTokenDraft, setBotTokenDraft] = useState('');
   const [lastTestedToken, setLastTestedToken] = useState<string | null>(null);
   const [testSuccess, setTestSuccess] = useState(false);
+  const maskedDisplay = '********';
 
   const isValidBotToken = (value: string) => /^\d+:[A-Za-z0-9_-]{20,}$/.test(value);
   const isValidChatId = (value: string) => /^-?\d+$/.test(value);
@@ -43,27 +44,50 @@ export const TelegramTab: React.FC<TelegramTabProps> = ({ config, onChange, onSa
     onChange({ ...config, chat_ids: config.chat_ids.filter(id => id !== chatId) });
   };
 
+  const applyPendingChatId = () => {
+    const trimmed = chatIdInput.trim();
+    if (!trimmed) {
+      return config;
+    }
+    if (!isValidChatId(trimmed)) {
+      toast.error(t('invalidChatId'));
+      return null;
+    }
+    if (config.chat_ids.includes(trimmed)) {
+      setChatIdInput('');
+      return config;
+    }
+    const next = { ...config, chat_ids: [...config.chat_ids, trimmed] };
+    onChange(next);
+    setChatIdInput('');
+    return next;
+  };
+
   const handleSave = () => {
+    const nextConfig = applyPendingChatId();
+    if (!nextConfig) {
+      return;
+    }
     if (
-      config.enabled &&
-      config.bot_token &&
-      config.bot_token !== '***REDACTED***' &&
-      !isValidBotToken(config.bot_token)
+      nextConfig.enabled &&
+      nextConfig.bot_token &&
+      nextConfig.bot_token !== '***REDACTED***' &&
+      !isValidBotToken(nextConfig.bot_token)
     ) {
       toast.error(t('invalidBotToken'));
       return;
     }
-    if (config.enabled && config.chat_ids.some((chatId) => !isValidChatId(chatId))) {
+    if (nextConfig.enabled && nextConfig.chat_ids.some((chatId) => !isValidChatId(chatId))) {
       toast.error(t('invalidChatId'));
       return;
     }
-    if (config.enabled && config.bot_token && config.bot_token !== '***REDACTED***') {
-      if (!testSuccess || lastTestedToken !== config.bot_token) {
+    if (nextConfig.enabled && nextConfig.bot_token && nextConfig.bot_token !== '***REDACTED***') {
+      if (!testSuccess || lastTestedToken !== nextConfig.bot_token) {
         toast.error(t('telegramTokenTestRequired'));
         return;
       }
     }
-    onSave();
+    onSave(nextConfig);
   };
 
   useEffect(() => {
@@ -75,21 +99,25 @@ export const TelegramTab: React.FC<TelegramTabProps> = ({ config, onChange, onSa
   }, [config.bot_token, isBotMasked]);
 
   const handleTest = async () => {
+    const nextConfig = applyPendingChatId();
+    if (!nextConfig) {
+      return;
+    }
     if (!botTokenDraft || botTokenDraft === '***REDACTED***') {
       toast.error(t('invalidBotToken'));
       return;
     }
-    if (config.chat_ids.length === 0) {
+    if (nextConfig.chat_ids.length === 0) {
       toast.error(t('invalidChatId'));
       return;
     }
     setTesting(true);
     try {
-      await api.testTelegramSample({ bot_token: botTokenDraft, chat_ids: config.chat_ids });
+      await api.testTelegram({ bot_token: botTokenDraft, chat_ids: nextConfig.chat_ids });
       setTestSuccess(true);
       setLastTestedToken(botTokenDraft);
-      onChange({ ...config, bot_token: botTokenDraft });
-      onSave();
+      onChange({ ...nextConfig, bot_token: botTokenDraft });
+      onSave({ ...nextConfig, bot_token: botTokenDraft });
       toast.success(t('telegramTestSuccess'));
     } catch (error) {
       toast.error(t('telegramTestFailed'));
@@ -136,8 +164,16 @@ export const TelegramTab: React.FC<TelegramTabProps> = ({ config, onChange, onSa
               <div className="relative">
                 <input
                   type={showBotToken ? 'text' : 'password'}
-                  value={botTokenDraft}
+                  value={botTokenDraft || (isBotMasked ? maskedDisplay : '')}
+                  onFocus={() => {
+                    if (isBotMasked && !botTokenDraft) {
+                      setBotTokenDraft('');
+                    }
+                  }}
                   onChange={(e) => {
+                    if (isBotMasked && !botTokenDraft && e.target.value === maskedDisplay) {
+                      return;
+                    }
                     setBotTokenDraft(e.target.value);
                     setTestSuccess(false);
                     onChange({ ...config, bot_token: e.target.value });
