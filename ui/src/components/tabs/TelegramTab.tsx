@@ -268,6 +268,104 @@ export const TelegramTab: React.FC<TelegramTabProps> = ({ config, onChange, onSa
               </p>
             </div>
 
+            {/* TASK 14: Rate Limit */}
+            <div>
+              <label className="block text-sm font-medium text-text mb-2">
+                Rate Limit (seconds)
+              </label>
+              <input
+                type="number"
+                min="0"
+                max="300"
+                value={config.rate_limit_seconds}
+                onChange={(e) => onChange({ ...config, rate_limit_seconds: parseInt(e.target.value) || 10 })}
+                className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
+              />
+              <p className="text-xs text-muted mt-1">
+                Minimum wait time between same event notifications
+              </p>
+            </div>
+
+            {/* TASK 15: Video Speed */}
+            <div>
+              <label className="block text-sm font-medium text-text mb-2">
+                Video Speed: {config.video_speed}x
+              </label>
+              <input
+                type="range"
+                min="1"
+                max="10"
+                step="0.5"
+                value={config.video_speed}
+                onChange={(e) => onChange({ ...config, video_speed: parseFloat(e.target.value) })}
+                className="w-full h-2 bg-surface2 rounded-lg appearance-none cursor-pointer accent-accent"
+              />
+              <p className="text-xs text-muted mt-1">
+                Timelapse speed multiplier
+              </p>
+            </div>
+
+            {/* TASK 16: Event Types */}
+            <div>
+              <label className="block text-sm font-medium text-text mb-2">
+                Event Types to Notify
+              </label>
+              <div className="space-y-2">
+                {['person', 'vehicle', 'animal', 'other'].map((type) => (
+                  <label key={type} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={config.event_types.includes(type)}
+                      onChange={(e) => {
+                        const next = e.target.checked 
+                          ? [...config.event_types, type] 
+                          : config.event_types.filter(t => t !== type)
+                        onChange({ ...config, event_types: next })
+                      }}
+                      className="w-4 h-4 accent-accent"
+                    />
+                    <span className="text-text capitalize">{type}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* TASK 17: Cooldown */}
+            <div>
+              <label className="block text-sm font-medium text-text mb-2">
+                Cooldown (seconds)
+              </label>
+              <input
+                type="number"
+                min="0"
+                max="600"
+                value={config.cooldown_seconds}
+                onChange={(e) => onChange({ ...config, cooldown_seconds: parseInt(e.target.value) || 30 })}
+                className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
+              />
+              <p className="text-xs text-muted mt-1">
+                Minimum wait time between any notifications
+              </p>
+            </div>
+
+            {/* TASK 18: Max Messages Per Minute */}
+            <div>
+              <label className="block text-sm font-medium text-text mb-2">
+                Max Messages Per Minute
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="60"
+                value={config.max_messages_per_min}
+                onChange={(e) => onChange({ ...config, max_messages_per_min: parseInt(e.target.value) || 5 })}
+                className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
+              />
+              <p className="text-xs text-muted mt-1">
+                Rate limiting to prevent spam
+              </p>
+            </div>
+
             <button
               onClick={handleTest}
               disabled={testing}

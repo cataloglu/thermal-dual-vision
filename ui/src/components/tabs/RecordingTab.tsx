@@ -104,6 +104,66 @@ export const RecordingTab: React.FC<RecordingTabProps> = ({ config, onChange, on
                 Her kayıt segmentinin uzunluğu
               </p>
             </div>
+
+            {/* TASK 19: Cleanup Policy */}
+            <div>
+              <label className="block text-sm font-medium text-text mb-2">
+                Cleanup Policy
+              </label>
+              <select
+                value={config.cleanup_policy}
+                onChange={(e) => onChange({ ...config, cleanup_policy: e.target.value as 'oldest_first' | 'lowest_confidence' })}
+                className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
+              >
+                <option value="oldest_first">Delete Oldest First</option>
+                <option value="lowest_confidence">Delete Lowest Confidence First</option>
+              </select>
+              <p className="text-xs text-muted mt-1">
+                Which recordings to delete when disk is full
+              </p>
+            </div>
+
+            {/* TASK 20: Delete Order */}
+            <div>
+              <label className="block text-sm font-medium text-text mb-2">
+                Delete Order (drag to reorder)
+              </label>
+              <div className="space-y-2">
+                {config.delete_order.map((type, index) => (
+                  <div key={type} className="flex items-center gap-2 p-2 bg-surface2 rounded">
+                    <span className="text-muted">{index + 1}.</span>
+                    <span className="flex-1 capitalize text-text">{type}</span>
+                    <button
+                      onClick={() => {
+                        if (index === 0) return
+                        const next = [...config.delete_order]
+                        ;[next[index], next[index - 1]] = [next[index - 1], next[index]]
+                        onChange({ ...config, delete_order: next })
+                      }}
+                      disabled={index === 0}
+                      className="px-2 py-1 bg-surface1 border border-border text-text rounded hover:bg-surface1/80 disabled:opacity-30 text-sm"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (index === config.delete_order.length - 1) return
+                        const next = [...config.delete_order]
+                        ;[next[index], next[index + 1]] = [next[index + 1], next[index]]
+                        onChange({ ...config, delete_order: next })
+                      }}
+                      disabled={index === config.delete_order.length - 1}
+                      className="px-2 py-1 bg-surface1 border border-border text-text rounded hover:bg-surface1/80 disabled:opacity-30 text-sm"
+                    >
+                      ↓
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-muted mt-1">
+                Order in which media types are deleted (first = deleted first)
+              </p>
+            </div>
           </>
         )}
       </div>

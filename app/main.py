@@ -123,11 +123,18 @@ def _resolve_media_urls(event) -> Dict[str, Optional[str]]:
 @app.on_event("startup")
 async def startup_event():
     """Application startup event."""
+    import asyncio
+    
     logger.info("Starting Smart Motion Detector v2")
     
     # Start retention worker
     retention_worker.start()
     logger.info("Retention worker started")
+    
+    # TASK 21: Wait for services to initialize
+    logger.info("Waiting 10 seconds for services to initialize...")
+    await asyncio.sleep(10)
+    logger.info("Services initialized, application ready")
 
     # Start detector worker
     detector_worker.start()

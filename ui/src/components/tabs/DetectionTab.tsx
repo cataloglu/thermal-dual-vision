@@ -93,6 +93,99 @@ export const DetectionTab: React.FC<DetectionTabProps> = ({ config, onChange, on
             Non-Maximum Suppression eşiği (genellikle 0.45)
           </p>
         </div>
+
+        {/* Inference Resolution - TASK 11 */}
+        <div>
+          <label className="block text-sm font-medium text-text mb-2">
+            Inference Resolution
+          </label>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs text-muted mb-1">Width</label>
+              <input
+                type="number"
+                min="320"
+                max="1920"
+                step="32"
+                value={config.inference_resolution[0]}
+                onChange={(e) => onChange({ 
+                  ...config, 
+                  inference_resolution: [parseInt(e.target.value) || 640, config.inference_resolution[1]] 
+                })}
+                className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-muted mb-1">Height</label>
+              <input
+                type="number"
+                min="320"
+                max="1920"
+                step="32"
+                value={config.inference_resolution[1]}
+                onChange={(e) => onChange({ 
+                  ...config, 
+                  inference_resolution: [config.inference_resolution[0], parseInt(e.target.value) || 640] 
+                })}
+                className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
+              />
+            </div>
+          </div>
+          <p className="text-xs text-muted mt-1">
+            Resolution for inference (default: 640x640)
+          </p>
+        </div>
+
+        {/* Aspect Ratio - TASK 12 */}
+        <div>
+          <label className="block text-sm font-medium text-text mb-2">
+            Aspect Ratio Min: {config.aspect_ratio_min?.toFixed(2) || 0.3}
+          </label>
+          <input
+            type="range"
+            min="0.05"
+            max="1.0"
+            step="0.05"
+            value={config.aspect_ratio_min || 0.3}
+            onChange={(e) => onChange({ ...config, aspect_ratio_min: parseFloat(e.target.value) })}
+            className="w-full"
+          />
+          <p className="text-xs text-muted mt-1">
+            Minimum aspect ratio for detections (filters thin objects)
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-text mb-2">
+            Aspect Ratio Max: {config.aspect_ratio_max?.toFixed(2) || 3.0}
+          </label>
+          <input
+            type="range"
+            min="1.0"
+            max="5.0"
+            step="0.1"
+            value={config.aspect_ratio_max || 3.0}
+            onChange={(e) => onChange({ ...config, aspect_ratio_max: parseFloat(e.target.value) })}
+            className="w-full"
+          />
+          <p className="text-xs text-muted mt-1">
+            Maximum aspect ratio for detections (filters wide objects)
+          </p>
+        </div>
+
+        {/* Enable Tracking - TASK 13 */}
+        <div className="flex items-center space-x-3">
+          <input
+            type="checkbox"
+            id="enable-tracking"
+            checked={config.enable_tracking}
+            onChange={(e) => onChange({ ...config, enable_tracking: e.target.checked })}
+            className="w-4 h-4 text-accent bg-surface2 border-border rounded focus:ring-accent"
+          />
+          <label htmlFor="enable-tracking" className="text-sm font-medium text-text">
+            Enable Object Tracking (Beta)
+          </label>
+        </div>
       </div>
 
       {/* Model Comparison Info */}

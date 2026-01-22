@@ -8,6 +8,8 @@ export interface DetectionConfig {
   nms_iou_threshold: number;
   inference_resolution: [number, number];
   inference_fps: number;
+  aspect_ratio_min: number;
+  aspect_ratio_max: number;
   enable_tracking: boolean;
 }
 

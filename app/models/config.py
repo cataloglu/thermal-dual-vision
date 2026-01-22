@@ -418,7 +418,7 @@ class AppearanceConfig(BaseModel):
     """Appearance configuration (theme and language)."""
     
     theme: Literal["slate", "carbon", "pure-black", "matrix"] = Field(
-        default="slate",
+        default="pure-black",
         description="UI theme"
     )
     language: Literal["tr", "en"] = Field(

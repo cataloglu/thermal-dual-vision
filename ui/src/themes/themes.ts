@@ -106,4 +106,4 @@ export const THEMES = {
 
 export type ThemeName = keyof typeof THEMES
 
-export const DEFAULT_THEME: ThemeName = 'slate'
+export const DEFAULT_THEME: ThemeName = 'pure-black'
