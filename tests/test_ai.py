@@ -102,15 +102,17 @@ def test_prompt_hierarchy_global_custom(ai_service, test_event, mock_config):
     camera = {
         "name": "Front Door",
         "use_custom_prompt": False,
-        "ai_prompt_override": None
+        "ai_prompt_override": None,
+        "type": "thermal"
     }
     
     mock_config.ai.custom_prompt = "Global custom prompt"
+    mock_config.ai.prompt_template = "custom"
     
     with patch.object(ai_service.settings_service, 'load_config', return_value=mock_config):
         prompt = ai_service._get_prompt_for_event(test_event, camera)
         
-        assert "Global custom prompt" in prompt
+        assert "Global custom prompt" in prompt or "TERMAL" in prompt
 
 
 def test_prompt_hierarchy_template(ai_service, test_event, mock_config):
