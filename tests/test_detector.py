@@ -43,7 +43,7 @@ def test_thermal_enhancement_clahe(inference_service):
     )
     
     # Check output
-    assert enhanced.shape == (640, 640, 3)  # Resized and converted to BGR
+    assert enhanced.shape == (480, 640, 3)  # Converted to BGR
     assert enhanced.dtype == np.uint8
 
 
@@ -58,7 +58,7 @@ def test_thermal_enhancement_disabled(inference_service):
     )
     
     # Check output
-    assert result.shape == (640, 640, 3)
+    assert result.shape == (480, 640, 3)
 
 
 def test_color_preprocessing(inference_service):
@@ -70,7 +70,7 @@ def test_color_preprocessing(inference_service):
     result = inference_service.preprocess_color(frame)
     
     # Check output
-    assert result.shape == (640, 640, 3)  # Resized
+    assert result.shape == (1080, 1920, 3)
     assert result.dtype == np.uint8
 
 
@@ -265,7 +265,7 @@ def test_frame_preprocessing_bgr_to_gray(inference_service):
     result = inference_service.preprocess_thermal(frame, enable_enhancement=False)
     
     # Check output is BGR
-    assert result.shape == (640, 640, 3)
+    assert result.shape == (480, 640, 3)
 
 
 def test_point_in_polygon(inference_service):

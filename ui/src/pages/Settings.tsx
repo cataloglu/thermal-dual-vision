@@ -49,11 +49,14 @@ export const Settings: React.FC = () => {
     setIsDirty(true);
   }, []);
 
-  const handleSave = useCallback(async (override?: Partial<SettingsType>) => {
+  const handleSave = useCallback(async (override?: Partial<SettingsType> | React.SyntheticEvent) => {
     if (!localSettings) {
       return
     }
-    const updates: Partial<SettingsType> = override ?? {};
+    if (override && typeof (override as React.SyntheticEvent).preventDefault === 'function') {
+      override = undefined
+    }
+    const updates: Partial<SettingsType> = (override as Partial<SettingsType>) ?? {};
     
     if (!override) {
       switch (activeTab) {

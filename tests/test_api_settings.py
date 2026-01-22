@@ -410,3 +410,19 @@ def test_put_settings_invalid_output_mode(client):
     
     assert detail["error"] is True
     assert detail["code"] == "VALIDATION_ERROR"
+
+
+def test_post_settings_reset(client):
+    """Test POST /api/settings/reset returns defaults."""
+    update_data = {
+        "detection": {
+            "model": "yolov8s-person"
+        }
+    }
+    response = client.put("/api/settings", json=update_data)
+    assert response.status_code == 200
+
+    response = client.post("/api/settings/reset")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["detection"]["model"] == "yolov8n-person"
