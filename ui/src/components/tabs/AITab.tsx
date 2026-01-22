@@ -22,23 +22,18 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
   const [editApiKey, setEditApiKey] = useState(!isKeyMasked);
 
   const templatePreview = () => {
-    const lang = config.language ?? 'tr';
-    const previews = {
-      tr: {
-        simple: t('promptPreviewSimpleTr'),
-        security_focused: t('promptPreviewSecurityTr'),
-        detailed: t('promptPreviewDetailedTr'),
-      },
-      en: {
-        simple: t('promptPreviewSimpleEn'),
-        security_focused: t('promptPreviewSecurityEn'),
-        detailed: t('promptPreviewDetailedEn'),
-      },
-    } as const;
     if (config.prompt_template === 'custom') {
       return config.custom_prompt || t('promptPreviewCustomEmpty');
     }
-    return previews[lang]?.[config.prompt_template] || '';
+    switch (config.prompt_template) {
+      case 'simple':
+        return t('promptPreviewSimple');
+      case 'detailed':
+        return t('promptPreviewDetailed');
+      case 'security_focused':
+      default:
+        return t('promptPreviewSecurity');
+    }
   };
 
   const handleSave = () => {
