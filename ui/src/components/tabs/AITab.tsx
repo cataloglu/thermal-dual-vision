@@ -146,6 +146,68 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
 
             <div>
               <label className="block text-sm font-medium text-text mb-2">
+                {t('promptTemplate')}
+              </label>
+              <select
+                value={config.prompt_template}
+                onChange={(e) => onChange({ ...config, prompt_template: e.target.value as AIConfig['prompt_template'] })}
+                className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
+              >
+                <option value="simple">simple</option>
+                <option value="security_focused">security_focused</option>
+                <option value="detailed">detailed</option>
+                <option value="custom">custom</option>
+              </select>
+            </div>
+
+            {config.prompt_template === 'custom' && (
+              <div>
+                <label className="block text-sm font-medium text-text mb-2">
+                  {t('customPrompt')}
+                </label>
+                <textarea
+                  value={config.custom_prompt}
+                  onChange={(e) => onChange({ ...config, custom_prompt: e.target.value })}
+                  placeholder={t('customPromptPlaceholder')}
+                  rows={5}
+                  className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent"
+                />
+                <p className="text-xs text-muted mt-1">{t('promptVarsHint')}</p>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-sm font-medium text-text mb-2">
+                {t('language')}
+              </label>
+              <select
+                value={config.language}
+                onChange={(e) => onChange({ ...config, language: e.target.value as AIConfig['language'] })}
+                className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
+              >
+                <option value="tr">Türkçe</option>
+                <option value="en">English</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-text mb-2">
+                {t('temperature')} ({config.temperature.toFixed(1)})
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.1"
+                value={config.temperature}
+                onChange={(e) => onChange({ ...config, temperature: parseFloat(e.target.value) })}
+                className="w-full"
+              />
+              <p className="text-xs text-muted mt-1">{t('creativityHint')}</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-text mb-2">
                 {t('maxTokens')}
               </label>
               <input

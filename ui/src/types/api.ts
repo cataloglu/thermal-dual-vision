@@ -73,8 +73,12 @@ export interface AIConfig {
   enabled: boolean;
   api_key: string;
   model: string;
+  prompt_template: 'simple' | 'security_focused' | 'detailed' | 'custom';
+  custom_prompt: string;
+  language: 'tr' | 'en';
   max_tokens: number;
   timeout: number;
+  temperature: number;
 }
 
 export interface TelegramConfig {
