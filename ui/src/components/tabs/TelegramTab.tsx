@@ -19,6 +19,8 @@ export const TelegramTab: React.FC<TelegramTabProps> = ({ config, onChange, onSa
   const [showBotToken, setShowBotToken] = useState(false);
   const [chatIdInput, setChatIdInput] = useState('');
   const [testing, setTesting] = useState(false);
+  const isBotMasked = config.bot_token === '***REDACTED***';
+  const [editBotToken, setEditBotToken] = useState(!isBotMasked);
 
   const isValidBotToken = (value: string) => /^\d+:[A-Za-z0-9_-]{20,}$/.test(value);
   const isValidChatId = (value: string) => /^-?\d+$/.test(value);
@@ -114,9 +116,10 @@ export const TelegramTab: React.FC<TelegramTabProps> = ({ config, onChange, onSa
               <div className="relative">
                 <input
                   type={showBotToken ? 'text' : 'password'}
-                  value={config.bot_token === '***REDACTED***' ? '' : config.bot_token}
+                  value={isBotMasked && !editBotToken ? '' : config.bot_token}
                   onChange={(e) => onChange({ ...config, bot_token: e.target.value })}
-                  placeholder={config.bot_token === '***REDACTED***' ? 'Bot token is set' : '123456:ABC-DEF...'}
+                  placeholder={isBotMasked && !editBotToken ? t('botTokenSet') : '123456:ABC-DEF...'}
+                  disabled={isBotMasked && !editBotToken}
                   className="w-full px-3 py-2 pr-10 bg-surface2 border border-border rounded-lg text-text placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent"
                 />
                 <button
@@ -130,6 +133,15 @@ export const TelegramTab: React.FC<TelegramTabProps> = ({ config, onChange, onSa
               <p className="text-xs text-muted mt-1">
                 Get from @BotFather on Telegram
               </p>
+              {isBotMasked && !editBotToken && (
+                <button
+                  type="button"
+                  onClick={() => setEditBotToken(true)}
+                  className="mt-2 px-3 py-1 text-xs bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors"
+                >
+                  {t('change')}
+                </button>
+              )}
             </div>
 
             <div>

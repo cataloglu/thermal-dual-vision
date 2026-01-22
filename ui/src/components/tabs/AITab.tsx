@@ -19,6 +19,7 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const isKeyMasked = config.api_key === '***REDACTED***';
+  const [editApiKey, setEditApiKey] = useState(!isKeyMasked);
 
   const templatePreview = () => {
     const lang = config.language ?? 'tr';
@@ -94,9 +95,10 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
               <div className="relative">
                 <input
                   type={showApiKey ? 'text' : 'password'}
-                  value={config.api_key === '***REDACTED***' ? '' : config.api_key}
+                  value={isKeyMasked && !editApiKey ? '' : config.api_key}
                   onChange={(e) => onChange({ ...config, api_key: e.target.value })}
-                  placeholder={config.api_key === '***REDACTED***' ? 'API key is set' : 'sk-...'}
+                  placeholder={isKeyMasked && !editApiKey ? t('apiKeySet') : 'sk-...'}
+                  disabled={isKeyMasked && !editApiKey}
                   className="w-full px-3 py-2 pr-10 bg-surface2 border border-border rounded-lg text-text placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent"
                 />
                 <button
@@ -113,6 +115,15 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
               <p className="text-xs text-muted mt-1">
                 {isKeyMasked ? t('apiKeySet') : t('apiKeyNotSet')}
               </p>
+              {isKeyMasked && !editApiKey && (
+                <button
+                  type="button"
+                  onClick={() => setEditApiKey(true)}
+                  className="mt-2 px-3 py-1 text-xs bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors"
+                >
+                  {t('change')}
+                </button>
+              )}
               
               {/* Test Button */}
               <button
