@@ -16,12 +16,12 @@ logger = logging.getLogger(__name__)
 
 
 # Prompt templates
-SIMPLE_TEMPLATE = """
-Bu thermal kamera görüntüsünde ne görüyorsun? 
+SIMPLE_TEMPLATE_TR = """
+Bu thermal kamera görüntüsünde ne görüyorsun?
 Kişi sayısı, ne yaptıkları ve şüpheli bir durum var mı kısaca açıkla.
 """
 
-SECURITY_FOCUSED_TEMPLATE = """
+SECURITY_FOCUSED_TEMPLATE_TR = """
 Sen bir ev güvenlik sistemi AI asistanısın.
 Bu thermal kamera görüntüsünü analiz et:
 
@@ -39,7 +39,7 @@ Confidence: {confidence:.0%}
 Kısa ve net cevap ver (max 5 satır).
 """
 
-DETAILED_TEMPLATE = """
+DETAILED_TEMPLATE_TR = """
 Sen bir profesyonel güvenlik analisti AI'sısın.
 Bu thermal kamera görüntü serisini (5 frame) analiz et:
 
@@ -71,6 +71,63 @@ Detaylı analiz yap:
    - Önerilen aksiyon
 
 Türkçe, kısa ve net cevap ver (max 10 satır).
+"""
+
+SIMPLE_TEMPLATE_EN = """
+What do you see in this thermal camera image?
+Briefly describe the number of people, what they are doing, and whether anything looks suspicious.
+"""
+
+SECURITY_FOCUSED_TEMPLATE_EN = """
+You are a home security AI assistant.
+Analyze this thermal camera image:
+
+Camera: {camera_name}
+Time: {timestamp}
+Confidence: {confidence:.0%}
+
+Provide the following in English:
+1. Are there people? How many?
+2. What do you see? (appearance, movement, location)
+3. Any suspicious behavior?
+4. Could it be a false alarm? (tree, shadow, animal, car)
+5. Threat level: Low/Medium/High
+
+Be concise (max 5 lines).
+"""
+
+DETAILED_TEMPLATE_EN = """
+You are a professional security analyst AI.
+Analyze this thermal image sequence (5 frames):
+
+Camera: {camera_name}
+Time: {timestamp}
+YOLO Confidence: {confidence:.0%}
+
+Provide a detailed analysis:
+
+1. HUMAN DETECTION:
+   - How many people?
+   - Where are they located?
+   - What are they doing?
+
+2. VISUAL DETAILS:
+   - Clothing color/type (if visible)
+   - Height/build
+   - Carrying any objects?
+
+3. MOTION ANALYSIS:
+   - Direction of movement
+   - Speed (slow/normal/fast)
+   - Behavior (normal/suspicious)
+
+4. SITUATION ASSESSMENT:
+   - Suspicious activity?
+   - Possible false alarm?
+   - Threat level: Low/Medium/High
+   - Recommended action
+
+Be concise (max 10 lines).
 """
 
 
@@ -198,36 +255,49 @@ class AIService:
             base_prompt = camera['ai_prompt_override']
             logger.debug(f"Using camera-level prompt for {camera.get('name', 'unknown')}")
         
-        # 2. Global custom prompt
-        elif hasattr(config.ai, 'custom_prompt') and config.ai.custom_prompt:
-            base_prompt = config.ai.custom_prompt
-            logger.debug("Using global custom prompt")
-        
+        # 2. Global custom prompt only when template is custom
+        elif hasattr(config.ai, 'prompt_template') and config.ai.prompt_template == "custom":
+            if getattr(config.ai, 'custom_prompt', ""):
+                base_prompt = config.ai.custom_prompt
+                logger.debug("Using global custom prompt")
+            else:
+                base_prompt = SECURITY_FOCUSED_TEMPLATE_TR
+                logger.debug("Custom template selected but empty, using default")
+
         # 3. Global template
         elif hasattr(config.ai, 'prompt_template'):
             template = config.ai.prompt_template
-            if template == "security_focused":
-                base_prompt = SECURITY_FOCUSED_TEMPLATE
-            elif template == "detailed":
-                base_prompt = DETAILED_TEMPLATE
+            language = getattr(config.ai, 'language', 'tr')
+            if language == "en":
+                templates = {
+                    "security_focused": SECURITY_FOCUSED_TEMPLATE_EN,
+                    "detailed": DETAILED_TEMPLATE_EN,
+                    "simple": SIMPLE_TEMPLATE_EN,
+                }
             else:
-                base_prompt = SIMPLE_TEMPLATE
-            logger.debug(f"Using template: {template}")
-        
+                templates = {
+                    "security_focused": SECURITY_FOCUSED_TEMPLATE_TR,
+                    "detailed": DETAILED_TEMPLATE_TR,
+                    "simple": SIMPLE_TEMPLATE_TR,
+                }
+            base_prompt = templates.get(template, templates["security_focused"])
+            logger.debug(f"Using template: {template} ({language})")
+
         # 4. Default
         else:
-            base_prompt = SIMPLE_TEMPLATE
-            logger.debug("Using default simple template")
+            base_prompt = SECURITY_FOCUSED_TEMPLATE_TR
+            logger.debug("Using default security_focused template")
         
         # Format with context
         camera_name = camera.get('name', 'Unknown') if camera else event.get('camera_id', 'Unknown')
         timestamp = event.get('timestamp', 'Unknown')
         confidence = event.get('confidence', 0)
         
-        prompt = base_prompt.format(
-            camera_name=camera_name,
-            timestamp=timestamp,
-            confidence=confidence
+        prompt = (
+            base_prompt
+            .replace("{camera_name}", str(camera_name))
+            .replace("{timestamp}", str(timestamp))
+            .replace("{confidence}", f"{confidence:.0%}")
         )
         
         return prompt
