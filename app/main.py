@@ -51,6 +51,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 APP_START_TS = time.time()
 
+# TODO: Move to Redis/DB for multi-worker support
 recording_state: Dict[str, bool] = {}
 
 app = FastAPI(
@@ -1284,6 +1285,8 @@ async def create_camera(
                 detector_worker.start_camera_detection(camera)
             except Exception as e:
                 logger.error("Failed to start detection for camera %s: %s", camera.id, e)
+        else:
+            detector_worker.stop_camera_detection(camera.id)
 
         return camera_crud_service.mask_rtsp_urls(camera)
         
@@ -1391,6 +1394,7 @@ async def delete_camera(
         HTTPException: 404 if not found, 500 if deletion fails
     """
     try:
+        detector_worker.stop_camera_detection(camera_id)
         deleted = camera_crud_service.delete_camera(db, camera_id)
         
         if not deleted:
@@ -1645,7 +1649,7 @@ async def test_ai_event(
         }
 
         prompt = ai_service._get_prompt_for_event(event_payload, camera_payload)
-        summary = ai_service.analyze_event(event_payload, collage_path, camera_payload)
+        summary = await ai_service.analyze_event(event_payload, collage_path, camera_payload)
 
         return {
             "success": bool(summary),

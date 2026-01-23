@@ -6,25 +6,15 @@ import { LoadingState } from '../components/LoadingState'
 
 export function Diagnostics() {
   const { t } = useTranslation()
-  const [health, setHealth] = useState<any>(null)
   const [systemInfo, setSystemInfo] = useState<any>(null)
   const [logs, setLogs] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [logsLoading, setLogsLoading] = useState(false)
-  const [copiedHealth, setCopiedHealth] = useState(false)
   const [copiedLogs, setCopiedLogs] = useState(false)
   const [autoRefresh, setAutoRefresh] = useState(false)
-  const [logFilter, setLogFilter] = useState('')
+  const [appLogFilter, setAppLogFilter] = useState('')
+  const [cameraLogFilter, setCameraLogFilter] = useState('')
   const isRefreshingRef = useRef(false)
-
-  const fetchHealth = async () => {
-    try {
-      const data = await api.getHealth()
-      setHealth(data)
-    } catch (error) {
-      console.error('Failed to fetch health:', error)
-    }
-  }
 
   const fetchSystemInfo = async () => {
     try {
@@ -49,7 +39,6 @@ export function Diagnostics() {
 
   useEffect(() => {
     const fetchData = async () => {
-      await fetchHealth()
       await fetchSystemInfo()
       await fetchLogs()
       setLoading(false)
@@ -65,7 +54,6 @@ export function Diagnostics() {
     const interval = setInterval(async () => {
       if (isRefreshingRef.current) return
       isRefreshingRef.current = true
-      await fetchHealth()
       await fetchSystemInfo()
       await fetchLogs()
       isRefreshingRef.current = false
@@ -73,14 +61,6 @@ export function Diagnostics() {
 
     return () => clearInterval(interval)
   }, [autoRefresh])
-
-  const handleCopyHealth = () => {
-    if (health) {
-      navigator.clipboard.writeText(JSON.stringify(health, null, 2))
-      setCopiedHealth(true)
-      setTimeout(() => setCopiedHealth(false), 2000)
-    }
-  }
 
   const handleCopyLogs = () => {
     if (logs.length > 0) {
@@ -92,15 +72,61 @@ export function Diagnostics() {
 
   const handleRefresh = async () => {
     setLoading(true)
-    await fetchHealth()
     await fetchSystemInfo()
     await fetchLogs()
     setLoading(false)
   }
 
-  const filteredLogs = logs.filter((line) =>
-    logFilter ? line.toLowerCase().includes(logFilter.toLowerCase()) : true
+  const cameraLogPatterns = [
+    'camera=',
+    'Detections',
+    'Event gate',
+    'Starting detection',
+    'Opened camera',
+    'Released camera',
+    'Frame read',
+    'codec',
+  ]
+  const isCameraLog = (line: string) =>
+    cameraLogPatterns.some((pattern) => line.includes(pattern))
+
+  const cameraLogs = logs.filter((line) => isCameraLog(line))
+  const applicationLogs = logs.filter((line) => !isCameraLog(line))
+
+  const filteredAppLogs = applicationLogs.filter((line) =>
+    appLogFilter ? line.toLowerCase().includes(appLogFilter.toLowerCase()) : true
   )
+  const filteredCameraLogs = cameraLogs.filter((line) =>
+    cameraLogFilter ? line.toLowerCase().includes(cameraLogFilter.toLowerCase()) : true
+  )
+
+  const parseLogLine = (line: string) => {
+    const match = line.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}) - ([^-]+) - (\w+) - (.*)$/)
+    if (!match) {
+      return { time: '', logger: '', level: '', message: line }
+    }
+    return {
+      time: match[1],
+      logger: match[2].trim(),
+      level: match[3],
+      message: match[4],
+    }
+  }
+
+  const levelClass = (level: string) => {
+    switch (level) {
+      case 'ERROR':
+        return 'text-error'
+      case 'WARNING':
+        return 'text-warning'
+      case 'INFO':
+        return 'text-success'
+      case 'DEBUG':
+        return 'text-muted'
+      default:
+        return 'text-text'
+    }
+  }
 
   const handleDownloadLogs = () => {
     const content = filteredLogs.join('\n')
@@ -150,34 +176,8 @@ export function Diagnostics() {
         </div>
       </div>
 
-      {/* Health JSON */}
-      <div className="bg-surface1 border border-border rounded-lg p-6 mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-text">{t('systemHealth')}</h2>
-          <button
-            onClick={handleCopyHealth}
-            className="flex items-center gap-2 px-3 py-1.5 bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors text-sm"
-          >
-            {copiedHealth ? (
-              <>
-                <MdCheckCircle className="text-green-500" />
-                {t('copied')}
-              </>
-            ) : (
-              <>
-                <MdContentCopy />
-                {t('copy')}
-              </>
-            )}
-          </button>
-        </div>
-        <pre className="bg-background border border-border rounded-lg p-4 overflow-auto max-h-[60vh] text-sm text-text font-mono">
-          {JSON.stringify(health, null, 2)}
-        </pre>
-      </div>
-
       {/* Logs */}
-      <div className="bg-surface1 border border-border rounded-lg p-6">
+      <div className="bg-surface1 border border-border rounded-lg p-6 mb-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-text">{t('applicationLogs')} (200)</h2>
           <div className="flex items-center gap-2">
@@ -211,8 +211,8 @@ export function Diagnostics() {
         <div className="mb-4">
           <input
             type="text"
-            value={logFilter}
-            onChange={(e) => setLogFilter(e.target.value)}
+            value={appLogFilter}
+            onChange={(e) => setAppLogFilter(e.target.value)}
             placeholder={t('filter')}
             className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent text-sm"
           />
@@ -224,9 +224,85 @@ export function Diagnostics() {
           </div>
         ) : (
           <div className="bg-background border border-border rounded-lg p-4 overflow-auto max-h-96">
-            <pre className="text-xs text-text font-mono whitespace-pre-wrap">
-              {filteredLogs.length > 0 ? filteredLogs.join('\n') : t('noData')}
-            </pre>
+            {filteredAppLogs.length > 0 ? (
+              <div className="space-y-2 text-xs font-mono">
+                {filteredAppLogs.map((line, idx) => {
+                  const parsed = parseLogLine(line)
+                  return (
+                    <div key={`${line}-${idx}`} className="flex flex-col gap-1">
+                      <div className="flex flex-wrap gap-2">
+                        {parsed.time && (
+                          <span className="text-muted">{parsed.time}</span>
+                        )}
+                        {parsed.level && (
+                          <span className={`font-semibold ${levelClass(parsed.level)}`}>
+                            {parsed.level}
+                          </span>
+                        )}
+                        {parsed.logger && (
+                          <span className="text-muted">{parsed.logger}</span>
+                        )}
+                      </div>
+                      <div className="text-text">{parsed.message}</div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="text-muted">{t('noData')}</div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="bg-surface1 border border-border rounded-lg p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-text">{t('cameraLogs')}</h2>
+        </div>
+
+        <div className="mb-4">
+          <input
+            type="text"
+            value={cameraLogFilter}
+            onChange={(e) => setCameraLogFilter(e.target.value)}
+            placeholder={t('filter')}
+            className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent text-sm"
+          />
+        </div>
+
+        {logsLoading ? (
+          <div className="bg-background border border-border rounded-lg p-4 flex items-center justify-center h-96">
+            <div className="text-muted">{t('loading')}...</div>
+          </div>
+        ) : (
+          <div className="bg-background border border-border rounded-lg p-4 overflow-auto max-h-96">
+            {filteredCameraLogs.length > 0 ? (
+              <div className="space-y-2 text-xs font-mono">
+                {filteredCameraLogs.map((line, idx) => {
+                  const parsed = parseLogLine(line)
+                  return (
+                    <div key={`${line}-${idx}`} className="flex flex-col gap-1">
+                      <div className="flex flex-wrap gap-2">
+                        {parsed.time && (
+                          <span className="text-muted">{parsed.time}</span>
+                        )}
+                        {parsed.level && (
+                          <span className={`font-semibold ${levelClass(parsed.level)}`}>
+                            {parsed.level}
+                          </span>
+                        )}
+                        {parsed.logger && (
+                          <span className="text-muted">{parsed.logger}</span>
+                        )}
+                      </div>
+                      <div className="text-text">{parsed.message}</div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="text-muted">{t('noData')}</div>
+            )}
           </div>
         )}
       </div>

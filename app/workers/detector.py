@@ -9,6 +9,7 @@ This worker handles YOLOv8 person detection pipeline including:
 - Event generation
 """
 import logging
+import os
 import threading
 import time
 import asyncio
@@ -48,6 +49,7 @@ class DetectorWorker:
         """Initialize detector worker."""
         self.running = False
         self.threads: Dict[str, threading.Thread] = {}
+        self.camera_stop_events: Dict[str, threading.Event] = {}
         
         # Services
         self.camera_service = CameraService()
@@ -126,11 +128,14 @@ class DetectorWorker:
         self.running = False
         
         # Wait for threads to finish
+        for stop_event in self.camera_stop_events.values():
+            stop_event.set()
         for camera_id, thread in self.threads.items():
             logger.info(f"Stopping detection thread for camera {camera_id}")
             thread.join(timeout=5)
         
         self.threads.clear()
+        self.camera_stop_events.clear()
         self.frame_buffers.clear()
         self.frame_counters.clear()
         self.frame_buffer_locks.clear()
@@ -146,6 +151,36 @@ class DetectorWorker:
         self.latest_frame_locks.clear()
         logger.info("DetectorWorker stopped")
     
+    def stop_camera_detection(self, camera_id: str) -> None:
+        """Stop detection thread for a single camera if running."""
+        stop_event = self.camera_stop_events.get(camera_id)
+        if stop_event:
+            stop_event.set()
+        thread = self.threads.get(camera_id)
+        if thread:
+            logger.info("Stopping detection thread for camera %s", camera_id)
+            thread.join(timeout=5)
+        self.threads.pop(camera_id, None)
+        self.camera_stop_events.pop(camera_id, None)
+        self._cleanup_camera_state(camera_id)
+
+    def _cleanup_camera_state(self, camera_id: str) -> None:
+        self.frame_buffers.pop(camera_id, None)
+        self.frame_counters.pop(camera_id, None)
+        self.frame_buffer_locks.pop(camera_id, None)
+        self.detection_history.pop(camera_id, None)
+        self.zone_history.pop(camera_id, None)
+        self.last_event_time.pop(camera_id, None)
+        self.event_start_time.pop(camera_id, None)
+        self.motion_state.pop(camera_id, None)
+        self.zone_cache.pop(camera_id, None)
+        self.last_status_update.pop(camera_id, None)
+        self.codec_cache.pop(camera_id, None)
+        self.latest_frames.pop(camera_id, None)
+        self.latest_frame_locks.pop(camera_id, None)
+        self.last_detection_log.pop(camera_id, None)
+        self.last_gate_log.pop(camera_id, None)
+
     def start_camera_detection(self, camera: Camera) -> None:
         """
         Start detection thread for a camera.
@@ -157,9 +192,11 @@ class DetectorWorker:
             logger.warning(f"Detection thread already running for camera {camera.id}")
             return
         
+        stop_event = threading.Event()
+        self.camera_stop_events[camera.id] = stop_event
         thread = threading.Thread(
             target=self._detection_loop,
-            args=(camera,),
+            args=(camera, stop_event),
             daemon=True,
             name=f"detector-{camera.id}"
         )
@@ -168,7 +205,7 @@ class DetectorWorker:
         
         logger.info(f"Started detection thread for camera {camera.id}")
     
-    def _detection_loop(self, camera: Camera) -> None:
+    def _detection_loop(self, camera: Camera, stop_event: threading.Event) -> None:
         """
         Main detection loop for a camera.
         
@@ -177,7 +214,7 @@ class DetectorWorker:
         """
         camera_id = camera.id
         cap = None
-        reader_stop = threading.Event()
+        reader_stop = stop_event
         latest_frame: Dict[str, Optional[np.ndarray]] = {"frame": None}
         frame_lock = threading.Lock()
         reader_thread: Optional[threading.Thread] = None
@@ -227,7 +264,7 @@ class DetectorWorker:
             # Open video capture with codec fallback
             cap = self._open_capture(rtsp_url, config, camera_id)
             
-            if not cap.isOpened():
+            if not cap or not cap.isOpened():
                 logger.error(f"Failed to open camera {camera_id}")
                 self._update_camera_status(camera_id, CameraStatus.DOWN, None)
                 return
@@ -277,7 +314,7 @@ class DetectorWorker:
             )
             reader_thread.start()
             
-            while self.running:
+            while self.running and not stop_event.is_set():
                 current_time = time.time()
                 if current_time - last_config_refresh >= 5:
                     config = self.settings_service.load_config()
@@ -419,7 +456,7 @@ class DetectorWorker:
             self._update_camera_status(camera_id, CameraStatus.DOWN, None)
         
         finally:
-            reader_stop.set()
+            stop_event.set()
             if cap is not None:
                 try:
                     cap.release()
@@ -431,6 +468,7 @@ class DetectorWorker:
                 reader_thread.join(timeout=5)
                 if reader_thread.is_alive():
                     logger.warning("Reader thread did not stop cleanly for camera %s", camera_id)
+            self._cleanup_camera_state(camera_id)
 
     def _update_camera_status(
         self,
@@ -548,29 +586,61 @@ class DetectorWorker:
         except Exception as e:
             logger.error(f"Failed to create event: {e}")
 
-    def _open_capture(self, rtsp_url: str, config, camera_id: Optional[str] = None) -> cv2.VideoCapture:
-        codec_fallbacks = [None, "H264", "H265", "MJPG"]
-        if camera_id:
-            cached_codec = self.codec_cache.get(camera_id)
-            if cached_codec and cached_codec != "AUTO":
-                codec_fallbacks = [cached_codec] + [c for c in codec_fallbacks if c != cached_codec]
-        for codec in codec_fallbacks:
-            cap = cv2.VideoCapture(rtsp_url, cv2.CAP_FFMPEG)
-            cap.set(cv2.CAP_PROP_BUFFERSIZE, config.stream.buffer_size)
-            if codec:
-                cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*codec))
-            if cap.isOpened():
-                ret, _ = cap.read()
-                if ret:
-                    if camera_id:
-                        self.codec_cache[camera_id] = codec or "AUTO"
+    def _open_capture(self, rtsp_url: str, config, camera_id: Optional[str] = None) -> Optional[cv2.VideoCapture]:
+        """
+        Open video capture with timeout protection.
+        """
+        cap = None
+        
+        def target():
+            nonlocal cap
+            # Set timeout options for ffmpeg backend if possible
+            os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "timeout;5000"
+            
+            codec_fallbacks = [None, "H264", "H265", "MJPG"]
+            if camera_id:
+                cached_codec = self.codec_cache.get(camera_id)
+                if cached_codec and cached_codec != "AUTO":
+                    codec_fallbacks = [cached_codec] + [c for c in codec_fallbacks if c != cached_codec]
+            
+            for codec in codec_fallbacks:
+                try:
+                    temp_cap = cv2.VideoCapture(rtsp_url, cv2.CAP_FFMPEG)
+                    temp_cap.set(cv2.CAP_PROP_BUFFERSIZE, config.stream.buffer_size)
                     if codec:
-                        logger.info("Opened camera with codec %s", codec)
-                    else:
-                        logger.info("Opened camera with default codec")
-                    return cap
-            cap.release()
-        return cv2.VideoCapture(rtsp_url, cv2.CAP_FFMPEG)
+                        temp_cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*codec))
+                    
+                    if temp_cap.isOpened():
+                        ret, _ = temp_cap.read()
+                        if ret:
+                            if camera_id:
+                                self.codec_cache[camera_id] = codec or "AUTO"
+                            if codec:
+                                logger.info("Opened camera with codec %s", codec)
+                            else:
+                                logger.info("Opened camera with default codec")
+                            cap = temp_cap
+                            return
+                    temp_cap.release()
+                except Exception as e:
+                    logger.debug(f"Codec attempt failed: {e}")
+            
+            # Final attempt without specific checks (or return None if strict)
+            # The loop covers all cases including None codec which is default.
+            pass
+
+        t = threading.Thread(target=target)
+        t.daemon = True
+        t.start()
+        t.join(timeout=5)
+        
+        if t.is_alive():
+            logger.error(f"Camera connection timeout: {rtsp_url}")
+            return None
+            
+        if cap and cap.isOpened():
+            return cap
+        return None
 
     def _get_adaptive_clahe_clip(self, frame: np.ndarray, config) -> float:
         if len(frame.shape) == 3:
@@ -755,7 +825,7 @@ class DetectorWorker:
                     summary = None
                     if collage_path:
                         detection_source = get_detection_source(camera.detection_source.value)
-                        summary = self.ai_service.analyze_event(
+                        summary = asyncio.run(self.ai_service.analyze_event(
                             {
                                 "id": event.id,
                                 "camera_id": event.camera_id,
@@ -769,7 +839,7 @@ class DetectorWorker:
                                 "type": camera.type.value if camera.type else None,
                                 "detection_source": detection_source,
                             },
-                        )
+                        ))
                     if summary:
                         event.summary = summary
                         event.ai_enabled = True

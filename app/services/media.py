@@ -5,6 +5,7 @@ This service handles event media generation and management.
 """
 import logging
 import os
+import re
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -14,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models import Event
 from app.workers.media import get_media_worker
+from app.utils.paths import DATA_DIR
 
 
 logger = logging.getLogger(__name__)
@@ -22,7 +24,7 @@ logger = logging.getLogger(__name__)
 class MediaService:
     """Service for event media operations."""
     
-    MEDIA_DIR = Path("data/media")
+    MEDIA_DIR = DATA_DIR / "media"
     
     def __init__(self):
         """Initialize media service."""
@@ -119,6 +121,16 @@ class MediaService:
             "mp4_url": event.mp4_url,
         }
     
+    def validate_id(self, id_str: str) -> bool:
+        """Validate ID to prevent path traversal."""
+        # Allow alphanumeric and hyphens
+        if not re.match(r'^[a-zA-Z0-9-]+$', id_str):
+            return False
+        # Path traversal check
+        if ".." in id_str or "/" in id_str or "\\" in id_str:
+            return False
+        return True
+
     def get_media_path(self, event_id: str, media_type: str) -> Optional[Path]:
         """
         Get media file path for an event.
@@ -130,6 +142,10 @@ class MediaService:
         Returns:
             Path to media file if exists, None otherwise
         """
+        if not self.validate_id(event_id):
+            logger.warning(f"Invalid event_id detected: {event_id}")
+            return None
+
         event_dir = self.MEDIA_DIR / event_id
         
         if media_type == "collage":

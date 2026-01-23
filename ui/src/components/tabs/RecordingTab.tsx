@@ -22,17 +22,16 @@ export const RecordingTab: React.FC<RecordingTabProps> = ({ config, onChange, on
 
       {/* Important Notice */}
       <div className="bg-surface2 border-l-4 border-warning p-4 rounded-lg">
-        <h3 className="font-bold text-warning mb-2">⚠️ ÖNEMLİ: İki Farklı Kayıt Türü</h3>
+        <h3 className="font-bold text-warning mb-2">⚠️ ÖNEMLİ: Sadece Hareket (Event) Kaydı</h3>
         <div className="space-y-3 text-sm">
           <div>
-            <strong className="text-text">1. Sürekli Kayıt (7/24):</strong>
-            <p className="text-muted">Her şeyi kaydeder (person olsun olmasın)</p>
-            <p className="text-error">❌ KAPALI tutun (NVR zaten yapıyor!)</p>
-          </div>
-          <div>
-            <strong className="text-text">2. Hareket Kayıtları (Event):</strong>
+            <strong className="text-text">Hareket Kayıtları (Event):</strong>
             <p className="text-muted">Sadece person algılandığında (collage/GIF/MP4)</p>
             <p className="text-success">✅ HER ZAMAN AÇIK (otomatik)</p>
+          </div>
+          <div>
+            <strong className="text-text">Sürekli Kayıt (7/24):</strong>
+            <p className="text-muted">Bu sistemde kaldırıldı, sadece event bazlı kayıt var.</p>
           </div>
         </div>
       </div>

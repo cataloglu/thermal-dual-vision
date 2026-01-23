@@ -98,6 +98,7 @@
   "autoRefresh": "Otomatik Yenile",
   "systemHealth": "Sistem Sağlığı",
   "applicationLogs": "Uygulama Logları",
+  "cameraLogs": "Kamera Logları",
   "lastLines": "Son {{count}} satır",
   "detectionSettings": "Algılama Ayarları",
   "detectionDesc": "YOLOv8 kişi algılama modeli ve çıkarım parametrelerini yapılandırın",

@@ -4,20 +4,20 @@ Database session management for Smart Motion Detector v2.
 This module handles database connection, session creation, and initialization.
 """
 import logging
-from pathlib import Path
 from typing import Generator
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.db.models import Base
+from app.utils.paths import DATA_DIR
 
 
 logger = logging.getLogger(__name__)
 
 
 # Database configuration
-DATABASE_DIR = Path("data")
+DATABASE_DIR = DATA_DIR
 DATABASE_FILE = DATABASE_DIR / "app.db"
 DATABASE_URL = f"sqlite:///{DATABASE_FILE}"
 

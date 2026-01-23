@@ -7,7 +7,7 @@ import base64
 import logging
 from pathlib import Path
 from typing import Dict, Any, Optional
-from openai import OpenAI
+from openai import AsyncOpenAI
 
 from app.services.settings import get_settings_service
 
@@ -17,26 +17,60 @@ logger = logging.getLogger(__name__)
 
 # Prompt templates
 THERMAL_PROMPT_TR = (
-    "TERMAL güvenlik kamerası görüntüsü. Türkçe yaz, renk uydurma. "
-    "Isı/sıcaklık ile ilgili hiçbir şey yazma (sıcak/ılık/soğuk dahil). "
-    "Çıktıyı tam şu formatta yaz (2-3 satır):\n"
-    "Kamera: {camera_name}\n"
-    "Kişi tespit edildi: X (yoksa 0 yaz)\n"
-    "Not: Kişi yoksa 'Muhtemel yanlış alarm.' yaz; kişi varsa kısa hareket/konum ekle.\n"
-    "Bu tek bir kolaj görselidir, video değildir; akış uydurma.\n"
-    "Kolaj 5 kare: 1-2 olay öncesi, 3 olay anı, 4-5 olay sonrası. Numaralara göre yorumla.\n"
-    "Emin değilsen sayıyı 'en az X' yaz."
+    "Sen bir güvenlik kamerası olay doğrulama modülüsün.\n"
+    "\n"
+    "Bu görüntü:\n"
+    "- TERMAL (ısı tabanlı) kamera görüntüsüdür.\n"
+    "- Video değildir.\n"
+    "- 1 saniye aralıklarla oluşturulmuş KOLAJLARDAN biridir.\n"
+    "- İnsan her karede görünmek zorunda değildir.\n"
+    "\n"
+    "Kurallar:\n"
+    "- Sadece ısı dağılımına göre analiz yap.\n"
+    "- Renk, kıyafet, yüz, cinsiyet, yaş veya görsel detay YAPMA.\n"
+    "- Her kolajı bağımsız bir olay anı olarak değerlendir.\n"
+    "- İnsan tek bir kolajda görünüyorsa belirsiz kabul et.\n"
+    "- İnsan en az İKİ AYRI kolajda tutarlı şekilde görünüyorsa gerçek insan kabul et.\n"
+    "- Kare açıklaması, olay sıralaması veya hikâyeleştirme YAPMA.\n"
+    "- SADECE TEK CÜMLE yaz.\n"
+    "- Türkçe yaz.\n"
+    "\n"
+    "Çıktı:\n"
+    "- En az iki ayrı kolajda insan varsa:\n"
+    "  \"Kamerada X kişi tespit edildi.\"\n"
+    "- Hiçbir kolajda insan yoksa:\n"
+    "  \"Kamerada insan tespit edilmedi (no human).\"\n"
+    "- Sadece tek kolajda belirsiz ısı varsa:\n"
+    "  \"Muhtemel yanlış alarm.\"\n"
 )
 
 COLOR_PROMPT_TR = (
-    "Renkli güvenlik kamerası görüntüsü. Türkçe yaz. "
-    "Çıktıyı tam şu formatta yaz (2-3 satır):\n"
-    "Kamera: {camera_name}\n"
-    "Kişi tespit edildi: X (yoksa 0 yaz)\n"
-    "Not: Kişi yoksa 'Muhtemel yanlış alarm.' yaz; kişi varsa kısa hareket/konum ekle.\n"
-    "Bu tek bir kolaj görselidir, video değildir; akış uydurma.\n"
-    "Kolaj 5 kare: 1-2 olay öncesi, 3 olay anı, 4-5 olay sonrası. Numaralara göre yorumla.\n"
-    "Emin değilsen sayıyı 'en az X' yaz."
+    "Sen bir güvenlik kamerası olay doğrulama modülüsün.\n"
+    "\n"
+    "Bu görüntü:\n"
+    "- RENKLİ (RGB) kamera görüntüsüdür.\n"
+    "- Video değildir.\n"
+    "- 1 saniye aralıklarla oluşturulmuş KOLAJLARDAN biridir.\n"
+    "- İnsan her karede görünmek zorunda değildir.\n"
+    "\n"
+    "Kurallar:\n"
+    "- Görsel şekil ve nesneye göre analiz yap.\n"
+    "- İnsan, araç ve hayvanı ayırt et; ancak sadece İNSAN için sonuç üret.\n"
+    "- Renk, kıyafet, yüz, yaş, cinsiyet veya detaylı betimleme YAPMA.\n"
+    "- Her kolajı bağımsız bir olay anı olarak değerlendir.\n"
+    "- İnsan tek bir kolajda görünüyorsa belirsiz kabul et.\n"
+    "- İnsan en az İKİ AYRI kolajda tutarlı şekilde görünüyorsa gerçek insan kabul et.\n"
+    "- Kare açıklaması, olay sıralaması veya hikâyeleştirme YAPMA.\n"
+    "- SADECE TEK CÜMLE yaz.\n"
+    "- Türkçe yaz.\n"
+    "\n"
+    "Çıktı:\n"
+    "- En az iki ayrı kolajda insan varsa:\n"
+    "  \"Kamerada X kişi tespit edildi.\"\n"
+    "- Hiçbir kolajda insan yoksa:\n"
+    "  \"Kamerada insan tespit edilmedi (no human).\"\n"
+    "- Sadece tek kolajda belirsiz insan varsa:\n"
+    "  \"Muhtemel yanlış alarm.\"\n"
 )
 
 
@@ -56,7 +90,7 @@ class AIService:
         self.settings_service = get_settings_service()
         logger.info("AIService initialized")
     
-    def analyze_event(
+    async def analyze_event(
         self,
         event: Dict[str, Any],
         collage_path: Path,
@@ -99,34 +133,36 @@ class AIService:
             # Call OpenAI API
             logger.info(f"Calling OpenAI API for event {event.get('id', 'unknown')}")
             
-            client = OpenAI(api_key=config.ai.api_key)
-            
-            response = client.chat.completions.create(
-                model=config.ai.model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "Kısa ama detaylı bir güvenlik raporu üret."
-                    },
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": prompt
-                            },
-                            {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:image/jpeg;base64,{image_base64}"
+            client = AsyncOpenAI(api_key=config.ai.api_key)
+            try:
+                response = await client.chat.completions.create(
+                    model=config.ai.model,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "Kısa ama detaylı bir güvenlik raporu üret."
+                        },
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": prompt
+                                },
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": f"data:image/jpeg;base64,{image_base64}"
+                                    }
                                 }
-                            }
-                        ]
-                    }
-                ],
-                max_tokens=config.ai.max_tokens,
-                temperature=config.ai.temperature or 0.3
-            )
+                            ]
+                        }
+                    ],
+                    max_tokens=config.ai.max_tokens,
+                    temperature=config.ai.temperature or 0.3
+                )
+            finally:
+                await client.close()
             
             # Extract summary
             summary = response.choices[0].message.content.strip()
@@ -192,19 +228,7 @@ class AIService:
             base_prompt = THERMAL_PROMPT_TR
             logger.debug("Using default thermal prompt")
         
-        # Format with context
-        camera_name = camera.get('name', 'Unknown') if camera else event.get('camera_id', 'Unknown')
-        timestamp = event.get('timestamp', 'Unknown')
-        confidence = event.get('confidence', 0)
-        
-        prompt = (
-            base_prompt
-            .replace("{camera_name}", str(camera_name))
-            .replace("{timestamp}", str(timestamp))
-            .replace("{confidence}", f"{confidence:.0%}")
-        )
-        
-        return prompt
+        return base_prompt
 
     
     def _encode_image(self, image_path: Path) -> Optional[str]:

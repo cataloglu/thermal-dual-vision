@@ -18,6 +18,7 @@ import cv2
 import imageio
 import numpy as np
 
+from app.utils.paths import DATA_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ class MediaWorker:
     """Worker for event media generation."""
     
     # Media configuration
-    MEDIA_DIR = Path("data/media")
+    MEDIA_DIR = DATA_DIR / "media"
     
     # Collage settings
     COLLAGE_FRAMES = 5

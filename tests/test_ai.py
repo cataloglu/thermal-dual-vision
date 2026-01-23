@@ -10,7 +10,7 @@ Tests cover:
 """
 import tempfile
 from pathlib import Path
-from unittest.mock import patch, Mock, MagicMock
+from unittest.mock import patch, Mock, MagicMock, AsyncMock
 import pytest
 
 from app.services.ai import AIService, get_ai_service
@@ -150,32 +150,35 @@ def test_prompt_hierarchy_default(ai_service, test_event, mock_config):
         assert "termal" in prompt.lower()
 
 
-def test_ai_disabled_graceful(ai_service, test_event, test_camera, test_image, mock_config):
+@pytest.mark.asyncio
+async def test_ai_disabled_graceful(ai_service, test_event, test_camera, test_image, mock_config):
     """Test that AI disabled returns None gracefully."""
     mock_config.ai.enabled = False
     
     with patch.object(ai_service.settings_service, 'load_config', return_value=mock_config):
-        result = ai_service.analyze_event(test_event, test_image, test_camera)
+        result = await ai_service.analyze_event(test_event, test_image, test_camera)
         
         assert result is None
 
 
-def test_api_key_missing(ai_service, test_event, test_camera, test_image, mock_config):
+@pytest.mark.asyncio
+async def test_api_key_missing(ai_service, test_event, test_camera, test_image, mock_config):
     """Test that missing API key returns None gracefully."""
     mock_config.ai.api_key = None
     
     with patch.object(ai_service.settings_service, 'load_config', return_value=mock_config):
-        result = ai_service.analyze_event(test_event, test_image, test_camera)
+        result = await ai_service.analyze_event(test_event, test_image, test_camera)
         
         assert result is None
 
 
-def test_api_key_redacted(ai_service, test_event, test_camera, test_image, mock_config):
+@pytest.mark.asyncio
+async def test_api_key_redacted(ai_service, test_event, test_camera, test_image, mock_config):
     """Test that redacted API key returns None gracefully."""
     mock_config.ai.api_key = "***REDACTED***"
     
     with patch.object(ai_service.settings_service, 'load_config', return_value=mock_config):
-        result = ai_service.analyze_event(test_event, test_image, test_camera)
+        result = await ai_service.analyze_event(test_event, test_image, test_camera)
         
         assert result is None
 
@@ -197,11 +200,12 @@ def test_image_not_found(ai_service):
     assert encoded is None
 
 
-@patch('app.services.ai.OpenAI')
-def test_openai_api_call(mock_openai_class, ai_service, test_event, test_camera, test_image, mock_config):
+@pytest.mark.asyncio
+@patch('app.services.ai.AsyncOpenAI')
+async def test_openai_api_call(mock_openai_class, ai_service, test_event, test_camera, test_image, mock_config):
     """Test OpenAI API call with mocked response."""
     # Mock OpenAI client and response
-    mock_client = Mock()
+    mock_client = AsyncMock()
     mock_response = Mock()
     mock_response.choices = [Mock()]
     mock_response.choices[0].message = Mock()
@@ -210,7 +214,7 @@ def test_openai_api_call(mock_openai_class, ai_service, test_event, test_camera,
     mock_openai_class.return_value = mock_client
     
     with patch.object(ai_service.settings_service, 'load_config', return_value=mock_config):
-        result = ai_service.analyze_event(test_event, test_image, test_camera)
+        result = await ai_service.analyze_event(test_event, test_image, test_camera)
         
         assert result is not None
         assert "1 kişi" in result
@@ -234,16 +238,17 @@ def test_openai_api_call(mock_openai_class, ai_service, test_event, test_camera,
         assert any(item['type'] == 'image_url' for item in user_content)
 
 
-@patch('app.services.ai.OpenAI')
-def test_openai_api_error(mock_openai_class, ai_service, test_event, test_camera, test_image, mock_config):
+@pytest.mark.asyncio
+@patch('app.services.ai.AsyncOpenAI')
+async def test_openai_api_error(mock_openai_class, ai_service, test_event, test_camera, test_image, mock_config):
     """Test OpenAI API error handling."""
     # Mock API error
-    mock_client = Mock()
+    mock_client = AsyncMock()
     mock_client.chat.completions.create.side_effect = Exception("API Error")
     mock_openai_class.return_value = mock_client
     
     with patch.object(ai_service.settings_service, 'load_config', return_value=mock_config):
-        result = ai_service.analyze_event(test_event, test_image, test_camera)
+        result = await ai_service.analyze_event(test_event, test_image, test_camera)
         
         # Should return None on error
         assert result is None

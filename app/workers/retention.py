@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from app.db.models import Event
 from app.db.session import get_session
 from app.services.settings import get_settings_service
+from app.utils.paths import DATA_DIR
 
 
 logger = logging.getLogger(__name__)
@@ -32,7 +33,7 @@ class RetentionWorker:
     - Media deletion order (mp4 → gif → collage)
     """
     
-    MEDIA_DIR = Path("data/media")
+    MEDIA_DIR = DATA_DIR / "media"
     
     def __init__(self):
         """Initialize retention worker."""

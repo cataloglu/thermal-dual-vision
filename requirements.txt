@@ -13,3 +13,4 @@ imageio-ffmpeg
 httpx
 websockets
 psutil
+openai>=1.0.0

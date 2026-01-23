@@ -51,10 +51,12 @@ export function CameraFormModal({ camera, onClose, onSave }: CameraFormModalProp
         enabled: camera.enabled,
         rtsp_url_thermal: camera.rtsp_url_thermal || '',
         rtsp_url_color: camera.rtsp_url_color || '',
-        channel_color: camera.channel_color || 102,
-        channel_thermal: camera.channel_thermal || 202,
+        channel_color: camera.channel_color,
+        channel_thermal: camera.channel_thermal,
         detection_source: camera.detection_source,
-        stream_roles: camera.stream_roles,
+        stream_roles: camera.stream_roles?.filter((role) => role !== 'record')?.length
+          ? camera.stream_roles.filter((role) => role !== 'record')
+          : ['detect', 'live'],
       })
     }
   }, [camera])
@@ -101,10 +103,16 @@ export function CameraFormModal({ camera, onClose, onSave }: CameraFormModalProp
     setSaving(true)
 
     try {
+      const payload = {
+        ...formData,
+        stream_roles: ['detect', 'live'],
+        channel_color: undefined,
+        channel_thermal: undefined,
+      }
       if (camera) {
-        await api.updateCamera(camera.id as string, formData)
+        await api.updateCamera(camera.id as string, payload)
       } else {
-        await api.createCamera(formData)
+        await api.createCamera(payload)
       }
 
       toast.success(camera ? 'Kamera güncellendi' : 'Kamera eklendi')
@@ -116,15 +124,6 @@ export function CameraFormModal({ camera, onClose, onSave }: CameraFormModalProp
     } finally {
       setSaving(false)
     }
-  }
-
-  const toggleRole = (role: string) => {
-    setFormData(prev => ({
-      ...prev,
-      stream_roles: prev.stream_roles.includes(role)
-        ? prev.stream_roles.filter(r => r !== role)
-        : [...prev.stream_roles, role]
-    }))
   }
 
   const validate = () => {
@@ -146,12 +145,6 @@ export function CameraFormModal({ camera, onClose, onSave }: CameraFormModalProp
       } else if (!isRtsp(formData.rtsp_url_color)) {
         nextErrors.push('Renkli RTSP adresi rtsp:// ile başlamalı')
       }
-    }
-    if (formData.channel_color && formData.channel_color < 1) {
-      nextErrors.push('Renkli kanal numarası geçersiz')
-    }
-    if (formData.channel_thermal && formData.channel_thermal < 1) {
-      nextErrors.push('Termal kanal numarası geçersiz')
     }
     return nextErrors
   }
@@ -233,34 +226,6 @@ export function CameraFormModal({ camera, onClose, onSave }: CameraFormModalProp
             </div>
           )}
 
-          {/* Channel Numbers */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-text mb-2">
-                Renkli Kanal
-              </label>
-              <input
-                type="number"
-                min={1}
-                value={formData.channel_color ?? 102}
-                onChange={(e) => setFormData({ ...formData, channel_color: Number(e.target.value) })}
-                className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-text mb-2">
-                Termal Kanal
-              </label>
-              <input
-                type="number"
-                min={1}
-                value={formData.channel_thermal ?? 202}
-                onChange={(e) => setFormData({ ...formData, channel_thermal: Number(e.target.value) })}
-                className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
-              />
-            </div>
-          </div>
-
           {/* Detection Source */}
           <div>
             <label className="block text-sm font-medium text-text mb-2">
@@ -275,26 +240,6 @@ export function CameraFormModal({ camera, onClose, onSave }: CameraFormModalProp
               <option value="thermal">Termal</option>
               <option value="color">Renkli</option>
             </select>
-          </div>
-
-          {/* Stream Roles */}
-          <div>
-            <label className="block text-sm font-medium text-text mb-2">
-              Stream Rolleri
-            </label>
-            <div className="flex gap-3">
-              {['detect', 'live', 'record'].map((role) => (
-                <label key={role} className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.stream_roles.includes(role)}
-                    onChange={() => toggleRole(role)}
-                    className="w-4 h-4 accent-accent"
-                  />
-                  <span className="text-sm text-text capitalize">{role}</span>
-                </label>
-              ))}
-            </div>
           </div>
 
           {/* Enabled */}

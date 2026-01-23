@@ -12,13 +12,13 @@ This service handles configuration file management including:
 import json
 import logging
 import os
-from pathlib import Path
 from threading import Lock
 from typing import Any, Dict, Optional
 
 from pydantic import ValidationError
 
 from app.models.config import AppConfig
+from app.utils.paths import DATA_DIR
 
 
 logger = logging.getLogger(__name__)
@@ -32,7 +32,7 @@ class SettingsService:
     _lock = Lock()
     
     # Config file path
-    CONFIG_FILE = Path("data/config.json")
+    CONFIG_FILE = DATA_DIR / "config.json"
     
     # Secrets to mask in responses
     # NOTE: bot_token is left unmasked for easier testing in UI.

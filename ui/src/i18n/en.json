@@ -99,6 +99,7 @@
   "autoRefresh": "Auto Refresh",
   "systemHealth": "System Health",
   "applicationLogs": "Application Logs",
+  "cameraLogs": "Camera Logs",
   "lastLines": "Last {{count}} lines",
   "detectionSettings": "Detection Settings",
   "detectionDesc": "Configure YOLOv8 person detection model and inference parameters",
