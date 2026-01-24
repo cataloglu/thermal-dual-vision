@@ -41,9 +41,10 @@ RUN npm install && npm run build
 WORKDIR /app
 
 # Nginx Setup
-COPY nginx_addon.conf /etc/nginx/sites-enabled/default
+# FIX: Copy to temp location first to avoid 'cannot stat' error
+COPY nginx_addon.conf /tmp/nginx_addon.conf
 RUN rm -f /etc/nginx/sites-enabled/default && \
-    cp nginx_addon.conf /etc/nginx/sites-available/default && \
+    cp /tmp/nginx_addon.conf /etc/nginx/sites-available/default && \
     ln -s /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
 
 # Copy Scripts & Configs
