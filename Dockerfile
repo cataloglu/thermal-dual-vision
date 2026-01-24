@@ -45,6 +45,7 @@ RUN mkdir -p /run/nginx
 
 # Copy Scripts & Configs
 COPY run.sh /run.sh
+COPY sync_options.py /app/sync_options.py
 COPY go2rtc.yaml /app/go2rtc.yaml
 
 RUN chmod +x /run.sh
