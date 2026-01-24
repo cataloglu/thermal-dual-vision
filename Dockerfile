@@ -5,15 +5,6 @@ FROM $BUILD_FROM
 USER root
 
 # Install dependencies (Debian based - Much safer for OpenCV/Python)
-# We assume BUILD_FROM is a Debian-based HA base image or we force python:3.11-slim
-# Since HA might inject an Alpine image, we need to be careful.
-# BEST PRACTICE: Force a known working base image if we rely on complex libs like OpenCV
-# But HA Addon require FROM $BUILD_FROM.
-# Workaround: Check OS and install accordingly, OR assume user configured build.json correctly.
-#
-# LET'S ASSUME DEBIAN environment for stability with OpenCV.
-# If HA injects Alpine, 'apt-get' will fail immediately and we know the issue.
-
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
@@ -42,15 +33,14 @@ RUN if [ "$TARGETARCH" = "aarch64" ]; then GO2RTC_ARCH="arm64"; \
 WORKDIR /app
 
 # Copy Backend Code
-COPY app /app/app
-COPY requirements.txt .
+COPY app/ /app/app/
+COPY requirements.txt ./
 
 # Install Python dependencies
-# --break-system-packages is for newer Python envs
 RUN pip3 install --no-cache-dir -r requirements.txt --break-system-packages || pip3 install --no-cache-dir -r requirements.txt
 
 # Copy Frontend Code & Build
-COPY ui /app/ui
+COPY ui/ /app/ui/
 WORKDIR /app/ui
 RUN npm install && npm run build
 WORKDIR /app
@@ -59,7 +49,7 @@ WORKDIR /app
 COPY nginx_addon.conf /etc/nginx/sites-enabled/default
 # Fix nginx directories for Debian
 RUN rm -f /etc/nginx/sites-enabled/default && \
-    cp nginx_addon.conf /etc/nginx/sites-available/default && \
+    cp /app/nginx_addon.conf /etc/nginx/sites-available/default && \
     ln -s /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
 
 # Copy Scripts & Configs
