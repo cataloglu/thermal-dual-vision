@@ -1,0 +1,23 @@
+import i18n from 'i18next'
+import { initReactI18next } from 'react-i18next'
+import tr from './tr.json'
+import en from './en.json'
+
+// Get saved language or default to Turkish
+const savedLanguage = localStorage.getItem('language') || 'tr'
+
+i18n
+  .use(initReactI18next)
+  .init({
+    resources: {
+      tr: { translation: tr },
+      en: { translation: en },
+    },
+    lng: savedLanguage,
+    fallbackLng: 'tr',
+    interpolation: {
+      escapeValue: false,
+    },
+  })
+
+export default i18n
