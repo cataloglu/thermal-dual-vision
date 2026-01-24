@@ -46,7 +46,6 @@ RUN npm install && npm run build
 WORKDIR /app
 
 # Nginx Setup
-# Copy config to /app first
 COPY nginx_addon.conf /app/nginx_addon.conf
 RUN mkdir -p /run/nginx && \
     rm -f /etc/nginx/sites-enabled/default && \
@@ -57,8 +56,8 @@ RUN mkdir -p /run/nginx && \
 COPY sync_options.py /app/sync_options.py
 COPY go2rtc.yaml /app/go2rtc.yaml
 
-# Copy S6 Overlay Services
+# Copy S6 Overlay Services (v3)
 COPY rootfs /
-RUN chmod a+x /etc/services.d/thermal_vision/run
+RUN chmod a+x /etc/s6-overlay/s6-rc.d/thermal-vision/run
 
-# NO CMD or ENTRYPOINT needed. Base image handles S6 init.
+# Init handled by base image (S6 v3)

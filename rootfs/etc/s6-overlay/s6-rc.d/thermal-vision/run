@@ -1,6 +1,6 @@
-#!/usr/bin/with-contenv bashio
+#!/command/with-contenv bashio
 
-echo "Starting Thermal Dual Vision..."
+echo "Starting Thermal Dual Vision (S6 v3)..."
 
 # Ensure data directory exists
 mkdir -p /app/data
@@ -14,6 +14,6 @@ echo "Starting Backend API..."
 cd /app
 python3 -m app.main &
 
-# Start Nginx (Foreground - keeps container alive)
+# Start Nginx
 echo "Starting Nginx..."
 exec nginx -g "daemon off;"
