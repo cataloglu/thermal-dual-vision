@@ -1,0 +1,14 @@
+streams:
+  color_cam:
+    - rtsp://host.docker.internal:8554/color
+  thermal_cam_1:
+    - rtsp://host.docker.internal:8554/thermal1
+  thermal_cam_2:
+    - rtsp://host.docker.internal:8554/thermal2
+
+api:
+  listen: ":1984"
+  origin: "*"
+
+log:
+  level: info

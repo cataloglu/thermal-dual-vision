@@ -18,6 +18,7 @@ import { EventsTab } from '../components/tabs/EventsTab';
 import { MediaTab } from '../components/tabs/MediaTab';
 import { AITab } from '../components/tabs/AITab';
 import { TelegramTab } from '../components/tabs/TelegramTab';
+import { MqttTab } from '../components/tabs/MqttTab';
 import { AppearanceTab } from '../components/tabs/AppearanceTab';
 import type { Settings as SettingsType } from '../types/api';
 
@@ -89,6 +90,9 @@ export const Settings: React.FC = () => {
           break;
         case 'telegram':
           updates.telegram = localSettings.telegram;
+          break;
+        case 'mqtt':
+          updates.mqtt = localSettings.mqtt;
           break;
         case 'appearance':
           updates.appearance = localSettings.appearance;
@@ -206,6 +210,9 @@ export const Settings: React.FC = () => {
           }
         />
       )
+    }
+    if (activeTab === 'mqtt' && localSettings) {
+      return <MqttTab />
     }
     if (activeTab === 'appearance') return <AppearanceTab />
     return null

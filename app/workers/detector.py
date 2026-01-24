@@ -33,6 +33,7 @@ from app.services.settings import get_settings_service
 from app.services.telegram import get_telegram_service
 from app.services.time_utils import get_detection_source
 from app.services.websocket import get_websocket_manager
+from app.services.mqtt import get_mqtt_service
 
 
 logger = logging.getLogger(__name__)
@@ -60,6 +61,7 @@ class DetectorWorker:
         self.media_service = get_media_service()
         self.websocket_manager = get_websocket_manager()
         self.telegram_service = get_telegram_service()
+        self.mqtt_service = get_mqtt_service()
         
         # Per-camera state
         self.frame_buffers: Dict[str, deque] = defaultdict(deque)
@@ -256,8 +258,8 @@ class DetectorWorker:
                 logger.error(f"No RTSP URL for camera {camera_id}")
                 return
             
-            # Force TCP protocol
-            rtsp_url = self.camera_service.force_tcp_protocol(rtsp_url)
+            # Use configured RTSP URL directly (no forced tcp)
+            # rtsp_url = self.camera_service.force_tcp_protocol(rtsp_url)
             
             logger.info(f"Starting detection for camera {camera_id}: {rtsp_url}")
             
@@ -287,25 +289,37 @@ class DetectorWorker:
                             time.sleep(1)
                             continue
 
-                    ret, frame = cap.read()
-                    if not ret or frame is None:
-                        failures += 1
-                        if failures >= 3:
-                            logger.warning("Reconnecting camera %s after read failures", camera_id)
-                            try:
-                                cap.release()
-                            except Exception:
-                                pass
-                            cap = None
-                            failures = 0
-                        time.sleep(0.2)
-                        continue
+                    try:
+                        ret, frame = cap.read()
+                        if not ret or frame is None:
+                            failures += 1
+                            if failures >= 3:
+                                logger.warning("Reconnecting camera %s after read failures", camera_id)
+                                try:
+                                    cap.release()
+                                except Exception:
+                                    pass
+                                cap = None
+                                failures = 0
+                            time.sleep(0.2)
+                            continue
+                        
+                        # Optimization: Resize large frames immediately to save memory
+                        # YOLO usually needs 640x640, so keeping 1080p in memory is wasteful
+                        if frame.shape[1] > 1280: 
+                            height = int(frame.shape[0] * 1280 / frame.shape[1])
+                            frame = cv2.resize(frame, (1280, height))
 
-                    failures = 0
-                    with frame_lock:
-                        latest_frame["frame"] = frame
-                    with self.latest_frame_locks[camera_id]:
-                        self.latest_frames[camera_id] = frame
+                        failures = 0
+                        with frame_lock:
+                            latest_frame["frame"] = frame
+                        with self.latest_frame_locks[camera_id]:
+                            self.latest_frames[camera_id] = frame
+                            
+                    except Exception as e:
+                        logger.error(f"Reader loop error: {e}")
+                        failures += 1
+                        time.sleep(0.5)
 
             reader_thread = threading.Thread(
                 target=reader_loop,
@@ -579,6 +593,20 @@ class DetectorWorker:
                     })
                 except Exception as e:
                     logger.debug("Event broadcast skipped: %s", e)
+
+                # MQTT Publish
+                try:
+                    self.mqtt_service.publish_event({
+                        "id": event.id,
+                        "camera_id": event.camera_id,
+                        "timestamp": event.timestamp.isoformat() + "Z",
+                        "confidence": event.confidence,
+                        "event_type": event.event_type,
+                        "summary": event.summary,
+                    })
+                except Exception as e:
+                    logger.error("MQTT publish failed: %s", e)
+
                 self._start_media_generation(camera, event.id, config)
             finally:
                 db.close()
@@ -849,6 +877,21 @@ class DetectorWorker:
                         event.ai_enabled = bool(has_key)
                         event.ai_reason = "no_api_key" if not has_key else "analysis_failed"
                     db.commit()
+
+                    # Re-publish to MQTT with summary
+                    if summary:
+                        try:
+                            self.mqtt_service.publish_event({
+                                "id": event.id,
+                                "camera_id": event.camera_id,
+                                "timestamp": event.timestamp.isoformat() + "Z",
+                                "confidence": event.confidence,
+                                "event_type": event.event_type,
+                                "summary": event.summary,
+                                "ai_enabled": True
+                            })
+                        except Exception as e:
+                            logger.error("MQTT update failed: %s", e)
 
                     try:
                         asyncio.run(

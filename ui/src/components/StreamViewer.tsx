@@ -1,7 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MdRefresh, MdError, MdCheckCircle, MdFullscreen, MdPhotoCamera } from 'react-icons/md'
+import toast from 'react-hot-toast'
 import { api } from '../services/api'
+import { useSettings } from '../hooks/useSettings'
+
+const GO2RTC_URL = import.meta.env.VITE_GO2RTC_URL || 'http://localhost:1984';
 
 interface StreamViewerProps {
   cameraId: string
@@ -23,11 +27,30 @@ export function StreamViewer({
   const [recording, setRecording] = useState(false)
   const [recordingLoading, setRecordingLoading] = useState(false)
   const [isVisible, setIsVisible] = useState(true)
+  const [go2rtcAvailable, setGo2rtcAvailable] = useState(false)
+  
+  const { settings } = useSettings()
+  const outputMode = settings?.live?.output_mode || 'mjpeg'
+
   const imgRef = useRef<HTMLImageElement>(null)
   const retryTimeoutRef = useRef<number | null>(null)
   const loadingTimeoutRef = useRef<number | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const maxRetries = 10
+
+  useEffect(() => {
+    const checkGo2rtc = async () => {
+      try {
+        await fetch(`${GO2RTC_URL}/api`, { mode: 'no-cors' })
+        setGo2rtcAvailable(true)
+      } catch {
+        setGo2rtcAvailable(false)
+      }
+    }
+    checkGo2rtc()
+    const interval = setInterval(checkGo2rtc, 30000)
+    return () => clearInterval(interval)
+  }, [])
 
   useEffect(() => {
     setLoading(true)
@@ -229,16 +252,33 @@ export function StreamViewer({
         </div>
       )}
 
-      {/* MJPEG Stream */}
-      <img
-        ref={imgRef}
-        src={effectiveStreamUrl}
-        alt={cameraName}
-        loading="lazy"
-        className={`w-full h-full object-contain ${error ? 'hidden' : 'block'}`}
-        onLoad={handleLoad}
-        onError={handleError}
-      />
+      {/* MJPEG Stream / WebRTC Player */}
+      {outputMode === 'webrtc' && go2rtcAvailable ? (
+        <iframe
+          src={`${GO2RTC_URL}/stream.html?src=${cameraId}&mode=webrtc`}
+          className="w-full h-full border-0"
+          allow="autoplay"
+          title="WebRTC Stream"
+          onLoad={handleLoad}
+        />
+      ) : (
+        <img
+          ref={imgRef}
+          src={effectiveStreamUrl}
+          alt={cameraName}
+          loading="lazy"
+          className={`w-full h-full object-contain ${error ? 'hidden' : 'block'}`}
+          onLoad={handleLoad}
+          onError={handleError}
+        />
+      )}
+
+      {/* Status indicator for fallback */}
+      {outputMode === 'webrtc' && !go2rtcAvailable && (
+        <div className="absolute top-4 left-4 bg-red-500/90 text-white px-3 py-2 rounded-lg text-sm z-20">
+          go2rtc unavailable, using MJPEG fallback
+        </div>
+      )}
 
       {!error && (
         <div className="absolute bottom-4 left-4 flex items-center gap-2">

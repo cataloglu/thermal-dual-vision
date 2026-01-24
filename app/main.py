@@ -17,7 +17,7 @@ import time
 import base64
 
 from app.db.session import get_session, init_db
-from app.db.models import Zone, ZoneMode, Camera, CameraStatus
+from app.db.models import Zone, ZoneMode, Camera, CameraStatus, Event
 from app.models.camera import CameraTestRequest, CameraTestResponse
 from app.models.config import AppConfig
 from app.services.camera import get_camera_service
@@ -31,6 +31,8 @@ from app.services.logs import get_logs_service
 from app.services.ai_test import test_openai_connection
 from app.services.ai import get_ai_service
 from app.services.time_utils import get_detection_source
+from app.services.go2rtc import get_go2rtc_service
+from app.services.mqtt import get_mqtt_service
 from telegram import Bot
 from app.workers.retention import get_retention_worker
 from app.workers.detector import get_detector_worker
@@ -93,6 +95,8 @@ detector_worker = get_detector_worker()
 websocket_manager = get_websocket_manager()
 telegram_service = get_telegram_service()
 logs_service = get_logs_service()
+go2rtc_service = get_go2rtc_service()
+mqtt_service = get_mqtt_service()
 
 
 def _resolve_camera_rtsp_url(camera) -> Optional[str]:
@@ -141,6 +145,21 @@ async def startup_event():
     detector_worker.start()
     logger.info("Detector worker started")
 
+    # Start MQTT service
+    mqtt_service.start()
+    logger.info("MQTT service started")
+
+    # Sync cameras to go2rtc
+    db = next(get_session())
+    try:
+        cameras = camera_crud_service.get_cameras(db)
+        go2rtc_service.sync_all_cameras(cameras)
+        logger.info("Cameras synced to go2rtc")
+    except Exception as e:
+        logger.error(f"Failed to sync cameras to go2rtc: {e}")
+    finally:
+        db.close()
+
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -154,6 +173,10 @@ async def shutdown_event():
     # Stop detector worker
     detector_worker.stop()
     logger.info("Detector worker stopped")
+
+    # Stop MQTT service
+    mqtt_service.stop()
+    logger.info("MQTT service stopped")
 
 
 @app.get("/")
@@ -193,6 +216,7 @@ async def health():
 
     pipeline_status = "ok" if detector_worker.running else "down"
     telegram_status = "ok" if telegram_service.is_enabled() else "disabled"
+    mqtt_status = "ok" if mqtt_service.connected else ("disabled" if not settings_service.load_config().mqtt.enabled else "disconnected")
 
     return {
         "status": "ok" if pipeline_status == "ok" else "degraded",
@@ -200,7 +224,7 @@ async def health():
         "uptime_s": uptime_s,
         "ai": {"enabled": ai_enabled, "reason": ai_reason},
         "cameras": {"online": online, "retrying": retrying, "down": down},
-        "components": {"pipeline": pipeline_status, "telegram": telegram_status, "mqtt": "disabled"},
+        "components": {"pipeline": pipeline_status, "telegram": telegram_status, "mqtt": mqtt_status},
     }
 
 
@@ -322,6 +346,12 @@ async def update_settings(partial_data: Dict[str, Any]) -> Dict[str, Any]:
     """
     try:
         updated_settings = settings_service.update_settings(partial_data)
+        
+        # Check if MQTT settings changed and restart service if needed
+        if "mqtt" in partial_data:
+            logger.info("MQTT settings changed, restarting service...")
+            mqtt_service.restart()
+
         logger.info("Settings updated successfully")
         return updated_settings
     except ValidationError as e:
@@ -1288,6 +1318,11 @@ async def create_camera(
         else:
             detector_worker.stop_camera_detection(camera.id)
 
+        # Add to go2rtc
+        rtsp_url = camera.rtsp_url_thermal or camera.rtsp_url_color or camera.rtsp_url
+        if rtsp_url:
+            go2rtc_service.add_camera(camera.id, rtsp_url)
+
         return camera_crud_service.mask_rtsp_urls(camera)
         
     except ValueError as e:
@@ -1394,6 +1429,9 @@ async def delete_camera(
         HTTPException: 404 if not found, 500 if deletion fails
     """
     try:
+        # Remove from go2rtc first
+        go2rtc_service.remove_camera(camera_id)
+        
         detector_worker.stop_camera_detection(camera_id)
         deleted = camera_crud_service.delete_camera(db, camera_id)
         

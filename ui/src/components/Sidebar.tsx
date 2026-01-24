@@ -57,6 +57,7 @@ export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
     { tab: 'media', label: 'Media' },
     { tab: 'ai', label: t('ai') },
     { tab: 'telegram', label: t('telegram') },
+    { tab: 'mqtt', label: 'Home Assistant / MQTT' },
     { tab: 'appearance', label: t('appearance') },
   ]
 

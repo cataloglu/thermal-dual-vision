@@ -2,9 +2,13 @@ FROM node:20-alpine
 
 WORKDIR /ui
 
-COPY ui/package.json ui/package-lock.json* /ui/
+# Copy only package.json first (ignore lock file for clean install)
+COPY ui/package.json /ui/
+
+# Clean install without lock file to fix platform issues
 RUN npm install
 
+# Copy rest of the code
 COPY ui /ui
 
 EXPOSE 5173

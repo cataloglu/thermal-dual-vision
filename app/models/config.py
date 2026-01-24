@@ -423,6 +423,35 @@ class AppearanceConfig(BaseModel):
     )
 
 
+class MqttConfig(BaseModel):
+    """MQTT / Home Assistant integration configuration."""
+    
+    enabled: bool = Field(
+        default=False,
+        description="Enable MQTT integration"
+    )
+    host: str = Field(
+        default="core-mosquitto",
+        description="MQTT broker host"
+    )
+    port: int = Field(
+        default=1883,
+        description="MQTT broker port"
+    )
+    username: Optional[str] = Field(
+        default=None,
+        description="MQTT username (optional for anonymous)"
+    )
+    password: Optional[str] = Field(
+        default=None,
+        description="MQTT password (will be masked)"
+    )
+    topic_prefix: str = Field(
+        default="thermal_vision",
+        description="MQTT topic prefix"
+    )
+
+
 class AppConfig(BaseModel):
     """Main application configuration containing all sections."""
     
@@ -465,6 +494,10 @@ class AppConfig(BaseModel):
     telegram: TelegramConfig = Field(
         default_factory=TelegramConfig,
         description="Telegram notification configuration"
+    )
+    mqtt: MqttConfig = Field(
+        default_factory=MqttConfig,
+        description="MQTT / Home Assistant integration configuration"
     )
     appearance: AppearanceConfig = Field(
         default_factory=AppearanceConfig,

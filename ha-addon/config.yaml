@@ -1,0 +1,32 @@
+name: "Thermal Dual Vision"
+version: "2.1.0"
+slug: "thermal_dual_vision"
+description: "AI supported thermal & color person detection system with MQTT Auto-Discovery"
+url: "https://github.com/cataloglu/thermal-dual-vision"
+arch:
+  - aarch64
+  - amd64
+startup: application
+boot: auto
+map:
+  - "config:rw"
+  - "media:rw"
+ports:
+  8099/tcp: 8099
+  1984/tcp: 1984
+  8554/tcp: 8554
+options:
+  log_level: info
+  mqtt_host: core-mosquitto
+  mqtt_port: 1883
+  mqtt_user: ""
+  mqtt_pass: ""
+schema:
+  log_level: list(debug|info|warning|error)
+  mqtt_host: str
+  mqtt_port: int
+  mqtt_user: str?
+  mqtt_pass: str?
+image: "thermal-dual-vision-{arch}"
+ingress: true
+ingress_port: 8099

@@ -16,6 +16,7 @@ export type TabId =
   | 'media'
   | 'ai'
   | 'telegram'
+  | 'mqtt'
   | 'appearance';
 
 interface Tab {
@@ -34,6 +35,7 @@ const tabs: Tab[] = [
   { id: 'events', label: 'Olaylar' },
   { id: 'ai', label: 'AI' },
   { id: 'telegram', label: 'Telegram' },
+  { id: 'mqtt', label: 'MQTT' },
   { id: 'appearance', label: 'Görünüm' },
 ];
 

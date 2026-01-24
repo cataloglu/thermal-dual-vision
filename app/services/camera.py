@@ -7,6 +7,7 @@ and connection testing with proper error handling and retry logic.
 import base64
 import logging
 import time
+import os
 from typing import Dict, Optional
 
 import cv2
@@ -31,28 +32,10 @@ class CameraService:
     @staticmethod
     def force_tcp_protocol(url: str) -> str:
         """
-        Force TCP protocol for RTSP connection.
-        
-        Adds ?tcp parameter to URL if not already present.
-        This prevents frame tearing from UDP packet loss.
-        
-        Args:
-            url: Original RTSP URL
-            
-        Returns:
-            URL with TCP protocol forced
+        Configure RTSP transport protocol.
         """
-        if not url:
-            return url
-        
-        # Check if URL already has query parameters
-        if "?" in url:
-            # Check if tcp parameter already exists
-            if "tcp" not in url.lower():
-                url += "&tcp"
-        else:
-            url += "?tcp"
-        
+        # NOTE: We disabled forced TCP appending because cv2/ffmpeg handles
+        # negotiation better automatically, and some servers reject explicit ?tcp
         return url
     
     def test_rtsp_connection(
@@ -77,8 +60,8 @@ class CameraService:
                 - latency_ms (int): Connection latency in milliseconds
                 - error_reason (str): Error message if failed
         """
-        # Force TCP protocol
-        url = self.force_tcp_protocol(url)
+            # Force TCP protocol (Disabled for compatibility)
+        # url = self.force_tcp_protocol(url)
         
         logger.info(f"Testing RTSP connection: {url}")
         
@@ -89,16 +72,16 @@ class CameraService:
                 start_time = time.time()
                 
                 # Open video capture
+                # Set FFMPEG timeout via env var for this thread/process
+                os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "timeout;5000"
+                
                 cap = cv2.VideoCapture(url, cv2.CAP_FFMPEG)
+                
+                # Optimization: Set smaller buffer
+                cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
                 
                 if not cap.isOpened():
                     raise ConnectionError("Failed to open video capture")
-                
-                # Set buffer size (low latency)
-                cap.set(cv2.CAP_PROP_BUFFERSIZE, self.BUFFER_SIZE)
-                
-                # Set codec to H.264
-                cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'H264'))
                 
                 # Read frame with timeout
                 ret, frame = cap.read()
@@ -109,6 +92,11 @@ class CameraService:
                 
                 # Calculate latency
                 latency_ms = int((time.time() - start_time) * 1000)
+                
+                # Optimization: Resize for snapshot if too large (save bandwidth)
+                if frame.shape[1] > 1280:
+                    height = int(frame.shape[0] * 1280 / frame.shape[1])
+                    frame = cv2.resize(frame, (1280, height))
                 
                 # Encode frame to JPEG
                 encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), self.JPEG_QUALITY]

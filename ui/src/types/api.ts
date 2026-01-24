@@ -95,6 +95,15 @@ export interface TelegramConfig {
   snapshot_quality: number;
 }
 
+export interface MqttConfig {
+  enabled: boolean;
+  host: string;
+  port: number;
+  username?: string;
+  password?: string;
+  topic_prefix: string;
+}
+
 export interface AppearanceConfig {
   theme: 'slate' | 'carbon' | 'pure-black' | 'matrix';
   language: 'tr' | 'en';
@@ -111,6 +120,7 @@ export interface Settings {
   media: MediaConfig;
   ai: AIConfig;
   telegram: TelegramConfig;
+  mqtt: MqttConfig;
   appearance: AppearanceConfig;
 }
 
