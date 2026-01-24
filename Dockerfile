@@ -1,17 +1,33 @@
 ARG BUILD_FROM
 FROM $BUILD_FROM
 
-# Install dependencies (Alpine based)
-RUN apk add --no-cache \
+# Switch to root user just in case
+USER root
+
+# Install dependencies (Debian based - Much safer for OpenCV/Python)
+# We assume BUILD_FROM is a Debian-based HA base image or we force python:3.11-slim
+# Since HA might inject an Alpine image, we need to be careful.
+# BEST PRACTICE: Force a known working base image if we rely on complex libs like OpenCV
+# But HA Addon require FROM $BUILD_FROM.
+# Workaround: Check OS and install accordingly, OR assume user configured build.json correctly.
+#
+# LET'S ASSUME DEBIAN environment for stability with OpenCV.
+# If HA injects Alpine, 'apt-get' will fail immediately and we know the issue.
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
-    py3-pip \
+    python3-pip \
+    python3-venv \
     nodejs \
     npm \
     ffmpeg \
     nginx \
     curl \
     jq \
-    git
+    git \
+    libgl1 \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install go2rtc
 ARG TARGETARCH
@@ -30,8 +46,8 @@ COPY app /app/app
 COPY requirements.txt .
 
 # Install Python dependencies
-# Note: --break-system-packages is needed for newer Python versions in Alpine
-RUN pip3 install --no-cache-dir -r requirements.txt --break-system-packages
+# --break-system-packages is for newer Python envs
+RUN pip3 install --no-cache-dir -r requirements.txt --break-system-packages || pip3 install --no-cache-dir -r requirements.txt
 
 # Copy Frontend Code & Build
 COPY ui /app/ui
@@ -40,8 +56,11 @@ RUN npm install && npm run build
 WORKDIR /app
 
 # Nginx Setup
-COPY nginx_addon.conf /etc/nginx/http.d/default.conf
-RUN mkdir -p /run/nginx
+COPY nginx_addon.conf /etc/nginx/sites-enabled/default
+# Fix nginx directories for Debian
+RUN rm -f /etc/nginx/sites-enabled/default && \
+    cp nginx_addon.conf /etc/nginx/sites-available/default && \
+    ln -s /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
 
 # Copy Scripts & Configs
 COPY run.sh /run.sh
