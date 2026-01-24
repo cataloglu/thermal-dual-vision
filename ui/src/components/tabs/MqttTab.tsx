@@ -1,16 +1,16 @@
-import React from 'react';
 import { useSettings } from '../../hooks/useSettings';
 import { LoadingState } from '../LoadingState';
 import { useTranslation } from 'react-i18next';
 
 export function MqttTab() {
-  const { settings, updateSettings, loading } = useSettings();
+  // Fix: use saveSettings instead of updateSettings
+  const { settings, saveSettings, loading } = useSettings();
   const { t } = useTranslation();
 
   if (loading || !settings) return <LoadingState />;
 
   const handleMqttChange = (key: string, value: any) => {
-    updateSettings({
+    saveSettings({
       mqtt: {
         ...settings.mqtt,
         [key]: value
@@ -22,14 +22,14 @@ export function MqttTab() {
     <div className="space-y-6">
       <div className="bg-card p-6 rounded-lg border border-border">
         <h3 className="text-lg font-medium text-foreground mb-4">
-          Home Assistant / MQTT
+          {t('haMqtt')}
         </h3>
 
         <div className="space-y-4">
           {/* Enabled Toggle */}
           <div className="flex items-center justify-between">
             <label className="text-sm font-medium text-foreground">
-              {t('settings.common.enabled')}
+              {t('mqttEnabled')}
             </label>
             <button
               onClick={() => handleMqttChange('enabled', !settings.mqtt.enabled)}
@@ -48,7 +48,7 @@ export function MqttTab() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-muted-foreground mb-1">
-                Broker Host
+                {t('brokerHost')}
               </label>
               <input
                 type="text"
@@ -58,13 +58,13 @@ export function MqttTab() {
                 className="w-full bg-background border border-border rounded px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Home Assistant default: core-mosquitto
+                {t('haDefault')}
               </p>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-muted-foreground mb-1">
-                Port
+                {t('port')}
               </label>
               <input
                 type="number"
@@ -76,7 +76,7 @@ export function MqttTab() {
 
             <div>
               <label className="block text-sm font-medium text-muted-foreground mb-1">
-                Username
+                {t('username')}
               </label>
               <input
                 type="text"
@@ -88,7 +88,7 @@ export function MqttTab() {
 
             <div>
               <label className="block text-sm font-medium text-muted-foreground mb-1">
-                Password
+                {t('password')}
               </label>
               <input
                 type="password"
@@ -101,7 +101,7 @@ export function MqttTab() {
             
              <div>
               <label className="block text-sm font-medium text-muted-foreground mb-1">
-                Topic Prefix
+                {t('topicPrefix')}
               </label>
               <input
                 type="text"
@@ -116,11 +116,10 @@ export function MqttTab() {
       
       <div className="bg-card p-6 rounded-lg border border-border">
          <h3 className="text-lg font-medium text-foreground mb-4">
-           Integration Status
+           {t('haStatus')}
          </h3>
          <p className="text-sm text-muted-foreground">
-           After enabling MQTT, Home Assistant devices will be automatically discovered. 
-           Check <b>Settings &gt; Devices &gt; MQTT</b> in Home Assistant.
+           {t('haStatusDesc')}
          </p>
       </div>
     </div>

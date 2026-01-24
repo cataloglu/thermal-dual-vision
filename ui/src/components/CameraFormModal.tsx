@@ -51,8 +51,9 @@ export function CameraFormModal({ camera, onClose, onSave }: CameraFormModalProp
         enabled: camera.enabled,
         rtsp_url_thermal: camera.rtsp_url_thermal || '',
         rtsp_url_color: camera.rtsp_url_color || '',
-        channel_color: camera.channel_color,
-        channel_thermal: camera.channel_thermal,
+        // Fix: Use default values to prevent undefined type errors
+        channel_color: camera.channel_color ?? 102,
+        channel_thermal: camera.channel_thermal ?? 202,
         detection_source: camera.detection_source,
         stream_roles: camera.stream_roles?.filter((role) => role !== 'record')?.length
           ? camera.stream_roles.filter((role) => role !== 'record')

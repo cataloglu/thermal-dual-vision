@@ -46,9 +46,10 @@ RUN npm install && npm run build
 WORKDIR /app
 
 # Nginx Setup
-COPY nginx_addon.conf /etc/nginx/sites-enabled/default
-# Fix nginx directories for Debian
-RUN rm -f /etc/nginx/sites-enabled/default && \
+# Copy config to /app first
+COPY nginx_addon.conf /app/nginx_addon.conf
+RUN mkdir -p /run/nginx && \
+    rm -f /etc/nginx/sites-enabled/default && \
     cp /app/nginx_addon.conf /etc/nginx/sites-available/default && \
     ln -s /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
 

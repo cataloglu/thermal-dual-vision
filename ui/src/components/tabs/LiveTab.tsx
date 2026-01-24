@@ -19,7 +19,7 @@ export const LiveTab: React.FC<LiveTabProps> = ({ config, onChange, onSave }) =>
     const checkGo2rtc = async () => {
       try {
         const GO2RTC_URL = import.meta.env.VITE_GO2RTC_URL || 'http://localhost:1984';
-        const response = await fetch(`${GO2RTC_URL}/api`, { mode: 'no-cors' });
+        await fetch(`${GO2RTC_URL}/api`, { mode: 'no-cors' });
         setGo2rtcAvailable(true); // Assuming success if reachable, but no-cors makes it opaque. Checking availability logic.
       } catch {
         setGo2rtcAvailable(false);

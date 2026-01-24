@@ -129,7 +129,8 @@ export function Diagnostics() {
   }
 
   const handleDownloadLogs = () => {
-    const content = filteredLogs.join('\n')
+    // FIX: filteredLogs -> filteredAppLogs
+    const content = filteredAppLogs.join('\n')
     const blob = new Blob([content], { type: 'text/plain' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')

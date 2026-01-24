@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MdRefresh, MdError, MdCheckCircle, MdFullscreen, MdPhotoCamera } from 'react-icons/md'
-import toast from 'react-hot-toast'
 import { api } from '../services/api'
 import { useSettings } from '../hooks/useSettings'
 
