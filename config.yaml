@@ -1,5 +1,5 @@
 name: "Thermal Dual Vision"
-version: "2.1.5"
+version: "2.1.6"
 slug: "thermal_dual_vision"
 description: "AI supported thermal & color person detection system with MQTT Auto-Discovery."
 url: "https://github.com/cataloglu/thermal-dual-vision"
@@ -16,17 +16,9 @@ ingress_port: 8099
 panel_icon: mdi:cctv
 panel_title: Thermal Vision
 ports:
-  1984/tcp: 1984  # go2rtc UI (Optional, maybe remote access)
-  8554/tcp: 8554  # RTSP Server
-options:
-  log_level: info
-  mqtt_host: core-mosquitto
-  mqtt_port: 1883
-  mqtt_user: ""
-  mqtt_pass: ""
-schema:
-  log_level: list(info, debug, warning, error)
-  mqtt_host: str
-  mqtt_port: int
-  mqtt_user: str
-  mqtt_pass: str
+  1984/tcp: 1984
+  8554/tcp: 8554
+# Remove options to allow zero-config start
+# HA will inject MQTT details via services automatically if available
+options: {}
+schema: {}
