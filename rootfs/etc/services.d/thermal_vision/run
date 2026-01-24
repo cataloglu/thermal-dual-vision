@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/usr/bin/with-contenv bashio
 
-echo "Starting Thermal Dual Vision Add-on..."
+echo "Starting Thermal Dual Vision..."
 
 # Ensure data directory exists
 mkdir -p /app/data
@@ -14,6 +14,6 @@ echo "Starting Backend API..."
 cd /app
 python3 -m app.main &
 
-# Start Nginx
+# Start Nginx (Foreground - keeps container alive)
 echo "Starting Nginx..."
-nginx -g "daemon off;"
+exec nginx -g "daemon off;"

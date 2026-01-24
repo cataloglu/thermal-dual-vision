@@ -53,14 +53,12 @@ RUN mkdir -p /run/nginx && \
     cp /app/nginx_addon.conf /etc/nginx/sites-available/default && \
     ln -s /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
 
-# Copy Scripts & Configs
-COPY run.sh /run.sh
+# Copy Configs
 COPY sync_options.py /app/sync_options.py
 COPY go2rtc.yaml /app/go2rtc.yaml
 
-RUN chmod +x /run.sh
+# Copy S6 Overlay Services
+COPY rootfs /
+RUN chmod a+x /etc/services.d/thermal_vision/run
 
-# OVERRIDE S6 ENTRYPOINT
-# This is crucial! We want our run.sh to be PID 1, bypassing S6 init system
-ENTRYPOINT []
-CMD [ "/run.sh" ]
+# NO CMD or ENTRYPOINT needed. Base image handles S6 init.
