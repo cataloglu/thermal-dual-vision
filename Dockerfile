@@ -60,4 +60,7 @@ COPY go2rtc.yaml /app/go2rtc.yaml
 
 RUN chmod +x /run.sh
 
+# OVERRIDE S6 ENTRYPOINT
+# This is crucial! We want our run.sh to be PID 1, bypassing S6 init system
+ENTRYPOINT []
 CMD [ "/run.sh" ]
