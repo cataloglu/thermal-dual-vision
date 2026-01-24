@@ -34,11 +34,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-# Note: For HA local build, the context is usually the addon folder.
-# But standard repo addons have context at root. 
-# We assume the build context is the PROJECT ROOT.
 COPY app /app/app
-COPY ha-addon /app/ha-addon
+# Changed directory name here
+COPY thermal-dual-vision /app/thermal-dual-vision
 COPY go2rtc.yaml /app/go2rtc.yaml
 
 # Copy built frontend
@@ -46,10 +44,12 @@ COPY --from=frontend /ui/dist /var/www/html
 
 # Setup Nginx
 RUN rm /etc/nginx/sites-enabled/default
-COPY ha-addon/nginx.conf /etc/nginx/sites-enabled/default
+# Updated path
+COPY thermal-dual-vision/nginx.conf /etc/nginx/sites-enabled/default
 
 # Setup Run Script
-COPY ha-addon/run.sh /run.sh
+# Updated path
+COPY thermal-dual-vision/run.sh /run.sh
 RUN chmod +x /run.sh
 
 # Environment variables

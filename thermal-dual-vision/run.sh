@@ -5,7 +5,8 @@ echo "Starting Thermal Dual Vision Add-on..."
 
 # 1. Sync HA Options to App Config
 echo "Syncing configuration..."
-python3 /app/ha-addon/sync_options.py
+# Updated path to match new directory structure inside container
+python3 /app/thermal-dual-vision/sync_options.py
 
 # 2. Setup Environment
 export LOG_LEVEL=$(jq --raw-output '.log_level // "info"' /data/options.json)
