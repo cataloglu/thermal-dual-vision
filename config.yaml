@@ -1,5 +1,5 @@
 name: "Thermal Dual Vision"
-version: "2.1.17"
+version: "2.1.18"
 slug: "thermal_dual_vision"
 description: "AI supported thermal & color person detection system with MQTT Auto-Discovery."
 url: "https://github.com/cataloglu/thermal-dual-vision"
@@ -18,5 +18,7 @@ panel_title: Thermal Vision
 ports:
   1984/tcp: 1984
   8554/tcp: 8554
-options: {}
-schema: {}
+options:
+  log_level: info
+schema:
+  log_level: list(info, debug, warning, error)
