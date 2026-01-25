@@ -72,7 +72,7 @@ export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
       {/* Logo & Title */}
       <div className="p-6 border-b border-border">
         <div className="flex items-center gap-3 mb-3">
-          <img src="/logo.svg" alt="Logo" className="w-10 h-10" />
+          <img src="./logo.svg" alt="Logo" className="w-10 h-10" />
           <div className="flex-1">
             <h1 className="text-lg font-bold text-text">Motion Detector</h1>
             <p className="text-xs text-muted">v2.0.0</p>
