@@ -3,6 +3,7 @@
  */
 import React, { useState, useEffect } from 'react';
 import type { MotionConfig } from '../../types/api';
+import apiClient from '../../services/api';
 import toast from 'react-hot-toast';
 
 interface MotionTabProps {
@@ -23,9 +24,9 @@ export const MotionTab: React.FC<MotionTabProps> = ({ config, onChange, onSave }
 
   useEffect(() => {
     // Fetch cameras
-    fetch('/api/cameras')
-      .then(res => res.json())
-      .then(data => {
+    apiClient.get('cameras')
+      .then(res => {
+        const data = res.data;
         setCameras(data.cameras || []);
         if (data.cameras && data.cameras.length > 0) {
           setSelectedCamera(data.cameras[0].id);

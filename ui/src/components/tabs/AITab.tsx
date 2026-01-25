@@ -7,6 +7,7 @@ import { FiEye, FiEyeOff } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import type { AIConfig } from '../../types/api';
 import { api } from '../../services/api';
+import apiClient from '../../services/api';
 
 interface AITabProps {
   config: AIConfig;
@@ -190,12 +191,12 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
                   setTesting(true);
                   setTestResult(null);
                   try {
-                    const response = await fetch('/api/ai/test', {
+                    const response = await fetch(`${apiClient.defaults.baseURL}/ai/test`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ api_key: apiKeyDraft, model: config.model })
                     });
-                    const data = await response.json();
+                    const data = response.data;
                     setTestResult(data);
                     if (data.success) {
                       setTestSuccess(true);
