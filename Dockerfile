@@ -50,6 +50,7 @@ RUN rm -f /etc/nginx/sites-enabled/default && \
 # Copy Scripts & Configs
 COPY run.sh /run.sh
 COPY sync_options.py /app/sync_options.py
+COPY fix_stream_roles.py /app/fix_stream_roles.py
 COPY go2rtc.yaml /app/go2rtc.yaml
 
 RUN chmod +x /run.sh
