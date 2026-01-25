@@ -8,10 +8,12 @@ This service handles configuration file management including:
 - Secret masking
 - File locking for concurrent access
 - Default config generation
+- In-memory caching for performance
 """
 import json
 import logging
 import os
+import time
 from threading import Lock
 from typing import Any, Dict, Optional
 
@@ -54,20 +56,25 @@ class SettingsService:
             return
         
         self._config: Optional[AppConfig] = None
+        self._config_cache: Optional[AppConfig] = None
+        self._cache_time: float = 0.0
+        self._cache_ttl: float = 5.0  # Cache for 5 seconds
         self._file_lock = Lock()
+        self._cache_lock = Lock()
         self._initialized = True
         
         # Ensure data directory exists
         self.CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
         
-        logger.info("SettingsService initialized")
+        logger.info("SettingsService initialized with caching enabled")
     
     def load_config(self) -> AppConfig:
         """
-        Load configuration from config.json.
+        Load configuration from config.json with caching.
         
         If config file doesn't exist, creates it with default values.
         If config file is invalid, raises ValidationError.
+        Uses in-memory cache to reduce disk I/O.
         
         Returns:
             AppConfig: Loaded configuration
@@ -76,11 +83,24 @@ class SettingsService:
             ValidationError: If config validation fails
             json.JSONDecodeError: If config file is invalid JSON
         """
+        # Check cache first
+        with self._cache_lock:
+            now = time.time()
+            if self._config_cache is not None and (now - self._cache_time) < self._cache_ttl:
+                return self._config_cache
+        
+        # Cache miss or expired, load from file
         with self._file_lock:
             if not self.CONFIG_FILE.exists():
                 logger.info(f"Config file not found at {self.CONFIG_FILE}, creating default config")
                 self._config = AppConfig()
                 self._save_config_internal(self._config)
+                
+                # Update cache
+                with self._cache_lock:
+                    self._config_cache = self._config
+                    self._cache_time = time.time()
+                
                 return self._config
             
             try:
@@ -88,7 +108,13 @@ class SettingsService:
                     data = json.load(f)
                 
                 self._config = AppConfig(**data)
-                logger.info(f"Config loaded successfully from {self.CONFIG_FILE}")
+                
+                # Update cache
+                with self._cache_lock:
+                    self._config_cache = self._config
+                    self._cache_time = time.time()
+                
+                logger.debug(f"Config loaded from disk and cached")
                 return self._config
                 
             except json.JSONDecodeError as e:
@@ -103,7 +129,7 @@ class SettingsService:
     
     def save_config(self, config: AppConfig) -> None:
         """
-        Save configuration to config.json.
+        Save configuration to config.json and invalidate cache.
         
         Args:
             config: Configuration to save
@@ -114,6 +140,11 @@ class SettingsService:
         with self._file_lock:
             self._save_config_internal(config)
             self._config = config
+            
+            # Invalidate cache
+            with self._cache_lock:
+                self._config_cache = config
+                self._cache_time = time.time()
     
     def _save_config_internal(self, config: AppConfig) -> None:
         """
