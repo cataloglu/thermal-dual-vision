@@ -911,6 +911,7 @@ async def get_live_streams(request: Request, db: Session = Depends(get_session))
         # Get Ingress path from header
         ingress_path = request.headers.get("X-Ingress-Path", "")
         prefix = ingress_path.rstrip('/') if ingress_path else ""
+        logger.info(f"GET /api/live - X-Ingress-Path: '{ingress_path}', prefix: '{prefix}'")
         
         streams = []
         for camera in cameras:
