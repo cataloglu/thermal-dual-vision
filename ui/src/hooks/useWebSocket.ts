@@ -32,28 +32,26 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
   const [error, setError] = useState<string | null>(null)
 
   const resolveWsUrl = useCallback(() => {
+    // Development overrides
     const envWsBase = import.meta.env.VITE_WS_URL as string | undefined
-    const envApiBase = import.meta.env.VITE_API_URL as string | undefined
-    const wsBase =
-      envWsBase ||
-      (envApiBase && envApiBase.startsWith('http')
-        ? envApiBase.replace(/^http/, 'ws')
-        : '')
+    if (envWsBase) return `${envWsBase}${url}`
 
-    const normalizedPath = url.startsWith('/') ? url : `/${url}`
-
-    if (wsBase) {
-      const base = wsBase.replace(/\/+$/, '')
-      const path =
-        base.endsWith('/api') && normalizedPath.startsWith('/api/')
-          ? normalizedPath.slice(4)
-          : normalizedPath
-      return `${base}${path}`
-    }
-
-    return url.startsWith('ws://') || url.startsWith('wss://')
-      ? url
-      : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}${normalizedPath}`
+    // Production (Ingress aware)
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const host = window.location.host
+    
+    // Get Ingress path
+    const path = window.location.pathname
+    // Remove trailing slash and /index.html if present
+    const cleanPath = path.replace(/\/index\.html$/, '').replace(/\/+$/, '')
+    
+    // Ensure URL starts with / but not double slash
+    const normalizedUrl = url.startsWith('/') ? url : `/${url}`
+    
+    // If we are at root, cleanPath is empty
+    // If Ingress, cleanPath is /api/hassio_ingress/TOKEN
+    // Result: wss://host/ingress_path/api/ws/events
+    return `${protocol}//${host}${cleanPath}${normalizedUrl}`
   }, [url])
 
   const connect = useCallback(() => {
@@ -69,7 +67,6 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
       const ws = new WebSocket(wsUrl)
 
       ws.onopen = () => {
-        // console.log('WebSocket connected') // Removed: too verbose
         setIsConnected(true)
         setError(null)
         reconnectAttemptsRef.current = 0
@@ -100,17 +97,15 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
             onStatus(message.data)
           }
         } catch (err) {
-          // Silent: don't spam console
+          // Silent
         }
       }
 
       ws.onerror = () => {
-        // Silent: error is expected on first connection attempt
         setError('WebSocket connection error')
       }
 
       ws.onclose = () => {
-        // console.log('WebSocket disconnected') // Removed: too verbose
         setIsConnected(false)
         
         if (onDisconnect) {
@@ -124,8 +119,6 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
 
         if (reconnectAttemptsRef.current < maxReconnectAttempts) {
           reconnectAttemptsRef.current += 1
-          // console.log(`Reconnecting... Attempt ${reconnectAttemptsRef.current}/${maxReconnectAttempts}`) // Removed
-          
           reconnectTimeoutRef.current = setTimeout(() => {
             connect()
           }, reconnectInterval)
