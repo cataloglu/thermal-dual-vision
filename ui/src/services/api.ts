@@ -4,21 +4,41 @@
 import axios from 'axios';
 import type { Settings, CameraTestRequest, CameraTestResponse, Zone } from '../types/api';
 
+const resolveIngressApiBase = () => {
+  const path = window.location.pathname || '';
+  const cleanPath = path.replace(/\/index\.html$/, '').replace(/\/+$/, '');
+
+  if (!cleanPath || cleanPath === '/') {
+    return '/api';
+  }
+
+  return `${cleanPath}/api`;
+};
+
+// Use injected config from Nginx sub_filter (Frigate style),
+// but fall back to ingress path detection when needed.
 const getBaseUrl = () => {
-  // Check for Nginx-injected baseUrl (Frigate-style Ingress support)
   // @ts-ignore
-  if (window.baseUrl && window.baseUrl !== '' && window.baseUrl !== '/') {
+  if (window.env && window.env.API_URL) {
     // @ts-ignore
-    return `${window.baseUrl}/api`;
+    const envUrl = window.env.API_URL as string;
+
+    if (envUrl.startsWith('http')) {
+      return envUrl;
+    }
+
+    if (envUrl !== '/api') {
+      return envUrl;
+    }
+
+    return resolveIngressApiBase();
   }
 
-  // Development mode
   if (import.meta.env.DEV) {
-    return import.meta.env.VITE_API_URL ?? 'http://localhost:8000/api';
+    return import.meta.env.VITE_API_URL ?? '/api';
   }
 
-  // Standalone mode (no Ingress)
-  return '/api';
+  return resolveIngressApiBase();
 };
 
 const API_BASE_URL = getBaseUrl();
