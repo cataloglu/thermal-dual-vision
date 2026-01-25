@@ -1,5 +1,4 @@
-streams:
-  # Examples will be added here
+streams: {}
 
 api:
   listen: ":1984"

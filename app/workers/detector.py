@@ -616,14 +616,16 @@ class DetectorWorker:
 
     def _open_capture(self, rtsp_url: str, config, camera_id: Optional[str] = None) -> Optional[cv2.VideoCapture]:
         """
-        Open video capture with timeout protection.
+        Open video capture with timeout protection and retry logic.
         """
         cap = None
         
         def target():
             nonlocal cap
-            # Set timeout options for ffmpeg backend if possible
-            os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "timeout;5000"
+            # Set timeout options for ffmpeg backend
+            # stimeout: Socket timeout in microseconds
+            # timeout: Maximum time to wait for connection (microseconds)
+            os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp|stimeout;10000000|timeout;15000000"
             
             codec_fallbacks = [None, "H264", "H265", "MJPG"]
             if camera_id:
@@ -635,39 +637,47 @@ class DetectorWorker:
                 try:
                     temp_cap = cv2.VideoCapture(rtsp_url, cv2.CAP_FFMPEG)
                     temp_cap.set(cv2.CAP_PROP_BUFFERSIZE, config.stream.buffer_size)
+                    
+                    # Set timeouts
+                    if hasattr(cv2, "CAP_PROP_OPEN_TIMEOUT_MSEC"):
+                        temp_cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 10000)
+                    if hasattr(cv2, "CAP_PROP_READ_TIMEOUT_MSEC"):
+                        temp_cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, 10000)
+                    
                     if codec:
                         temp_cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*codec))
                     
                     if temp_cap.isOpened():
+                        # Try to read a frame to verify
                         ret, _ = temp_cap.read()
                         if ret:
                             if camera_id:
                                 self.codec_cache[camera_id] = codec or "AUTO"
                             if codec:
-                                logger.info("Opened camera with codec %s", codec)
+                                logger.info(f"Opened camera {camera_id} with codec {codec}")
                             else:
-                                logger.info("Opened camera with default codec")
+                                logger.info(f"Opened camera {camera_id} with default codec")
                             cap = temp_cap
                             return
                     temp_cap.release()
                 except Exception as e:
-                    logger.debug(f"Codec attempt failed: {e}")
+                    logger.debug(f"Codec {codec} attempt failed for {camera_id}: {e}")
             
-            # Final attempt without specific checks (or return None if strict)
-            # The loop covers all cases including None codec which is default.
-            pass
+            logger.warning(f"All codec attempts failed for {camera_id}")
 
         t = threading.Thread(target=target)
         t.daemon = True
         t.start()
-        t.join(timeout=5)
+        t.join(timeout=15)  # Increased from 5 to 15 seconds
         
         if t.is_alive():
-            logger.error(f"Camera connection timeout: {rtsp_url}")
+            logger.error(f"Camera connection timeout after 15s: {rtsp_url}")
             return None
             
         if cap and cap.isOpened():
             return cap
+        
+        logger.error(f"Failed to open camera: {rtsp_url}")
         return None
 
     def _get_adaptive_clahe_clip(self, frame: np.ndarray, config) -> float:

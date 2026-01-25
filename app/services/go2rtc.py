@@ -32,6 +32,10 @@ class Go2RTCService:
     
     def add_camera(self, camera_id: str, rtsp_url: str) -> bool:
         """Add camera to go2rtc streams."""
+        if not self.enabled:
+            logger.debug("go2rtc not enabled, skipping camera add")
+            return False
+            
         try:
             # Load existing config
             if self.config_path.exists():
@@ -42,7 +46,8 @@ class Go2RTCService:
             else:
                 config = {}
             
-            if 'streams' not in config:
+            # Ensure streams exists and is not None
+            if 'streams' not in config or config['streams'] is None:
                 config['streams'] = {}
             
             # Use rtsp url directly
@@ -51,10 +56,11 @@ class Go2RTCService:
             with open(self.config_path, 'w') as f:
                 yaml.dump(config, f, default_flow_style=False)
             
+            logger.info(f"Camera {camera_id} added to go2rtc successfully")
             return True
             
         except Exception as e:
-            logger.error(f"Failed to add camera to go2rtc: {e}")
+            logger.error(f"Failed to add camera to go2rtc: {e}", exc_info=True)
             return False
             
     def sync_all_cameras(self, cameras: list) -> None:
@@ -65,15 +71,17 @@ class Go2RTCService:
         
         logger.info(f"Syncing {len(cameras)} cameras to go2rtc...")
         
+        success_count = 0
         for camera in cameras:
             try:
                 rtsp_url = camera.rtsp_url_thermal or camera.rtsp_url_color or camera.rtsp_url
                 if rtsp_url:
-                    self.add_camera(camera.id, rtsp_url)
+                    if self.add_camera(camera.id, rtsp_url):
+                        success_count += 1
             except Exception as e:
-                logger.error(f"Failed to sync camera {camera.id}: {e}")
+                logger.error(f"Failed to sync camera {camera.id}: {e}", exc_info=True)
         
-        logger.info("Camera sync complete")
+        logger.info(f"Camera sync complete: {success_count}/{len(cameras)} cameras synced")
 
 
 # Singleton instance
