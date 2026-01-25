@@ -191,10 +191,9 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
                   setTesting(true);
                   setTestResult(null);
                   try {
-                    const response = await fetch(`${apiClient.defaults.baseURL}/ai/test`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ api_key: apiKeyDraft, model: config.model })
+                    const response = await apiClient.post('ai/test', { 
+                      api_key: apiKeyDraft, 
+                      model: config.model 
                     });
                     const data = response.data;
                     setTestResult(data);
