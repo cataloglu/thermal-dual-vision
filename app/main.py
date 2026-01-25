@@ -7,7 +7,7 @@ from datetime import date
 from typing import Any, Dict, Optional, List
 
 import os
-from fastapi import FastAPI, HTTPException, Depends, Query, WebSocket, WebSocketDisconnect, Response
+from fastapi import FastAPI, HTTPException, Depends, Query, WebSocket, WebSocketDisconnect, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import ValidationError, BaseModel
@@ -109,14 +109,17 @@ def _resolve_camera_rtsp_url(camera) -> Optional[str]:
     return camera.rtsp_url_color or camera.rtsp_url_thermal
 
 
-def _resolve_media_urls(event) -> Dict[str, Optional[str]]:
+def _resolve_media_urls(event, ingress_path: str = "") -> Dict[str, Optional[str]]:
+    """Resolve media URLs with Ingress path support."""
     collage_path = media_service.get_media_path(event.id, "collage")
     gif_path = media_service.get_media_path(event.id, "gif")
     mp4_path = media_service.get_media_path(event.id, "mp4")
 
-    collage_url = event.collage_url or f"/api/events/{event.id}/collage"
-    gif_url = event.gif_url or f"/api/events/{event.id}/preview.gif"
-    mp4_url = event.mp4_url or f"/api/events/{event.id}/timelapse.mp4"
+    # Build URLs with Ingress prefix if present
+    prefix = ingress_path.rstrip('/') if ingress_path else ""
+    collage_url = event.collage_url or f"{prefix}/api/events/{event.id}/collage"
+    gif_url = event.gif_url or f"{prefix}/api/events/{event.id}/preview.gif"
+    mp4_url = event.mp4_url or f"{prefix}/api/events/{event.id}/timelapse.mp4"
 
     return {
         "collage_url": collage_url if collage_path and collage_path.exists() else None,
@@ -470,6 +473,7 @@ async def test_camera(request: CameraTestRequest) -> CameraTestResponse:
 
 @app.get("/api/events")
 async def get_events(
+    request: Request,
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(20, ge=1, le=100, description="Events per page"),
     camera_id: Optional[str] = Query(None, description="Filter by camera ID"),
@@ -507,10 +511,13 @@ async def get_events(
             min_confidence=confidence,
         )
         
+        # Get Ingress path from header
+        ingress_path = request.headers.get("X-Ingress-Path", "")
+        
         # Convert events to dict
         events_list = []
         for event in result["events"]:
-            media_urls = _resolve_media_urls(event)
+            media_urls = _resolve_media_urls(event, ingress_path)
             events_list.append({
                 "id": event.id,
                 "camera_id": event.camera_id,
@@ -544,6 +551,7 @@ async def get_events(
 
 @app.get("/api/events/{event_id}")
 async def get_event(
+    request: Request,
     event_id: str,
     db: Session = Depends(get_session),
 ) -> Dict[str, Any]:
@@ -575,7 +583,9 @@ async def get_event(
                 }
             )
         
-        media_urls = _resolve_media_urls(event)
+        # Get Ingress path from header
+        ingress_path = request.headers.get("X-Ingress-Path", "")
+        media_urls = _resolve_media_urls(event, ingress_path)
         return {
             "id": event.id,
             "camera_id": event.camera_id,
