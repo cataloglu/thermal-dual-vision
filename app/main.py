@@ -893,7 +893,7 @@ async def get_event_mp4(event_id: str) -> FileResponse:
 
 
 @app.get("/api/live")
-async def get_live_streams(db: Session = Depends(get_session)) -> Dict[str, Any]:
+async def get_live_streams(request: Request, db: Session = Depends(get_session)) -> Dict[str, Any]:
     """
     Get live stream URLs for all cameras.
     
@@ -907,15 +907,24 @@ async def get_live_streams(db: Session = Depends(get_session)) -> Dict[str, Any]
         settings = settings_service.load_config()
         output_mode = settings.live.output_mode
         cameras = camera_crud_service.get_cameras(db)
+        
+        # Get Ingress path from header
+        ingress_path = request.headers.get("X-Ingress-Path", "")
+        prefix = ingress_path.rstrip('/') if ingress_path else ""
+        
         streams = []
-
         for camera in cameras:
             if not camera.enabled or "live" not in (camera.stream_roles or []):
                 continue
+            
+            # Add Ingress prefix to stream URL
+            base_url = f"/api/live/{camera.id}.mjpeg"
+            stream_url = f"{prefix}{base_url}" if (output_mode == "mjpeg" and prefix) else base_url if output_mode == "mjpeg" else ""
+            
             streams.append({
                 "camera_id": camera.id,
                 "name": camera.name,
-                "stream_url": f"/api/live/{camera.id}.mjpeg" if output_mode == "mjpeg" else "",
+                "stream_url": stream_url,
                 "output_mode": output_mode
             })
 
