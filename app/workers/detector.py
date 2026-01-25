@@ -580,6 +580,8 @@ class DetectorWorker:
                     f"(confidence: {best_detection['confidence']:.2f})"
                 )
                 try:
+                    # Don't send media URLs via WebSocket (no Ingress prefix available here)
+                    # Frontend will fetch URLs from /api/events endpoint
                     self.websocket_manager.broadcast_event_sync({
                         "id": event.id,
                         "camera_id": event.camera_id,
@@ -587,9 +589,9 @@ class DetectorWorker:
                         "confidence": event.confidence,
                         "event_type": event.event_type,
                         "summary": event.summary,
-                        "collage_url": event.collage_url or f"/api/events/{event.id}/collage",
-                        "gif_url": event.gif_url or f"/api/events/{event.id}/preview.gif",
-                        "mp4_url": event.mp4_url or f"/api/events/{event.id}/timelapse.mp4",
+                        "collage_url": None,  # Will be fetched from API
+                        "gif_url": None,
+                        "mp4_url": None,
                     })
                 except Exception as e:
                     logger.debug("Event broadcast skipped: %s", e)
