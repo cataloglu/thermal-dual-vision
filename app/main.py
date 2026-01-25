@@ -513,11 +513,13 @@ async def get_events(
         
         # Get Ingress path from header
         ingress_path = request.headers.get("X-Ingress-Path", "")
+        logger.info(f"GET /api/events - X-Ingress-Path: '{ingress_path}'")
         
         # Convert events to dict
         events_list = []
         for event in result["events"]:
             media_urls = _resolve_media_urls(event, ingress_path)
+            logger.info(f"Event {event.id} - collage_url: {media_urls['collage_url']}")
             events_list.append({
                 "id": event.id,
                 "camera_id": event.camera_id,
