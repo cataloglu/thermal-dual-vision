@@ -4,20 +4,43 @@
 import axios from 'axios';
 import type { Settings, CameraTestRequest, CameraTestResponse, Zone } from '../types/api';
 
-// Use relative path for HA Ingress compatibility
-const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'api';
+// Dynamically determine API base URL for HA Ingress support
+const getBaseUrl = () => {
+  // Development mode: use env var or default proxy
+  if (import.meta.env.DEV) {
+    return import.meta.env.VITE_API_URL ?? '/api';
+  }
+  
+  // Production (Ingress) mode
+  // HA Ingress URL format: /api/hassio_ingress/{token}/
+  const path = window.location.pathname;
+  
+  // Remove trailing slash if exists
+  const cleanPath = path.endsWith('/') ? path.slice(0, -1) : path;
+  
+  // If we are at root, return relative 'api' (standard nginx)
+  if (cleanPath === '') return 'api';
+  
+  // In Ingress, append '/api' to the current ingress path
+  // Result: /api/hassio_ingress/{token}/api
+  return `${cleanPath}/api`;
+};
+
+const API_BASE_URL = getBaseUrl();
 
 const joinApiUrl = (path: string) => {
-  // Remove leading slash if present to keep it relative
+  // Remove leading slash if present
   const normalized = path.startsWith('/') ? path.slice(1) : path;
   
+  // If base URL is absolute (http://...), join with slash
   if (API_BASE_URL.startsWith('http')) {
     return `${API_BASE_URL.replace(/\/+$/, '')}/${normalized}`;
   }
   
-  // If base is relative (like 'api'), result should be 'api/cameras/...'
-  // If base is absolute (like '/api'), result should be '/api/cameras/...'
-  return `${API_BASE_URL}/${normalized}`;
+  // For relative/absolute paths, ensure we don't double slashes
+  // API_BASE_URL already has the correct prefix
+  const separator = API_BASE_URL.endsWith('/') ? '' : '/';
+  return `${API_BASE_URL}${separator}${normalized}`;
 };
 
 const apiClient = axios.create({
@@ -29,7 +52,7 @@ const apiClient = axios.create({
 
 // Health & System
 export const getHealth = async () => {
-  const response = await apiClient.get('health'); // Remove leading slash
+  const response = await apiClient.get('health');
   return response.data;
 };
 
