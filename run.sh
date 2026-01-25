@@ -68,6 +68,12 @@ fi
 echo "Starting go2rtc..."
 /usr/local/bin/go2rtc -config /app/go2rtc.yaml &
 
+# Fix stream_roles for existing cameras (migration)
+echo "Checking database migrations..."
+if [ -f /app/data/app.db ]; then
+    python3 /app/fix_stream_roles.py || true
+fi
+
 # Start Backend
 echo "Starting Backend API..."
 cd /app
