@@ -107,10 +107,10 @@ class MediaService:
             for future in futures:
                 future.result()
         
-        # Update event with media URLs
-        event.collage_url = f"/api/events/{event_id}/collage" if os.path.exists(collage_path) else None
-        event.gif_url = f"/api/events/{event_id}/preview.gif" if os.path.exists(gif_path) else None
-        event.mp4_url = f"/api/events/{event_id}/timelapse.mp4" if os.path.exists(mp4_path) else None
+        # Don't save URLs to database - they will be generated at runtime with Ingress prefix
+        # event.collage_url = None
+        # event.gif_url = None
+        # event.mp4_url = None
         db.commit()
         
         logger.info(f"Event media generated: {event_id}")
