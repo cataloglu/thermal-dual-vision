@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { HashRouter, Routes, Route } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { Layout } from './components/Layout'
 import { ErrorBoundary } from './components/ErrorBoundary'
@@ -15,7 +15,7 @@ function App() {
   useTheme()
 
   return (
-    <BrowserRouter>
+    <HashRouter>
       <ErrorBoundary>
         <Layout>
         <Routes>
@@ -38,7 +38,7 @@ function App() {
           },
         }}
       />
-    </BrowserRouter>
+    </HashRouter>
   )
 }
 
