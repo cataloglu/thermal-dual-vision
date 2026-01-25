@@ -18,8 +18,10 @@ class Go2RTCService:
     def __init__(self):
         self.config_path = Path("go2rtc.yaml")
         # Environment variable kullan (Docker için)
-        self.api_url = os.getenv("GO2RTC_URL", "http://localhost:1984")
+        # Use 127.0.0.1 instead of localhost for HA addon compatibility
+        self.api_url = os.getenv("GO2RTC_URL", "http://127.0.0.1:1984")
         self.enabled = self._check_availability()
+        logger.info(f"go2rtc service initialized - URL: {self.api_url}, enabled: {self.enabled}")
     
     def _check_availability(self) -> bool:
         """Check if go2rtc is available."""
