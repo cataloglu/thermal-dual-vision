@@ -66,7 +66,8 @@ fi
 
 # Start go2rtc
 echo "Starting go2rtc..."
-/usr/local/bin/go2rtc -config /app/go2rtc.yaml &
+/usr/local/bin/go2rtc -config /app/go2rtc.yaml 2>&1 | sed 's/^/[go2rtc] /' &
+sleep 2  # Wait for go2rtc to start
 
 # Fix stream_roles for existing cameras (migration)
 echo "Checking database migrations..."
