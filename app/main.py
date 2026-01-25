@@ -194,6 +194,15 @@ async def ready():
     return {"ready": True, "status": "ok"}
 
 
+@app.get("/api/debug/headers")
+async def debug_headers(request: Request):
+    """Debug endpoint to see all headers."""
+    return {
+        "all_headers": dict(request.headers),
+        "x_ingress_path": request.headers.get("X-Ingress-Path", "NOT_FOUND"),
+        "x_ingress_path_lower": request.headers.get("x-ingress-path", "NOT_FOUND"),
+    }
+
 @app.get("/api/health")
 async def health():
     """Health check endpoint."""
