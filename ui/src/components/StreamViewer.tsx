@@ -4,7 +4,14 @@ import { MdRefresh, MdError, MdCheckCircle, MdFullscreen, MdPhotoCamera } from '
 import { api } from '../services/api'
 import { useSettings } from '../hooks/useSettings'
 
-const GO2RTC_URL = import.meta.env.VITE_GO2RTC_URL || 'http://localhost:1984';
+// Helper to get go2rtc URL (Ingress-aware)
+const getGo2rtcUrl = () => {
+  const pathname = window.location.pathname;
+  const basePath = pathname.replace(/\/+$/, '').replace(/\/index\.html$/, '');
+  return basePath && basePath !== '/' ? `${basePath}/go2rtc` : '/go2rtc';
+};
+
+const GO2RTC_URL = import.meta.env.VITE_GO2RTC_URL || getGo2rtcUrl();
 
 interface StreamViewerProps {
   cameraId: string
