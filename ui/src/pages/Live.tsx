@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { StreamViewer } from '../components/StreamViewer'
 import { api } from '../services/api'
+import apiClient from '../services/api'
 import { MdGridView } from 'react-icons/md'
 import { useWebSocket } from '../hooks/useWebSocket'
 import { LoadingState } from '../components/LoadingState'
@@ -150,7 +151,9 @@ export function Live() {
         <div className={`grid ${getGridClass()} gap-6`}>
           {visibleCameras.map((camera) => {
             const stream = streams.find(s => s.camera_id === camera.id)
-            const streamUrl = stream?.stream_url || `/api/live/${camera.id}.mjpeg`
+            // Use axios baseURL to get Ingress prefix
+            const baseURL = apiClient.defaults.baseURL || '/api'
+            const streamUrl = stream?.stream_url || `${baseURL}/live/${camera.id}.mjpeg`
             
             return (
               <StreamViewer
