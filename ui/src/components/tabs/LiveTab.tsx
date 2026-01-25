@@ -19,9 +19,14 @@ export const LiveTab: React.FC<LiveTabProps> = ({ config, onChange, onSave }) =>
   useEffect(() => {
     const checkGo2rtc = async () => {
       try {
-        // In Ingress mode, use relative path; in direct mode, use localhost
-        const baseURL = apiClient.defaults.baseURL || '/api';
-        const go2rtcUrl = `${baseURL.replace('/api', '')}/go2rtc/api`;
+        // Get Ingress base path from window.location
+        const pathname = window.location.pathname;
+        const basePath = pathname.replace(/\/+$/, '').replace(/\/index\.html$/, '');
+        
+        // Ingress: /hassio/ingress/TOKEN/go2rtc/api
+        // Direct: /go2rtc/api
+        const go2rtcUrl = basePath && basePath !== '/' ? `${basePath}/go2rtc/api` : '/go2rtc/api';
+        
         const response = await fetch(go2rtcUrl);
         setGo2rtcAvailable(response.ok);
       } catch {
