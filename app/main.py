@@ -115,11 +115,18 @@ def _resolve_media_urls(event, ingress_path: str = "") -> Dict[str, Optional[str
     gif_path = media_service.get_media_path(event.id, "gif")
     mp4_path = media_service.get_media_path(event.id, "mp4")
 
-    # Build URLs with Ingress prefix if present
+    # Build URLs with Ingress prefix
     prefix = ingress_path.rstrip('/') if ingress_path else ""
-    collage_url = event.collage_url or f"{prefix}/api/events/{event.id}/collage"
-    gif_url = event.gif_url or f"{prefix}/api/events/{event.id}/preview.gif"
-    mp4_url = event.mp4_url or f"{prefix}/api/events/{event.id}/timelapse.mp4"
+    
+    # Use DB URLs if present, otherwise generate
+    base_collage = event.collage_url or f"/api/events/{event.id}/collage"
+    base_gif = event.gif_url or f"/api/events/{event.id}/preview.gif"
+    base_mp4 = event.mp4_url or f"/api/events/{event.id}/timelapse.mp4"
+    
+    # Add prefix if in Ingress mode
+    collage_url = f"{prefix}{base_collage}" if prefix else base_collage
+    gif_url = f"{prefix}{base_gif}" if prefix else base_gif
+    mp4_url = f"{prefix}{base_mp4}" if prefix else base_mp4
 
     return {
         "collage_url": collage_url if collage_path and collage_path.exists() else None,
