@@ -4,6 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { LiveConfig } from '../../types/api';
+import apiClient from '../../services/api';
 
 interface LiveTabProps {
   config: LiveConfig;
@@ -18,9 +19,11 @@ export const LiveTab: React.FC<LiveTabProps> = ({ config, onChange, onSave }) =>
   useEffect(() => {
     const checkGo2rtc = async () => {
       try {
-        const GO2RTC_URL = import.meta.env.VITE_GO2RTC_URL || 'http://localhost:1984';
-        await fetch(`${GO2RTC_URL}/api`, { mode: 'no-cors' });
-        setGo2rtcAvailable(true); // Assuming success if reachable, but no-cors makes it opaque. Checking availability logic.
+        // In Ingress mode, use relative path; in direct mode, use localhost
+        const baseURL = apiClient.defaults.baseURL || '/api';
+        const go2rtcUrl = `${baseURL.replace('/api', '')}/go2rtc/api`;
+        const response = await fetch(go2rtcUrl);
+        setGo2rtcAvailable(response.ok);
       } catch {
         setGo2rtcAvailable(false);
       }
