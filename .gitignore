@@ -50,6 +50,8 @@ ui/test-results/
 *.png
 !docs/**/*.png
 !docs/**/*.jpg
+!icon.png
+!logo.png
 
 # Logs
 *.log
