@@ -47,10 +47,13 @@ class MediaWorker:
     
     # MP4 settings
     MP4_TARGET_SIZE = (1280, 720)
-    MP4_FPS = 15
+    MP4_FPS = 12
     MP4_CODECS = ("avc1", "H264", "mp4v")
     MP4_CRF = 18
     MP4_PRESET = "medium"
+    MP4_MIN_DURATION = 4.0
+    MP4_MAX_DURATION = 12.0
+    MP4_SPEED_FACTOR = 4.0
     
     # Overlay colors (BGR format)
     COLOR_WHITE = (255, 255, 255)
@@ -91,11 +94,30 @@ class MediaWorker:
         canvas[y_offset:y_offset + resized_h, x_offset:x_offset + resized_w] = resized
         return canvas
 
-    def _open_video_writer(self, output_path: str, size: tuple[int, int]) -> Optional[cv2.VideoWriter]:
+    def _select_indices(self, frame_count: int, target_count: int) -> List[int]:
+        if frame_count <= 1:
+            return [0] if frame_count == 1 else []
+        if target_count <= 1:
+            return [0]
+        if target_count <= frame_count:
+            return [int(i * (frame_count - 1) / (target_count - 1)) for i in range(target_count)]
+        ratio = target_count / frame_count
+        indices: List[int] = []
+        for i in range(target_count):
+            idx = min(frame_count - 1, int(i / ratio))
+            indices.append(idx)
+        return indices
+
+    def _open_video_writer(
+        self,
+        output_path: str,
+        size: tuple[int, int],
+        fps: int,
+    ) -> Optional[cv2.VideoWriter]:
         """Open MP4 writer with codec fallback."""
         for codec in self.MP4_CODECS:
             fourcc = cv2.VideoWriter_fourcc(*codec)
-            writer = cv2.VideoWriter(output_path, fourcc, self.MP4_FPS, size)
+            writer = cv2.VideoWriter(output_path, fourcc, fps, size)
             if writer.isOpened():
                 if codec != self.MP4_CODECS[-1]:
                     logger.info("MP4 codec selected: %s", codec)
@@ -103,7 +125,7 @@ class MediaWorker:
             writer.release()
         return None
 
-    def _encode_mp4_ffmpeg(self, frames: List[np.ndarray], output_path: str) -> bool:
+    def _encode_mp4_ffmpeg(self, frames: List[np.ndarray], output_path: str, fps: int) -> bool:
         """Encode MP4 using ffmpeg for better quality."""
         ffmpeg = shutil.which("ffmpeg")
         if not ffmpeg:
@@ -117,7 +139,7 @@ class MediaWorker:
                     ffmpeg,
                     "-y",
                     "-framerate",
-                    str(self.MP4_FPS),
+                    str(fps),
                     "-i",
                     os.path.join(tmpdir, "frame_%04d.jpg"),
                     "-c:v",
@@ -142,9 +164,9 @@ class MediaWorker:
             logger.warning("FFmpeg encode error: %s", exc)
             return False
 
-    def _encode_mp4_opencv(self, frames: List[np.ndarray], output_path: str) -> None:
+    def _encode_mp4_opencv(self, frames: List[np.ndarray], output_path: str, fps: int) -> None:
         """Fallback MP4 encoder using OpenCV."""
-        out = self._open_video_writer(output_path, self.MP4_TARGET_SIZE)
+        out = self._open_video_writer(output_path, self.MP4_TARGET_SIZE, fps)
         if out is None:
             logger.error("Failed to open MP4 writer: %s", output_path)
             return
@@ -476,6 +498,7 @@ class MediaWorker:
         output_path: str,
         camera_name: str = "Camera",
         timestamp: Optional[datetime] = None,
+        timestamps: Optional[List[float]] = None,
     ) -> str:
         """
         Create timelapse MP4 with detection boxes.
@@ -496,6 +519,21 @@ class MediaWorker:
             raise ValueError("Need at least 1 frame for MP4")
         
         scale, resized_w, resized_h, x_offset, y_offset = self._get_mp4_layout(frames[0])
+        frame_count = len(frames)
+        actual_duration = None
+        if timestamps and len(timestamps) == frame_count:
+            actual_duration = max(0.0, timestamps[-1] - timestamps[0])
+        if not actual_duration:
+            actual_duration = frame_count / max(self.MP4_FPS, 1)
+
+        target_duration = max(
+            self.MP4_MIN_DURATION,
+            min(self.MP4_MAX_DURATION, actual_duration / self.MP4_SPEED_FACTOR),
+        )
+        target_fps = self.MP4_FPS
+        target_frame_count = max(1, int(round(target_duration * target_fps)))
+        indices = self._select_indices(frame_count, target_frame_count)
+        speed_factor = actual_duration / max(target_duration, 0.1)
         scale_ref = 1.0
         margin = max(10, int(20 * scale_ref))
         font_large = max(0.6, 1.0 * scale_ref)
@@ -504,7 +542,8 @@ class MediaWorker:
         text_thickness = max(1, int(2 * scale_ref))
 
         processed_frames: List[np.ndarray] = []
-        for idx, frame in enumerate(frames):
+        for out_idx, frame_idx in enumerate(indices):
+            frame = frames[frame_idx]
             img = self._resize_with_padding(
                 frame,
                 resized_w,
@@ -515,8 +554,8 @@ class MediaWorker:
             )
 
             # Draw detection box if available
-            if idx < len(detections) and detections[idx]:
-                detection = detections[idx]
+            if frame_idx < len(detections) and detections[frame_idx]:
+                detection = detections[frame_idx]
                 x1, y1, x2, y2 = detection['bbox']
 
                 x1_scaled = int(x1 * scale) + x_offset
@@ -544,7 +583,10 @@ class MediaWorker:
                 )
 
             if timestamp:
-                frame_time = timestamp + timedelta(seconds=idx / self.MP4_FPS)
+                if timestamps and len(timestamps) == frame_count:
+                    frame_time = datetime.fromtimestamp(timestamps[frame_idx])
+                else:
+                    frame_time = timestamp + timedelta(seconds=out_idx / target_fps)
                 cv2.putText(
                     img,
                     frame_time.strftime("%H:%M:%S.%f")[:-3],
@@ -572,7 +614,7 @@ class MediaWorker:
                     text_thickness,
                 )
 
-            speed_text = "4x"
+            speed_text = f"{speed_factor:.1f}x"
             (speed_w, speed_h), _ = cv2.getTextSize(
                 speed_text,
                 cv2.FONT_HERSHEY_SIMPLEX,
@@ -591,8 +633,8 @@ class MediaWorker:
 
             processed_frames.append(img)
 
-        if not self._encode_mp4_ffmpeg(processed_frames, output_path):
-            self._encode_mp4_opencv(processed_frames, output_path)
+        if not self._encode_mp4_ffmpeg(processed_frames, output_path, target_fps):
+            self._encode_mp4_opencv(processed_frames, output_path, target_fps)
         
         logger.info(f"Timelapse MP4 created: {output_path}")
         return output_path

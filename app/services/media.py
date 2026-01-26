@@ -96,6 +96,7 @@ class MediaService:
                 mp4_path,
                 camera_name,
                 event.timestamp,
+                timestamps,
             ))
             for future in futures:
                 future.result()
