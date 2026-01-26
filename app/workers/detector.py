@@ -415,6 +415,20 @@ class DetectorWorker:
                 
                 self._update_camera_status(camera_id, CameraStatus.CONNECTED, datetime.utcnow())
 
+                def _log_gate(reason: str) -> None:
+                    last_gate = self.last_gate_log.get(camera_id, 0.0)
+                    if current_time - last_gate >= 5:
+                        logger.info("EVENT_GATE camera=%s reason=%s", camera_id, reason)
+                        self.last_gate_log[camera_id] = current_time
+
+                frame_age = self._get_last_frame_age(camera_id, current_time)
+                if frame_age is not None and frame_age > max(2.0, frame_delay * 2):
+                    self._update_camera_status(camera_id, CameraStatus.RETRYING, None)
+                    self.event_start_time[camera_id] = None
+                    _log_gate(f"stream_stale age={frame_age:.1f}s")
+                    time.sleep(0.2)
+                    continue
+
                 if not self._is_motion_active(camera, frame, config):
                     continue
                 
@@ -469,13 +483,13 @@ class DetectorWorker:
                     )
                     self.last_detection_log[camera_id] = current_time
 
-                def _log_gate(reason: str) -> None:
-                    last_gate = self.last_gate_log.get(camera_id, 0.0)
-                    if current_time - last_gate >= 5:
-                        logger.info("EVENT_GATE camera=%s reason=%s", camera_id, reason)
-                        self.last_gate_log[camera_id] = current_time
-                
-                # Check temporal consistency
+                # Check if person detected
+                if len(detections) == 0:
+                    self.event_start_time[camera_id] = None
+                    _log_gate("no_detections")
+                    continue
+
+                # Check temporal consistency (only when we have detections)
                 if not self.inference_service.check_temporal_consistency(
                     detections,
                     list(self.detection_history[camera_id])[:-1],  # Exclude current
@@ -484,12 +498,6 @@ class DetectorWorker:
                 ):
                     self.event_start_time[camera_id] = None
                     _log_gate("temporal_consistency_failed")
-                    continue
-                
-                # Check if person detected
-                if len(detections) == 0:
-                    self.event_start_time[camera_id] = None
-                    _log_gate("no_detections")
                     continue
 
                 # Enforce minimum event duration
@@ -688,7 +696,7 @@ class DetectorWorker:
             transport = getattr(config.stream, "protocol", "tcp")
             os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = (
                 f"rtsp_transport;{transport}|stimeout;10000000|timeout;15000000|"
-                "fflags;discardcorrupt|flags;low_delay|max_delay;500000"
+                "fflags;discardcorrupt|flags;low_delay|max_delay;500000|err_detect;ignore_err"
             )
             
             codec_fallbacks = [None, "H264", "H265", "MJPG"]
@@ -828,6 +836,16 @@ class DetectorWorker:
             last_error or "-",
             last_reconnect_reason or "-",
         )
+
+    def _get_last_frame_age(self, camera_id: str, now: float) -> Optional[float]:
+        with self.stream_stats_lock:
+            stats = self.stream_stats.get(camera_id)
+            if not stats:
+                return None
+            last_frame_time = stats.get("last_frame_time")
+        if not last_frame_time:
+            return None
+        return max(0.0, now - float(last_frame_time))
 
     def _ai_requires_confirmation(self, config) -> bool:
         try:
