@@ -97,6 +97,14 @@ export function Events() {
 
   const selectedEvent = events.find(e => e.id === selectedEventId)
 
+  const cameraNameById = useMemo(() => {
+    const map = new Map<string, string>()
+    cameras.forEach((camera) => {
+      map.set(camera.id, camera.name)
+    })
+    return map
+  }, [cameras])
+
   const handleClearFilters = () => {
     setCameraFilter('')
     setDateFilter('')
@@ -403,6 +411,7 @@ export function Events() {
               key={event.id}
               id={event.id}
               cameraId={event.camera_id}
+              cameraName={cameraNameById.get(event.camera_id)}
               timestamp={event.timestamp}
               confidence={event.confidence}
               summary={event.summary}

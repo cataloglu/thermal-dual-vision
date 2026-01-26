@@ -5,6 +5,7 @@ import { MdPlayArrow, MdDownload, MdVisibility } from 'react-icons/md'
 interface EventCardProps {
   id: string
   cameraId: string
+  cameraName?: string
   timestamp: string
   confidence: number
   summary: string | null
@@ -19,6 +20,7 @@ interface EventCardProps {
 export const EventCard = memo(function EventCard({
   id,
   cameraId,
+  cameraName,
   timestamp,
   confidence,
   summary,
@@ -30,6 +32,7 @@ export const EventCard = memo(function EventCard({
   onClick,
 }: EventCardProps) {
   const { t } = useTranslation()
+  const cameraLabel = cameraName || cameraId
   const isRecent = (value: string) => Date.now() - new Date(value).getTime() < 30000
   const collagePending = !collageUrl && isRecent(timestamp)
   const getConfidenceBadge = () => {
@@ -90,8 +93,11 @@ export const EventCard = memo(function EventCard({
           <div className="flex items-start justify-between mb-2">
             <div className="flex-1 min-w-0">
               <h3 className="text-lg font-semibold text-text mb-1 truncate">
-                {t('camera')}: {cameraId}
+                {t('camera')}: {cameraLabel}
               </h3>
+              {cameraName && cameraName !== cameraId && (
+                <p className="text-muted text-xs truncate">ID: {cameraId}</p>
+              )}
               <p className="text-muted text-sm">
                 {formatDate(timestamp)}
               </p>
