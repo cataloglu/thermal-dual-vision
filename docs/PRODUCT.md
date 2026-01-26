@@ -64,11 +64,7 @@
 ### D) Settings
 **Settings altında sekmeler:**
 - **Cameras** (CRUD + test)
-- **Performance** (presets + hızlı ayarlar)
-- **Detection** (model: yolov8n/s-person, confidence, inference FPS)
-- **Motion** (frame-diff pre-filter)
-- **Thermal** (enhancement: CLAHE, preprocessing)
-- **Stream** (protocol: TCP/UDP, buffer size, reconnect)
+- **Camera Settings** (tüm kameralar için detection/motion/thermal/stream)
 - **Zones** (motion/person polygon alanları)
 - **Live Stream** (MJPEG/WebRTC output mode)
 - **Recording** (retention, disk limit, cleanup)

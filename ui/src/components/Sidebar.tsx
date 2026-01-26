@@ -46,11 +46,7 @@ export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
 
   const settingsSubItems = [
     { tab: 'cameras', label: t('cameras') },
-    { tab: 'performance', label: t('performance') },
-    { tab: 'detection', label: t('detection') },
-    { tab: 'motion', label: t('motion') },
-    { tab: 'thermal', label: t('thermal') },
-    { tab: 'stream', label: t('stream') },
+    { tab: 'camera_settings', label: t('cameraSettings') },
     { tab: 'zones', label: t('zones') },
     { tab: 'live', label: t('live') },
     { tab: 'recording', label: t('recording') },

@@ -1,17 +1,17 @@
 /**
- * Performance tab - Presets + quick manual tuning
+ * Camera settings tab - Global camera tuning
  */
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Settings } from '../../types/api'
 
-interface PerformanceTabProps {
+interface CameraSettingsTabProps {
   settings: Settings
   onChange: (settings: Settings) => void
   onSave: (updates: Partial<Settings>) => Promise<void>
 }
 
-export const PerformanceTab: React.FC<PerformanceTabProps> = ({ settings, onChange, onSave }) => {
+export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, onChange, onSave }) => {
   const { t } = useTranslation()
 
   const applyPreset = async (preset: 'eco' | 'balanced' | 'quality') => {
@@ -179,6 +179,7 @@ export const PerformanceTab: React.FC<PerformanceTabProps> = ({ settings, onChan
               <option value="yolov9t">YOLOv9t</option>
               <option value="yolov9s">YOLOv9s</option>
             </select>
+            <p className="text-xs text-muted">{t('detectionModelHint')}</p>
             <div className="flex gap-3">
               <input
                 type="number"
@@ -246,10 +247,92 @@ export const PerformanceTab: React.FC<PerformanceTabProps> = ({ settings, onChan
                 className="w-full"
               />
             </div>
+
+            <div>
+              <label className="text-xs text-muted">
+                {t('detectionNmsLabel', { value: settings.detection.nms_iou_threshold.toFixed(2) })}
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={settings.detection.nms_iou_threshold}
+                onChange={(e) =>
+                  onChange({
+                    ...settings,
+                    detection: { ...settings.detection, nms_iou_threshold: parseFloat(e.target.value) },
+                  })
+                }
+                className="w-full"
+              />
+              <p className="text-xs text-muted mt-1">{t('detectionNmsHint')}</p>
+            </div>
+
+            <div>
+              <label className="text-xs text-muted">
+                {t('detectionAspectRatioMinLabel', {
+                  value: settings.detection.aspect_ratio_min?.toFixed(2) || 0.3,
+                })}
+              </label>
+              <input
+                type="range"
+                min="0.05"
+                max="1.0"
+                step="0.05"
+                value={settings.detection.aspect_ratio_min || 0.3}
+                onChange={(e) =>
+                  onChange({
+                    ...settings,
+                    detection: { ...settings.detection, aspect_ratio_min: parseFloat(e.target.value) },
+                  })
+                }
+                className="w-full"
+              />
+              <p className="text-xs text-muted mt-1">{t('detectionAspectRatioMinHint')}</p>
+            </div>
+
+            <div>
+              <label className="text-xs text-muted">
+                {t('detectionAspectRatioMaxLabel', {
+                  value: settings.detection.aspect_ratio_max?.toFixed(2) || 3.0,
+                })}
+              </label>
+              <input
+                type="range"
+                min="1.0"
+                max="5.0"
+                step="0.1"
+                value={settings.detection.aspect_ratio_max || 3.0}
+                onChange={(e) =>
+                  onChange({
+                    ...settings,
+                    detection: { ...settings.detection, aspect_ratio_max: parseFloat(e.target.value) },
+                  })
+                }
+                className="w-full"
+              />
+              <p className="text-xs text-muted mt-1">{t('detectionAspectRatioMaxHint')}</p>
+            </div>
+
+            <label className="flex items-center gap-2 text-sm text-text">
+              <input
+                type="checkbox"
+                checked={settings.detection.enable_tracking}
+                onChange={(e) =>
+                  onChange({
+                    ...settings,
+                    detection: { ...settings.detection, enable_tracking: e.target.checked },
+                  })
+                }
+              />
+              {t('detectionEnableTracking')}
+            </label>
           </div>
 
           <div className="space-y-3">
             <h5 className="text-sm font-semibold text-text">{t('perfSectionMotion')}</h5>
+            <label className="text-xs text-muted">{t('motionSensitivityLabel', { value: settings.motion.sensitivity })}</label>
             <input
               type="number"
               min="1"
@@ -263,6 +346,7 @@ export const PerformanceTab: React.FC<PerformanceTabProps> = ({ settings, onChan
               }
               className="w-full px-3 py-2 bg-surface1 border border-border rounded-lg text-text"
             />
+            <label className="text-xs text-muted">{t('motionMinAreaLabel')}</label>
             <input
               type="number"
               min="0"
@@ -275,6 +359,7 @@ export const PerformanceTab: React.FC<PerformanceTabProps> = ({ settings, onChan
               }
               className="w-full px-3 py-2 bg-surface1 border border-border rounded-lg text-text"
             />
+            <label className="text-xs text-muted">{t('motionCooldownLabel')}</label>
             <input
               type="number"
               min="0"
@@ -312,10 +397,114 @@ export const PerformanceTab: React.FC<PerformanceTabProps> = ({ settings, onChan
               }
               className="w-full px-3 py-2 bg-surface1 border border-border rounded-lg text-text"
             >
-              <option value="clahe">CLAHE</option>
-              <option value="histogram">Histogram</option>
-              <option value="none">None</option>
+              <option value="clahe">CLAHE ({t('recommended')})</option>
+              <option value="histogram">{t('histogram')}</option>
+              <option value="none">{t('none')}</option>
             </select>
+
+            {settings.thermal.enable_enhancement && settings.thermal.enhancement_method === 'clahe' && (
+              <>
+                <div>
+                  <label className="text-xs text-muted">
+                    {t('claheClipLimit')}: {settings.thermal.clahe_clip_limit.toFixed(1)}
+                  </label>
+                  <input
+                    type="range"
+                    min="1"
+                    max="5"
+                    step="0.5"
+                    value={settings.thermal.clahe_clip_limit}
+                    onChange={(e) =>
+                      onChange({
+                        ...settings,
+                        thermal: { ...settings.thermal, clahe_clip_limit: parseFloat(e.target.value) },
+                      })
+                    }
+                    className="w-full"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs text-muted">{t('claheGridSize')}</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="number"
+                      min="4"
+                      max="16"
+                      value={settings.thermal.clahe_tile_size[0]}
+                      onChange={(e) =>
+                        onChange({
+                          ...settings,
+                          thermal: {
+                            ...settings.thermal,
+                            clahe_tile_size: [parseInt(e.target.value) || 8, settings.thermal.clahe_tile_size[1]],
+                          },
+                        })
+                      }
+                      className="w-full px-3 py-2 bg-surface1 border border-border rounded-lg text-text"
+                    />
+                    <input
+                      type="number"
+                      min="4"
+                      max="16"
+                      value={settings.thermal.clahe_tile_size[1]}
+                      onChange={(e) =>
+                        onChange({
+                          ...settings,
+                          thermal: {
+                            ...settings.thermal,
+                            clahe_tile_size: [settings.thermal.clahe_tile_size[0], parseInt(e.target.value) || 8],
+                          },
+                        })
+                      }
+                      className="w-full px-3 py-2 bg-surface1 border border-border rounded-lg text-text"
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+
+            {settings.thermal.enable_enhancement && (
+              <div>
+                <label className="text-xs text-muted">{t('gaussianBlur')}</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="number"
+                    min="1"
+                    max="9"
+                    step="2"
+                    value={settings.thermal.gaussian_blur_kernel[0]}
+                    onChange={(e) =>
+                      onChange({
+                        ...settings,
+                        thermal: {
+                          ...settings.thermal,
+                          gaussian_blur_kernel: [parseInt(e.target.value) || 3, settings.thermal.gaussian_blur_kernel[1]],
+                        },
+                      })
+                    }
+                    className="w-full px-3 py-2 bg-surface1 border border-border rounded-lg text-text"
+                  />
+                  <input
+                    type="number"
+                    min="1"
+                    max="9"
+                    step="2"
+                    value={settings.thermal.gaussian_blur_kernel[1]}
+                    onChange={(e) =>
+                      onChange({
+                        ...settings,
+                        thermal: {
+                          ...settings.thermal,
+                          gaussian_blur_kernel: [settings.thermal.gaussian_blur_kernel[0], parseInt(e.target.value) || 3],
+                        },
+                      })
+                    }
+                    className="w-full px-3 py-2 bg-surface1 border border-border rounded-lg text-text"
+                  />
+                </div>
+              </div>
+            )}
 
             <h5 className="text-sm font-semibold text-text mt-4">{t('perfSectionStream')}</h5>
             <select
@@ -331,6 +520,7 @@ export const PerformanceTab: React.FC<PerformanceTabProps> = ({ settings, onChan
               <option value="tcp">TCP ({t('stable')})</option>
               <option value="udp">UDP ({t('lowLatency')})</option>
             </select>
+            <label className="text-xs text-muted">{t('bufferSize')}</label>
             <input
               type="number"
               min="1"
@@ -339,6 +529,32 @@ export const PerformanceTab: React.FC<PerformanceTabProps> = ({ settings, onChan
                 onChange({
                   ...settings,
                   stream: { ...settings.stream, buffer_size: parseInt(e.target.value) || 1 },
+                })
+              }
+              className="w-full px-3 py-2 bg-surface1 border border-border rounded-lg text-text"
+            />
+            <label className="text-xs text-muted">{t('reconnectDelay')} ({t('seconds')})</label>
+            <input
+              type="number"
+              min="1"
+              value={settings.stream.reconnect_delay_seconds}
+              onChange={(e) =>
+                onChange({
+                  ...settings,
+                  stream: { ...settings.stream, reconnect_delay_seconds: parseInt(e.target.value) || 1 },
+                })
+              }
+              className="w-full px-3 py-2 bg-surface1 border border-border rounded-lg text-text"
+            />
+            <label className="text-xs text-muted">{t('maxReconnectAttempts')}</label>
+            <input
+              type="number"
+              min="1"
+              value={settings.stream.max_reconnect_attempts}
+              onChange={(e) =>
+                onChange({
+                  ...settings,
+                  stream: { ...settings.stream, max_reconnect_attempts: parseInt(e.target.value) || 1 },
                 })
               }
               className="w-full px-3 py-2 bg-surface1 border border-border rounded-lg text-text"

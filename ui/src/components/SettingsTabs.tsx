@@ -2,9 +2,11 @@
  * Settings tabs navigation component
  */
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 export type TabId = 
   | 'cameras'
+  | 'camera_settings'
   | 'performance'
   | 'detection'
   | 'motion'
@@ -25,28 +27,27 @@ interface Tab {
   label: string;
 }
 
-const tabs: Tab[] = [
-  { id: 'cameras', label: 'Kameralar' },
-  { id: 'performance', label: 'Performans' },
-  { id: 'detection', label: 'Algılama' },
-  { id: 'thermal', label: 'Termal' },
-  { id: 'stream', label: 'Stream' },
-  { id: 'zones', label: 'Bölgeler' },
-  { id: 'live', label: 'Canlı' },
-  { id: 'recording', label: 'Kayıt' },
-  { id: 'events', label: 'Olaylar' },
-  { id: 'ai', label: 'AI' },
-  { id: 'telegram', label: 'Telegram' },
-  { id: 'mqtt', label: 'MQTT' },
-  { id: 'appearance', label: 'Dil' },
-];
-
 interface SettingsTabsProps {
   activeTab: TabId;
   onTabChange: (tab: TabId) => void;
 }
 
 export const SettingsTabs: React.FC<SettingsTabsProps> = ({ activeTab, onTabChange }) => {
+  const { t } = useTranslation();
+  const tabs: Tab[] = [
+    { id: 'cameras', label: t('cameras') },
+    { id: 'camera_settings', label: t('cameraSettings') },
+    { id: 'zones', label: t('zones') },
+    { id: 'live', label: t('live') },
+    { id: 'recording', label: t('recording') },
+    { id: 'events', label: t('events') },
+    { id: 'media', label: t('media') },
+    { id: 'ai', label: t('ai') },
+    { id: 'telegram', label: t('telegram') },
+    { id: 'mqtt', label: t('mqtt') },
+    { id: 'appearance', label: t('appearance') },
+  ];
+
   return (
     <div className="flex space-x-1 border-b border-border mb-6 overflow-x-auto">
       {tabs.map((tab) => (

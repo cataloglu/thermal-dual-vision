@@ -8,11 +8,7 @@ import { useSettings } from '../hooks/useSettings';
 import { api } from '../services/api';
 import { TabId } from '../components/SettingsTabs';
 import { CamerasTab } from '../components/tabs/CamerasTab';
-import { PerformanceTab } from '../components/tabs/PerformanceTab';
-import { DetectionTab } from '../components/tabs/DetectionTab';
-import { MotionTab } from '../components/tabs/MotionTab';
-import { ThermalTab } from '../components/tabs/ThermalTab';
-import { StreamTab } from '../components/tabs/StreamTab';
+import { CameraSettingsTab } from '../components/tabs/PerformanceTab';
 import { ZonesTab } from '../components/tabs/ZonesTab';
 import { LiveTab } from '../components/tabs/LiveTab';
 import { RecordingTab } from '../components/tabs/RecordingTab';
@@ -64,16 +60,15 @@ export const Settings: React.FC = () => {
     
     if (!override) {
       switch (activeTab) {
+        case 'camera_settings':
+        case 'performance':
         case 'detection':
-          updates.detection = localSettings.detection;
-          break;
         case 'motion':
-          updates.motion = localSettings.motion;
-          break;
         case 'thermal':
-          updates.thermal = localSettings.thermal;
-          break;
         case 'stream':
+          updates.detection = localSettings.detection;
+          updates.motion = localSettings.motion;
+          updates.thermal = localSettings.thermal;
           updates.stream = localSettings.stream;
           break;
         case 'live':
@@ -127,55 +122,26 @@ export const Settings: React.FC = () => {
     }
   }, [saveSettings]);
 
+  const normalizedTab = useMemo(() => {
+    if (['performance', 'detection', 'motion', 'thermal', 'stream'].includes(activeTab)) {
+      return 'camera_settings'
+    }
+    return activeTab
+  }, [activeTab])
+
   const tabContent = useMemo(() => {
-    if (activeTab === 'cameras') return <CamerasTab />
-    if (activeTab === 'performance' && localSettings) {
+    if (normalizedTab === 'cameras') return <CamerasTab />
+    if (normalizedTab === 'camera_settings' && localSettings) {
       return (
-        <PerformanceTab
+        <CameraSettingsTab
           settings={localSettings}
           onChange={updateLocalSettings}
           onSave={handleSavePartial}
         />
       )
     }
-    if (activeTab === 'detection' && localSettings) {
-      return (
-        <DetectionTab
-          config={localSettings.detection}
-          onChange={(detection) => updateLocalSettings({ ...localSettings, detection })}
-          onSave={handleSave}
-        />
-      )
-    }
-    if (activeTab === 'motion' && localSettings) {
-      return (
-        <MotionTab
-          config={localSettings.motion}
-          onChange={(motion) => updateLocalSettings({ ...localSettings, motion })}
-          onSave={handleSave}
-        />
-      )
-    }
-    if (activeTab === 'thermal' && localSettings) {
-      return (
-        <ThermalTab
-          config={localSettings.thermal}
-          onChange={(thermal) => updateLocalSettings({ ...localSettings, thermal })}
-          onSave={handleSave}
-        />
-      )
-    }
-    if (activeTab === 'stream' && localSettings) {
-      return (
-        <StreamTab
-          config={localSettings.stream}
-          onChange={(stream) => updateLocalSettings({ ...localSettings, stream })}
-          onSave={handleSave}
-        />
-      )
-    }
-    if (activeTab === 'zones') return <ZonesTab />
-    if (activeTab === 'live' && localSettings) {
+    if (normalizedTab === 'zones') return <ZonesTab />
+    if (normalizedTab === 'live' && localSettings) {
       return (
         <LiveTab
           config={localSettings.live}
@@ -184,7 +150,7 @@ export const Settings: React.FC = () => {
         />
       )
     }
-    if (activeTab === 'recording' && localSettings) {
+    if (normalizedTab === 'recording' && localSettings) {
       return (
         <RecordingTab
           config={localSettings.record}
@@ -193,7 +159,7 @@ export const Settings: React.FC = () => {
         />
       )
     }
-    if (activeTab === 'events' && localSettings) {
+    if (normalizedTab === 'events' && localSettings) {
       return (
         <EventsTab
           config={localSettings.event}
@@ -202,7 +168,7 @@ export const Settings: React.FC = () => {
         />
       )
     }
-    if (activeTab === 'media' && localSettings) {
+    if (normalizedTab === 'media' && localSettings) {
       return (
         <MediaTab
           config={localSettings.media}
@@ -211,7 +177,7 @@ export const Settings: React.FC = () => {
         />
       )
     }
-    if (activeTab === 'ai' && localSettings) {
+    if (normalizedTab === 'ai' && localSettings) {
       return (
         <AITab
           config={localSettings.ai}
@@ -220,7 +186,7 @@ export const Settings: React.FC = () => {
         />
       )
     }
-    if (activeTab === 'telegram' && localSettings) {
+    if (normalizedTab === 'telegram' && localSettings) {
       return (
         <TelegramTab
           config={localSettings.telegram}
@@ -231,12 +197,12 @@ export const Settings: React.FC = () => {
         />
       )
     }
-    if (activeTab === 'mqtt' && localSettings) {
+    if (normalizedTab === 'mqtt' && localSettings) {
       return <MqttTab />
     }
-    if (activeTab === 'appearance') return <AppearanceTab />
+    if (normalizedTab === 'appearance') return <AppearanceTab />
     return null
-  }, [activeTab, handleSave, handleSavePartial, localSettings, updateLocalSettings])
+  }, [handleSave, handleSavePartial, localSettings, normalizedTab, updateLocalSettings])
 
   if (loading) {
     return (
