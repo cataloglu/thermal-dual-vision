@@ -14,7 +14,7 @@
 - “Review” kavramı **Events ile aynıdır** (sadece motion/person event’leri).
 - Her event **kanıt** üretir:
   - 5 kare birleşik görsel (collage) - statik grid, yüksek kalite
-  - preview GIF (timeline animation) - hareketin başlangıcı → sonu, 10 frame, 5 saniye, smooth
+  - timelapse MP4 (hızlandırılmış video) - hareketin başlangıcı → sonu, akıcı oynatma
   - ~20 sn hızlandırılmış MP4 (timelapse) - tam event kaydı, yüksek kalite
 - Event medya dosyaları **kalıcı değildir**: retention politikası vardır ve ayarlanabilir.
 - Kayıt (record) **sürekli değil**, sadece event bazlıdır.
@@ -32,7 +32,7 @@
    - Test butonu ile snapshot alır → OK ise kaydeder.
 3. Sistem person algıladığında Event oluşur:
    - Events sayfasında event kartı görünür.
-   - Kartta collage + GIF + MP4 linkleri bulunur.
+   - Kartta collage + MP4 linkleri bulunur.
    - AI açıksa kısa açıklama görünür.
 4. Telegram açıksa:
    - Event açıklaması + collage + MP4 gönderilir.
@@ -57,7 +57,7 @@
 - Filtre: camera, date, confidence
 - Her event kartı:
   - collage preview
-  - GIF preview
+  - video preview (MP4)
   - MP4 indir/izle
   - AI summary (varsa)
 
@@ -99,7 +99,7 @@
 - Event oluşturma trigger’ı: person detected
 - Her event dosyaları:
   - collage.jpg (5 frame)
-  - preview.gif
+  - timelapse.mp4
   - timelapse.mp4 (~20s accelerated)
 - AI çalışırsa event’e `ai.summary` eklenir.
 - AI çalışmazsa `ai.disabled_reason` yazılır.
@@ -119,6 +119,6 @@
 - UI’da kamera ekleyip test edip kaydedebiliyorum.
 - Live sayfasında canlı görüntü açılıyor.
 - Person algılanınca Events listesine düşüyor.
-- Event medya dosyaları oluşuyor (collage/gif/mp4).
+- Event medya dosyaları oluşuyor (collage/mp4).
 - AI key yokken sistem crash olmuyor, UI “AI disabled” diyor.
 - Telegram açıksa collage + mp4 + mesaj gidiyor.

@@ -30,7 +30,7 @@ Bu doküman **Frigate ve Scrypted'den daha iyi** yapan özellikleri ve **Hikvisi
 
 **Zayıf Yönler**:
 - ❌ Thermal enhancement yok
-- ❌ GIF 5-8 frame (bizimki 10)
+- ✅ MP4 timelapse (akıcı ve yüksek kalite)
 - ❌ 480p video (bizimki 720p)
 - ❌ Detection box yok (bizimkide var)
 
@@ -578,7 +578,7 @@ Thermal check: 55°C (car engine!)
 - Temporal consistency
 
 ### Phase 6: Media Generation
-- Scrypted-style GIF (10 frame, progress bar)
+- MP4 timelapse (hızlandırılmış, akıcı oynatma)
 - 720p MP4 with detection boxes
 
 ### Phase 7+: Advanced Features

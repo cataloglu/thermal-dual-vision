@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { MdPlayArrow, MdDownload, MdVisibility } from 'react-icons/md'
+import { MdPlayArrow, MdVisibility } from 'react-icons/md'
 
 interface EventCardProps {
   id: string
@@ -10,7 +10,6 @@ interface EventCardProps {
   confidence: number
   summary: string | null
   collageUrl: string | null
-  gifUrl: string | null
   mp4Url: string | null
   selected?: boolean
   onSelect?: (id: string) => void
@@ -25,7 +24,6 @@ export const EventCard = memo(function EventCard({
   confidence,
   summary,
   collageUrl,
-  gifUrl,
   mp4Url,
   selected = false,
   onSelect,
@@ -135,37 +133,21 @@ export const EventCard = memo(function EventCard({
               <MdVisibility />
               {t('view')}
             </button>
-            {gifUrl ? (
+            {mp4Url ? (
               <a
-                href={gifUrl}
+                href={mp4Url}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
                 className="flex items-center gap-2 px-4 py-2 bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors text-sm"
               >
                 <MdPlayArrow />
-                GIF
+                Video
               </a>
             ) : (
               <span className="flex items-center gap-2 px-4 py-2 bg-surface2 border border-border text-muted rounded-lg text-sm opacity-60">
                 <MdPlayArrow />
-                GIF
-              </span>
-            )}
-            {mp4Url ? (
-              <a
-                href={mp4Url}
-                download
-                onClick={(e) => e.stopPropagation()}
-                className="flex items-center gap-2 px-4 py-2 bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors text-sm"
-              >
-                <MdDownload />
-                MP4
-              </a>
-            ) : (
-              <span className="flex items-center gap-2 px-4 py-2 bg-surface2 border border-border text-muted rounded-lg text-sm opacity-60">
-                <MdDownload />
-                MP4
+                Video
               </span>
             )}
           </div>

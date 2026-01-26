@@ -1,6 +1,6 @@
 # Media Generation Specification - Smart Motion Detector v2
 
-Bu doküman event medya dosyalarının (collage, GIF, MP4) detaylı spec'ini içerir.
+Bu doküman event medya dosyalarının (collage, MP4) detaylı spec'ini içerir.
 
 **Hedef**: Professional-grade event kanıtları (Scrypted'den daha iyi!)
 
@@ -52,93 +52,10 @@ Frame selection: [0, 5, 10, 15, 19]
 
 ---
 
-## 🎬 2) Preview GIF (Timeline Animation)
+## 🎬 2) GIF (Deprecated)
 
-### Specification
-- **Frame Count**: 10 frame (Scrypted: 5-8, bizimki daha smooth!)
-- **Duration**: 5 saniye (0.5s per frame)
-- **Resolution**: 640x480 (Telegram optimize)
-- **Format**: Animated GIF
-- **Loop**: Infinite
-- **Optimization**: 
-  - Dithering: Floyd-Steinberg
-  - Color palette: 256 colors
-  - Compression: Optimize=True
-- **Boyut**: <2 MB (Telegram için)
-- **Frame Selection**: Event buffer'dan eşit aralıklı
-- **Overlay**:
-  - Timestamp (üst sol, her frame)
-  - Camera name (üst sağ)
-  - Progress bar (alt, timeline göstergesi)
-  - Motion trail (opsiyonel, hareket yolu)
-
-### Algoritma
-```python
-def create_timeline_gif(event_frames: list, output_path: str):
-    """
-    Create smooth timeline animation GIF.
-    
-    Better than Scrypted: More frames, smoother motion, progress bar!
-    
-    Args:
-        event_frames: All frames from event (örn: 20-30 frame)
-        output_path: Output GIF path
-    """
-    import imageio
-    import cv2
-    
-    total = len(event_frames)
-    num_frames = 10  # Scrypted'den fazla!
-    
-    # Select evenly distributed frames
-    indices = [int(i * (total - 1) / (num_frames - 1)) for i in range(num_frames)]
-    selected = [event_frames[i] for i in indices]
-    
-    # Resize to 640x480
-    resized = []
-    for idx, frame in enumerate(selected):
-        # Resize
-        img = cv2.resize(frame, (640, 480))
-        
-        # Add timestamp overlay
-        timestamp = event_start + timedelta(seconds=idx * 0.5)
-        cv2.putText(img, timestamp.strftime("%H:%M:%S"), 
-                    (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-        
-        # Add camera name
-        cv2.putText(img, camera_name, 
-                    (540, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-        
-        # Add progress bar (timeline indicator)
-        progress = idx / (num_frames - 1)
-        bar_width = int(640 * progress)
-        cv2.rectangle(img, (0, 470), (bar_width, 480), (91, 140, 255), -1)  # Accent color
-        
-        resized.append(img)
-    
-    # Create GIF with optimization
-    imageio.mimsave(
-        output_path,
-        resized,
-        duration=0.5,  # 0.5s per frame = 5s total
-        loop=0,  # Infinite
-        optimize=True,
-        quality=85
-    )
-    
-    # Check size, reduce quality if needed
-    size_mb = os.path.getsize(output_path) / 1024 / 1024
-    if size_mb > 2:
-        # Re-create with lower quality
-        imageio.mimsave(output_path, resized, duration=0.5, loop=0, optimize=True, quality=70)
-```
-
-### Özellikler (Scrypted'den Daha İyi!)
-- ✅ **10 frame** (Scrypted: 5-8) → Daha smooth!
-- ✅ **Progress bar** (Scrypted'de yok) → Timeline görünür!
-- ✅ **Motion trail** (opsiyonel) → Hareket yolu görünür!
-- ✅ **Timestamp her frame'de** → Zaman akışı net!
-- ✅ **Optimize compression** → <2 MB garantili!
+GIF üretimi kalite/performans nedeniyle devre dışı bırakıldı. Animasyon için
+MP4 timelapse kullanılır.
 
 ---
 
@@ -146,7 +63,7 @@ def create_timeline_gif(event_frames: list, output_path: str):
 
 ### Specification
 - **Duration**: 20 saniye (accelerated)
-- **Resolution**: 1280x720 (yüksek kalite)
+- **Resolution**: max 1280x720 (no upscale, yüksek kalite)
 - **Format**: MP4 (H.264)
 - **Frame Rate**: 15 FPS (smooth playback)
 - **Speed**: 4x accelerated (gerçek süre 80 saniye → 20 saniye)
@@ -224,10 +141,7 @@ def create_timelapse_mp4(event_frames: list, detections: list, output_path: str)
 | Özellik | Scrypted | Bizimki |
 |---------|----------|---------|
 | **Collage** | 4 frame | **5 frame** (daha fazla!) |
-| **GIF Frame** | 5-8 | **10 frame** (daha smooth!) |
-| **GIF Duration** | 3-4s | **5s** (daha uzun!) |
-| **GIF Progress Bar** | ❌ Yok | ✅ **VAR!** |
-| **MP4 Resolution** | 480p | **720p** (daha net!) |
+| **MP4 Resolution** | 480p | **720p (no upscale)** (daha net!) |
 | **MP4 Detection Box** | ❌ Yok | ✅ **VAR!** |
 | **MP4 Confidence** | ❌ Yok | ✅ **VAR!** |
 
@@ -246,10 +160,6 @@ def create_timelapse_mp4(event_frames: list, detections: list, output_path: str)
 📸 Collage (5 frame)
 [Statik grid görüntü]
 
-🎬 Timeline GIF (5 saniye)
-[Animasyon - hareket başlangıç → son]
-[Progress bar altta]
-
 🎥 Full Video (20 saniye)
 [720p, detection boxes, smooth]
 
@@ -261,23 +171,15 @@ Powered by Smart Motion Detector v2
 
 ## 🔥 Bizimkinin Avantajları
 
-### 1. **Daha Smooth GIF** 🎬
-- Scrypted: 5-8 frame → Hoppalamalı
-- Bizimki: 10 frame → Akıcı!
-
-### 2. **Progress Bar** 📊
-- Scrypted: Yok
-- Bizimki: Timeline göstergesi var!
-
-### 3. **Detection Boxes** 🎯
+### 1. **Detection Boxes** 🎯
 - Scrypted: Sadece snapshot
 - Bizimki: MP4'te person box görünür!
 
-### 4. **Yüksek Kalite** 📹
+### 2. **Yüksek Kalite** 📹
 - Scrypted: 480p
 - Bizimki: 720p MP4 + 90 quality JPEG!
 
-### 5. **Thermal Enhancement** 🌡️
+### 3. **Thermal Enhancement** 🌡️
 - Scrypted: Raw thermal
 - Bizimki: CLAHE enhancement → Daha net!
 
@@ -292,13 +194,6 @@ Powered by Smart Motion Detector v2
 
 **Yapılacaklar**:
 - [ ] Collage generation (5 frame grid, 1920x960, JPEG quality 90)
-- [ ] GIF generation (timeline animation)
-  - [ ] 10 frame selection (evenly distributed)
-  - [ ] 5 saniye duration (0.5s per frame)
-  - [ ] Progress bar overlay (timeline indicator)
-  - [ ] Timestamp per frame
-  - [ ] Optimize <2 MB (Telegram için)
-  - [ ] Infinite loop
 - [ ] MP4 timelapse (20s accelerated, 720p)
   - [ ] 4x speed (80s → 20s)
   - [ ] Detection boxes (person bounding box)
@@ -306,7 +201,7 @@ Powered by Smart Motion Detector v2
   - [ ] 15 FPS smooth playback
   - [ ] H.264 codec
 - [ ] FFmpeg integration
-- [ ] Parallel generation (collage + GIF + MP4 aynı anda)
+- [ ] Parallel generation (collage + MP4 aynı anda)
 ```
 
 ---
@@ -314,7 +209,7 @@ Powered by Smart Motion Detector v2
 ## 🎊 Sonuç
 
 **Dokümantasyon güncellendi**:
-- ✅ PRODUCT.md (GIF spec detaylandırıldı)
+- ✅ PRODUCT.md (media spec güncellendi)
 - ✅ API_CONTRACT.md (media endpoint açıklamaları)
 - ✅ MEDIA_SPEC.md (YENİ - tam detay)
 

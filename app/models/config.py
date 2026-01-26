@@ -228,7 +228,7 @@ class RecordConfig(BaseModel):
         description="Cleanup strategy"
     )
     delete_order: List[str] = Field(
-        default=["mp4", "gif", "collage"],
+        default=["mp4", "collage"],
         description="Media deletion priority order"
     )
 

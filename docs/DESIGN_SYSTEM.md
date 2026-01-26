@@ -101,7 +101,7 @@ Sidebar menü:
 - Event kartı:
   - sol: collage thumbnail
   - sağ: camera name, time, confidence
-  - actions: View / Download GIF / Download MP4
+  - actions: View / Download MP4
   - AI summary: 2 satır clamp
 - Retention bilgisi (medya süresi) küçük not olarak gösterilebilir
 - “Review” sayfası yok; Events sayfası review rolündedir
@@ -143,7 +143,7 @@ Sidebar menü:
   - Retention days
   - Segment length (seconds)
   - Disk limit (%) + cleanup policy (oldest first)
-  - Media delete order (mp4 → gif → collage)
+  - Media delete order (mp4 → collage)
   - Default değerler gösterilir ve değiştirilebilir
 
 ### Diagnostics

@@ -53,7 +53,7 @@
   "aiEventPrompt": "Prompt sent",
   "aiEventNoEvents": "No events found",
   "aiEventImage": "Event image",
-  "aiEventNoImage": "No collage/GIF image for this event.",
+  "aiEventNoImage": "No collage image for this event.",
   "processing": "Processing",
   "error": "Error",
   "success": "Success",

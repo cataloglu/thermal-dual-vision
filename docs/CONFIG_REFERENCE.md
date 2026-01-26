@@ -96,7 +96,7 @@ Bu doküman `/api/settings` endpoint'indeki tüm config alanlarını açıklar.
 | `record_segments_seconds` | int | `10` | Segment uzunluğu (saniye) |
 | `disk_limit_percent` | int | `80` | Maksimum disk kullanımı (%) |
 | `cleanup_policy` | string | `"oldest_first"` | Temizleme stratejisi |
-| `delete_order` | array | `["mp4", "gif", "collage"]` | Silme sırası |
+| `delete_order` | array | `["mp4", "collage"]` | Silme sırası |
 
 ---
 

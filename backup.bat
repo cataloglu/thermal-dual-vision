@@ -35,7 +35,7 @@ echo Location: %BACKUP_DIR%
 echo Files:
 echo   - app.db (cameras + events)
 echo   - config.json (settings)
-echo   - media/ (collage/GIF/MP4)
+echo   - media/ (collage/MP4)
 echo ========================================
 echo.
 

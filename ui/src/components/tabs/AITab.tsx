@@ -114,7 +114,7 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
   };
 
   const selectedEvent = events.find((event) => event.id === selectedEventId);
-  const selectedEventImage = selectedEvent?.collage_url || selectedEvent?.gif_url || null;
+  const selectedEventImage = selectedEvent?.collage_url || null;
 
   return (
     <div className="space-y-6">

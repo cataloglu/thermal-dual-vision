@@ -4,7 +4,7 @@ Unit tests for retention worker.
 Tests cover:
 - Cleanup by retention days
 - Cleanup by disk limit
-- Media deletion order (mp4 → gif → collage)
+- Media deletion order (mp4 → collage)
 - Disk usage checking
 - Event media size calculation
 """
@@ -164,18 +164,16 @@ def test_cleanup_by_disk_limit(db_session, retention_worker, test_camera, temp_m
 
 
 def test_delete_order_mp4_first(retention_worker, temp_media_dir):
-    """Test that media files are deleted in correct order (mp4 → gif → collage)."""
+    """Test that media files are deleted in correct order (mp4 → collage)."""
     # Create event directory with all media files
     event_id = "test-event"
     event_dir = temp_media_dir / event_id
     event_dir.mkdir()
     
     mp4_path = event_dir / "timelapse.mp4"
-    gif_path = event_dir / "preview.gif"
     collage_path = event_dir / "collage.jpg"
     
     mp4_path.write_text("mp4 content")
-    gif_path.write_text("gif content")
     collage_path.write_text("collage content")
     
     # Delete media
@@ -183,7 +181,6 @@ def test_delete_order_mp4_first(retention_worker, temp_media_dir):
     
     # All files should be deleted
     assert not mp4_path.exists()
-    assert not gif_path.exists()
     assert not collage_path.exists()
     
     # Directory should be deleted
@@ -200,7 +197,7 @@ def test_delete_event_media_partial(retention_worker, temp_media_dir):
     collage_path = event_dir / "collage.jpg"
     collage_path.write_text("collage content")
     
-    # Delete media (should not crash even if mp4/gif don't exist)
+    # Delete media (should not crash even if mp4 doesn't exist)
     retention_worker.delete_event_media(event_id)
     
     # Collage should be deleted
@@ -234,14 +231,13 @@ def test_get_media_size_mb(retention_worker, temp_media_dir):
     
     # Create files with known sizes
     (event_dir / "collage.jpg").write_bytes(b"x" * 1024 * 100)  # 100 KB
-    (event_dir / "preview.gif").write_bytes(b"x" * 1024 * 500)  # 500 KB
     (event_dir / "timelapse.mp4").write_bytes(b"x" * 1024 * 1024 * 2)  # 2 MB
     
     # Get total size
     size_mb = retention_worker.get_media_size_mb(event_id)
     
-    # Should be approximately 2.6 MB
-    assert 2.5 < size_mb < 2.7
+    # Should be approximately 2.1 MB
+    assert 2.0 < size_mb < 2.2
 
 
 def test_get_media_size_mb_not_exists(retention_worker, temp_media_dir):

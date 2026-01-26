@@ -41,7 +41,7 @@ class MediaService:
         camera_name: str = "Camera",
     ) -> Dict[str, str]:
         """
-        Generate all media files for an event (collage, GIF, MP4).
+        Generate all media files for an event (collage, MP4).
         
         Generates files in parallel for speed.
         
@@ -76,8 +76,8 @@ class MediaService:
         gif_path = str(event_dir / "preview.gif")
         mp4_path = str(event_dir / "timelapse.mp4")
         
-        # Generate media in parallel
-        with ThreadPoolExecutor(max_workers=3) as executor:
+        # Generate media in parallel (skip GIF by default)
+        with ThreadPoolExecutor(max_workers=2) as executor:
             futures = []
             futures.append(executor.submit(
                 self.media_worker.create_collage,
@@ -88,13 +88,6 @@ class MediaService:
                 camera_name,
                 event.timestamp,
                 event.confidence,
-            ))
-            futures.append(executor.submit(
-                self.media_worker.create_timeline_gif,
-                frames,
-                gif_path,
-                camera_name,
-                event.timestamp,
             ))
             futures.append(executor.submit(
                 self.media_worker.create_timelapse_mp4,

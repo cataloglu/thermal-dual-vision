@@ -42,7 +42,7 @@ class TelegramService:
         event: Dict[str, Any],
         camera: Optional[Dict[str, Any]] = None,
         collage_path: Optional[Path] = None,
-        gif_path: Optional[Path] = None
+        mp4_path: Optional[Path] = None
     ) -> bool:
         """
         Send event notification to Telegram.
@@ -51,7 +51,7 @@ class TelegramService:
             event: Event data (id, camera_id, timestamp, confidence, summary)
             camera: Camera data (optional, for name)
             collage_path: Path to collage image (optional)
-            gif_path: Path to GIF animation (optional)
+            mp4_path: Path to MP4 timelapse (optional)
             
         Returns:
             True if sent successfully, False otherwise
@@ -113,13 +113,14 @@ class TelegramService:
                             parse_mode='HTML'
                         )
                     
-                    # Send GIF as document if available
-                    if gif_path and gif_path.exists() and config.telegram.send_images:
-                        with open(gif_path, 'rb') as gif:
-                            await bot.send_document(
+                    # Send MP4 timelapse if available
+                    if mp4_path and mp4_path.exists() and config.telegram.send_images:
+                        with open(mp4_path, 'rb') as video:
+                            await bot.send_video(
                                 chat_id=chat_id,
-                                document=gif,
-                                caption="🎬 Event Animation"
+                                video=video,
+                                caption="🎥 Event Video",
+                                supports_streaming=True
                             )
                     
                     logger.info(f"Telegram notification sent to {chat_id}")

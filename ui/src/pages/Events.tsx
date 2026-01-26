@@ -416,7 +416,6 @@ export function Events() {
               confidence={event.confidence}
               summary={event.summary}
               collageUrl={event.collage_url}
-              gifUrl={event.gif_url}
               mp4Url={event.mp4_url}
               selected={selectedIds.has(event.id)}
               onSelect={handleSelect}

@@ -52,7 +52,7 @@
   "aiEventPrompt": "Gönderilen prompt",
   "aiEventNoEvents": "Event bulunamadı",
   "aiEventImage": "Event görseli",
-  "aiEventNoImage": "Bu event için collage/GIF yok.",
+  "aiEventNoImage": "Bu event için collage yok.",
   "processing": "Hazırlanıyor",
   "error": "Hata",
   "success": "Başarılı",

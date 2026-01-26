@@ -16,7 +16,7 @@
 ## 2) Bileşenler
 - API Server (FastAPI)
 - Detector Worker (frame ingest + inference + event üretimi)
-- Media Worker (collage/gif/mp4 üretimi)
+- Media Worker (collage/mp4 üretimi)
 - Retention Worker (disk temizleme)
 
 ---

@@ -126,7 +126,7 @@ const baseSettings: Settings = {
     record_segments_seconds: 10,
     disk_limit_percent: 80,
     cleanup_policy: 'oldest_first',
-    delete_order: ['mp4', 'gif', 'collage'],
+    delete_order: ['mp4', 'collage'],
   },
   event: {
     cooldown_seconds: 5,

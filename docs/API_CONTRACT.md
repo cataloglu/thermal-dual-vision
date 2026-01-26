@@ -272,7 +272,6 @@ Response:
       "event_type": "person",
       "summary": "Person near gate",
       "collage_url": "/api/events/evt-1/collage",
-      "gif_url": "/api/events/evt-1/preview.gif",
       "mp4_url": "/api/events/evt-1/timelapse.mp4"
     }
   ]
@@ -298,7 +297,6 @@ Response:
   },
   "media": {
     "collage_url": "/api/events/evt-1/collage",
-    "gif_url": "/api/events/evt-1/preview.gif",
     "mp4_url": "/api/events/evt-1/timelapse.mp4"
   }
 }
@@ -306,7 +304,6 @@ Response:
 
 ### Event media endpoints
 - `GET /api/events/{id}/collage` → `image/jpeg` (5 frame grid, statik, yüksek kalite)
-- `GET /api/events/{id}/preview.gif` → `image/gif` (timeline animation: 10 frame, 5s, smooth motion, <2MB)
 - `GET /api/events/{id}/timelapse.mp4` → `video/mp4` (20s accelerated, full event)
 
 ### DELETE /api/events/{id}
@@ -404,7 +401,7 @@ Response:
     "record_segments_seconds": 10,
     "disk_limit_percent": 80,
     "cleanup_policy": "oldest_first",
-    "delete_order": ["mp4", "gif", "collage"]
+    "delete_order": ["mp4", "collage"]
   },
   "event": {
     "cooldown_seconds": 5,
@@ -520,7 +517,7 @@ Response:
     "record_segments_seconds": 10,
     "disk_limit_percent": 85,
     "cleanup_policy": "oldest_first",
-    "delete_order": ["mp4", "gif", "collage"]
+    "delete_order": ["mp4", "collage"]
   },
   "event": {
     "cooldown_seconds": 3,

@@ -11,7 +11,6 @@ interface EventDetailProps {
     event_type: string
     summary: string | null
     collage_url: string | null
-    gif_url: string | null
     mp4_url: string | null
   }
   onClose: () => void
@@ -23,9 +22,10 @@ export function EventDetail({ event, onClose, onDelete }: EventDetailProps) {
   const modalRef = useRef<HTMLDivElement>(null)
   const isRecent = (value: string) => Date.now() - new Date(value).getTime() < 30000
   const collagePending = !event.collage_url && isRecent(event.timestamp)
-  const gifPending = !event.gif_url && isRecent(event.timestamp)
   const mp4Pending = !event.mp4_url && isRecent(event.timestamp)
-  const [activeTab, setActiveTab] = useState<'collage' | 'gif' | 'video'>('collage')
+  const [activeTab, setActiveTab] = useState<'collage' | 'video'>(
+    event.mp4_url ? 'video' : 'collage'
+  )
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [tagInput, setTagInput] = useState('')
   const [tags, setTags] = useState<string[]>([])
@@ -54,6 +54,10 @@ export function EventDetail({ event, onClose, onDelete }: EventDetailProps) {
       document.body.style.overflow = 'unset'
     }
   }, [onClose])
+
+  useEffect(() => {
+    setActiveTab(event.mp4_url ? 'video' : 'collage')
+  }, [event.id, event.mp4_url])
 
   useEffect(() => {
     const raw = localStorage.getItem('event_meta')
@@ -175,16 +179,6 @@ export function EventDetail({ event, onClose, onDelete }: EventDetailProps) {
               Collage
             </button>
             <button
-              onClick={() => setActiveTab('gif')}
-              className={`px-4 py-2 font-medium transition-colors border-b-2 ${
-                activeTab === 'gif'
-                  ? 'border-accent text-accent'
-                  : 'border-transparent text-muted hover:text-text'
-              }`}
-            >
-              GIF Önizleme
-            </button>
-            <button
               onClick={() => setActiveTab('video')}
               className={`px-4 py-2 font-medium transition-colors border-b-2 ${
                 activeTab === 'video'
@@ -208,19 +202,6 @@ export function EventDetail({ event, onClose, onDelete }: EventDetailProps) {
               ) : (
                 <div className="p-8 text-center text-muted">
                   {collagePending ? t('processing') : t('noData')}
-                </div>
-              )
-            )}
-            {activeTab === 'gif' && (
-              event.gif_url ? (
-                <img
-                  src={event.gif_url}
-                  alt="Event GIF"
-                  className="w-full h-auto"
-                />
-              ) : (
-                <div className="p-8 text-center text-muted">
-                  {gifPending ? t('processing') : t('noData')}
                 </div>
               )
             )}
@@ -339,21 +320,6 @@ export function EventDetail({ event, onClose, onDelete }: EventDetailProps) {
               <span className="flex items-center gap-2 px-6 py-3 bg-accent/40 text-white rounded-lg opacity-60 font-medium">
                 <MdDownload />
                 Collage
-              </span>
-            )}
-            {event.gif_url ? (
-              <a
-                href={event.gif_url}
-                download
-                className="flex items-center gap-2 px-6 py-3 bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors"
-              >
-                <MdDownload />
-                GIF
-              </a>
-            ) : (
-              <span className="flex items-center gap-2 px-6 py-3 bg-surface2 border border-border text-muted rounded-lg opacity-60">
-                <MdDownload />
-                GIF
               </span>
             )}
             {event.mp4_url ? (

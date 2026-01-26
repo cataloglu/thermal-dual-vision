@@ -7,7 +7,7 @@ Thermal ve color kamera desteği ile **sadece insan algılama** odaklı akıllı
 - 🎯 **Sadece İnsan Algılama**: YOLOv8 person detection (`yolov8n-person` / `yolov8s-person` model seçimi)
 - 🌡️ **Dual Kamera Desteği**: Color, Thermal veya Dual kamera
 - 🎨 **Modern Dark UI**: Frigate-inspired dashboard
-- 📹 **Event Kanıtları**: Her algılamada collage (5 frame) + GIF + MP4 timelapse
+- 📹 **Event Kanıtları**: Her algılamada collage (5 frame) + MP4 timelapse
 - 🤖 **Opsiyonel AI**: OpenAI entegrasyonu (key yoksa sistem çalışır)
 - 📱 **Telegram Bildirimleri**: Event'lerde otomatik bildirim
 - 🔄 **Akıllı Retention**: Disk limiti + retention policy ile otomatik temizleme
@@ -67,7 +67,7 @@ npm run dev
 ### In Scope
 - ✅ Multi-camera support (color/thermal/dual)
 - ✅ Person detection only (`yolov8n-person` / `yolov8s-person`)
-- ✅ Event-based recording (collage/gif/mp4) - "Review" özelliği Events sayfasında
+- ✅ Event-based recording (collage/mp4) - "Review" özelliği Events sayfasında
 - ✅ Live view (MJPEG/WebRTC)
 - ✅ Zone/ROI configuration (polygon-based)
 - ✅ AI summary (optional - OpenAI)

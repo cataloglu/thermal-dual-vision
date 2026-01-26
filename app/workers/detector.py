@@ -875,7 +875,7 @@ class DetectorWorker:
                 event = db.query(Event).filter(Event.id == event_id).first()
                 if event:
                     collage_path = self.media_service.get_media_path(event_id, "collage")
-                    gif_path = self.media_service.get_media_path(event_id, "gif")
+                    mp4_path = self.media_service.get_media_path(event_id, "mp4")
 
                     summary = None
                     if collage_path:
@@ -932,7 +932,7 @@ class DetectorWorker:
                                 },
                                 camera={"id": camera.id, "name": camera.name},
                                 collage_path=collage_path,
-                                gif_path=gif_path,
+                                mp4_path=mp4_path,
                             )
                         )
                     except RuntimeError:
@@ -948,7 +948,7 @@ class DetectorWorker:
                                 },
                                 camera={"id": camera.id, "name": camera.name},
                                 collage_path=collage_path,
-                                gif_path=gif_path,
+                                mp4_path=mp4_path,
                             )
                         )
                         loop.close()

@@ -41,7 +41,7 @@ Send to Multiple Platforms:
 **Gönderilecek**:
 - Text message
 - Collage image
-- GIF animation
+- MP4 timelapse
 - MP4 video link
 
 ---

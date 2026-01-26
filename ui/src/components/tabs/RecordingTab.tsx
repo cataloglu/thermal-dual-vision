@@ -26,7 +26,7 @@ export const RecordingTab: React.FC<RecordingTabProps> = ({ config, onChange, on
         <div className="space-y-3 text-sm">
           <div>
             <strong className="text-text">Hareket Kayıtları (Event):</strong>
-            <p className="text-muted">Sadece person algılandığında (collage/GIF/MP4)</p>
+            <p className="text-muted">Sadece person algılandığında (collage/MP4)</p>
             <p className="text-success">✅ HER ZAMAN AÇIK (otomatik)</p>
           </div>
           <div>
@@ -166,7 +166,7 @@ export const RecordingTab: React.FC<RecordingTabProps> = ({ config, onChange, on
             ✅ Event Kayıtları Aktif
           </p>
           <p className="text-muted text-xs">
-            Person algılandığında otomatik olarak collage, GIF ve MP4 oluşturulur
+            Person algılandığında otomatik olarak collage ve MP4 oluşturulur
           </p>
         </div>
       </div>

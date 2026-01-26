@@ -1783,7 +1783,7 @@ async def test_telegram(
 
             message = f"🧪 Telegram test\n📹 {camera_name}"
             collage_path = media_service.get_media_path(event.id, "collage")
-            gif_path = media_service.get_media_path(event.id, "gif")
+            mp4_path = media_service.get_media_path(event.id, "mp4")
 
             bot = Bot(token=bot_token)
             for chat_id in chat_ids:
@@ -1793,9 +1793,14 @@ async def test_telegram(
                 else:
                     await bot.send_message(chat_id=chat_id, text=message)
 
-                if gif_path and gif_path.exists():
-                    with open(gif_path, "rb") as gif:
-                        await bot.send_document(chat_id=chat_id, document=gif, caption="🎬 Event Animation")
+                if mp4_path and mp4_path.exists():
+                    with open(mp4_path, "rb") as video:
+                        await bot.send_video(
+                            chat_id=chat_id,
+                            video=video,
+                            caption="🎥 Event Video",
+                            supports_streaming=True
+                        )
 
             return {"success": True, "message": "Telegram test message sent"}
 

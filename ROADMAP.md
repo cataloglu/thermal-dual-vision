@@ -147,18 +147,18 @@ Bu dosya implementation öncelik sırasını ve her aşamada yapılacakları det
 ---
 
 ### 📹 Phase 6: Media Generation (Öncelik: 🟠 Orta)
-**Hedef**: Collage, GIF, MP4 oluşturma
+**Hedef**: Collage, MP4 oluşturma (GIF deprecated)
 
 **Yapılacaklar**:
 - [ ] `app/workers/media.py` oluştur
   - [ ] Collage generation (5 frames)
-  - [ ] GIF generation (preview)
+  - [ ] GIF generation (preview) (deprecated)
   - [ ] MP4 timelapse (20s accelerated)
   - [ ] FFmpeg integration
 - [ ] Media file storage (`data/media/`)
 - [ ] Media URL generation
 - [ ] `GET /api/events/{id}/collage` endpoint
-- [ ] `GET /api/events/{id}/preview.gif` endpoint
+- [ ] (Deprecated) `GET /api/events/{id}/preview.gif` endpoint
 - [ ] `GET /api/events/{id}/timelapse.mp4` endpoint
 
 **Bağımlılıklar**: Detection Pipeline  
@@ -178,7 +178,7 @@ Bu dosya implementation öncelik sırasını ve her aşamada yapılacakları det
   - [x] Retention policy (days)
   - [x] Disk limit check (%)
   - [x] Cleanup strategy (oldest first)
-  - [x] Delete order (mp4 → gif → collage)
+  - [x] Delete order (mp4 → collage)
   - [x] Scheduled cleanup (cron-like)
 - [x] Database cleanup (orphan records)
 - [x] Disk space monitoring
@@ -240,7 +240,7 @@ Bu dosya implementation öncelik sırasını ve her aşamada yapılacakları det
 - [x] `ui/src/components/EventCard.tsx`
 - [x] `ui/src/components/EventDetail.tsx` (modal)
   - [x] Collage preview
-  - [x] GIF preview
+  - [x] GIF preview (deprecated)
   - [x] MP4 player
   - [x] AI summary
   - [x] Download buttons

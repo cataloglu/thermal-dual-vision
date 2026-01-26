@@ -30,7 +30,7 @@ class RetentionWorker:
     Handles:
     - Age-based cleanup (retention_days)
     - Disk-based cleanup (disk_limit_percent)
-    - Media deletion order (mp4 → gif → collage)
+    - Media deletion order (mp4 → collage)
     """
     
     MEDIA_DIR = DATA_DIR / "media"
@@ -212,7 +212,7 @@ class RetentionWorker:
         """
         Delete all media files for an event.
         
-        Deletion order: mp4 → gif → collage (largest first)
+        Deletion order: mp4 → collage (largest first)
         
         Args:
             event_id: Event ID
@@ -222,8 +222,8 @@ class RetentionWorker:
         if not event_dir.exists():
             return
         
-        # Delete in order: mp4 (largest) → gif → collage
-        delete_order = ["timelapse.mp4", "preview.gif", "collage.jpg"]
+        # Delete in order: mp4 (largest) → collage
+        delete_order = ["timelapse.mp4", "collage.jpg"]
         
         for filename in delete_order:
             file_path = event_dir / filename
