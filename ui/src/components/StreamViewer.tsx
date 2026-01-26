@@ -39,6 +39,7 @@ export function StreamViewer({
   const outputMode = settings?.live?.output_mode || 'mjpeg'
 
   const imgRef = useRef<HTMLImageElement>(null)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
   const retryTimeoutRef = useRef<number | null>(null)
   const loadingTimeoutRef = useRef<number | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -133,11 +134,47 @@ export function StreamViewer({
     }, 2000)
   }, [isVisible, streamUrl])
 
+  const tryEnhanceIframePlayback = () => {
+    const iframe = iframeRef.current
+    if (!iframe) return
+
+    try {
+      const doc = iframe.contentDocument || iframe.contentWindow?.document
+      if (!doc) return
+      const video = doc.querySelector('video') as HTMLVideoElement | null
+      if (!video) return
+
+      // Hide native controls and force autoplay
+      video.controls = false
+      video.muted = true
+      video.playsInline = true
+      const playResult = video.play()
+      if (playResult && typeof playResult.catch === 'function') {
+        playResult.catch(() => undefined)
+      }
+    } catch {
+      // Cross-origin iframe: ignore
+    }
+  }
+
   const handleLoad = () => {
     if (!isVisible) return
     setLoading(false)
     setError(false)
     setRetryCount(0)
+
+    if (outputMode === 'webrtc' && go2rtcAvailable) {
+      let attempts = 0
+      const maxAttempts = 10
+      const tick = () => {
+        attempts += 1
+        tryEnhanceIframePlayback()
+        if (attempts < maxAttempts) {
+          window.setTimeout(tick, 200)
+        }
+      }
+      window.setTimeout(tick, 200)
+    }
   }
 
   const handleError = () => {
@@ -261,6 +298,7 @@ export function StreamViewer({
       {/* MJPEG Stream / WebRTC Player */}
       {outputMode === 'webrtc' && go2rtcAvailable ? (
         <iframe
+          ref={iframeRef}
           src={`${GO2RTC_URL}/stream.html?src=${cameraId}&mode=webrtc`}
           className="w-full h-full border-0"
           allow="autoplay"
