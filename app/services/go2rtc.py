@@ -32,7 +32,18 @@ class Go2RTCService:
             logger.warning(f"go2rtc not available: {e}")
             return False
     
-    def add_camera(self, camera_id: str, rtsp_url: str) -> bool:
+    def _restart_go2rtc(self) -> None:
+        """Restart go2rtc to reload configuration."""
+        try:
+            response = httpx.post(f"{self.api_url}/api/restart", timeout=5.0)
+            if response.status_code == 200:
+                logger.info("go2rtc restarted to reload config")
+            else:
+                logger.warning(f"go2rtc restart returned status {response.status_code}")
+        except Exception as e:
+            logger.warning(f"Failed to restart go2rtc: {e}")
+
+    def add_camera(self, camera_id: str, rtsp_url: str, reload: bool = True) -> bool:
         """Add camera to go2rtc streams."""
         if not self.enabled:
             logger.debug("go2rtc not enabled, skipping camera add")
@@ -59,6 +70,8 @@ class Go2RTCService:
                 yaml.dump(config, f, default_flow_style=False)
             
             logger.info(f"Camera {camera_id} added to go2rtc successfully")
+            if reload:
+                self._restart_go2rtc()
             return True
             
         except Exception as e:
@@ -89,6 +102,7 @@ class Go2RTCService:
                 yaml.dump(config, f, default_flow_style=False)
 
             logger.info(f"Camera {camera_id} removed from go2rtc successfully")
+            self._restart_go2rtc()
             return True
 
         except Exception as e:
@@ -108,12 +122,14 @@ class Go2RTCService:
             try:
                 rtsp_url = camera.rtsp_url_thermal or camera.rtsp_url_color or camera.rtsp_url
                 if rtsp_url:
-                    if self.add_camera(camera.id, rtsp_url):
+                    if self.add_camera(camera.id, rtsp_url, reload=False):
                         success_count += 1
             except Exception as e:
                 logger.error(f"Failed to sync camera {camera.id}: {e}", exc_info=True)
         
         logger.info(f"Camera sync complete: {success_count}/{len(cameras)} cameras synced")
+        if success_count > 0:
+            self._restart_go2rtc()
 
 
 # Singleton instance
