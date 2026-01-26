@@ -202,5 +202,21 @@
   "lowLatency": "Low latency",
   "requires": "requires",
   "prevents": "prevents",
-  "default": "default"
+  "default": "default",
+  "perfPresetsTitle": "Performance Presets",
+  "perfPresetsDesc": "Apply a preset to quickly tune CPU and latency.",
+  "perfPresetEcoTitle": "Low CPU (Eco)",
+  "perfPresetEcoDesc": "Lowest load, reduced accuracy.",
+  "perfPresetBalancedTitle": "Balanced",
+  "perfPresetBalancedDesc": "Recommended for most installations.",
+  "perfPresetQualityTitle": "High Accuracy",
+  "perfPresetQualityDesc": "Best accuracy, highest CPU.",
+  "perfPresetNote": "Applying a preset saves settings immediately.",
+  "perfTipsTitle": "Performance Tips",
+  "perfTipDetectionModel": "Model choice drives CPU: v8n is fastest, v9 is heaviest.",
+  "perfTipDetectionFps": "Lower FPS reduces CPU (3–5 is enough for most cases).",
+  "perfTipDetectionResolution": "Lower resolution reduces CPU (try 512 or 384).",
+  "perfTipMotion": "Higher min area and cooldown reduce unnecessary processing.",
+  "perfTipThermal": "Disabling thermal enhancement saves significant CPU.",
+  "perfTipStream": "TCP is stable; smaller buffers lower latency but may reconnect more."
 }

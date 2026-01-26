@@ -3,7 +3,7 @@
  */
 
 export interface DetectionConfig {
-  model: 'yolov8n-person' | 'yolov8s-person';
+  model: 'yolov8n-person' | 'yolov8s-person' | 'yolov9t' | 'yolov9s';
   confidence_threshold: number;
   nms_iou_threshold: number;
   inference_resolution: [number, number];

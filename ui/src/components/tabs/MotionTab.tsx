@@ -2,6 +2,7 @@
  * Motion tab - Motion detection settings
  */
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { MotionConfig } from '../../types/api';
 import apiClient from '../../services/api';
 import toast from 'react-hot-toast';
@@ -19,6 +20,7 @@ interface Camera {
 }
 
 export const MotionTab: React.FC<MotionTabProps> = ({ config, onChange, onSave }) => {
+  const { t } = useTranslation();
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [selectedCamera, setSelectedCamera] = useState<string>('');
 
@@ -138,6 +140,11 @@ export const MotionTab: React.FC<MotionTabProps> = ({ config, onChange, onSave }
             Apply for {selectedCameraData?.type || 'Camera'}
           </button>
         </div>
+      </div>
+
+      <div className="bg-surface2 border-l-4 border-warning p-4 rounded-lg">
+        <h4 className="font-semibold text-text mb-2">⚡ {t('perfTipsTitle')}</h4>
+        <p className="text-sm text-muted">{t('perfTipMotion')}</p>
       </div>
 
       <div className="space-y-4">

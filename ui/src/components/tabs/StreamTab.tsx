@@ -23,6 +23,11 @@ export const StreamTab: React.FC<StreamTabProps> = ({ config, onChange, onSave }
         </p>
       </div>
 
+      <div className="bg-surface2 border-l-4 border-warning p-4 rounded-lg">
+        <h4 className="font-semibold text-text mb-2">⚡ {t('perfTipsTitle')}</h4>
+        <p className="text-sm text-muted">{t('perfTipStream')}</p>
+      </div>
+
       <div className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-text mb-2">

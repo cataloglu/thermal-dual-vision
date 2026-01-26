@@ -23,6 +23,11 @@ export const ThermalTab: React.FC<ThermalTabProps> = ({ config, onChange, onSave
         </p>
       </div>
 
+      <div className="bg-surface2 border-l-4 border-warning p-4 rounded-lg">
+        <h4 className="font-semibold text-text mb-2">⚡ {t('perfTipsTitle')}</h4>
+        <p className="text-sm text-muted">{t('perfTipThermal')}</p>
+      </div>
+
       <div className="space-y-4">
         <div className="flex items-center space-x-3">
           <input

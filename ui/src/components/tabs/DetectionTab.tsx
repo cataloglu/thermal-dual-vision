@@ -2,6 +2,7 @@
  * Detection tab - YOLOv8 detection settings
  */
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { DetectionConfig } from '../../types/api';
 
 interface DetectionTabProps {
@@ -11,6 +12,8 @@ interface DetectionTabProps {
 }
 
 export const DetectionTab: React.FC<DetectionTabProps> = ({ config, onChange, onSave }) => {
+  const { t } = useTranslation();
+
   return (
     <div className="space-y-6">
       <div>
@@ -18,6 +21,15 @@ export const DetectionTab: React.FC<DetectionTabProps> = ({ config, onChange, on
         <p className="text-sm text-muted mb-6">
           YOLOv8 kişi algılama modeli ve çıkarım parametrelerini yapılandırın
         </p>
+      </div>
+
+      <div className="bg-surface2 border-l-4 border-warning p-4 rounded-lg">
+        <h4 className="font-semibold text-text mb-2">⚡ {t('perfTipsTitle')}</h4>
+        <ul className="text-sm text-muted space-y-1">
+          <li>{t('perfTipDetectionModel')}</li>
+          <li>{t('perfTipDetectionFps')}</li>
+          <li>{t('perfTipDetectionResolution')}</li>
+        </ul>
       </div>
 
       <div className="space-y-4">

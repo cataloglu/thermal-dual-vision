@@ -3,6 +3,7 @@
  */
 import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useSettings } from '../hooks/useSettings';
 import { api } from '../services/api';
 import { TabId } from '../components/SettingsTabs';
@@ -23,6 +24,7 @@ import { AppearanceTab } from '../components/tabs/AppearanceTab';
 import type { Settings as SettingsType } from '../types/api';
 
 export const Settings: React.FC = () => {
+  const { t } = useTranslation();
   const { settings, loading, error, saveSettings } = useSettings();
   const [searchParams] = useSearchParams();
   const defaultTab = (searchParams.get('tab') as TabId) || 'cameras';
@@ -115,6 +117,94 @@ export const Settings: React.FC = () => {
       console.error('Failed to reset settings:', error);
     }
   };
+
+  const applyPerformancePreset = useCallback(async (preset: 'eco' | 'balanced' | 'quality') => {
+    if (!localSettings) return;
+
+    const baseDetection = localSettings.detection;
+    const baseMotion = localSettings.motion;
+    const baseThermal = localSettings.thermal;
+
+    const updates: Partial<SettingsType> = (() => {
+      if (preset === 'eco') {
+        return {
+          detection: {
+            ...baseDetection,
+            model: 'yolov8n-person',
+            inference_fps: 3,
+            inference_resolution: [512, 512],
+            confidence_threshold: 0.35,
+          },
+          motion: {
+            ...baseMotion,
+            sensitivity: 6,
+            min_area: 700,
+            cooldown_seconds: 5,
+          },
+          thermal: {
+            ...baseThermal,
+            enable_enhancement: false,
+          },
+        };
+      }
+      if (preset === 'quality') {
+        return {
+          detection: {
+            ...baseDetection,
+            model: 'yolov9t',
+            inference_fps: 7,
+            inference_resolution: [640, 640],
+            confidence_threshold: 0.25,
+          },
+          motion: {
+            ...baseMotion,
+            sensitivity: 8,
+            min_area: 450,
+            cooldown_seconds: 4,
+          },
+          thermal: {
+            ...baseThermal,
+            enable_enhancement: true,
+            enhancement_method: 'clahe',
+            clahe_clip_limit: 2.0,
+          },
+        };
+      }
+      return {
+        detection: {
+          ...baseDetection,
+          model: 'yolov8s-person',
+          inference_fps: 5,
+          inference_resolution: [640, 640],
+          confidence_threshold: 0.3,
+        },
+        motion: {
+          ...baseMotion,
+          sensitivity: 7,
+          min_area: 500,
+          cooldown_seconds: 5,
+        },
+        thermal: {
+          ...baseThermal,
+          enable_enhancement: true,
+          enhancement_method: 'clahe',
+          clahe_clip_limit: 2.0,
+        },
+      };
+    })();
+
+    const nextSettings = {
+      ...localSettings,
+      ...updates,
+    } as SettingsType;
+
+    updateLocalSettings(nextSettings);
+    const saved = await saveSettings(updates);
+    if (saved) {
+      setLocalSettings(saved);
+      setIsDirty(false);
+    }
+  }, [localSettings, saveSettings, updateLocalSettings]);
 
   const tabContent = useMemo(() => {
     if (activeTab === 'cameras') return <CamerasTab />
@@ -260,6 +350,37 @@ export const Settings: React.FC = () => {
           >
             Reset to Defaults
           </button>
+        </div>
+
+        <div className="bg-surface1 border border-border rounded-lg p-6 mb-6">
+          <div className="flex flex-col gap-2 mb-4">
+            <h2 className="text-lg font-semibold text-text">{t('perfPresetsTitle')}</h2>
+            <p className="text-sm text-muted">{t('perfPresetsDesc')}</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <button
+              onClick={() => applyPerformancePreset('eco')}
+              className="p-4 rounded-lg border border-border bg-surface2 text-left hover:bg-surface2/80 transition-colors"
+            >
+              <div className="font-semibold text-text">{t('perfPresetEcoTitle')}</div>
+              <div className="text-xs text-muted mt-1">{t('perfPresetEcoDesc')}</div>
+            </button>
+            <button
+              onClick={() => applyPerformancePreset('balanced')}
+              className="p-4 rounded-lg border border-border bg-surface2 text-left hover:bg-surface2/80 transition-colors"
+            >
+              <div className="font-semibold text-text">{t('perfPresetBalancedTitle')}</div>
+              <div className="text-xs text-muted mt-1">{t('perfPresetBalancedDesc')}</div>
+            </button>
+            <button
+              onClick={() => applyPerformancePreset('quality')}
+              className="p-4 rounded-lg border border-border bg-surface2 text-left hover:bg-surface2/80 transition-colors"
+            >
+              <div className="font-semibold text-text">{t('perfPresetQualityTitle')}</div>
+              <div className="text-xs text-muted mt-1">{t('perfPresetQualityDesc')}</div>
+            </button>
+          </div>
+          <p className="text-xs text-muted mt-3">{t('perfPresetNote')}</p>
         </div>
 
         <div className="bg-surface1 border border-border rounded-lg p-6">
