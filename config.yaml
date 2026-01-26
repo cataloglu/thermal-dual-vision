@@ -1,5 +1,5 @@
 name: "Thermal Dual Vision"
-version: "2.1.75"
+version: "2.1.76"
 slug: "thermal_dual_vision"
 description: "AI supported thermal & color person detection system with MQTT Auto-Discovery."
 url: "https://github.com/cataloglu/thermal-dual-vision"
@@ -31,3 +31,7 @@ options:
   log_level: info
 schema:
   log_level: list(trace|debug|info|notice|warning|error|fatal|critical)
+
+# Request MQTT configuration from Supervisor
+services:
+  - "mqtt:need"

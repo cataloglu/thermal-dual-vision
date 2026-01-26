@@ -51,27 +51,28 @@ Send to Multiple Platforms:
 {
   "mqtt": {
     "enabled": true,
-    "broker": "192.168.1.x",
+    "host": "core-mosquitto",
     "port": 1883,
-    "username": "ha",
-    "password": "...",
-    "topics": {
-      "motion": "thermal/camera/{camera_id}/motion",
-      "person": "thermal/camera/{camera_id}/person",
-      "snapshot": "thermal/camera/{camera_id}/snapshot"
-    }
+    "username": null,
+    "password": null,
+    "topic_prefix": "thermal_vision"
   }
 }
 ```
+
+**HA Add-on Auto-Discovery**:
+- HA Supervisor üzerinden MQTT bilgileri otomatik çekilir (`services: mqtt:need`).
+- Mosquitto add-on çalışıyorsa host/port/user/pass otomatik set edilir.
+- Kullanıcı adı/parola boş ise sistem **anonim** bağlanır (broker izin veriyorsa).
 
 **HA'da kullanımı**:
 ```yaml
 binary_sensor:
   - platform: mqtt
     name: "Ön Kapı Person"
-    state_topic: "thermal/camera/cam-1/person"
-    payload_on: "true"
-    payload_off: "false"
+    state_topic: "thermal_vision/camera/cam-1/person"
+    payload_on: "ON"
+    payload_off: "OFF"
     off_delay: 30
 ```
 

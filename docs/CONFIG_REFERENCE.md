@@ -158,6 +158,26 @@ Bu doküman `/api/settings` endpoint'indeki tüm config alanlarını açıklar.
 
 ---
 
+### 11. `mqtt` (Home Assistant / MQTT)
+
+**Amaç**: Home Assistant entegrasyonu için MQTT event publish
+
+| Alan | Tip | Default | Açıklama |
+|------|-----|---------|----------|
+| `enabled` | bool | `false` | MQTT aktif/pasif |
+| `host` | string | `"core-mosquitto"` | MQTT broker host |
+| `port` | int | `1883` | MQTT broker port |
+| `username` | string? | `null` | MQTT username (opsiyonel) |
+| `password` | string? | `null` | MQTT password (opsiyonel) |
+| `topic_prefix` | string | `"thermal_vision"` | MQTT topic prefix |
+
+**Not (HA Add-on)**:
+- `services: mqtt:need` ile Supervisor broker bilgisi otomatik çekilir.
+- Mosquitto add-on çalışıyorsa host/port/user/pass otomatik set edilir.
+- Username/password boşsa anonim bağlanır (broker izin veriyorsa).
+
+---
+
 ## 🔄 Config Hierarchy
 
 ```
