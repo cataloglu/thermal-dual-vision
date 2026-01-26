@@ -3,6 +3,7 @@
  */
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import type { DetectionConfig } from '../../types/api';
 
 interface DetectionTabProps {
@@ -13,6 +14,7 @@ interface DetectionTabProps {
 
 export const DetectionTab: React.FC<DetectionTabProps> = ({ config, onChange, onSave }) => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
 
   return (
     <div className="space-y-6">
@@ -23,62 +25,33 @@ export const DetectionTab: React.FC<DetectionTabProps> = ({ config, onChange, on
         </p>
       </div>
 
-      <div className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-text mb-2">
-            {t('detectionModelLabel')}
-          </label>
-          <select
-            value={config.model}
-            onChange={(e) => onChange({ ...config, model: e.target.value as DetectionConfig['model'] })}
-            className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
-          >
-            <option value="yolov8n-person">{t('modelYolov8nLabel')}</option>
-            <option value="yolov8s-person">{t('modelYolov8sLabel')}</option>
-            <option value="yolov9t">{t('modelYolov9tLabel')}</option>
-            <option value="yolov9s">{t('modelYolov9sLabel')}</option>
-          </select>
-          <p className="text-xs text-muted mt-1">
-            {t('detectionModelHint')}
-          </p>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-text mb-2">
-            {t('detectionConfidenceLabel', { value: config.confidence_threshold.toFixed(2) })}
-          </label>
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.05"
-            value={config.confidence_threshold}
-            onChange={(e) => onChange({ ...config, confidence_threshold: parseFloat(e.target.value) })}
-            className="w-full"
-          />
-          <div className="flex justify-between text-xs text-muted mt-1">
-            <span>{t('detectionConfidenceLow')}</span>
-            <span>{t('detectionConfidenceHigh')}</span>
+      <div className="bg-surface2 border-l-4 border-info p-4 rounded-lg">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h4 className="font-semibold text-text">{t('perfShortcutTitle')}</h4>
+            <p className="text-xs text-muted mt-1">{t('perfShortcutDesc')}</p>
           </div>
+          <button
+            onClick={() => navigate('/settings?tab=performance')}
+            className="px-3 py-2 bg-surface1 border border-border text-text rounded-lg hover:bg-surface1/80 transition-colors text-sm"
+          >
+            {t('perfShortcutButton')}
+          </button>
         </div>
-
-        <div>
-          <label className="block text-sm font-medium text-text mb-2">
-            {t('detectionInferenceFpsLabel')}
-          </label>
-          <input
-            type="number"
-            min="1"
-            max="30"
-            value={config.inference_fps}
-            onChange={(e) => onChange({ ...config, inference_fps: parseInt(e.target.value) || 1 })}
-            className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
-          />
-          <p className="text-xs text-muted mt-1">
-            {t('detectionInferenceFpsHint')}
-          </p>
+        <div className="mt-3 text-xs text-muted space-y-1">
+          <div>{t('perfSummaryModel', { value: config.model })}</div>
+          <div>{t('perfSummaryFps', { value: config.inference_fps })}</div>
+          <div>
+            {t('perfSummaryResolution', {
+              width: config.inference_resolution[0],
+              height: config.inference_resolution[1],
+            })}
+          </div>
+          <div>{t('perfSummaryConfidence', { value: config.confidence_threshold.toFixed(2) })}</div>
         </div>
+      </div>
 
+      <div className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-text mb-2">
             {t('detectionNmsLabel', { value: config.nms_iou_threshold.toFixed(2) })}
@@ -94,48 +67,6 @@ export const DetectionTab: React.FC<DetectionTabProps> = ({ config, onChange, on
           />
           <p className="text-xs text-muted mt-1">
             {t('detectionNmsHint')}
-          </p>
-        </div>
-
-        {/* Inference Resolution - TASK 11 */}
-        <div>
-          <label className="block text-sm font-medium text-text mb-2">
-            {t('detectionInferenceResolutionLabel')}
-          </label>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs text-muted mb-1">{t('detectionWidthLabel')}</label>
-              <input
-                type="number"
-                min="320"
-                max="1920"
-                step="32"
-                value={config.inference_resolution[0]}
-                onChange={(e) => onChange({ 
-                  ...config, 
-                  inference_resolution: [parseInt(e.target.value) || 640, config.inference_resolution[1]] 
-                })}
-                className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-muted mb-1">{t('detectionHeightLabel')}</label>
-              <input
-                type="number"
-                min="320"
-                max="1920"
-                step="32"
-                value={config.inference_resolution[1]}
-                onChange={(e) => onChange({ 
-                  ...config, 
-                  inference_resolution: [config.inference_resolution[0], parseInt(e.target.value) || 640] 
-                })}
-                className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
-              />
-            </div>
-          </div>
-          <p className="text-xs text-muted mt-1">
-            {t('detectionInferenceResolutionHint')}
           </p>
         </div>
 

@@ -3,6 +3,7 @@
  */
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import type { ThermalConfig } from '../../types/api';
 
 interface ThermalTabProps {
@@ -13,6 +14,14 @@ interface ThermalTabProps {
 
 export const ThermalTab: React.FC<ThermalTabProps> = ({ config, onChange, onSave }) => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const enhancementStatus = config.enable_enhancement ? t('enabled') : t('disabled');
+  const methodLabel =
+    config.enhancement_method === 'histogram'
+      ? t('histogram')
+      : config.enhancement_method === 'none'
+        ? t('none')
+        : 'CLAHE';
   
   return (
     <div className="space-y-6">
@@ -23,37 +32,32 @@ export const ThermalTab: React.FC<ThermalTabProps> = ({ config, onChange, onSave
         </p>
       </div>
 
-      <div className="space-y-4">
-        <div className="flex items-center space-x-3">
-          <input
-            type="checkbox"
-            id="enable-enhancement"
-            checked={config.enable_enhancement}
-            onChange={(e) => onChange({ ...config, enable_enhancement: e.target.checked })}
-            className="w-4 h-4 text-accent bg-surface2 border-border rounded focus:ring-accent"
-          />
-          <label htmlFor="enable-enhancement" className="text-sm font-medium text-text">
-            {t('enableThermalEnhancement')}
-          </label>
+      <div className="bg-surface2 border-l-4 border-info p-4 rounded-lg">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h4 className="font-semibold text-text">{t('perfShortcutTitle')}</h4>
+            <p className="text-xs text-muted mt-1">{t('perfShortcutDesc')}</p>
+          </div>
+          <button
+            onClick={() => navigate('/settings?tab=performance')}
+            className="px-3 py-2 bg-surface1 border border-border text-text rounded-lg hover:bg-surface1/80 transition-colors text-sm"
+          >
+            {t('perfShortcutButton')}
+          </button>
         </div>
+        <div className="mt-3 text-xs text-muted space-y-1">
+          <div>{t('thermalSummaryStatus', { value: enhancementStatus })}</div>
+          <div>{t('thermalSummaryMethod', { value: methodLabel })}</div>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        {!config.enable_enhancement && (
+          <p className="text-xs text-muted">{t('thermalAdvancedHint')}</p>
+        )}
 
         {config.enable_enhancement && (
           <>
-            <div>
-              <label className="block text-sm font-medium text-text mb-2">
-                {t('enhancementMethod')}
-              </label>
-              <select
-                value={config.enhancement_method}
-                onChange={(e) => onChange({ ...config, enhancement_method: e.target.value as ThermalConfig['enhancement_method'] })}
-                className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
-              >
-                <option value="clahe">CLAHE ({t('recommended')})</option>
-                <option value="histogram">{t('histogram')}</option>
-                <option value="none">{t('none')}</option>
-              </select>
-            </div>
-
             {config.enhancement_method === 'clahe' && (
               <>
                 <div>

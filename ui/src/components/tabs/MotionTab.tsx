@@ -1,11 +1,10 @@
 /**
  * Motion tab - Motion detection settings
  */
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import type { MotionConfig } from '../../types/api';
-import apiClient from '../../services/api';
-import toast from 'react-hot-toast';
 
 interface MotionTabProps {
   config: MotionConfig;
@@ -13,61 +12,10 @@ interface MotionTabProps {
   onSave: () => void;
 }
 
-interface Camera {
-  id: string;
-  name: string;
-  type: string;
-}
-
-export const MotionTab: React.FC<MotionTabProps> = ({ config, onChange, onSave }) => {
+export const MotionTab: React.FC<MotionTabProps> = ({ config }) => {
   const { t } = useTranslation();
-  const [cameras, setCameras] = useState<Camera[]>([]);
-  const [selectedCamera, setSelectedCamera] = useState<string>('');
+  const navigate = useNavigate();
 
-  useEffect(() => {
-    // Fetch cameras
-    apiClient.get('cameras')
-      .then(res => {
-        const data = res.data;
-        setCameras(data.cameras || []);
-        if (data.cameras && data.cameras.length > 0) {
-          setSelectedCamera(data.cameras[0].id);
-        }
-      })
-      .catch(err => console.error('Failed to fetch cameras:', err));
-  }, []);
-
-  const selectedCameraData = cameras.find(c => c.id === selectedCamera);
-  const isThermal = selectedCameraData?.type === 'thermal' || selectedCameraData?.type === 'dual';
-
-  const applyPreset = (preset: 'thermal_recommended' | 'color_recommended') => {
-    if (preset === 'thermal_recommended') {
-      onChange({
-        ...config,
-        sensitivity: 8,
-        min_area: 450,
-        cooldown_seconds: 4
-      });
-      toast.success(t('motionPresetAppliedThermal'));
-    } else {
-      onChange({
-        ...config,
-        sensitivity: 7,
-        min_area: 500,
-        cooldown_seconds: 5
-      });
-      toast.success(t('motionPresetAppliedColor'));
-    }
-  };
-
-  const applyRecommendedForCamera = () => {
-    if (isThermal) {
-      applyPreset('thermal_recommended');
-    } else {
-      applyPreset('color_recommended');
-    }
-  };
-  
   return (
     <div className="space-y-6">
       <div>
@@ -77,131 +25,25 @@ export const MotionTab: React.FC<MotionTabProps> = ({ config, onChange, onSave }
         </p>
       </div>
 
-      {/* Camera Selection */}
       <div className="bg-surface2 border-l-4 border-info p-4 rounded-lg">
-        <div className="mb-3">
-          <label className="block text-sm font-medium text-text mb-2">
-            {t('motionSelectCamera')}
-          </label>
-          <select
-            value={selectedCamera}
-            onChange={(e) => setSelectedCamera(e.target.value)}
-            className="w-full px-3 py-2 bg-surface1 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
-          >
-            {cameras.map((cam) => (
-              <option key={cam.id} value={cam.id}>
-                {cam.name} ({cam.type})
-              </option>
-            ))}
-          </select>
-        </div>
-        {selectedCameraData && (
-          <p className="text-xs text-muted">
-            💡 {t('motionCameraType')}: <span className="font-semibold text-text">{selectedCameraData.type.toUpperCase()}</span>
-            {isThermal 
-              ? ` → ${t('motionThermalRecommended')}` 
-              : ` → ${t('motionColorRecommended')}`}
-          </p>
-        )}
-      </div>
-
-      {/* Presets */}
-      <div>
-        <label className="block text-sm font-medium text-text mb-2">
-          {t('motionPresets')}
-        </label>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <button
-            onClick={() => applyPreset('thermal_recommended')}
-            className={`px-4 py-2 border rounded-lg transition-colors ${
-              isThermal 
-                ? 'bg-accent text-white border-accent' 
-                : 'bg-surface2 border-border text-text hover:bg-surface2/80'
-            }`}
-          >
-            {t('motionPresetThermal')}
-            {isThermal && ' ✓'}
-          </button>
-          <button
-            onClick={() => applyPreset('color_recommended')}
-            className={`px-4 py-2 border rounded-lg transition-colors ${
-              !isThermal 
-                ? 'bg-accent text-white border-accent' 
-                : 'bg-surface2 border-border text-text hover:bg-surface2/80'
-            }`}
-          >
-            {t('motionPresetColor')}
-            {!isThermal && ' ✓'}
-          </button>
-          <button
-            onClick={applyRecommendedForCamera}
-            className="px-4 py-2 bg-success text-white border border-success rounded-lg hover:bg-success/90 transition-colors"
-          >
-            {t('motionPresetApplyFor', { type: selectedCameraData?.type || t('motionPresetCamera') })}
-          </button>
-        </div>
-      </div>
-
-      <div className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-text mb-2">
-            {t('motionSensitivityLabel', { value: config.sensitivity })}
-          </label>
-          <input
-            type="range"
-            min="1"
-            max="10"
-            value={config.sensitivity}
-            onChange={(e) => onChange({ ...config, sensitivity: parseInt(e.target.value) })}
-            className="w-full h-2 bg-surface2 rounded-lg appearance-none cursor-pointer accent-accent"
-          />
-          <div className="flex justify-between text-xs text-muted mt-1">
-            <span>1 (Low)</span>
-            <span>10 (High)</span>
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h4 className="font-semibold text-text">{t('perfShortcutTitle')}</h4>
+            <p className="text-xs text-muted mt-1">{t('perfShortcutDesc')}</p>
           </div>
+          <button
+            onClick={() => navigate('/settings?tab=performance')}
+            className="px-3 py-2 bg-surface1 border border-border text-text rounded-lg hover:bg-surface1/80 transition-colors text-sm"
+          >
+            {t('perfShortcutButton')}
+          </button>
         </div>
-
-        <div>
-          <label className="block text-sm font-medium text-text mb-2">
-            {t('motionMinAreaLabel')}
-          </label>
-          <input
-            type="number"
-            min="100"
-            max="5000"
-            value={config.min_area}
-            onChange={(e) => onChange({ ...config, min_area: parseInt(e.target.value) || 500 })}
-            className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
-          />
-          <p className="text-xs text-muted mt-1">
-            {t('motionMinAreaHint')}
-          </p>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-text mb-2">
-            {t('motionCooldownLabel')}
-          </label>
-          <input
-            type="number"
-            min="0"
-            max="60"
-            value={config.cooldown_seconds}
-            onChange={(e) => onChange({ ...config, cooldown_seconds: parseInt(e.target.value) || 5 })}
-            className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
-          />
-          <p className="text-xs text-muted mt-1">
-            {t('motionCooldownHint')}
-          </p>
+        <div className="mt-3 text-xs text-muted space-y-1">
+          <div>{t('motionSummarySensitivity', { value: config.sensitivity })}</div>
+          <div>{t('motionSummaryMinArea', { value: config.min_area })}</div>
+          <div>{t('motionSummaryCooldown', { value: config.cooldown_seconds })}</div>
         </div>
       </div>
-
-      <button
-        onClick={onSave}
-        className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-opacity-90 transition-colors"
-      >
-        {t('motionSaveSettings')}
-      </button>
     </div>
   );
 };

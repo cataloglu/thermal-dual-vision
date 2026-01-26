@@ -390,5 +390,20 @@
   "perfSectionStream": "Stream",
   "perfFpsLabel": "FPS",
   "perfConfidenceLabel": "Güven",
-  "perfThermalEnhance": "Termal geliştirmeyi aç"
+  "perfThermalEnhance": "Termal geliştirmeyi aç",
+  "perfShortcutTitle": "Performans ayarları toplandı",
+  "perfShortcutDesc": "Temel ayarlar çakışmaması için Performans sayfasına taşındı.",
+  "perfShortcutButton": "Performans'a Git",
+  "perfSummaryModel": "Model: {{value}}",
+  "perfSummaryFps": "Çıkarım FPS: {{value}}",
+  "perfSummaryResolution": "Çözünürlük: {{width}}x{{height}}",
+  "perfSummaryConfidence": "Güven: {{value}}",
+  "motionSummarySensitivity": "Hassasiyet: {{value}}",
+  "motionSummaryMinArea": "Min alan: {{value}}",
+  "motionSummaryCooldown": "Bekleme: {{value}}sn",
+  "thermalSummaryStatus": "Geliştirme: {{value}}",
+  "thermalSummaryMethod": "Yöntem: {{value}}",
+  "thermalAdvancedHint": "Geliştirmeyi Performans sayfasından açıp detayları buradan ayarlayın.",
+  "streamSummaryProtocol": "Protokol: {{value}}",
+  "streamSummaryBuffer": "Buffer: {{value}}"
 }

@@ -391,5 +391,20 @@
   "perfSectionStream": "Stream",
   "perfFpsLabel": "FPS",
   "perfConfidenceLabel": "Confidence",
-  "perfThermalEnhance": "Enable thermal enhancement"
+  "perfThermalEnhance": "Enable thermal enhancement",
+  "perfShortcutTitle": "Performance controls moved",
+  "perfShortcutDesc": "Common tuning lives on the Performance page to avoid duplicates.",
+  "perfShortcutButton": "Open Performance",
+  "perfSummaryModel": "Model: {{value}}",
+  "perfSummaryFps": "Inference FPS: {{value}}",
+  "perfSummaryResolution": "Resolution: {{width}}x{{height}}",
+  "perfSummaryConfidence": "Confidence: {{value}}",
+  "motionSummarySensitivity": "Sensitivity: {{value}}",
+  "motionSummaryMinArea": "Min area: {{value}}",
+  "motionSummaryCooldown": "Cooldown: {{value}}s",
+  "thermalSummaryStatus": "Enhancement: {{value}}",
+  "thermalSummaryMethod": "Method: {{value}}",
+  "thermalAdvancedHint": "Enable enhancement in Performance to edit advanced values.",
+  "streamSummaryProtocol": "Protocol: {{value}}",
+  "streamSummaryBuffer": "Buffer size: {{value}}"
 }

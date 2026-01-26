@@ -3,6 +3,7 @@
  */
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import type { StreamConfig } from '../../types/api';
 
 interface StreamTabProps {
@@ -13,6 +14,7 @@ interface StreamTabProps {
 
 export const StreamTab: React.FC<StreamTabProps> = ({ config, onChange, onSave }) => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   
   return (
     <div className="space-y-6">
@@ -23,35 +25,26 @@ export const StreamTab: React.FC<StreamTabProps> = ({ config, onChange, onSave }
         </p>
       </div>
 
-      <div className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-text mb-2">
-            {t('protocol')}
-          </label>
-          <select
-            value={config.protocol}
-            onChange={(e) => onChange({ ...config, protocol: e.target.value as StreamConfig['protocol'] })}
-            className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
+      <div className="bg-surface2 border-l-4 border-info p-4 rounded-lg">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h4 className="font-semibold text-text">{t('perfShortcutTitle')}</h4>
+            <p className="text-xs text-muted mt-1">{t('perfShortcutDesc')}</p>
+          </div>
+          <button
+            onClick={() => navigate('/settings?tab=performance')}
+            className="px-3 py-2 bg-surface1 border border-border text-text rounded-lg hover:bg-surface1/80 transition-colors text-sm"
           >
-            <option value="tcp">TCP ({t('recommended')})</option>
-            <option value="udp">UDP</option>
-          </select>
+            {t('perfShortcutButton')}
+          </button>
         </div>
-
-        <div>
-          <label className="block text-sm font-medium text-text mb-2">
-            {t('bufferSize')}
-          </label>
-          <input
-            type="number"
-            min="1"
-            max="10"
-            value={config.buffer_size}
-            onChange={(e) => onChange({ ...config, buffer_size: parseInt(e.target.value) || 1 })}
-            className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
-          />
+        <div className="mt-3 text-xs text-muted space-y-1">
+          <div>{t('streamSummaryProtocol', { value: config.protocol.toUpperCase() })}</div>
+          <div>{t('streamSummaryBuffer', { value: config.buffer_size })}</div>
         </div>
+      </div>
 
+      <div className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-text mb-2">
             {t('reconnectDelay')} ({t('seconds')})
