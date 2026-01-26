@@ -875,7 +875,7 @@ class DetectorWorker:
         last_motion = state.get("last_motion", 0.0)
         now = time.time()
         if cooldown_seconds and now - last_motion < cooldown_seconds:
-            return True
+            return False
 
         if len(frame.shape) == 3:
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)

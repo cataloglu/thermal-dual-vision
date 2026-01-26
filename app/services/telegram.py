@@ -132,6 +132,7 @@ class TelegramService:
             # Update rate limit
             if success:
                 self._update_rate_limit(camera_id)
+                self._set_cooldown(camera_id, config.telegram.cooldown_seconds)
             
             return success
             
