@@ -10,6 +10,9 @@ Better than Scrypted: More frames, higher quality, detection boxes!
 """
 import logging
 import os
+import shutil
+import subprocess
+import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Dict, Optional
@@ -43,9 +46,11 @@ class MediaWorker:
     GIF_QUALITY = 85
     
     # MP4 settings
-    MP4_MAX_SIZE = (1280, 720)  # Avoid upscaling above 720p
+    MP4_TARGET_SIZE = (1280, 720)
     MP4_FPS = 15
     MP4_CODECS = ("avc1", "H264", "mp4v")
+    MP4_CRF = 18
+    MP4_PRESET = "medium"
     
     # Overlay colors (BGR format)
     COLOR_WHITE = (255, 255, 255)
@@ -57,17 +62,34 @@ class MediaWorker:
         self.MEDIA_DIR.mkdir(parents=True, exist_ok=True)
         logger.info("MediaWorker initialized")
 
-    def _get_mp4_target_size(self, frame: np.ndarray) -> tuple[tuple[int, int], float]:
-        """Get MP4 target size without upscaling."""
+    def _get_mp4_layout(self, frame: np.ndarray) -> tuple[float, int, int, int, int]:
+        """Calculate scale and padding for MP4 frames."""
         height, width = frame.shape[:2]
-        max_w, max_h = self.MP4_MAX_SIZE
-        scale = min(max_w / width, max_h / height, 1.0)
-        target_w = max(2, int(width * scale))
-        target_h = max(2, int(height * scale))
-        # Ensure even dimensions for video codecs
-        target_w -= target_w % 2
-        target_h -= target_h % 2
-        return (target_w, target_h), scale
+        target_w, target_h = self.MP4_TARGET_SIZE
+        scale = min(target_w / width, target_h / height)
+        resized_w = max(2, int(round(width * scale)))
+        resized_h = max(2, int(round(height * scale)))
+        resized_w -= resized_w % 2
+        resized_h -= resized_h % 2
+        x_offset = max(0, (target_w - resized_w) // 2)
+        y_offset = max(0, (target_h - resized_h) // 2)
+        return scale, resized_w, resized_h, x_offset, y_offset
+
+    def _resize_with_padding(
+        self,
+        frame: np.ndarray,
+        resized_w: int,
+        resized_h: int,
+        x_offset: int,
+        y_offset: int,
+        scale: float,
+    ) -> np.ndarray:
+        """Resize a frame and pad to target size."""
+        interpolation = cv2.INTER_LANCZOS4 if scale > 1 else cv2.INTER_AREA
+        resized = cv2.resize(frame, (resized_w, resized_h), interpolation=interpolation)
+        canvas = np.zeros((self.MP4_TARGET_SIZE[1], self.MP4_TARGET_SIZE[0], 3), dtype=np.uint8)
+        canvas[y_offset:y_offset + resized_h, x_offset:x_offset + resized_w] = resized
+        return canvas
 
     def _open_video_writer(self, output_path: str, size: tuple[int, int]) -> Optional[cv2.VideoWriter]:
         """Open MP4 writer with codec fallback."""
@@ -80,6 +102,57 @@ class MediaWorker:
                 return writer
             writer.release()
         return None
+
+    def _encode_mp4_ffmpeg(self, frames: List[np.ndarray], output_path: str) -> bool:
+        """Encode MP4 using ffmpeg for better quality."""
+        ffmpeg = shutil.which("ffmpeg")
+        if not ffmpeg:
+            return False
+        try:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                for idx, frame in enumerate(frames):
+                    frame_path = os.path.join(tmpdir, f"frame_{idx:04d}.jpg")
+                    cv2.imwrite(frame_path, frame, [cv2.IMWRITE_JPEG_QUALITY, 95])
+                cmd = [
+                    ffmpeg,
+                    "-y",
+                    "-framerate",
+                    str(self.MP4_FPS),
+                    "-i",
+                    os.path.join(tmpdir, "frame_%04d.jpg"),
+                    "-c:v",
+                    "libx264",
+                    "-preset",
+                    self.MP4_PRESET,
+                    "-crf",
+                    str(self.MP4_CRF),
+                    "-pix_fmt",
+                    "yuv420p",
+                    "-movflags",
+                    "+faststart",
+                    output_path,
+                ]
+                result = subprocess.run(cmd, capture_output=True, check=False)
+                if result.returncode != 0:
+                    stderr = result.stderr.decode(errors="ignore")
+                    logger.warning("FFmpeg encode failed: %s", stderr.strip())
+                    return False
+            return True
+        except Exception as exc:
+            logger.warning("FFmpeg encode error: %s", exc)
+            return False
+
+    def _encode_mp4_opencv(self, frames: List[np.ndarray], output_path: str) -> None:
+        """Fallback MP4 encoder using OpenCV."""
+        out = self._open_video_writer(output_path, self.MP4_TARGET_SIZE)
+        if out is None:
+            logger.error("Failed to open MP4 writer: %s", output_path)
+            return
+        try:
+            for frame in frames:
+                out.write(frame)
+        finally:
+            out.release()
     
     def create_collage(
         self,
@@ -407,7 +480,7 @@ class MediaWorker:
         """
         Create timelapse MP4 with detection boxes.
         
-        Better than Scrypted: up to 720p (no upscale), detection boxes!
+        Better than Scrypted: 720p upscale, detection boxes!
         
         Args:
             frames: List of frames
@@ -422,115 +495,104 @@ class MediaWorker:
         if len(frames) == 0:
             raise ValueError("Need at least 1 frame for MP4")
         
-        target_size, _ = self._get_mp4_target_size(frames[0])
-        out = self._open_video_writer(output_path, target_size)
-        if out is None:
-            logger.error("Failed to open MP4 writer: %s", output_path)
-            return output_path
-
-        scale_ref = min(
-            target_size[0] / self.MP4_MAX_SIZE[0],
-            target_size[1] / self.MP4_MAX_SIZE[1],
-            1.0,
-        )
+        scale, resized_w, resized_h, x_offset, y_offset = self._get_mp4_layout(frames[0])
+        scale_ref = 1.0
         margin = max(10, int(20 * scale_ref))
         font_large = max(0.6, 1.0 * scale_ref)
         font_medium = max(0.5, 0.8 * scale_ref)
         font_small = max(0.5, 0.7 * scale_ref)
         text_thickness = max(1, int(2 * scale_ref))
-        
-        try:
-            for idx, frame in enumerate(frames):
-                src_h, src_w = frame.shape[:2]
-                scale_x = target_size[0] / src_w
-                scale_y = target_size[1] / src_h
-                interpolation = cv2.INTER_AREA if scale_x < 1 or scale_y < 1 else cv2.INTER_LINEAR
-                img = cv2.resize(frame, target_size, interpolation=interpolation)
-                
-                # Draw detection box if available
-                if idx < len(detections) and detections[idx]:
-                    detection = detections[idx]
-                    x1, y1, x2, y2 = detection['bbox']
-                    
-                    x1_scaled = int(x1 * scale_x)
-                    y1_scaled = int(y1 * scale_y)
-                    x2_scaled = int(x2 * scale_x)
-                    y2_scaled = int(y2 * scale_y)
-                    
-                    # Draw box
-                    cv2.rectangle(
-                        img,
-                        (x1_scaled, y1_scaled),
-                        (x2_scaled, y2_scaled),
-                        self.COLOR_ACCENT,
-                        max(2, text_thickness + 1)
-                    )
-                    
-                    # Confidence label
-                    label = f"Person {detection['confidence']:.0%}"
-                    cv2.putText(
-                        img,
-                        label,
-                        (x1_scaled, max(0, y1_scaled - margin)),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        font_medium,
-                        self.COLOR_ACCENT,
-                        text_thickness
-                    )
-                
-                # Timestamp overlay
-                if timestamp:
-                    frame_time = timestamp + timedelta(seconds=idx / self.MP4_FPS)
-                    cv2.putText(
-                        img,
-                        frame_time.strftime("%H:%M:%S.%f")[:-3],
-                        (margin, max(margin, int(40 * scale_ref))),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        font_large,
-                        self.COLOR_WHITE,
-                        text_thickness
-                    )
-                
-                # Camera name
-                if camera_name:
-                    (name_w, name_h), _ = cv2.getTextSize(
-                        camera_name,
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        font_medium,
-                        text_thickness,
-                    )
-                    cv2.putText(
-                        img,
-                        camera_name,
-                        (target_size[0] - name_w - margin, max(margin, name_h + margin // 2)),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        font_medium,
-                        self.COLOR_WHITE,
-                        text_thickness,
-                    )
-                
-                # Speed indicator
-                speed_text = "4x"
-                (speed_w, speed_h), _ = cv2.getTextSize(
-                    speed_text,
+
+        processed_frames: List[np.ndarray] = []
+        for idx, frame in enumerate(frames):
+            img = self._resize_with_padding(
+                frame,
+                resized_w,
+                resized_h,
+                x_offset,
+                y_offset,
+                scale,
+            )
+
+            # Draw detection box if available
+            if idx < len(detections) and detections[idx]:
+                detection = detections[idx]
+                x1, y1, x2, y2 = detection['bbox']
+
+                x1_scaled = int(x1 * scale) + x_offset
+                y1_scaled = int(y1 * scale) + y_offset
+                x2_scaled = int(x2 * scale) + x_offset
+                y2_scaled = int(y2 * scale) + y_offset
+
+                cv2.rectangle(
+                    img,
+                    (x1_scaled, y1_scaled),
+                    (x2_scaled, y2_scaled),
+                    self.COLOR_ACCENT,
+                    max(2, text_thickness + 1),
+                )
+
+                label = f"Person {detection['confidence']:.0%}"
+                cv2.putText(
+                    img,
+                    label,
+                    (x1_scaled, max(0, y1_scaled - margin)),
                     cv2.FONT_HERSHEY_SIMPLEX,
-                    font_small,
+                    font_medium,
+                    self.COLOR_ACCENT,
+                    text_thickness,
+                )
+
+            if timestamp:
+                frame_time = timestamp + timedelta(seconds=idx / self.MP4_FPS)
+                cv2.putText(
+                    img,
+                    frame_time.strftime("%H:%M:%S.%f")[:-3],
+                    (margin, max(margin, int(40 * scale_ref))),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    font_large,
+                    self.COLOR_WHITE,
+                    text_thickness,
+                )
+
+            if camera_name:
+                (name_w, name_h), _ = cv2.getTextSize(
+                    camera_name,
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    font_medium,
                     text_thickness,
                 )
                 cv2.putText(
                     img,
-                    speed_text,
-                    (target_size[0] - speed_w - margin, target_size[1] - margin),
+                    camera_name,
+                    (self.MP4_TARGET_SIZE[0] - name_w - margin, max(margin, name_h + margin // 2)),
                     cv2.FONT_HERSHEY_SIMPLEX,
-                    font_small,
+                    font_medium,
                     self.COLOR_WHITE,
                     text_thickness,
                 )
-                
-                out.write(img)
-            
-        finally:
-            out.release()
+
+            speed_text = "4x"
+            (speed_w, speed_h), _ = cv2.getTextSize(
+                speed_text,
+                cv2.FONT_HERSHEY_SIMPLEX,
+                font_small,
+                text_thickness,
+            )
+            cv2.putText(
+                img,
+                speed_text,
+                (self.MP4_TARGET_SIZE[0] - speed_w - margin, self.MP4_TARGET_SIZE[1] - margin),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                font_small,
+                self.COLOR_WHITE,
+                text_thickness,
+            )
+
+            processed_frames.append(img)
+
+        if not self._encode_mp4_ffmpeg(processed_frames, output_path):
+            self._encode_mp4_opencv(processed_frames, output_path)
         
         logger.info(f"Timelapse MP4 created: {output_path}")
         return output_path

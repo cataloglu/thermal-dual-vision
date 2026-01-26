@@ -11,6 +11,8 @@ interface RecordingTabProps {
 }
 
 export const RecordingTab: React.FC<RecordingTabProps> = ({ config, onChange, onSave }) => {
+  const deleteOrder = config.delete_order.filter((type) => type !== 'gif')
+
   return (
     <div className="space-y-6">
       <div>
@@ -116,7 +118,7 @@ export const RecordingTab: React.FC<RecordingTabProps> = ({ config, onChange, on
                 Delete Order
               </label>
               <div className="space-y-2">
-                {config.delete_order.map((type, idx) => (
+                {deleteOrder.map((type, idx) => (
                   <div key={`${type}-${idx}`} className="flex items-center gap-2 p-2 bg-surface2 rounded">
                     <span className="text-muted">{idx + 1}.</span>
                     <span className="flex-1 capitalize text-text">{type}</span>
@@ -124,7 +126,7 @@ export const RecordingTab: React.FC<RecordingTabProps> = ({ config, onChange, on
                       type="button"
                       onClick={() => {
                         if (idx === 0) return
-                        const next = [...config.delete_order]
+                        const next = [...deleteOrder]
                         const temp = next[idx]
                         next[idx] = next[idx - 1]
                         next[idx - 1] = temp
@@ -138,14 +140,14 @@ export const RecordingTab: React.FC<RecordingTabProps> = ({ config, onChange, on
                     <button
                       type="button"
                       onClick={() => {
-                        if (idx === config.delete_order.length - 1) return
-                        const next = [...config.delete_order]
+                        if (idx === deleteOrder.length - 1) return
+                        const next = [...deleteOrder]
                         const temp = next[idx]
                         next[idx] = next[idx + 1]
                         next[idx + 1] = temp
                         onChange({ ...config, delete_order: next })
                       }}
-                      disabled={idx === config.delete_order.length - 1}
+                      disabled={idx === deleteOrder.length - 1}
                       className="px-2 py-1 bg-surface1 border border-border text-text rounded hover:bg-surface1/80 disabled:opacity-30 text-sm"
                     >
                       ↓

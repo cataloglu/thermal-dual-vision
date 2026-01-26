@@ -104,9 +104,12 @@ class SettingsService:
             
             try:
                 with open(self.CONFIG_FILE, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                
+                    raw_data = json.load(f)
+
+                data = self._sanitize_config_dict(raw_data)
                 self._config = AppConfig(**data)
+                if data != raw_data:
+                    self._save_config_internal(self._config)
                 
                 # Update cache
                 with self._cache_lock:
@@ -207,6 +210,7 @@ class SettingsService:
         
         # Deep merge partial data into current config
         merged_dict = self._deep_merge(current_dict, partial_data)
+        merged_dict = self._sanitize_config_dict(merged_dict)
         
         # Validate merged config
         try:
@@ -242,6 +246,27 @@ class SettingsService:
             else:
                 result[key] = value
         
+        return result
+
+    def _sanitize_config_dict(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Normalize legacy config fields."""
+        if not isinstance(data, dict):
+            return data
+        result = data.copy()
+        record = result.get("record")
+        if isinstance(record, dict):
+            delete_order = record.get("delete_order")
+            allowed = ["mp4", "collage"]
+            if isinstance(delete_order, list):
+                filtered: list[str] = []
+                for item in delete_order:
+                    item_str = str(item).lower()
+                    if item_str in allowed and item_str not in filtered:
+                        filtered.append(item_str)
+                record["delete_order"] = filtered or allowed.copy()
+            else:
+                record["delete_order"] = allowed.copy()
+            result["record"] = record
         return result
     
     def _mask_secrets(self, data: Dict[str, Any]) -> Dict[str, Any]:
