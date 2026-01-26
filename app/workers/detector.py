@@ -79,6 +79,8 @@ class DetectorWorker:
         self.codec_cache: Dict[str, str] = {}
         self.last_detection_log: Dict[str, float] = {}
         self.last_gate_log: Dict[str, float] = {}
+        self.stream_stats: Dict[str, Dict[str, Any]] = defaultdict(dict)
+        self.stream_stats_lock = threading.Lock()
         
         logger.info("DetectorWorker initialized")
     
@@ -182,6 +184,8 @@ class DetectorWorker:
         self.latest_frame_locks.pop(camera_id, None)
         self.last_detection_log.pop(camera_id, None)
         self.last_gate_log.pop(camera_id, None)
+        with self.stream_stats_lock:
+            self.stream_stats.pop(camera_id, None)
 
     def start_camera_detection(self, camera: Camera) -> None:
         """
@@ -278,22 +282,48 @@ class DetectorWorker:
             last_inference_time = 0
             buffer_size = max(config.event.frame_buffer_size, 10)
             last_cpu_check = 0.0
+            stream_log_interval = 30.0
+            protocol = config.stream.protocol
+
+            self._init_stream_stats(camera_id)
 
             def reader_loop() -> None:
                 nonlocal cap
                 failures = 0
+                open_failures = 0
                 while self.running and not reader_stop.is_set():
+                    self._log_stream_summary(
+                        camera_id=camera_id,
+                        interval=stream_log_interval,
+                        protocol=protocol,
+                    )
                     if cap is None or not cap.isOpened():
                         cap = self._open_capture(rtsp_url, config, camera_id)
                         if cap is None or not cap.isOpened():
+                            open_failures += 1
+                            if open_failures >= max(config.stream.max_reconnect_attempts, 1):
+                                logger.warning(
+                                    "STREAM camera=%s reopen_failed=%s delay=%ss",
+                                    camera_id,
+                                    open_failures,
+                                    config.stream.reconnect_delay_seconds,
+                                )
+                                open_failures = 0
+                                time.sleep(max(config.stream.reconnect_delay_seconds, 1))
                             failures = 0
                             time.sleep(1)
                             continue
+                        open_failures = 0
 
                     try:
                         ret, frame = cap.read()
                         if not ret or frame is None:
                             failures += 1
+                            self._update_stream_stats(
+                                camera_id,
+                                failed_increment=1,
+                                last_error="read_failed",
+                            )
                             if failures >= 3:
                                 logger.warning("Reconnecting camera %s after read failures", camera_id)
                                 try:
@@ -302,6 +332,13 @@ class DetectorWorker:
                                     pass
                                 cap = None
                                 failures = 0
+                                self._update_stream_stats(
+                                    camera_id,
+                                    reconnect_increment=1,
+                                    last_reconnect_reason="read_failures",
+                                )
+                                if config.stream.reconnect_delay_seconds:
+                                    time.sleep(config.stream.reconnect_delay_seconds)
                             time.sleep(0.2)
                             continue
                         
@@ -312,6 +349,11 @@ class DetectorWorker:
                             frame = cv2.resize(frame, (1280, height))
 
                         failures = 0
+                        self._update_stream_stats(
+                            camera_id,
+                            read_increment=1,
+                            last_frame_time=time.time(),
+                        )
                         with frame_lock:
                             latest_frame["frame"] = frame
                         with self.latest_frame_locks[camera_id]:
@@ -323,6 +365,11 @@ class DetectorWorker:
                     except Exception as e:
                         logger.error(f"Reader loop error: {e}")
                         failures += 1
+                        self._update_stream_stats(
+                            camera_id,
+                            failed_increment=1,
+                            last_error=str(e),
+                        )
                         time.sleep(0.5)
 
             reader_thread = threading.Thread(
@@ -415,7 +462,7 @@ class DetectorWorker:
                 if current_time - last_log >= 5:
                     best_conf = max((d.get("confidence", 0.0) for d in detections), default=0.0)
                     logger.info(
-                        "Detections camera=%s count=%s best_conf=%.2f",
+                        "DETECT camera=%s count=%s best_conf=%.2f",
                         camera_id,
                         len(detections),
                         best_conf,
@@ -425,7 +472,7 @@ class DetectorWorker:
                 def _log_gate(reason: str) -> None:
                     last_gate = self.last_gate_log.get(camera_id, 0.0)
                     if current_time - last_gate >= 5:
-                        logger.info("Event gate camera=%s %s", camera_id, reason)
+                        logger.info("EVENT_GATE camera=%s reason=%s", camera_id, reason)
                         self.last_gate_log[camera_id] = current_time
                 
                 # Check temporal consistency
@@ -582,8 +629,10 @@ class DetectorWorker:
                 )
                 
                 logger.info(
-                    f"Event created: {event.id} for camera {camera.id} "
-                    f"(confidence: {best_detection['confidence']:.2f})"
+                    "EVENT camera=%s id=%s confidence=%.2f",
+                    camera.id,
+                    event.id,
+                    best_detection["confidence"],
                 )
                 try:
                     # Don't send media URLs via WebSocket (no Ingress prefix available here)
@@ -636,7 +685,11 @@ class DetectorWorker:
             # Set timeout options for ffmpeg backend
             # stimeout: Socket timeout in microseconds
             # timeout: Maximum time to wait for connection (microseconds)
-            os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp|stimeout;10000000|timeout;15000000"
+            transport = getattr(config.stream, "protocol", "tcp")
+            os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = (
+                f"rtsp_transport;{transport}|stimeout;10000000|timeout;15000000|"
+                "fflags;discardcorrupt|flags;low_delay|max_delay;500000"
+            )
             
             codec_fallbacks = [None, "H264", "H265", "MJPG"]
             if camera_id:
@@ -700,6 +753,81 @@ class DetectorWorker:
         if mean_brightness < 60:
             return max(config.thermal.clahe_clip_limit, 3.0)
         return config.thermal.clahe_clip_limit
+
+    def _init_stream_stats(self, camera_id: str) -> None:
+        with self.stream_stats_lock:
+            if camera_id in self.stream_stats:
+                return
+            self.stream_stats[camera_id] = {
+                "frames_read": 0,
+                "frames_failed": 0,
+                "reconnects": 0,
+                "last_log": 0.0,
+                "last_frames_read": 0,
+                "last_frames_failed": 0,
+                "last_error": None,
+                "last_reconnect_reason": None,
+                "last_frame_time": 0.0,
+            }
+
+    def _update_stream_stats(
+        self,
+        camera_id: str,
+        read_increment: int = 0,
+        failed_increment: int = 0,
+        reconnect_increment: int = 0,
+        last_error: Optional[str] = None,
+        last_reconnect_reason: Optional[str] = None,
+        last_frame_time: Optional[float] = None,
+    ) -> None:
+        with self.stream_stats_lock:
+            stats = self.stream_stats.get(camera_id)
+            if not stats:
+                return
+            stats["frames_read"] += read_increment
+            stats["frames_failed"] += failed_increment
+            stats["reconnects"] += reconnect_increment
+            if last_error:
+                stats["last_error"] = last_error
+            if last_reconnect_reason:
+                stats["last_reconnect_reason"] = last_reconnect_reason
+            if last_frame_time is not None:
+                stats["last_frame_time"] = last_frame_time
+
+    def _log_stream_summary(self, camera_id: str, interval: float, protocol: str) -> None:
+        now = time.time()
+        with self.stream_stats_lock:
+            stats = self.stream_stats.get(camera_id)
+            if not stats:
+                return
+            last_log = stats.get("last_log", 0.0)
+            if now - last_log < interval:
+                return
+            frames_read = stats.get("frames_read", 0)
+            frames_failed = stats.get("frames_failed", 0)
+            delta_read = frames_read - stats.get("last_frames_read", 0)
+            delta_failed = frames_failed - stats.get("last_frames_failed", 0)
+            elapsed = max(now - last_log, 1.0)
+            stats["last_log"] = now
+            stats["last_frames_read"] = frames_read
+            stats["last_frames_failed"] = frames_failed
+
+        fps = delta_read / elapsed
+        fail_rate = (delta_failed / max(delta_read + delta_failed, 1)) * 100
+        last_error = stats.get("last_error")
+        last_reconnect_reason = stats.get("last_reconnect_reason")
+        logger.info(
+            "STREAM camera=%s protocol=%s fps=%.1f fail=%.1f%% read=%s failed=%s reconnects=%s last_error=%s last_reconnect=%s",
+            camera_id,
+            protocol,
+            fps,
+            fail_rate,
+            frames_read,
+            frames_failed,
+            stats.get("reconnects", 0),
+            last_error or "-",
+            last_reconnect_reason or "-",
+        )
 
     def _ai_requires_confirmation(self, config) -> bool:
         try:

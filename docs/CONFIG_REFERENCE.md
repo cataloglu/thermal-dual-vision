@@ -175,6 +175,9 @@ Bu doküman `/api/settings` endpoint'indeki tüm config alanlarını açıklar.
 - `services: mqtt:need` ile Supervisor broker bilgisi otomatik çekilir.
 - Mosquitto add-on çalışıyorsa host/port/user/pass otomatik set edilir.
 - Username/password boşsa anonim bağlanır (broker izin veriyorsa).
+- Kamera ekleme/güncelleme/silme sonrası discovery otomatik güncellenir.
+- Kamera silinince discovery topic’leri boş payload ile temizlenir (HA entity kaldırılır).
+- `availability_topic` + LWT kullanılır, `ON/OFF` state retained publish edilir.
 
 ---
 

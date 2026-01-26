@@ -168,30 +168,8 @@ class MqttService:
             "payload_not_available": "offline",
         }
 
-        # Device info
-        device_info = {
-            "identifiers": ["thermal_dual_vision"],
-            "name": "Thermal Dual Vision",
-            "manufacturer": "Custom",
-            "model": "v2.1.0",
-            "sw_version": "2.1.0"
-        }
-
-        # Global System Sensors
-        self._publish_ha_config(
-            component="binary_sensor",
-            object_id="system_status",
-            config={
-                "name": "System Status",
-                "device_class": "connectivity",
-                "state_topic": f"{prefix}/status",
-                "payload_on": "ON",
-                "payload_off": "OFF",
-                "unique_id": "tdv_system_status",
-                "device": device_info,
-                **availability_fields,
-            }
-        )
+        device_info = self._get_device_info()
+        self._publish_system_discovery(prefix, device_info, availability_fields)
 
         # Per-camera entities
         # We need to fetch cameras. Since we are in a service, we can't easily import camera_crud_service 
@@ -207,84 +185,22 @@ class MqttService:
             cameras = camera_service.get_cameras(db)
             
             for cam in cameras:
-                safe_id = cam.id.replace("-", "_")
-                
-                # Motion/Person Binary Sensor
-                self._publish_ha_config(
-                    component="binary_sensor",
-                    object_id=f"person_detected_{safe_id}",
-                    config={
-                        "name": f"{cam.name} Person Detected",
-                        "device_class": "motion",
-                        "state_topic": f"{prefix}/camera/{cam.id}/person",
-                        "payload_on": "ON",
-                        "payload_off": "OFF",
-                        "off_delay": 30,
-                        "unique_id": f"tdv_person_{safe_id}",
-                        "device": device_info,
-                        **availability_fields,
-                    }
-                )
-
-                # Last Event Summary Sensor
-                self._publish_ha_config(
-                    component="sensor",
-                    object_id=f"last_event_{safe_id}",
-                    config={
-                        "name": f"{cam.name} Last Event",
-                        "icon": "mdi:text-box-outline",
-                        "state_topic": f"{prefix}/camera/{cam.id}/event",
-                        "value_template": "{{ value_json.summary | default('No summary', true) }}",
-                        "json_attributes_topic": f"{prefix}/camera/{cam.id}/event",
-                        "unique_id": f"tdv_last_event_{safe_id}",
-                        "device": device_info,
-                        **availability_fields,
-                    }
-                )
-
-            # Publish initial system status and camera defaults
-            self.client.publish(f"{prefix}/status", "ON", retain=True)
-            for cam in cameras:
-                self.client.publish(
-                    f"{prefix}/camera/{cam.id}/person",
-                    "OFF",
-                    retain=True,
-                )
                 latest = (
                     db.query(Event)
                     .filter_by(camera_id=cam.id)
                     .order_by(Event.timestamp.desc())
                     .first()
                 )
-                if latest:
-                    summary = latest.summary or "No summary"
-                    payload = json.dumps(
-                        {
-                            "id": latest.id,
-                            "camera_id": latest.camera_id,
-                            "timestamp": latest.timestamp.isoformat() + "Z",
-                            "confidence": latest.confidence,
-                            "event_type": latest.event_type,
-                            "summary": summary,
-                        },
-                        default=str,
-                    )
-                else:
-                    payload = json.dumps(
-                        {
-                            "id": None,
-                            "camera_id": cam.id,
-                            "timestamp": datetime.utcnow().isoformat() + "Z",
-                            "confidence": 0.0,
-                            "event_type": "none",
-                            "summary": "Henüz olay yok",
-                        }
-                    )
-                self.client.publish(
-                    f"{prefix}/camera/{cam.id}/event",
-                    payload,
-                    retain=True,
+                self._publish_camera_discovery(
+                    cam=cam,
+                    prefix=prefix,
+                    device_info=device_info,
+                    availability_fields=availability_fields,
                 )
+                self._publish_camera_state(cam=cam, latest=latest, prefix=prefix)
+
+            # Publish initial system status
+            self.client.publish(f"{prefix}/status", "ON", retain=True)
 
         except Exception as e:
             logger.error(f"Failed to publish discovery: {e}")
@@ -295,6 +211,168 @@ class MqttService:
         """Helper to publish HA discovery config."""
         discovery_topic = f"homeassistant/{component}/tdv/{object_id}/config"
         self.client.publish(discovery_topic, json.dumps(config), retain=True)
+
+    def _clear_ha_config(self, component: str, object_id: str) -> None:
+        """Clear HA discovery config (removes entity)."""
+        discovery_topic = f"homeassistant/{component}/tdv/{object_id}/config"
+        self.client.publish(discovery_topic, "", retain=True)
+
+    def _get_device_info(self) -> Dict[str, str]:
+        return {
+            "identifiers": ["thermal_dual_vision"],
+            "name": "Thermal Dual Vision",
+            "manufacturer": "Custom",
+            "model": "v2.1.0",
+            "sw_version": "2.1.0",
+        }
+
+    def _publish_system_discovery(
+        self,
+        prefix: str,
+        device_info: Dict[str, str],
+        availability_fields: Dict[str, str],
+    ) -> None:
+        self._publish_ha_config(
+            component="binary_sensor",
+            object_id="system_status",
+            config={
+                "name": "System Status",
+                "device_class": "connectivity",
+                "state_topic": f"{prefix}/status",
+                "payload_on": "ON",
+                "payload_off": "OFF",
+                "unique_id": "tdv_system_status",
+                "device": device_info,
+                **availability_fields,
+            },
+        )
+
+    def _publish_camera_discovery(
+        self,
+        cam: Any,
+        prefix: str,
+        device_info: Dict[str, str],
+        availability_fields: Dict[str, str],
+    ) -> None:
+        safe_id = cam.id.replace("-", "_")
+        self._publish_ha_config(
+            component="binary_sensor",
+            object_id=f"person_detected_{safe_id}",
+            config={
+                "name": f"{cam.name} Person Detected",
+                "device_class": "motion",
+                "state_topic": f"{prefix}/camera/{cam.id}/person",
+                "payload_on": "ON",
+                "payload_off": "OFF",
+                "off_delay": 30,
+                "unique_id": f"tdv_person_{safe_id}",
+                "device": device_info,
+                **availability_fields,
+            },
+        )
+
+        self._publish_ha_config(
+            component="sensor",
+            object_id=f"last_event_{safe_id}",
+            config={
+                "name": f"{cam.name} Last Event",
+                "icon": "mdi:text-box-outline",
+                "state_topic": f"{prefix}/camera/{cam.id}/event",
+                "value_template": "{{ value_json.summary | default('No summary', true) }}",
+                "json_attributes_topic": f"{prefix}/camera/{cam.id}/event",
+                "unique_id": f"tdv_last_event_{safe_id}",
+                "device": device_info,
+                **availability_fields,
+            },
+        )
+
+    def _publish_camera_state(self, cam: Any, latest: Optional[Any], prefix: str) -> None:
+        self.client.publish(
+            f"{prefix}/camera/{cam.id}/person",
+            "OFF",
+            retain=True,
+        )
+        if latest:
+            summary = latest.summary or "No summary"
+            payload = json.dumps(
+                {
+                    "id": latest.id,
+                    "camera_id": latest.camera_id,
+                    "timestamp": latest.timestamp.isoformat() + "Z",
+                    "confidence": latest.confidence,
+                    "event_type": latest.event_type,
+                    "summary": summary,
+                },
+                default=str,
+            )
+        else:
+            payload = json.dumps(
+                {
+                    "id": None,
+                    "camera_id": cam.id,
+                    "timestamp": datetime.utcnow().isoformat() + "Z",
+                    "confidence": 0.0,
+                    "event_type": "none",
+                    "summary": "Henüz olay yok",
+                }
+            )
+        self.client.publish(
+            f"{prefix}/camera/{cam.id}/event",
+            payload,
+            retain=True,
+        )
+
+    def publish_camera_update(self, camera_id: str) -> None:
+        """Publish discovery/state for a single camera."""
+        if not self.client or not self.connected:
+            return
+        from app.db.session import get_session
+        from app.db.models import Event
+        from app.services.camera_crud import get_camera_crud_service
+
+        config = self.settings_service.load_config()
+        prefix = config.mqtt.topic_prefix
+        availability_topic = self.availability_topic or f"{prefix}/availability"
+        availability_fields = {
+            "availability_topic": availability_topic,
+            "payload_available": "online",
+            "payload_not_available": "offline",
+        }
+        device_info = self._get_device_info()
+
+        db = next(get_session())
+        try:
+            camera_service = get_camera_crud_service()
+            cam = camera_service.get_camera(db, camera_id)
+            if not cam:
+                return
+            latest = (
+                db.query(Event)
+                .filter_by(camera_id=cam.id)
+                .order_by(Event.timestamp.desc())
+                .first()
+            )
+            self._publish_camera_discovery(
+                cam=cam,
+                prefix=prefix,
+                device_info=device_info,
+                availability_fields=availability_fields,
+            )
+            self._publish_camera_state(cam=cam, latest=latest, prefix=prefix)
+        finally:
+            db.close()
+
+    def clear_camera_discovery(self, camera_id: str) -> None:
+        """Remove a camera from HA discovery."""
+        if not self.client or not self.connected:
+            return
+        config = self.settings_service.load_config()
+        prefix = config.mqtt.topic_prefix
+        safe_id = camera_id.replace("-", "_")
+        self._clear_ha_config("binary_sensor", f"person_detected_{safe_id}")
+        self._clear_ha_config("sensor", f"last_event_{safe_id}")
+        self.client.publish(f"{prefix}/camera/{camera_id}/person", "OFF", retain=True)
+        self.client.publish(f"{prefix}/camera/{camera_id}/event", "", retain=True)
 
     def publish_event(self, event_data: Dict[str, Any], person_detected: bool = True):
         """

@@ -17,44 +17,35 @@ export const DetectionTab: React.FC<DetectionTabProps> = ({ config, onChange, on
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-medium text-text mb-4">Algılama Ayarları</h3>
+        <h3 className="text-lg font-medium text-text mb-4">{t('detectionSettingsTitle')}</h3>
         <p className="text-sm text-muted mb-6">
-          YOLOv8 kişi algılama modeli ve çıkarım parametrelerini yapılandırın
+          {t('detectionSettingsDesc')}
         </p>
-      </div>
-
-      <div className="bg-surface2 border-l-4 border-warning p-4 rounded-lg">
-        <h4 className="font-semibold text-text mb-2">⚡ {t('perfTipsTitle')}</h4>
-        <ul className="text-sm text-muted space-y-1">
-          <li>{t('perfTipDetectionModel')}</li>
-          <li>{t('perfTipDetectionFps')}</li>
-          <li>{t('perfTipDetectionResolution')}</li>
-        </ul>
       </div>
 
       <div className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-text mb-2">
-            Model
+            {t('detectionModelLabel')}
           </label>
           <select
             value={config.model}
             onChange={(e) => onChange({ ...config, model: e.target.value as DetectionConfig['model'] })}
             className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
           >
-            <option value="yolov8n-person">YOLOv8n-person (Hızlı, 5+ kamera)</option>
-            <option value="yolov8s-person">YOLOv8s-person (Doğru, 1-4 kamera)</option>
-            <option value="yolov9t">YOLOv9t (Thermal optimize, önerilen)</option>
-            <option value="yolov9s">YOLOv9s (En doğru, 1-3 kamera)</option>
+            <option value="yolov8n-person">{t('modelYolov8nLabel')}</option>
+            <option value="yolov8s-person">{t('modelYolov8sLabel')}</option>
+            <option value="yolov9t">{t('modelYolov9tLabel')}</option>
+            <option value="yolov9s">{t('modelYolov9sLabel')}</option>
           </select>
           <p className="text-xs text-muted mt-1">
-            YOLOv9 thermal kameralar için optimize edilmiştir (PGI teknolojisi)
+            {t('detectionModelHint')}
           </p>
         </div>
 
         <div>
           <label className="block text-sm font-medium text-text mb-2">
-            Güven Eşiği: {config.confidence_threshold.toFixed(2)}
+            {t('detectionConfidenceLabel', { value: config.confidence_threshold.toFixed(2) })}
           </label>
           <input
             type="range"
@@ -66,14 +57,14 @@ export const DetectionTab: React.FC<DetectionTabProps> = ({ config, onChange, on
             className="w-full"
           />
           <div className="flex justify-between text-xs text-muted mt-1">
-            <span>0.0 (Daha fazla algılama)</span>
-            <span>1.0 (Daha az, yüksek güven)</span>
+            <span>{t('detectionConfidenceLow')}</span>
+            <span>{t('detectionConfidenceHigh')}</span>
           </div>
         </div>
 
         <div>
           <label className="block text-sm font-medium text-text mb-2">
-            Çıkarım FPS
+            {t('detectionInferenceFpsLabel')}
           </label>
           <input
             type="number"
@@ -84,13 +75,13 @@ export const DetectionTab: React.FC<DetectionTabProps> = ({ config, onChange, on
             className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
           />
           <p className="text-xs text-muted mt-1">
-            Saniyede kaç kare işlenecek (1-30)
+            {t('detectionInferenceFpsHint')}
           </p>
         </div>
 
         <div>
           <label className="block text-sm font-medium text-text mb-2">
-            NMS IoU Eşiği: {config.nms_iou_threshold.toFixed(2)}
+            {t('detectionNmsLabel', { value: config.nms_iou_threshold.toFixed(2) })}
           </label>
           <input
             type="range"
@@ -102,18 +93,18 @@ export const DetectionTab: React.FC<DetectionTabProps> = ({ config, onChange, on
             className="w-full"
           />
           <p className="text-xs text-muted mt-1">
-            Non-Maximum Suppression eşiği (genellikle 0.45)
+            {t('detectionNmsHint')}
           </p>
         </div>
 
         {/* Inference Resolution - TASK 11 */}
         <div>
           <label className="block text-sm font-medium text-text mb-2">
-            Inference Resolution
+            {t('detectionInferenceResolutionLabel')}
           </label>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs text-muted mb-1">Width</label>
+              <label className="block text-xs text-muted mb-1">{t('detectionWidthLabel')}</label>
               <input
                 type="number"
                 min="320"
@@ -128,7 +119,7 @@ export const DetectionTab: React.FC<DetectionTabProps> = ({ config, onChange, on
               />
             </div>
             <div>
-              <label className="block text-xs text-muted mb-1">Height</label>
+              <label className="block text-xs text-muted mb-1">{t('detectionHeightLabel')}</label>
               <input
                 type="number"
                 min="320"
@@ -144,14 +135,14 @@ export const DetectionTab: React.FC<DetectionTabProps> = ({ config, onChange, on
             </div>
           </div>
           <p className="text-xs text-muted mt-1">
-            Resolution for inference (default: 640x640)
+            {t('detectionInferenceResolutionHint')}
           </p>
         </div>
 
         {/* Aspect Ratio - TASK 12 */}
         <div>
           <label className="block text-sm font-medium text-text mb-2">
-            Aspect Ratio Min: {config.aspect_ratio_min?.toFixed(2) || 0.3}
+            {t('detectionAspectRatioMinLabel', { value: config.aspect_ratio_min?.toFixed(2) || 0.3 })}
           </label>
           <input
             type="range"
@@ -163,13 +154,13 @@ export const DetectionTab: React.FC<DetectionTabProps> = ({ config, onChange, on
             className="w-full"
           />
           <p className="text-xs text-muted mt-1">
-            Minimum aspect ratio for detections (filters thin objects)
+            {t('detectionAspectRatioMinHint')}
           </p>
         </div>
 
         <div>
           <label className="block text-sm font-medium text-text mb-2">
-            Aspect Ratio Max: {config.aspect_ratio_max?.toFixed(2) || 3.0}
+            {t('detectionAspectRatioMaxLabel', { value: config.aspect_ratio_max?.toFixed(2) || 3.0 })}
           </label>
           <input
             type="range"
@@ -181,7 +172,7 @@ export const DetectionTab: React.FC<DetectionTabProps> = ({ config, onChange, on
             className="w-full"
           />
           <p className="text-xs text-muted mt-1">
-            Maximum aspect ratio for detections (filters wide objects)
+            {t('detectionAspectRatioMaxHint')}
           </p>
         </div>
 
@@ -195,34 +186,34 @@ export const DetectionTab: React.FC<DetectionTabProps> = ({ config, onChange, on
             className="w-4 h-4 text-accent bg-surface2 border-border rounded focus:ring-accent"
           />
           <label htmlFor="enable-tracking" className="text-sm font-medium text-text">
-            Enable Object Tracking (Beta)
+            {t('detectionEnableTracking')}
           </label>
         </div>
       </div>
 
       {/* Model Comparison Info */}
       <div className="bg-surface2 border-l-4 border-info p-4 rounded-lg">
-        <h4 className="font-semibold text-text mb-2">📊 Model Karşılaştırma</h4>
+        <h4 className="font-semibold text-text mb-2">📊 {t('detectionModelComparisonTitle')}</h4>
         <div className="space-y-2 text-sm">
           <div className="flex justify-between">
             <span className="text-muted">YOLOv8n:</span>
-            <span className="text-text">⚡⚡⚡ Hızlı, ⭐⭐⭐ İyi</span>
+            <span className="text-text">{t('detectionModelCompareYolov8n')}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted">YOLOv8s:</span>
-            <span className="text-text">⚡⚡ Orta, ⭐⭐⭐⭐ Yüksek</span>
+            <span className="text-text">{t('detectionModelCompareYolov8s')}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted">YOLOv9t:</span>
-            <span className="text-text">⚡⚡ Orta, ⭐⭐⭐⭐ Yüksek 🌡️ Thermal!</span>
+            <span className="text-text">{t('detectionModelCompareYolov9t')}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted">YOLOv9s:</span>
-            <span className="text-text">⚡ Yavaş, ⭐⭐⭐⭐⭐ En İyi</span>
+            <span className="text-text">{t('detectionModelCompareYolov9s')}</span>
           </div>
         </div>
         <p className="text-xs text-muted mt-3">
-          💡 Thermal kameralar için YOLOv9t önerilir (bilgi kaybı önler)
+          💡 {t('detectionModelComparisonHint')}
         </p>
       </div>
 
@@ -230,7 +221,7 @@ export const DetectionTab: React.FC<DetectionTabProps> = ({ config, onChange, on
         onClick={onSave}
         className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-opacity-90 transition-colors"
       >
-        Algılama Ayarlarını Kaydet
+        {t('detectionSaveSettings')}
       </button>
     </div>
   );

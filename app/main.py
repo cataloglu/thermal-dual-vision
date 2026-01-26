@@ -1326,6 +1326,9 @@ async def create_camera(
         if rtsp_url:
             go2rtc_service.add_camera(camera.id, rtsp_url)
 
+        # Refresh MQTT discovery for this camera
+        mqtt_service.publish_camera_update(camera.id)
+
         return camera_crud_service.mask_rtsp_urls(camera)
         
     except ValueError as e:
@@ -1388,6 +1391,7 @@ async def update_camera(
             except Exception as e:
                 logger.error("Failed to start detection for camera %s: %s", camera.id, e)
 
+        mqtt_service.publish_camera_update(camera.id)
         return camera_crud_service.mask_rtsp_urls(camera)
         
     except HTTPException:
@@ -1447,6 +1451,8 @@ async def delete_camera(
                     "message": f"Camera with id {camera_id} not found"
                 }
             )
+
+        mqtt_service.clear_camera_discovery(camera_id)
         
         return {
             "deleted": True,

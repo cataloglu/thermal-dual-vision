@@ -34,7 +34,7 @@ export function CameraList({ onAdd, onEdit, onRefresh }: CameraListProps) {
       setCameras(data.cameras || [])
     } catch (error) {
       console.error('Failed to fetch cameras:', error)
-      toast.error('Kameralar yüklenemedi')
+      toast.error(t('camerasLoadFailed'))
     } finally {
       setLoading(false)
     }
@@ -47,12 +47,12 @@ export function CameraList({ onAdd, onEdit, onRefresh }: CameraListProps) {
   const handleDelete = async (cameraId: string) => {
     try {
       await api.deleteCamera(cameraId)
-      toast.success('Kamera silindi')
+      toast.success(t('cameraDeleted'))
       setCameras((prev) => prev.filter((cam) => cam.id !== cameraId))
       if (onRefresh) onRefresh()
     } catch (error) {
       console.error('Failed to delete camera:', error)
-      toast.error('Kamera silinemedi')
+      toast.error(t('cameraDeleteFailed'))
     } finally {
       setDeleteConfirm(null)
     }

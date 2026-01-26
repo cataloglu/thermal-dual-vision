@@ -48,7 +48,7 @@ export const MotionTab: React.FC<MotionTabProps> = ({ config, onChange, onSave }
         min_area: 450,
         cooldown_seconds: 4
       });
-      toast.success('Thermal preset uygulandı');
+      toast.success(t('motionPresetAppliedThermal'));
     } else {
       onChange({
         ...config,
@@ -56,7 +56,7 @@ export const MotionTab: React.FC<MotionTabProps> = ({ config, onChange, onSave }
         min_area: 500,
         cooldown_seconds: 5
       });
-      toast.success('Color preset uygulandı');
+      toast.success(t('motionPresetAppliedColor'));
     }
   };
 
@@ -71,9 +71,9 @@ export const MotionTab: React.FC<MotionTabProps> = ({ config, onChange, onSave }
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-medium text-text mb-4">Motion Detection</h3>
+        <h3 className="text-lg font-medium text-text mb-4">{t('motionTitle')}</h3>
         <p className="text-sm text-muted mb-6">
-          Pre-filter for person detection (frame-diff based)
+          {t('motionDesc')}
         </p>
       </div>
 
@@ -81,7 +81,7 @@ export const MotionTab: React.FC<MotionTabProps> = ({ config, onChange, onSave }
       <div className="bg-surface2 border-l-4 border-info p-4 rounded-lg">
         <div className="mb-3">
           <label className="block text-sm font-medium text-text mb-2">
-            Select Camera to Configure
+            {t('motionSelectCamera')}
           </label>
           <select
             value={selectedCamera}
@@ -97,10 +97,10 @@ export const MotionTab: React.FC<MotionTabProps> = ({ config, onChange, onSave }
         </div>
         {selectedCameraData && (
           <p className="text-xs text-muted">
-            💡 Kamera Tipi: <span className="font-semibold text-text">{selectedCameraData.type.toUpperCase()}</span>
+            💡 {t('motionCameraType')}: <span className="font-semibold text-text">{selectedCameraData.type.toUpperCase()}</span>
             {isThermal 
-              ? ' → Thermal için önerilen ayarları kullanın' 
-              : ' → Color için önerilen ayarları kullanın'}
+              ? ` → ${t('motionThermalRecommended')}` 
+              : ` → ${t('motionColorRecommended')}`}
           </p>
         )}
       </div>
@@ -108,7 +108,7 @@ export const MotionTab: React.FC<MotionTabProps> = ({ config, onChange, onSave }
       {/* Presets */}
       <div>
         <label className="block text-sm font-medium text-text mb-2">
-          Presets
+          {t('motionPresets')}
         </label>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <button
@@ -119,7 +119,7 @@ export const MotionTab: React.FC<MotionTabProps> = ({ config, onChange, onSave }
                 : 'bg-surface2 border-border text-text hover:bg-surface2/80'
             }`}
           >
-            Thermal Recommended
+            {t('motionPresetThermal')}
             {isThermal && ' ✓'}
           </button>
           <button
@@ -130,27 +130,22 @@ export const MotionTab: React.FC<MotionTabProps> = ({ config, onChange, onSave }
                 : 'bg-surface2 border-border text-text hover:bg-surface2/80'
             }`}
           >
-            Color Recommended
+            {t('motionPresetColor')}
             {!isThermal && ' ✓'}
           </button>
           <button
             onClick={applyRecommendedForCamera}
             className="px-4 py-2 bg-success text-white border border-success rounded-lg hover:bg-success/90 transition-colors"
           >
-            Apply for {selectedCameraData?.type || 'Camera'}
+            {t('motionPresetApplyFor', { type: selectedCameraData?.type || t('motionPresetCamera') })}
           </button>
         </div>
-      </div>
-
-      <div className="bg-surface2 border-l-4 border-warning p-4 rounded-lg">
-        <h4 className="font-semibold text-text mb-2">⚡ {t('perfTipsTitle')}</h4>
-        <p className="text-sm text-muted">{t('perfTipMotion')}</p>
       </div>
 
       <div className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-text mb-2">
-            Sensitivity: {config.sensitivity}
+            {t('motionSensitivityLabel', { value: config.sensitivity })}
           </label>
           <input
             type="range"
@@ -168,7 +163,7 @@ export const MotionTab: React.FC<MotionTabProps> = ({ config, onChange, onSave }
 
         <div>
           <label className="block text-sm font-medium text-text mb-2">
-            Min Area (pixels)
+            {t('motionMinAreaLabel')}
           </label>
           <input
             type="number"
@@ -179,13 +174,13 @@ export const MotionTab: React.FC<MotionTabProps> = ({ config, onChange, onSave }
             className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
           />
           <p className="text-xs text-muted mt-1">
-            Minimum pixel area for motion detection
+            {t('motionMinAreaHint')}
           </p>
         </div>
 
         <div>
           <label className="block text-sm font-medium text-text mb-2">
-            Cooldown (seconds)
+            {t('motionCooldownLabel')}
           </label>
           <input
             type="number"
@@ -196,7 +191,7 @@ export const MotionTab: React.FC<MotionTabProps> = ({ config, onChange, onSave }
             className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
           />
           <p className="text-xs text-muted mt-1">
-            Minimum time between motion detections
+            {t('motionCooldownHint')}
           </p>
         </div>
       </div>
@@ -205,7 +200,7 @@ export const MotionTab: React.FC<MotionTabProps> = ({ config, onChange, onSave }
         onClick={onSave}
         className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-opacity-90 transition-colors"
       >
-        Save Motion Settings
+        {t('motionSaveSettings')}
       </button>
     </div>
   );

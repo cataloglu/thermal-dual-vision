@@ -2,6 +2,7 @@
  * Media tab - Media cleanup settings
  */
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { MediaConfig } from '../../types/api';
 
 interface MediaTabProps {
@@ -11,19 +12,21 @@ interface MediaTabProps {
 }
 
 export const MediaTab: React.FC<MediaTabProps> = ({ config, onChange, onSave }) => {
+  const { t } = useTranslation();
+
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-medium text-text mb-4">Media Cleanup</h3>
+        <h3 className="text-lg font-medium text-text mb-4">{t('mediaCleanupTitle')}</h3>
         <p className="text-sm text-muted mb-6">
-          Configure media file retention and disk management
+          {t('mediaCleanupDesc')}
         </p>
       </div>
 
       <div className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-text mb-2">
-            Retention Days
+            {t('mediaRetentionLabel')}
           </label>
           <input
             type="number"
@@ -34,13 +37,13 @@ export const MediaTab: React.FC<MediaTabProps> = ({ config, onChange, onSave }) 
             className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
           />
           <p className="text-xs text-muted mt-1">
-            How many days to keep media files
+            {t('mediaRetentionHint')}
           </p>
         </div>
 
         <div>
           <label className="block text-sm font-medium text-text mb-2">
-            Cleanup Interval (hours)
+            {t('mediaCleanupIntervalLabel')}
           </label>
           <input
             type="number"
@@ -51,13 +54,13 @@ export const MediaTab: React.FC<MediaTabProps> = ({ config, onChange, onSave }) 
             className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
           />
           <p className="text-xs text-muted mt-1">
-            How often to run cleanup job (default: 24 hours)
+            {t('mediaCleanupIntervalHint')}
           </p>
         </div>
 
         <div>
           <label className="block text-sm font-medium text-text mb-2">
-            Disk Limit: {config.disk_limit_percent}%
+            {t('mediaDiskLimitLabel', { value: config.disk_limit_percent })}
           </label>
           <input
             type="range"
@@ -69,8 +72,8 @@ export const MediaTab: React.FC<MediaTabProps> = ({ config, onChange, onSave }) 
             className="w-full h-2 bg-surface2 rounded-lg appearance-none cursor-pointer accent-accent"
           />
           <div className="flex justify-between text-xs text-muted mt-1">
-            <span>50% (Conservative)</span>
-            <span>95% (Aggressive)</span>
+            <span>{t('mediaDiskLimitLow')}</span>
+            <span>{t('mediaDiskLimitHigh')}</span>
           </div>
         </div>
       </div>
@@ -79,7 +82,7 @@ export const MediaTab: React.FC<MediaTabProps> = ({ config, onChange, onSave }) 
         onClick={onSave}
         className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-opacity-90 transition-colors"
       >
-        Save Media Settings
+        {t('mediaSaveSettings')}
       </button>
     </div>
   );

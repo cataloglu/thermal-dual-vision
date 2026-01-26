@@ -1,9 +1,10 @@
 # Theme Options - Smart Motion Detector v2
 
-Profesyonel dark theme renk paletleri ve öneriler.
+Tema değiştirme kaldırıldı. UI **Pure Black** olarak sabitlendi.
+Bu doküman artık sadece referans amaçlıdır.
 
-**Şu Anki**: Frigate-inspired (mavi accent)  
-**Alternatifler**: 5 farklı profesyonel tema
+**Şu Anki**: Pure Black (sabit)
+**Alternatifler**: Deprecated
 
 ---
 

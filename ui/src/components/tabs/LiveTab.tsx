@@ -48,16 +48,16 @@ export const LiveTab: React.FC<LiveTabProps> = ({ config, onChange, onSave }) =>
       <div className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-text mb-2">
-            Output Mode
+            {t('liveOutputModeLabel')}
           </label>
           <select
             value={config.output_mode}
             onChange={(e) => onChange({ ...config, output_mode: e.target.value as 'mjpeg' | 'webrtc' })}
             className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
           >
-            <option value="mjpeg">MJPEG (basit, her zaman çalışır)</option>
+            <option value="mjpeg">{t('liveOutputMjpeg')}</option>
             <option value="webrtc" disabled={!go2rtcAvailable}>
-              WebRTC (hızlı, go2rtc gerekli) {!go2rtcAvailable && '- Unavailable'}
+              {t('liveOutputWebrtc')} {!go2rtcAvailable && `- ${t('liveOutputWebrtcUnavailable')}`}
             </option>
           </select>
           
@@ -65,13 +65,14 @@ export const LiveTab: React.FC<LiveTabProps> = ({ config, onChange, onSave }) =>
           <div className="mt-2 flex items-center gap-2">
             <div className={`w-2 h-2 rounded-full ${go2rtcAvailable ? 'bg-green-500' : 'bg-red-500'}`} />
             <span className="text-xs text-muted">
-              go2rtc: {go2rtcAvailable ? 'Available' : 'Not running'}
+              {t('liveGo2rtcStatus', { status: go2rtcAvailable ? t('liveGo2rtcAvailable') : t('liveGo2rtcNotRunning') })}
             </span>
           </div>
           
           <p className="text-xs text-muted mt-2">
-            MJPEG: 2-5s latency, basit<br />
-            WebRTC: 0.5s latency, go2rtc container gerekli
+            {t('liveLatencyMjpeg')}
+            <br />
+            {t('liveLatencyWebrtc')}
           </p>
         </div>
 

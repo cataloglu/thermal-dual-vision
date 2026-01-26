@@ -43,14 +43,7 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
     if (config.prompt_template === 'custom') {
       return config.custom_prompt || t('promptPreviewCustomEmpty');
     }
-    return (
-      'TERMAL (varsayılan): Türkçe, renk uydurma, ısıya göre anlat. ' +
-      '"Kamerada X kişi tespit edildi..." / "Kamerada insan tespit edilmedi (no human)." ' +
-      'Belirgin hedef yoksa "Muhtemel yanlış alarm." Tek cümle.\n\n' +
-      'COLOR (varsayılan): Türkçe. İnsan/araç/hayvan say ve kısaca tarif et. ' +
-      '"Kamerada X kişi tespit edildi..." / "Kamerada insan tespit edilmedi (no human)." ' +
-      'Belirgin hedef yoksa "Muhtemel yanlış alarm." Tek cümle.'
-    );
+    return t('aiPromptPreviewDefault');
   };
 
   const handleSave = () => {
@@ -121,16 +114,16 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
       <div>
         <h3 className="text-lg font-medium text-text mb-4">{t('aiIntegration')}</h3>
         <p className="text-sm text-muted mb-6">
-          Configure OpenAI integration for event summaries (optional)
+          {t('aiIntegrationDesc')}
         </p>
       </div>
 
       <div className="p-4 bg-surface2 border-l-4 border-info rounded-lg mb-4">
         <p className="text-sm text-text font-medium">
-          ℹ️ AI entegrasyonu opsiyoneldir. Sistem AI olmadan da çalışır.
+          ℹ️ {t('aiIntegrationNoteTitle')}
         </p>
         <p className="text-xs text-muted mt-1">
-          AI sadece event'lere açıklama ekler, filtreleme yapmaz.
+          {t('aiIntegrationNoteDesc')}
         </p>
       </div>
 
@@ -163,7 +156,7 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
                     setTestSuccess(false);
                     onChange({ ...config, api_key: e.target.value });
                   }}
-                  placeholder={isKeyMasked ? t('apiKeySet') : 'sk-...'}
+                  placeholder={isKeyMasked ? t('apiKeySet') : t('aiApiKeyPlaceholder')}
                   className="w-full px-3 py-2 pr-10 bg-surface2 border border-border rounded-lg text-text placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent"
                 />
                 <button
@@ -175,7 +168,7 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
                 </button>
               </div>
               <p className="text-xs text-muted mt-1">
-                OpenAI API key (starts with sk-)
+                {t('aiApiKeyLabel')}
               </p>
               <p className="text-xs text-muted mt-1">
                 {(isKeyMasked || apiKeyDraft) ? t('apiKeySet') : t('apiKeyNotSet')}
@@ -185,7 +178,7 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
               <button
                 onClick={async () => {
                   if (!apiKeyDraft || apiKeyDraft === '***REDACTED***') {
-                    alert('API key gerekli');
+                    alert(t('aiApiKeyRequired'));
                     return;
                   }
                   setTesting(true);

@@ -48,7 +48,7 @@ export function ZoneEditor({ snapshotUrl, initialPoints = [], onSave }: ZoneEdit
       ctx.fillStyle = '#94A3B8'
       ctx.font = '16px sans-serif'
       ctx.textAlign = 'center'
-      ctx.fillText('Kamera seçin', canvas.width / 2, canvas.height / 2)
+      ctx.fillText(t('selectCamera'), canvas.width / 2, canvas.height / 2)
       drawPolygon(ctx)
     }
   }
@@ -151,7 +151,7 @@ export function ZoneEditor({ snapshotUrl, initialPoints = [], onSave }: ZoneEdit
 
   const handleSave = () => {
     if (points.length < 3) {
-      alert('En az 3 nokta gerekli')
+      alert(t('zoneMinPointsRequired'))
       return
     }
 

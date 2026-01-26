@@ -1,13 +1,8 @@
 import { useEffect, useState } from 'react'
 import { THEMES, ThemeName, DEFAULT_THEME } from '../themes/themes'
 
-const THEME_STORAGE_KEY = 'motion-detector-theme'
-
 export function useTheme() {
-  const [currentTheme, setCurrentTheme] = useState<ThemeName>(() => {
-    const saved = localStorage.getItem(THEME_STORAGE_KEY)
-    return (saved as ThemeName) || DEFAULT_THEME
-  })
+  const [currentTheme] = useState<ThemeName>(DEFAULT_THEME)
 
   useEffect(() => {
     const theme = THEMES[currentTheme]
@@ -18,13 +13,9 @@ export function useTheme() {
       root.style.setProperty(`--color-${key}`, value)
     })
 
-    // Save to localStorage
-    localStorage.setItem(THEME_STORAGE_KEY, currentTheme)
   }, [currentTheme])
 
-  const changeTheme = (themeName: ThemeName) => {
-    setCurrentTheme(themeName)
-  }
+  const changeTheme = (_themeName: ThemeName) => {}
 
   return {
     currentTheme,

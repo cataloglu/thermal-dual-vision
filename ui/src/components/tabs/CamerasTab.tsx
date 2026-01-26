@@ -2,6 +2,7 @@
  * Cameras tab - Camera management and testing
  */
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { CameraList } from '../CameraList';
 import { CameraFormModal } from '../CameraFormModal';
 import { testCamera } from '../../services/api';
@@ -21,6 +22,7 @@ interface Camera {
 }
 
 export const CamerasTab: React.FC = () => {
+  const { t } = useTranslation();
   const [showModal, setShowModal] = useState(false);
   const [editingCamera, setEditingCamera] = useState<Camera | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -40,15 +42,15 @@ export const CamerasTab: React.FC = () => {
     };
 
     if (cameraType === 'thermal' && !thermalUrl) {
-      toast.error('Termal RTSP adresi gerekli');
+      toast.error(t('thermalRtspRequired'));
       return;
     }
     if (cameraType === 'color' && !colorUrl) {
-      toast.error('Renkli RTSP adresi gerekli');
+      toast.error(t('colorRtspRequired'));
       return;
     }
     if (cameraType === 'dual' && (!thermalUrl || !colorUrl)) {
-      toast.error('İkili kamera için her iki RTSP adresi gerekli');
+      toast.error(t('dualRtspRequired'));
       return;
     }
 
@@ -59,12 +61,12 @@ export const CamerasTab: React.FC = () => {
       const response = await testCamera(request);
       setResult(response);
       if (response.success) {
-        toast.success(`Kamera testi başarılı! Gecikme: ${response.latency_ms}ms`);
+        toast.success(t('cameraTestSuccess', { latency: response.latency_ms }));
       } else {
-        toast.error(response.error_reason || 'Kamera testi başarısız');
+        toast.error(response.error_reason || t('cameraTestFailed'));
       }
     } catch (error) {
-      toast.error('Kamera bağlantısı test edilemedi');
+      toast.error(t('cameraTestConnectionFailed'));
     } finally {
       setTesting(false);
     }
@@ -100,31 +102,31 @@ export const CamerasTab: React.FC = () => {
 
       {/* Quick Test Form */}
       <div>
-        <h3 className="text-lg font-medium text-text mb-4">Hızlı Bağlantı Testi</h3>
+        <h3 className="text-lg font-medium text-text mb-4">{t('cameraQuickTestTitle')}</h3>
         <p className="text-sm text-muted mb-6">
-          Kamera kaydetmeden önce RTSP bağlantısını test edin
+          {t('cameraQuickTestDesc')}
         </p>
 
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-text mb-2">
-              Kamera Tipi
+            {t('cameraTypeLabel')}
             </label>
             <select
               value={cameraType}
               onChange={(e) => setCameraType(e.target.value as typeof cameraType)}
               className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
             >
-              <option value="thermal">Termal</option>
-              <option value="color">Renkli</option>
-              <option value="dual">İkili (Termal + Renkli)</option>
+              <option value="thermal">{t('cameraTypeThermal')}</option>
+              <option value="color">{t('cameraTypeColor')}</option>
+              <option value="dual">{t('cameraTypeDual')}</option>
             </select>
           </div>
 
           {(cameraType === 'thermal' || cameraType === 'dual') && (
             <div>
               <label className="block text-sm font-medium text-text mb-2">
-                Termal RTSP Adresi
+                {t('thermalRtspLabel')}
               </label>
               <input
                 type="text"
@@ -139,7 +141,7 @@ export const CamerasTab: React.FC = () => {
           {(cameraType === 'color' || cameraType === 'dual') && (
             <div>
               <label className="block text-sm font-medium text-text mb-2">
-                Renkli RTSP Adresi
+                {t('colorRtspLabel')}
               </label>
               <input
                 type="text"
@@ -156,23 +158,23 @@ export const CamerasTab: React.FC = () => {
             disabled={testing}
             className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {testing ? 'Test Ediliyor...' : 'Bağlantıyı Test Et'}
+            {testing ? t('cameraTestRunning') : t('cameraTestButton')}
           </button>
         </div>
 
         {result && result.success && result.snapshot_base64 && (
           <div className="mt-6">
-            <h4 className="text-sm font-medium text-text mb-2">Görüntü</h4>
+            <h4 className="text-sm font-medium text-text mb-2">{t('cameraTestPreview')}</h4>
             <div className="border border-border rounded-lg overflow-hidden">
               <img
                 src={result.snapshot_base64}
-                alt="Kamera görüntüsü"
+                alt={t('cameraTestImageAlt')}
                 className="w-full h-auto"
               />
             </div>
             {result.latency_ms !== undefined && (
               <p className="text-sm text-muted mt-2">
-                Gecikme: {result.latency_ms}ms
+                {t('cameraTestLatency', { latency: result.latency_ms })}
               </p>
             )}
           </div>

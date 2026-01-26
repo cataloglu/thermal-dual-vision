@@ -66,7 +66,7 @@ export function CameraFormModal({ camera, onClose, onSave }: CameraFormModalProp
     const validationErrors = validate()
     if (validationErrors.length > 0) {
       setErrors(validationErrors)
-      toast.error('Test için gerekli alanları doldurun')
+      toast.error(t('cameraTestFillRequired'))
       return
     }
     setTesting(true)
@@ -82,12 +82,12 @@ export function CameraFormModal({ camera, onClose, onSave }: CameraFormModalProp
       
       setTestResult(response)
       if (response.success) {
-        toast.success(`Test başarılı! Gecikme: ${response.latency_ms}ms`)
+        toast.success(t('cameraTestSuccess', { latency: response.latency_ms }))
       } else {
-        toast.error(response.error_reason || 'Test başarısız')
+        toast.error(response.error_reason || t('cameraTestFailed'))
       }
     } catch (error) {
-      toast.error('Bağlantı test edilemedi')
+      toast.error(t('cameraTestConnectionFailed'))
     } finally {
       setTesting(false)
     }
@@ -97,7 +97,7 @@ export function CameraFormModal({ camera, onClose, onSave }: CameraFormModalProp
     const validationErrors = validate()
     if (validationErrors.length > 0) {
       setErrors(validationErrors)
-      toast.error('Eksik veya hatalı alanlar var')
+      toast.error(t('cameraFormInvalid'))
       return
     }
 
@@ -116,12 +116,12 @@ export function CameraFormModal({ camera, onClose, onSave }: CameraFormModalProp
         await api.createCamera(payload)
       }
 
-      toast.success(camera ? 'Kamera güncellendi' : 'Kamera eklendi')
+      toast.success(camera ? t('cameraUpdated') : t('cameraAdded'))
       onSave()
       onClose()
     } catch (error) {
       console.error('Failed to save camera:', error)
-      toast.error('Kamera kaydedilemedi')
+      toast.error(t('cameraSaveFailed'))
     } finally {
       setSaving(false)
     }
@@ -130,21 +130,21 @@ export function CameraFormModal({ camera, onClose, onSave }: CameraFormModalProp
   const validate = () => {
     const nextErrors: string[] = []
     if (!formData.name.trim()) {
-      nextErrors.push('Kamera adı gerekli')
+      nextErrors.push(t('cameraNameRequired'))
     }
     const isRtsp = (value: string) => value.trim().startsWith('rtsp://')
     if (formData.type === 'thermal' || formData.type === 'dual') {
       if (!formData.rtsp_url_thermal.trim()) {
-        nextErrors.push('Termal RTSP adresi gerekli')
+        nextErrors.push(t('thermalRtspRequired'))
       } else if (!isRtsp(formData.rtsp_url_thermal)) {
-        nextErrors.push('Termal RTSP adresi rtsp:// ile başlamalı')
+        nextErrors.push(t('thermalRtspInvalid'))
       }
     }
     if (formData.type === 'color' || formData.type === 'dual') {
       if (!formData.rtsp_url_color.trim()) {
-        nextErrors.push('Renkli RTSP adresi gerekli')
+        nextErrors.push(t('colorRtspRequired'))
       } else if (!isRtsp(formData.rtsp_url_color)) {
-        nextErrors.push('Renkli RTSP adresi rtsp:// ile başlamalı')
+        nextErrors.push(t('colorRtspInvalid'))
       }
     }
     return nextErrors
@@ -168,13 +168,13 @@ export function CameraFormModal({ camera, onClose, onSave }: CameraFormModalProp
           {/* Name */}
           <div>
             <label className="block text-sm font-medium text-text mb-2">
-              Kamera Adı *
+              {t('cameraNameLabel')} *
             </label>
             <input
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="Ön Kapı"
+              placeholder={t('cameraNamePlaceholder')}
               className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent"
             />
           </div>
@@ -182,16 +182,16 @@ export function CameraFormModal({ camera, onClose, onSave }: CameraFormModalProp
           {/* Type */}
           <div>
             <label className="block text-sm font-medium text-text mb-2">
-              Kamera Tipi *
+              {t('cameraTypeLabel')} *
             </label>
             <select
               value={formData.type}
               onChange={(e) => setFormData({ ...formData, type: e.target.value })}
               className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
             >
-              <option value="thermal">Termal</option>
-              <option value="color">Renkli</option>
-              <option value="dual">İkili (Termal + Renkli)</option>
+              <option value="thermal">{t('cameraTypeThermal')}</option>
+              <option value="color">{t('cameraTypeColor')}</option>
+              <option value="dual">{t('cameraTypeDual')}</option>
             </select>
           </div>
 
@@ -199,7 +199,7 @@ export function CameraFormModal({ camera, onClose, onSave }: CameraFormModalProp
           {(formData.type === 'thermal' || formData.type === 'dual') && (
             <div>
               <label className="block text-sm font-medium text-text mb-2">
-                Termal RTSP Adresi *
+                {t('thermalRtspLabel')} *
               </label>
               <input
                 type="text"
@@ -215,7 +215,7 @@ export function CameraFormModal({ camera, onClose, onSave }: CameraFormModalProp
           {(formData.type === 'color' || formData.type === 'dual') && (
             <div>
               <label className="block text-sm font-medium text-text mb-2">
-                Renkli RTSP Adresi *
+                {t('colorRtspLabel')} *
               </label>
               <input
                 type="text"
@@ -230,16 +230,16 @@ export function CameraFormModal({ camera, onClose, onSave }: CameraFormModalProp
           {/* Detection Source */}
           <div>
             <label className="block text-sm font-medium text-text mb-2">
-              Algılama Kaynağı
+              {t('detectionSourceLabel')}
             </label>
             <select
               value={formData.detection_source}
               onChange={(e) => setFormData({ ...formData, detection_source: e.target.value })}
               className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
             >
-              <option value="auto">Otomatik</option>
-              <option value="thermal">Termal</option>
-              <option value="color">Renkli</option>
+              <option value="auto">{t('detectionSourceAuto')}</option>
+              <option value="thermal">{t('cameraTypeThermal')}</option>
+              <option value="color">{t('cameraTypeColor')}</option>
             </select>
           </div>
 
@@ -252,7 +252,7 @@ export function CameraFormModal({ camera, onClose, onSave }: CameraFormModalProp
                 onChange={(e) => setFormData({ ...formData, enabled: e.target.checked })}
                 className="w-4 h-4 accent-accent"
               />
-              <span className="text-sm text-text">Kamerayı Etkinleştir</span>
+              <span className="text-sm text-text">{t('cameraEnableLabel')}</span>
             </label>
           </div>
 
@@ -274,18 +274,18 @@ export function CameraFormModal({ camera, onClose, onSave }: CameraFormModalProp
               disabled={testing || validate().length > 0}
               className="w-full px-4 py-2 bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors disabled:opacity-50"
             >
-              {testing ? 'Test Ediliyor...' : 'Bağlantıyı Test Et'}
+              {testing ? t('cameraTestRunning') : t('cameraTestButton')}
             </button>
           </div>
 
           {/* Test Result */}
           {testResult && testResult.success && testResult.snapshot_base64 && (
             <div className="pt-4">
-              <h4 className="text-sm font-medium text-text mb-2">Görüntü</h4>
+              <h4 className="text-sm font-medium text-text mb-2">{t('cameraTestPreview')}</h4>
               <div className="border border-border rounded-lg overflow-hidden">
-                <img src={testResult.snapshot_base64} alt="Snapshot" className="w-full h-auto" />
+                <img src={testResult.snapshot_base64} alt={t('cameraTestImageAlt')} className="w-full h-auto" />
               </div>
-              <p className="text-sm text-muted mt-2">Gecikme: {testResult.latency_ms}ms</p>
+              <p className="text-sm text-muted mt-2">{t('cameraTestLatency', { latency: testResult.latency_ms })}</p>
             </div>
           )}
 

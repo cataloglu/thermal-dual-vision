@@ -2,6 +2,7 @@
  * Recording tab - Recording and retention settings
  */
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { RecordConfig } from '../../types/api';
 
 interface RecordingTabProps {
@@ -11,29 +12,30 @@ interface RecordingTabProps {
 }
 
 export const RecordingTab: React.FC<RecordingTabProps> = ({ config, onChange, onSave }) => {
+  const { t } = useTranslation();
   const deleteOrder = config.delete_order.filter((type) => type !== 'gif')
 
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-medium text-text mb-4">Kayıt Ayarları</h3>
+        <h3 className="text-lg font-medium text-text mb-4">{t('recordingSettingsTitle')}</h3>
         <p className="text-sm text-muted mb-6">
-          Event bazlı kayıt ve saklama politikası ayarları
+          {t('recordingSettingsDesc')}
         </p>
       </div>
 
       {/* Important Notice */}
       <div className="bg-surface2 border-l-4 border-warning p-4 rounded-lg">
-        <h3 className="font-bold text-warning mb-2">⚠️ ÖNEMLİ: Sadece Hareket (Event) Kaydı</h3>
+        <h3 className="font-bold text-warning mb-2">⚠️ {t('recordingImportantTitle')}</h3>
         <div className="space-y-3 text-sm">
           <div>
-            <strong className="text-text">Hareket Kayıtları (Event):</strong>
-            <p className="text-muted">Sadece person algılandığında (collage/MP4)</p>
-            <p className="text-success">✅ HER ZAMAN AÇIK (otomatik)</p>
+            <strong className="text-text">{t('recordingEventTitle')}</strong>
+            <p className="text-muted">{t('recordingEventDesc')}</p>
+            <p className="text-success">✅ {t('recordingEventAlwaysOn')}</p>
           </div>
           <div>
-            <strong className="text-text">Sürekli Kayıt (7/24):</strong>
-            <p className="text-muted">Bu sistemde kaldırıldı, sadece event bazlı kayıt var.</p>
+            <strong className="text-text">{t('recordingContinuousTitle')}</strong>
+            <p className="text-muted">{t('recordingContinuousDesc')}</p>
           </div>
         </div>
       </div>
@@ -44,7 +46,7 @@ export const RecordingTab: React.FC<RecordingTabProps> = ({ config, onChange, on
           <>
             <div>
               <label className="block text-sm font-medium text-text mb-2">
-                Saklama Süresi (Gün)
+                {t('recordingRetentionLabel')}
               </label>
               <input
                 type="number"
@@ -55,13 +57,13 @@ export const RecordingTab: React.FC<RecordingTabProps> = ({ config, onChange, on
                 className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
               />
               <p className="text-xs text-muted mt-1">
-                Kayıtlar kaç gün saklanacak
+                {t('recordingRetentionHint')}
               </p>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-text mb-2">
-                Disk Limiti: {config.disk_limit_percent}%
+                {t('recordingDiskLimitLabel', { value: config.disk_limit_percent })}
               </label>
               <input
                 type="range"
@@ -73,13 +75,13 @@ export const RecordingTab: React.FC<RecordingTabProps> = ({ config, onChange, on
                 className="w-full h-2 bg-surface2 rounded-lg appearance-none cursor-pointer accent-accent"
               />
               <p className="text-xs text-muted mt-1">
-                Maksimum disk kullanımı yüzdesi (50-95%)
+                {t('recordingDiskLimitHint')}
               </p>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-text mb-2">
-                Segment Uzunluğu (saniye)
+                {t('recordingSegmentLabel')}
               </label>
               <input
                 type="number"
@@ -90,32 +92,32 @@ export const RecordingTab: React.FC<RecordingTabProps> = ({ config, onChange, on
                 className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
               />
               <p className="text-xs text-muted mt-1">
-                Her kayıt segmentinin uzunluğu
+                {t('recordingSegmentHint')}
               </p>
             </div>
 
             {/* TASK 19: Cleanup Policy */}
             <div>
               <label className="block text-sm font-medium text-text mb-2">
-                Cleanup Policy
+                {t('recordingCleanupPolicyLabel')}
               </label>
               <select
                 value={config.cleanup_policy}
                 onChange={(e) => onChange({ ...config, cleanup_policy: e.target.value as 'oldest_first' | 'lowest_confidence' })}
                 className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
               >
-                <option value="oldest_first">Delete Oldest First</option>
-                <option value="lowest_confidence">Delete Lowest Confidence First</option>
+                <option value="oldest_first">{t('recordingCleanupOldest')}</option>
+                <option value="lowest_confidence">{t('recordingCleanupLowest')}</option>
               </select>
               <p className="text-xs text-muted mt-1">
-                Which recordings to delete when disk is full
+                {t('recordingCleanupHint')}
               </p>
             </div>
 
             {/* TASK 20: Delete Order - FIXED */}
             <div>
               <label className="block text-sm font-medium text-text mb-2">
-                Delete Order
+                {t('recordingDeleteOrderLabel')}
               </label>
               <div className="space-y-2">
                 {deleteOrder.map((type, idx) => (
@@ -156,7 +158,7 @@ export const RecordingTab: React.FC<RecordingTabProps> = ({ config, onChange, on
                 ))}
               </div>
               <p className="text-xs text-muted mt-1">
-                Order in which media types are deleted (first = deleted first)
+                {t('recordingDeleteOrderHint')}
               </p>
             </div>
           </>
@@ -177,7 +179,7 @@ export const RecordingTab: React.FC<RecordingTabProps> = ({ config, onChange, on
         onClick={onSave}
         className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-opacity-90 transition-colors"
       >
-        Kayıt Ayarlarını Kaydet
+        {t('recordingSaveSettings')}
       </button>
     </div>
   );

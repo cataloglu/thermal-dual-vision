@@ -2,12 +2,13 @@
  * Settings page - Main settings interface
  */
 import React, { useCallback, useMemo, useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router-dom';
 import { useSettings } from '../hooks/useSettings';
 import { api } from '../services/api';
 import { TabId } from '../components/SettingsTabs';
 import { CamerasTab } from '../components/tabs/CamerasTab';
+import { PerformanceTab } from '../components/tabs/PerformanceTab';
 import { DetectionTab } from '../components/tabs/DetectionTab';
 import { MotionTab } from '../components/tabs/MotionTab';
 import { ThermalTab } from '../components/tabs/ThermalTab';
@@ -118,96 +119,25 @@ export const Settings: React.FC = () => {
     }
   };
 
-  const applyPerformancePreset = useCallback(async (preset: 'eco' | 'balanced' | 'quality') => {
-    if (!localSettings) return;
-
-    const baseDetection = localSettings.detection;
-    const baseMotion = localSettings.motion;
-    const baseThermal = localSettings.thermal;
-
-    const updates: Partial<SettingsType> = (() => {
-      if (preset === 'eco') {
-        return {
-          detection: {
-            ...baseDetection,
-            model: 'yolov8n-person',
-            inference_fps: 3,
-            inference_resolution: [512, 512],
-            confidence_threshold: 0.35,
-          },
-          motion: {
-            ...baseMotion,
-            sensitivity: 6,
-            min_area: 700,
-            cooldown_seconds: 5,
-          },
-          thermal: {
-            ...baseThermal,
-            enable_enhancement: false,
-          },
-        };
-      }
-      if (preset === 'quality') {
-        return {
-          detection: {
-            ...baseDetection,
-            model: 'yolov9t',
-            inference_fps: 7,
-            inference_resolution: [640, 640],
-            confidence_threshold: 0.25,
-          },
-          motion: {
-            ...baseMotion,
-            sensitivity: 8,
-            min_area: 450,
-            cooldown_seconds: 4,
-          },
-          thermal: {
-            ...baseThermal,
-            enable_enhancement: true,
-            enhancement_method: 'clahe',
-            clahe_clip_limit: 2.0,
-          },
-        };
-      }
-      return {
-        detection: {
-          ...baseDetection,
-          model: 'yolov8s-person',
-          inference_fps: 5,
-          inference_resolution: [640, 640],
-          confidence_threshold: 0.3,
-        },
-        motion: {
-          ...baseMotion,
-          sensitivity: 7,
-          min_area: 500,
-          cooldown_seconds: 5,
-        },
-        thermal: {
-          ...baseThermal,
-          enable_enhancement: true,
-          enhancement_method: 'clahe',
-          clahe_clip_limit: 2.0,
-        },
-      };
-    })();
-
-    const nextSettings = {
-      ...localSettings,
-      ...updates,
-    } as SettingsType;
-
-    updateLocalSettings(nextSettings);
+  const handleSavePartial = useCallback(async (updates: Partial<SettingsType>) => {
     const saved = await saveSettings(updates);
     if (saved) {
       setLocalSettings(saved);
       setIsDirty(false);
     }
-  }, [localSettings, saveSettings, updateLocalSettings]);
+  }, [saveSettings]);
 
   const tabContent = useMemo(() => {
     if (activeTab === 'cameras') return <CamerasTab />
+    if (activeTab === 'performance' && localSettings) {
+      return (
+        <PerformanceTab
+          settings={localSettings}
+          onChange={updateLocalSettings}
+          onSave={handleSavePartial}
+        />
+      )
+    }
     if (activeTab === 'detection' && localSettings) {
       return (
         <DetectionTab
@@ -306,14 +236,14 @@ export const Settings: React.FC = () => {
     }
     if (activeTab === 'appearance') return <AppearanceTab />
     return null
-  }, [activeTab, handleSave, localSettings, updateLocalSettings])
+  }, [activeTab, handleSave, handleSavePartial, localSettings, updateLocalSettings])
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-background">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent mx-auto mb-4"></div>
-          <p className="text-muted">Ayarlar yükleniyor...</p>
+          <p className="text-muted">{t('loadingSettings')}</p>
         </div>
       </div>
     );
@@ -323,12 +253,12 @@ export const Settings: React.FC = () => {
     return (
       <div className="flex items-center justify-center h-screen bg-background">
         <div className="text-center">
-          <p className="text-error mb-4">{error || 'Ayarlar yüklenemedi'}</p>
+          <p className="text-error mb-4">{error || t('settingsLoadFailed')}</p>
           <button
             onClick={() => window.location.reload()}
             className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-opacity-90"
           >
-            Yeniden Dene
+            {t('retry')}
           </button>
         </div>
       </div>
@@ -339,8 +269,8 @@ export const Settings: React.FC = () => {
     <div className="min-h-screen bg-background">
       <div className="max-w-6xl mx-auto px-6 py-8">
         <div className="mb-8 flex items-start justify-between">
-          <h1 className="text-3xl font-bold text-text mb-2">Settings</h1>
-          <p className="text-muted">Configure detection, cameras, and notifications</p>
+          <h1 className="text-3xl font-bold text-text mb-2">{t('settingsTitle')}</h1>
+          <p className="text-muted">{t('settingsSubtitle')}</p>
         </div>
         <div className="flex items-center gap-3 mb-6">
           {/* Export/Import kaldırıldı - kullanıcı karıştırıyor */}
@@ -348,39 +278,8 @@ export const Settings: React.FC = () => {
             onClick={handleReset}
             className="px-4 py-2 bg-error text-white rounded-lg hover:bg-error/90 transition-colors"
           >
-            Reset to Defaults
+            {t('resetDefaults')}
           </button>
-        </div>
-
-        <div className="bg-surface1 border border-border rounded-lg p-6 mb-6">
-          <div className="flex flex-col gap-2 mb-4">
-            <h2 className="text-lg font-semibold text-text">{t('perfPresetsTitle')}</h2>
-            <p className="text-sm text-muted">{t('perfPresetsDesc')}</p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <button
-              onClick={() => applyPerformancePreset('eco')}
-              className="p-4 rounded-lg border border-border bg-surface2 text-left hover:bg-surface2/80 transition-colors"
-            >
-              <div className="font-semibold text-text">{t('perfPresetEcoTitle')}</div>
-              <div className="text-xs text-muted mt-1">{t('perfPresetEcoDesc')}</div>
-            </button>
-            <button
-              onClick={() => applyPerformancePreset('balanced')}
-              className="p-4 rounded-lg border border-border bg-surface2 text-left hover:bg-surface2/80 transition-colors"
-            >
-              <div className="font-semibold text-text">{t('perfPresetBalancedTitle')}</div>
-              <div className="text-xs text-muted mt-1">{t('perfPresetBalancedDesc')}</div>
-            </button>
-            <button
-              onClick={() => applyPerformancePreset('quality')}
-              className="p-4 rounded-lg border border-border bg-surface2 text-left hover:bg-surface2/80 transition-colors"
-            >
-              <div className="font-semibold text-text">{t('perfPresetQualityTitle')}</div>
-              <div className="text-xs text-muted mt-1">{t('perfPresetQualityDesc')}</div>
-            </button>
-          </div>
-          <p className="text-xs text-muted mt-3">{t('perfPresetNote')}</p>
         </div>
 
         <div className="bg-surface1 border border-border rounded-lg p-6">

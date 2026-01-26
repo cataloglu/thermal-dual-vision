@@ -60,7 +60,7 @@ export const ZonesTab: React.FC = () => {
 
   const handleSaveZone = (points: Array<{ x: number; y: number }>) => {
     if (!zoneName) {
-      toast.error(t('zoneName') + ' gerekli')
+      toast.error(t('zoneNameRequired'))
       return
     }
 
@@ -137,7 +137,7 @@ export const ZonesTab: React.FC = () => {
             </div>
             <div className="aspect-video bg-surface2 rounded-lg overflow-hidden">
               {snapshotUrl ? (
-                <img src={snapshotUrl} alt="Snapshot" className="w-full h-full object-cover" />
+                <img src={snapshotUrl} alt={t('snapshot')} className="w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-muted text-sm">
                   {t('loading')}...
@@ -162,7 +162,7 @@ export const ZonesTab: React.FC = () => {
                 type="text"
                 value={zoneName}
                 onChange={(e) => setZoneName(e.target.value)}
-                placeholder="Giriş Yolu"
+                placeholder={t('zoneNamePlaceholder')}
                 className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent"
               />
             </div>
@@ -176,9 +176,9 @@ export const ZonesTab: React.FC = () => {
                 onChange={(e) => setZoneMode(e.target.value as typeof zoneMode)}
                 className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
               >
-                <option value="person">Person</option>
-                <option value="motion">Motion</option>
-                <option value="both">Both</option>
+                <option value="person">{t('zoneModePerson')}</option>
+                <option value="motion">{t('zoneModeMotion')}</option>
+                <option value="both">{t('zoneModeBoth')}</option>
               </select>
             </div>
           </div>

@@ -5,6 +5,7 @@ import React from 'react';
 
 export type TabId = 
   | 'cameras'
+  | 'performance'
   | 'detection'
   | 'motion'
   | 'thermal'
@@ -26,6 +27,7 @@ interface Tab {
 
 const tabs: Tab[] = [
   { id: 'cameras', label: 'Kameralar' },
+  { id: 'performance', label: 'Performans' },
   { id: 'detection', label: 'Algılama' },
   { id: 'thermal', label: 'Termal' },
   { id: 'stream', label: 'Stream' },
@@ -36,7 +38,7 @@ const tabs: Tab[] = [
   { id: 'ai', label: 'AI' },
   { id: 'telegram', label: 'Telegram' },
   { id: 'mqtt', label: 'MQTT' },
-  { id: 'appearance', label: 'Görünüm' },
+  { id: 'appearance', label: 'Dil' },
 ];
 
 interface SettingsTabsProps {

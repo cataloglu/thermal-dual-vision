@@ -46,20 +46,26 @@ export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
 
   const settingsSubItems = [
     { tab: 'cameras', label: t('cameras') },
+    { tab: 'performance', label: t('performance') },
     { tab: 'detection', label: t('detection') },
-    { tab: 'motion', label: 'Motion' },
+    { tab: 'motion', label: t('motion') },
     { tab: 'thermal', label: t('thermal') },
-    { tab: 'stream', label: 'Stream' },
+    { tab: 'stream', label: t('stream') },
     { tab: 'zones', label: t('zones') },
     { tab: 'live', label: t('live') },
     { tab: 'recording', label: t('recording') },
     { tab: 'events', label: t('events') },
-    { tab: 'media', label: 'Media' },
+    { tab: 'media', label: t('media') },
     { tab: 'ai', label: t('ai') },
     { tab: 'telegram', label: t('telegram') },
-    { tab: 'mqtt', label: 'Home Assistant / MQTT' },
+    { tab: 'mqtt', label: t('mqtt') },
     { tab: 'appearance', label: t('appearance') },
   ]
+
+  const activeSettingsTab = useMemo(() => {
+    const params = new URLSearchParams(location.search)
+    return params.get('tab') || 'cameras'
+  }, [location.search])
 
   const statusColors = {
     ok: 'bg-green-500',
@@ -140,7 +146,11 @@ export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
                 <button
                   key={item.tab}
                   onClick={() => navigate(`/settings?tab=${item.tab}`)}
-                  className="w-full text-left px-4 py-2 text-sm rounded-lg text-muted hover:bg-surface2 hover:text-text transition-colors"
+                  className={`w-full text-left px-4 py-2 text-sm rounded-lg transition-colors ${
+                    activeSettingsTab === item.tab
+                      ? 'bg-surface2 text-text border-l-2 border-accent'
+                      : 'text-muted hover:bg-surface2 hover:text-text'
+                  }`}
                 >
                   {item.label}
                 </button>

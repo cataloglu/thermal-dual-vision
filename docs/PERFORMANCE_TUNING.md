@@ -125,23 +125,29 @@ INFERENCE_FPS = 5  # Her frame'i işlemeye gerek yok!
 
 ### 2. RTSP Protocol Ayarları
 
-**OpenCV VideoCapture Ayarları**:
-```python
-import cv2
+**Uygulama Ayarları**:
+- `stream.protocol`: `tcp` (stabil) veya `udp` (düşük gecikme)
+- `stream.buffer_size`: 1–3 arası önerilir (düşük buffer = düşük gecikme)
+- Uygulama, `OPENCV_FFMPEG_CAPTURE_OPTIONS` ile `rtsp_transport` + `discardcorrupt` kullanır.
 
-# TCP kullan (UDP yerine) - frame tearing önler
-rtsp_url = "rtsp://user:pass@192.168.1.100:554/stream?tcp"
-
-cap = cv2.VideoCapture(rtsp_url, cv2.CAP_FFMPEG)
-
-# Buffer size ayarla (latency azaltır)
-cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-
-# Codec ayarla
-cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'H264'))
+**Örnek**:
+```yaml
+stream:
+  protocol: tcp
+  buffer_size: 1
+  reconnect_delay_seconds: 5
+  max_reconnect_attempts: 10
 ```
 
-**Kritik**: `?tcp` parametresi ekleyin! UDP packet loss'tan kaynaklanan artifact'ları önler.
+**Not**: UDP paket kaybı, `h264 decode error` ve `temporal_consistency_failed` loglarını artırır.
+
+#### Stream Stabilite Checklist
+- **H.264** (Baseline/Main) kullanın, H.265 yerine H.264 önerilir.
+- **CBR** bitrate kullanın (VBR dalgalanma yapar).
+- **GOP/I-frame** aralığını 1–2 saniyeye sabitleyin.
+- Kamera FPS’ini 15–25 aralığında tutun.
+- Wi‑Fi yerine kablolu ağ tercih edin.
+- `STREAM` loglarında fail oranı yükseliyorsa `protocol: tcp` ve buffer artırın.
 
 ---
 

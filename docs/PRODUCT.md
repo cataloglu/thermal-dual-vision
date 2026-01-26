@@ -64,7 +64,9 @@
 ### D) Settings
 **Settings altında sekmeler:**
 - **Cameras** (CRUD + test)
+- **Performance** (presets + hızlı ayarlar)
 - **Detection** (model: yolov8n/s-person, confidence, inference FPS)
+- **Motion** (frame-diff pre-filter)
 - **Thermal** (enhancement: CLAHE, preprocessing)
 - **Stream** (protocol: TCP/UDP, buffer size, reconnect)
 - **Zones** (motion/person polygon alanları)
@@ -73,6 +75,8 @@
 - **Events** (cooldown, frame buffer, interval)
 - **AI** (enable toggle + key + model)
 - **Telegram** (enable + token + chat id + test)
+- **MQTT** (HA discovery + event publish)
+- **Language** (dil seçimi, tema sabit)
 
 ### E) Diagnostics
 - /api/health çıktısı

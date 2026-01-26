@@ -530,10 +530,12 @@ class MediaWorker:
             self.MP4_MIN_DURATION,
             min(self.MP4_MAX_DURATION, actual_duration / self.MP4_SPEED_FACTOR),
         )
+        if actual_duration < self.MP4_MIN_DURATION:
+            target_duration = actual_duration
         target_fps = self.MP4_FPS
         target_frame_count = max(1, int(round(target_duration * target_fps)))
         indices = self._select_indices(frame_count, target_frame_count)
-        speed_factor = actual_duration / max(target_duration, 0.1)
+        speed_factor = max(actual_duration / max(target_duration, 0.1), 1.0)
         scale_ref = 1.0
         margin = max(10, int(20 * scale_ref))
         font_large = max(0.6, 1.0 * scale_ref)
