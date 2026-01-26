@@ -22,6 +22,11 @@ if [ -n "$SUPERVISOR_TOKEN" ]; then
         MQTT_PORT=$(echo "$MQTT_INFO" | jq -r '.data.port')
         MQTT_USER=$(echo "$MQTT_INFO" | jq -r '.data.username')
         MQTT_PASS=$(echo "$MQTT_INFO" | jq -r '.data.password')
+
+        # Normalize null/empty values for anonymous connections
+        if [ "$MQTT_HOST" = "null" ] || [ -z "$MQTT_HOST" ]; then MQTT_HOST="core-mosquitto"; fi
+        if [ "$MQTT_USER" = "null" ]; then MQTT_USER=""; fi
+        if [ "$MQTT_PASS" = "null" ]; then MQTT_PASS=""; fi
         
         # Export as ENV variables for Python app
         export MQTT_HOST="$MQTT_HOST"
@@ -47,10 +52,31 @@ try:
         data['mqtt'] = {}
 
     data['mqtt']['enabled'] = True
-    data['mqtt']['host'] = '$MQTT_HOST'
-    data['mqtt']['port'] = int('$MQTT_PORT')
-    data['mqtt']['username'] = '$MQTT_USER'
-    data['mqtt']['password'] = '$MQTT_PASS'
+    host = '$MQTT_HOST'
+    port_raw = '$MQTT_PORT'
+    user = '$MQTT_USER'
+    password = '$MQTT_PASS'
+
+    if not host or host == 'null':
+        host = 'core-mosquitto'
+
+    try:
+        port = int(port_raw)
+    except Exception:
+        port = 1883
+
+    data['mqtt']['host'] = host
+    data['mqtt']['port'] = port
+
+    if user and user != 'null':
+        data['mqtt']['username'] = user
+    else:
+        data['mqtt'].pop('username', None)
+
+    if password and password != 'null':
+        data['mqtt']['password'] = password
+    else:
+        data['mqtt'].pop('password', None)
 
     with open(config_path, 'w') as f:
         json.dump(data, f, indent=2)

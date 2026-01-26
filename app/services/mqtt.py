@@ -19,6 +19,15 @@ class MqttService:
     MQTT Service for Home Assistant Integration.
     """
     
+    @staticmethod
+    def _normalize_credential(value: Optional[str]) -> Optional[str]:
+        if not value:
+            return None
+        normalized = value.strip()
+        if normalized.lower() in {"null", "none"}:
+            return None
+        return normalized
+    
     def __init__(self):
         self.client: Optional[mqtt.Client] = None
         self.settings_service = get_settings_service()
@@ -66,9 +75,12 @@ class MqttService:
         try:
             client_id = f"thermal_vision_{int(time.time())}"
             self.client = mqtt.Client(client_id=client_id, protocol=mqtt.MQTTv311)
+
+            username = self._normalize_credential(config.username)
+            password = self._normalize_credential(config.password)
             
-            if config.username:
-                self.client.username_pw_set(config.username, config.password)
+            if username:
+                self.client.username_pw_set(username, password)
             else:
                 logger.info("Connecting to MQTT anonymously (no username provided)")
             
