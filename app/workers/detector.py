@@ -602,16 +602,19 @@ class DetectorWorker:
                 except Exception as e:
                     logger.debug("Event broadcast skipped: %s", e)
 
-                # MQTT Publish
+                # MQTT Publish (skip person alarm if AI confirmation required)
                 try:
-                    self.mqtt_service.publish_event({
-                        "id": event.id,
-                        "camera_id": event.camera_id,
-                        "timestamp": event.timestamp.isoformat() + "Z",
-                        "confidence": event.confidence,
-                        "event_type": event.event_type,
-                        "summary": event.summary,
-                    })
+                    if not self._ai_requires_confirmation(config):
+                        self.mqtt_service.publish_event({
+                            "id": event.id,
+                            "camera_id": event.camera_id,
+                            "timestamp": event.timestamp.isoformat() + "Z",
+                            "confidence": event.confidence,
+                            "event_type": event.event_type,
+                            "summary": event.summary,
+                            "ai_required": False,
+                            "ai_confirmed": True,
+                        })
                 except Exception as e:
                     logger.error("MQTT publish failed: %s", e)
 
@@ -697,6 +700,34 @@ class DetectorWorker:
         if mean_brightness < 60:
             return max(config.thermal.clahe_clip_limit, 3.0)
         return config.thermal.clahe_clip_limit
+
+    def _ai_requires_confirmation(self, config) -> bool:
+        try:
+            has_key = bool(config.ai.api_key) and config.ai.api_key != "***REDACTED***"
+            return bool(config.ai.enabled and has_key)
+        except Exception:
+            return False
+
+    def _is_ai_confirmed(self, summary: Optional[str]) -> bool:
+        if not summary:
+            return False
+        text = summary.lower()
+        negative_markers = [
+            "insan tespit edilmedi",
+            "no human",
+            "muhtemel yanlış alarm",
+            "muhtemel yanlis alarm",
+            "false alarm",
+        ]
+        if any(marker in text for marker in negative_markers):
+            return False
+        positive_markers = [
+            "kişi tespit edildi",
+            "kisi tespit edildi",
+            "insan tespit edildi",
+            "person detected",
+        ]
+        return any(marker in text for marker in positive_markers)
 
     def _is_motion_active(self, camera: Camera, frame: np.ndarray, config) -> bool:
         motion_settings = dict(config.motion.model_dump())
@@ -895,62 +926,68 @@ class DetectorWorker:
                                 "detection_source": detection_source,
                             },
                         ))
+                    has_key = bool(config.ai.api_key) and config.ai.api_key != "***REDACTED***"
+                    ai_required = self._ai_requires_confirmation(config)
                     if summary:
                         event.summary = summary
                         event.ai_enabled = True
                         event.ai_reason = None
                     elif config.ai.enabled:
-                        has_key = bool(config.ai.api_key) and config.ai.api_key != "***REDACTED***"
                         event.ai_enabled = bool(has_key)
                         event.ai_reason = "no_api_key" if not has_key else "analysis_failed"
                     db.commit()
 
-                    # Re-publish to MQTT with summary
-                    if summary:
-                        try:
-                            self.mqtt_service.publish_event({
-                                "id": event.id,
-                                "camera_id": event.camera_id,
-                                "timestamp": event.timestamp.isoformat() + "Z",
-                                "confidence": event.confidence,
-                                "event_type": event.event_type,
-                                "summary": event.summary,
-                                "ai_enabled": True
-                            })
-                        except Exception as e:
-                            logger.error("MQTT update failed: %s", e)
+                    # Re-publish to MQTT with summary and AI confirmation gate
+                    try:
+                        ai_confirmed = self._is_ai_confirmed(summary) if ai_required else True
+                        self.mqtt_service.publish_event({
+                            "id": event.id,
+                            "camera_id": event.camera_id,
+                            "timestamp": event.timestamp.isoformat() + "Z",
+                            "confidence": event.confidence,
+                            "event_type": event.event_type,
+                            "summary": event.summary,
+                            "ai_enabled": bool(event.ai_enabled),
+                            "ai_required": ai_required,
+                            "ai_confirmed": ai_confirmed,
+                            "ai_reason": event.ai_reason,
+                        }, person_detected=ai_confirmed)
+                    except Exception as e:
+                        logger.error("MQTT update failed: %s", e)
 
                     try:
-                        asyncio.run(
-                            self.telegram_service.send_event_notification(
-                                event={
-                                    "id": event.id,
-                                    "camera_id": event.camera_id,
-                                    "timestamp": event.timestamp.isoformat() + "Z",
-                                    "confidence": event.confidence,
-                                    "summary": event.summary,
-                                },
-                                camera={"id": camera.id, "name": camera.name},
-                                collage_path=collage_path,
-                                mp4_path=mp4_path,
+                        if not ai_required or self._is_ai_confirmed(summary):
+                            asyncio.run(
+                                self.telegram_service.send_event_notification(
+                                    event={
+                                        "id": event.id,
+                                        "camera_id": event.camera_id,
+                                        "timestamp": event.timestamp.isoformat() + "Z",
+                                        "confidence": event.confidence,
+                                        "summary": event.summary,
+                                    },
+                                    camera={"id": camera.id, "name": camera.name},
+                                    collage_path=collage_path,
+                                    mp4_path=mp4_path,
+                                )
                             )
-                        )
                     except RuntimeError:
                         loop = asyncio.new_event_loop()
-                        loop.run_until_complete(
-                            self.telegram_service.send_event_notification(
-                                event={
-                                    "id": event.id,
-                                    "camera_id": event.camera_id,
-                                    "timestamp": event.timestamp.isoformat() + "Z",
-                                    "confidence": event.confidence,
-                                    "summary": event.summary,
-                                },
-                                camera={"id": camera.id, "name": camera.name},
-                                collage_path=collage_path,
-                                mp4_path=mp4_path,
+                        if not ai_required or self._is_ai_confirmed(summary):
+                            loop.run_until_complete(
+                                self.telegram_service.send_event_notification(
+                                    event={
+                                        "id": event.id,
+                                        "camera_id": event.camera_id,
+                                        "timestamp": event.timestamp.isoformat() + "Z",
+                                        "confidence": event.confidence,
+                                        "summary": event.summary,
+                                    },
+                                    camera={"id": camera.id, "name": camera.name},
+                                    collage_path=collage_path,
+                                    mp4_path=mp4_path,
+                                )
                             )
-                        )
                         loop.close()
             except Exception as e:
                 logger.error("Failed to generate media for event %s: %s", event_id, e)

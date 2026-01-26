@@ -6,6 +6,7 @@ import json
 import logging
 import threading
 import time
+from datetime import datetime
 from typing import Any, Dict, Optional
 
 import paho.mqtt.client as mqtt
@@ -32,6 +33,7 @@ class MqttService:
         self.client: Optional[mqtt.Client] = None
         self.settings_service = get_settings_service()
         self.connected = False
+        self.availability_topic: Optional[str] = None
         self._lock = threading.Lock()
         self._loop_thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
@@ -76,6 +78,9 @@ class MqttService:
             client_id = f"thermal_vision_{int(time.time())}"
             self.client = mqtt.Client(client_id=client_id, protocol=mqtt.MQTTv311)
 
+            self.availability_topic = f"{config.topic_prefix}/availability"
+            self.client.will_set(self.availability_topic, "offline", retain=True)
+
             username = self._normalize_credential(config.username)
             password = self._normalize_credential(config.password)
             
@@ -100,6 +105,8 @@ class MqttService:
         if rc == 0:
             logger.info("Connected to MQTT broker")
             self.connected = True
+            if self.availability_topic:
+                self.client.publish(self.availability_topic, "online", retain=True)
             # Publish discovery config on connect
             self.publish_discovery()
         else:
@@ -154,6 +161,12 @@ class MqttService:
         config = self.settings_service.load_config()
         mqtt_config = config.mqtt
         prefix = mqtt_config.topic_prefix
+        availability_topic = self.availability_topic or f"{prefix}/availability"
+        availability_fields = {
+            "availability_topic": availability_topic,
+            "payload_available": "online",
+            "payload_not_available": "offline",
+        }
 
         # Device info
         device_info = {
@@ -172,8 +185,11 @@ class MqttService:
                 "name": "System Status",
                 "device_class": "connectivity",
                 "state_topic": f"{prefix}/status",
+                "payload_on": "ON",
+                "payload_off": "OFF",
                 "unique_id": "tdv_system_status",
-                "device": device_info
+                "device": device_info,
+                **availability_fields,
             }
         )
 
@@ -182,6 +198,7 @@ class MqttService:
         # without circular imports if not careful. Better to pass cameras or fetch from DB.
         # For simplicity, we'll import here.
         from app.db.session import get_session
+        from app.db.models import Event
         from app.services.camera_crud import get_camera_crud_service
         
         db = next(get_session())
@@ -200,9 +217,12 @@ class MqttService:
                         "name": f"{cam.name} Person Detected",
                         "device_class": "motion",
                         "state_topic": f"{prefix}/camera/{cam.id}/person",
+                        "payload_on": "ON",
+                        "payload_off": "OFF",
+                        "off_delay": 30,
                         "unique_id": f"tdv_person_{safe_id}",
                         "device": device_info,
-                        "expire_after": 30  # Auto-off after 30s if no update
+                        **availability_fields,
                     }
                 )
 
@@ -214,11 +234,56 @@ class MqttService:
                         "name": f"{cam.name} Last Event",
                         "icon": "mdi:text-box-outline",
                         "state_topic": f"{prefix}/camera/{cam.id}/event",
-                        "value_template": "{{ value_json.summary | default('No summary') }}",
+                        "value_template": "{{ value_json.summary | default('No summary', true) }}",
                         "json_attributes_topic": f"{prefix}/camera/{cam.id}/event",
                         "unique_id": f"tdv_last_event_{safe_id}",
-                        "device": device_info
+                        "device": device_info,
+                        **availability_fields,
                     }
+                )
+
+            # Publish initial system status and camera defaults
+            self.client.publish(f"{prefix}/status", "ON", retain=True)
+            for cam in cameras:
+                self.client.publish(
+                    f"{prefix}/camera/{cam.id}/person",
+                    "OFF",
+                    retain=True,
+                )
+                latest = (
+                    db.query(Event)
+                    .filter_by(camera_id=cam.id)
+                    .order_by(Event.timestamp.desc())
+                    .first()
+                )
+                if latest:
+                    summary = latest.summary or "No summary"
+                    payload = json.dumps(
+                        {
+                            "id": latest.id,
+                            "camera_id": latest.camera_id,
+                            "timestamp": latest.timestamp.isoformat() + "Z",
+                            "confidence": latest.confidence,
+                            "event_type": latest.event_type,
+                            "summary": summary,
+                        },
+                        default=str,
+                    )
+                else:
+                    payload = json.dumps(
+                        {
+                            "id": None,
+                            "camera_id": cam.id,
+                            "timestamp": datetime.utcnow().isoformat() + "Z",
+                            "confidence": 0.0,
+                            "event_type": "none",
+                            "summary": "Henüz olay yok",
+                        }
+                    )
+                self.client.publish(
+                    f"{prefix}/camera/{cam.id}/event",
+                    payload,
+                    retain=True,
                 )
 
         except Exception as e:
@@ -226,20 +291,18 @@ class MqttService:
         finally:
             db.close()
 
-        # Publish initial system status
-        self.client.publish(f"{prefix}/status", "ON", retain=True)
-
     def _publish_ha_config(self, component: str, object_id: str, config: Dict[str, Any]):
         """Helper to publish HA discovery config."""
         discovery_topic = f"homeassistant/{component}/tdv/{object_id}/config"
         self.client.publish(discovery_topic, json.dumps(config), retain=True)
 
-    def publish_event(self, event_data: Dict[str, Any]):
+    def publish_event(self, event_data: Dict[str, Any], person_detected: bool = True):
         """
         Publish detection event.
         
         Args:
             event_data: Dict with event details (id, camera_id, summary, etc.)
+            person_detected: Whether to set person binary sensor ON
         """
         if not self.client or not self.connected:
             return
@@ -248,13 +311,29 @@ class MqttService:
             config = self.settings_service.load_config().mqtt
             prefix = config.topic_prefix
             camera_id = event_data.get("camera_id")
+            if not camera_id:
+                return
+
+            if not event_data.get("summary"):
+                if event_data.get("ai_required"):
+                    reason = event_data.get("ai_reason")
+                    if reason == "analysis_failed":
+                        summary = "AI doğrulaması başarısız"
+                    elif reason == "no_api_key":
+                        summary = "AI anahtarı yok"
+                    else:
+                        summary = "AI doğrulaması bekleniyor"
+                else:
+                    summary = "No summary"
+                event_data = {**event_data, "summary": summary}
 
             # 1. Publish binary sensor state ON
-            self.client.publish(f"{prefix}/camera/{camera_id}/person", "ON")
+            if person_detected:
+                self.client.publish(f"{prefix}/camera/{camera_id}/person", "ON")
 
             # 2. Publish event details (JSON)
             payload = json.dumps(event_data, default=str)
-            self.client.publish(f"{prefix}/camera/{camera_id}/event", payload)
+            self.client.publish(f"{prefix}/camera/{camera_id}/event", payload, retain=True)
             
             # 3. Publish global event feed
             self.client.publish(f"{prefix}/events", payload)
