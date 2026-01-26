@@ -311,41 +311,6 @@ async def reset_settings() -> Dict[str, Any]:
             },
         )
 
-@app.post("/api/settings/reset")
-async def reset_settings() -> Dict[str, Any]:
-    """
-    Reset settings to defaults.
-    
-    Returns:
-        Dict with default settings
-        
-    Raises:
-        HTTPException: 500 if reset fails
-    """
-    try:
-        # Delete config file to force reload of defaults
-        import os
-        config_path = "data/config.json"
-        if os.path.exists(config_path):
-            os.remove(config_path)
-        
-        # Get fresh default config
-        default_settings = settings_service.get_settings()
-        logger.info("Settings reset to defaults")
-        return default_settings
-        
-    except Exception as e:
-        logger.error(f"Failed to reset settings: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error": True,
-                "code": "INTERNAL_ERROR",
-                "message": f"Failed to reset settings: {str(e)}"
-            }
-        )
-
-
 @app.put("/api/settings")
 async def update_settings(partial_data: Dict[str, Any]) -> Dict[str, Any]:
     """

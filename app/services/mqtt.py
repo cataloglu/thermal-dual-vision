@@ -26,6 +26,8 @@ class MqttService:
         self._lock = threading.Lock()
         self._loop_thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
+        self._reconnect_lock = threading.Lock()
+        self._reconnecting = False
         
         logger.info("MqttService initialized")
 
@@ -72,6 +74,7 @@ class MqttService:
             
             self.client.on_connect = self._on_connect
             self.client.on_disconnect = self._on_disconnect
+            self.client.reconnect_delay_set(min_delay=1, max_delay=30)
             
             logger.info(f"Connecting to MQTT broker at {config.host}:{config.port}...")
             self.client.connect(config.host, config.port, 60)
@@ -94,6 +97,37 @@ class MqttService:
     def _on_disconnect(self, client, userdata, rc):
         logger.info(f"Disconnected from MQTT broker (rc={rc})")
         self.connected = False
+        if self._stop_event.is_set():
+            return
+        if not self.client:
+            return
+        self._start_reconnect()
+
+    def _start_reconnect(self) -> None:
+        """Start a reconnect loop if not already running."""
+        with self._reconnect_lock:
+            if self._reconnecting:
+                return
+            self._reconnecting = True
+
+        def _reconnect_loop():
+            delay = 1
+            try:
+                while not self._stop_event.is_set():
+                    try:
+                        logger.info("Attempting MQTT reconnect...")
+                        if self.client:
+                            self.client.reconnect()
+                            return
+                    except Exception as exc:
+                        logger.warning(f"MQTT reconnect failed: {exc}")
+                        time.sleep(delay)
+                        delay = min(delay * 2, 30)
+            finally:
+                with self._reconnect_lock:
+                    self._reconnecting = False
+
+        threading.Thread(target=_reconnect_loop, daemon=True).start()
 
     def publish_discovery(self):
         """

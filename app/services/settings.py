@@ -37,8 +37,7 @@ class SettingsService:
     CONFIG_FILE = DATA_DIR / "config.json"
     
     # Secrets to mask in responses
-    # NOTE: bot_token is left unmasked for easier testing in UI.
-    SECRET_FIELDS = ["api_key"]
+    SECRET_FIELDS = ["api_key", "bot_token"]
     MASKED_VALUE = "***REDACTED***"
     
     def __new__(cls) -> "SettingsService":

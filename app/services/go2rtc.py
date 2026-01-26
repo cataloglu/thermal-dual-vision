@@ -64,6 +64,36 @@ class Go2RTCService:
         except Exception as e:
             logger.error(f"Failed to add camera to go2rtc: {e}", exc_info=True)
             return False
+
+    def remove_camera(self, camera_id: str) -> bool:
+        """Remove camera from go2rtc streams."""
+        if not self.enabled:
+            logger.debug("go2rtc not enabled, skipping camera remove")
+            return False
+
+        try:
+            if not self.config_path.exists():
+                return True
+
+            with open(self.config_path, 'r') as f:
+                config = yaml.safe_load(f) or {}
+
+            streams = config.get('streams') or {}
+            if camera_id not in streams:
+                return True
+
+            del streams[camera_id]
+            config['streams'] = streams
+
+            with open(self.config_path, 'w') as f:
+                yaml.dump(config, f, default_flow_style=False)
+
+            logger.info(f"Camera {camera_id} removed from go2rtc successfully")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to remove camera from go2rtc: {e}", exc_info=True)
+            return False
             
     def sync_all_cameras(self, cameras: list) -> None:
         """Sync all cameras to go2rtc."""
