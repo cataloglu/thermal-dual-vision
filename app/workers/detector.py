@@ -34,6 +34,7 @@ from app.services.telegram import get_telegram_service
 from app.services.time_utils import get_detection_source
 from app.services.websocket import get_websocket_manager
 from app.services.mqtt import get_mqtt_service
+from app.services.go2rtc import get_go2rtc_service
 
 
 logger = logging.getLogger(__name__)
@@ -62,6 +63,7 @@ class DetectorWorker:
         self.websocket_manager = get_websocket_manager()
         self.telegram_service = get_telegram_service()
         self.mqtt_service = get_mqtt_service()
+        self.go2rtc_service = get_go2rtc_service()
         
         # Per-camera state
         self.frame_buffers: Dict[str, deque] = defaultdict(deque)
@@ -258,17 +260,15 @@ class DetectorWorker:
             else:
                 rtsp_url = camera.rtsp_url_color or camera.rtsp_url
             
-            if not rtsp_url:
+            rtsp_urls = self._get_detection_rtsp_urls(camera_id, rtsp_url)
+            if not rtsp_urls:
                 logger.error(f"No RTSP URL for camera {camera_id}")
                 return
             
-            # Use configured RTSP URL directly (no forced tcp)
-            # rtsp_url = self.camera_service.force_tcp_protocol(rtsp_url)
-            
-            logger.info(f"Starting detection for camera {camera_id}: {rtsp_url}")
+            logger.info("Starting detection for camera %s: %s", camera_id, rtsp_urls[0])
             
             # Open video capture with codec fallback
-            cap = self._open_capture(rtsp_url, config, camera_id)
+            cap = self._open_capture_with_fallbacks(rtsp_urls, config, camera_id)
             
             if not cap or not cap.isOpened():
                 logger.error(f"Failed to open camera {camera_id}")
@@ -298,7 +298,7 @@ class DetectorWorker:
                         protocol=protocol,
                     )
                     if cap is None or not cap.isOpened():
-                        cap = self._open_capture(rtsp_url, config, camera_id)
+                        cap = self._open_capture_with_fallbacks(rtsp_urls, config, camera_id)
                         if cap is None or not cap.isOpened():
                             open_failures += 1
                             if open_failures >= max(config.stream.max_reconnect_attempts, 1):
@@ -751,6 +751,35 @@ class DetectorWorker:
         
         logger.error(f"Failed to open camera: {rtsp_url}")
         return None
+
+    def _open_capture_with_fallbacks(
+        self,
+        rtsp_urls: List[str],
+        config,
+        camera_id: Optional[str] = None,
+    ) -> Optional[cv2.VideoCapture]:
+        last_url = None
+        for url in rtsp_urls:
+            last_url = url
+            cap = self._open_capture(url, config, camera_id)
+            if cap and cap.isOpened():
+                if len(rtsp_urls) > 1 and url != rtsp_urls[0]:
+                    logger.info("Fallback stream selected for camera %s: %s", camera_id, url)
+                return cap
+        if last_url:
+            logger.error("All RTSP sources failed for camera %s", camera_id)
+        return None
+
+    def _get_detection_rtsp_urls(self, camera_id: str, primary_url: Optional[str]) -> List[str]:
+        urls: List[str] = []
+        if self.go2rtc_service and self.go2rtc_service.enabled:
+            rtsp_base = os.getenv("GO2RTC_RTSP_URL", "rtsp://127.0.0.1:8554")
+            restream_url = f"{rtsp_base}/{camera_id}"
+            if primary_url and restream_url != primary_url:
+                urls.append(restream_url)
+        if primary_url:
+            urls.append(primary_url)
+        return urls
 
     def _get_adaptive_clahe_clip(self, frame: np.ndarray, config) -> float:
         if len(frame.shape) == 3:
