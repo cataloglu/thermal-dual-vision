@@ -1,5 +1,5 @@
 name: "Thermal Dual Vision"
-version: "2.1.74"
+version: "2.1.75"
 slug: "thermal_dual_vision"
 description: "AI supported thermal & color person detection system with MQTT Auto-Discovery."
 url: "https://github.com/cataloglu/thermal-dual-vision"
@@ -8,6 +8,7 @@ arch:
   - amd64
 startup: application
 boot: auto
+hassio_api: true
 map:
   - type: addon_config
     path: /app/data

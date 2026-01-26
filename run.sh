@@ -86,6 +86,7 @@ except Exception as e:
 "
     else:
         echo "MQTT Service not available via Supervisor."
+        echo "Supervisor response: $MQTT_INFO"
     fi
 fi
 # ---------------------------------------------------------

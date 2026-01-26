@@ -109,6 +109,8 @@ class MqttService:
     def _on_disconnect(self, client, userdata, rc):
         logger.info(f"Disconnected from MQTT broker (rc={rc})")
         self.connected = False
+        if rc == 5:
+            logger.warning("MQTT auth failed (rc=5). If using HA Mosquitto, check credentials or allow anonymous.")
         if self._stop_event.is_set():
             return
         if not self.client:
