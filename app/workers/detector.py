@@ -274,6 +274,7 @@ class DetectorWorker:
             # FPS control
             target_fps = config.detection.inference_fps
             frame_delay = 1.0 / target_fps
+            reader_delay = frame_delay
             last_inference_time = 0
             buffer_size = max(config.event.frame_buffer_size, 10)
             last_cpu_check = 0.0
@@ -315,6 +316,9 @@ class DetectorWorker:
                             latest_frame["frame"] = frame
                         with self.latest_frame_locks[camera_id]:
                             self.latest_frames[camera_id] = frame
+
+                        if reader_delay > 0:
+                            time.sleep(reader_delay)
                             
                     except Exception as e:
                         logger.error(f"Reader loop error: {e}")
@@ -343,6 +347,7 @@ class DetectorWorker:
                         elif cpu_percent < 40:
                             target_fps = min(7, config.detection.inference_fps + 2)
                         frame_delay = 1.0 / max(target_fps, 1)
+                        reader_delay = frame_delay
                         last_cpu_check = current_time
                     except Exception:
                         last_cpu_check = current_time
@@ -382,6 +387,7 @@ class DetectorWorker:
                 detections = self.inference_service.infer(
                     preprocessed,
                     confidence_threshold=config.detection.confidence_threshold,
+                    inference_resolution=tuple(config.detection.inference_resolution),
                 )
                 
                 # Filter by aspect ratio
@@ -716,6 +722,15 @@ class DetectorWorker:
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         else:
             gray = frame.copy()
+
+        # Downscale for motion detection to reduce CPU
+        motion_width = 640
+        original_h, original_w = gray.shape[:2]
+        if original_w > motion_width:
+            scale = motion_width / float(original_w)
+            target_h = max(1, int(original_h * scale))
+            gray = cv2.resize(gray, (motion_width, target_h))
+            min_area = max(1, int(min_area * scale * scale))
         gray = cv2.GaussianBlur(gray, (5, 5), 0)
 
         prev = state.get("prev_frame")

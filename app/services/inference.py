@@ -159,6 +159,7 @@ class InferenceService:
         self,
         frame: np.ndarray,
         confidence_threshold: float = 0.25,
+        inference_resolution: Optional[Tuple[int, int]] = None,
     ) -> List[Dict]:
         """
         Run YOLOv8 inference on frame.
@@ -176,7 +177,11 @@ class InferenceService:
             raise RuntimeError("Model not loaded. Call load_model() first.")
         
         # Run inference
-        results = self.model(frame, conf=confidence_threshold, verbose=False)
+        inference_args = {"conf": confidence_threshold, "verbose": False}
+        if inference_resolution and len(inference_resolution) == 2:
+            inference_args["imgsz"] = list(inference_resolution)
+
+        results = self.model(frame, **inference_args)
         
         # Extract detections
         detections = []
