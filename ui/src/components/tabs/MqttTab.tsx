@@ -3,6 +3,7 @@ import { LoadingState } from '../LoadingState';
 import { useTranslation } from 'react-i18next';
 
 export function MqttTab() {
+  const MASKED_VALUE = '***REDACTED***'
   // Fix: use saveSettings instead of updateSettings
   const { settings, saveSettings, loading } = useSettings();
   const { t } = useTranslation();
@@ -17,6 +18,10 @@ export function MqttTab() {
       }
     });
   };
+
+  const hasPassword = Boolean(settings.mqtt.password)
+  const passwordValue =
+    settings.mqtt.password === MASKED_VALUE ? '' : settings.mqtt.password || ''
 
   return (
     <div className="space-y-6">
@@ -92,9 +97,9 @@ export function MqttTab() {
               </label>
               <input
                 type="password"
-                value={settings.mqtt.password || ''}
+                value={passwordValue}
                 onChange={(e) => handleMqttChange('password', e.target.value)}
-                placeholder={settings.mqtt.password ? '******' : ''}
+                placeholder={hasPassword ? '******' : ''}
                 className="w-full bg-background border border-border rounded px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>

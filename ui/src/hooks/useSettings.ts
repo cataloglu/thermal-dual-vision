@@ -16,6 +16,13 @@ const mergeMaskedSecrets = (data: Settings, updates: Partial<Settings>) => {
   if (updates.telegram?.bot_token && data.telegram?.bot_token === MASKED_VALUE) {
     merged.telegram = { ...data.telegram, bot_token: updates.telegram.bot_token }
   }
+  if (
+    updates.mqtt?.password &&
+    updates.mqtt.password !== MASKED_VALUE &&
+    data.mqtt?.password === MASKED_VALUE
+  ) {
+    merged.mqtt = { ...data.mqtt, password: updates.mqtt.password }
+  }
   return merged
 }
 

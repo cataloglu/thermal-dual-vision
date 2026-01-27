@@ -1,5 +1,5 @@
 name: "Thermal Dual Vision"
-version: "2.1.89"
+version: "2.1.92"
 slug: "thermal_dual_vision"
 description: "AI supported thermal & color person detection system with MQTT Auto-Discovery."
 url: "https://github.com/cataloglu/thermal-dual-vision"
@@ -35,3 +35,7 @@ schema:
 # Request MQTT configuration from Supervisor
 services:
   - "mqtt:need"
+
+# Verification checklist:
+# - Confirm detection/live logs show expected go2rtc restream source selection.
+# - Use ffprobe on a recent MP4 to confirm duration/speed looks correct.

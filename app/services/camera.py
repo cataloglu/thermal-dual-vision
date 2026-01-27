@@ -13,6 +13,7 @@ from typing import Dict, Optional
 import cv2
 import numpy as np
 
+from app.utils.rtsp import redact_rtsp_url, validate_rtsp_url
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +64,19 @@ class CameraService:
             # Force TCP protocol (Disabled for compatibility)
         # url = self.force_tcp_protocol(url)
         
-        logger.info(f"Testing RTSP connection: {url}")
+        try:
+            validate_rtsp_url(url)
+        except ValueError as exc:
+            logger.warning("Invalid RTSP URL provided: %s", redact_rtsp_url(url))
+            return {
+                "success": False,
+                "snapshot_base64": None,
+                "latency_ms": None,
+                "error_reason": str(exc),
+            }
+
+        safe_url = redact_rtsp_url(url)
+        logger.info(f"Testing RTSP connection: {safe_url}")
         
         # Retry loop
         for attempt in range(self.MAX_RETRY_ATTEMPTS):
@@ -113,7 +126,7 @@ class CameraService:
                 # Clean up
                 cap.release()
                 
-                logger.info(f"RTSP connection successful: {url} (latency: {latency_ms}ms)")
+                logger.info(f"RTSP connection successful: {safe_url} (latency: {latency_ms}ms)")
                 
                 return {
                     "success": True,
@@ -125,7 +138,7 @@ class CameraService:
             except Exception as e:
                 logger.warning(
                     f"RTSP connection attempt {attempt + 1}/{self.MAX_RETRY_ATTEMPTS} failed: "
-                    f"{url} - {str(e)}"
+                    f"{safe_url} - {str(e)}"
                 )
                 
                 # Release capture if it was opened
@@ -143,7 +156,7 @@ class CameraService:
                 else:
                     # Last attempt failed
                     error_msg = f"Connection failed after {self.MAX_RETRY_ATTEMPTS} attempts: {str(e)}"
-                    logger.error(f"RTSP connection failed: {url} - {error_msg}")
+                    logger.error(f"RTSP connection failed: {safe_url} - {error_msg}")
                     
                     return {
                         "success": False,

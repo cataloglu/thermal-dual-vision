@@ -12,7 +12,6 @@ import logging
 import os
 import shutil
 import subprocess
-import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Dict, Optional
@@ -46,12 +45,13 @@ class MediaWorker:
     GIF_QUALITY = 85
     
     # MP4 settings
-    MP4_TARGET_SIZE = (1280, 720)
+    MP4_MAX_SIZE = (1280, 720)
     MP4_FPS = 12
+    MP4_MAX_OUTPUT_FPS = 20
     MP4_CODECS = ("avc1", "H264", "mp4v")
     MP4_CRF = 18
     MP4_PRESET = "medium"
-    MP4_MIN_DURATION = 2.0
+    MP4_MIN_DURATION = 0.5
     MP4_MAX_DURATION = 12.0
     MP4_SPEED_FACTOR = 4.0
     MP4_MIN_OUTPUT_FPS = 6
@@ -66,10 +66,28 @@ class MediaWorker:
         self.MEDIA_DIR.mkdir(parents=True, exist_ok=True)
         logger.info("MediaWorker initialized")
 
-    def _get_mp4_layout(self, frame: np.ndarray) -> tuple[float, int, int, int, int]:
+    def _get_mp4_target_size(self, frame: np.ndarray) -> tuple[int, int]:
+        height, width = frame.shape[:2]
+        max_w, max_h = self.MP4_MAX_SIZE
+        if width <= max_w and height <= max_h:
+            target_w = max(2, width - (width % 2))
+            target_h = max(2, height - (height % 2))
+            return target_w, target_h
+        scale = min(max_w / width, max_h / height)
+        target_w = max(2, int(round(width * scale)))
+        target_h = max(2, int(round(height * scale)))
+        target_w -= target_w % 2
+        target_h -= target_h % 2
+        return target_w, target_h
+
+    def _get_mp4_layout(
+        self,
+        frame: np.ndarray,
+        target_size: tuple[int, int],
+    ) -> tuple[float, int, int, int, int]:
         """Calculate scale and padding for MP4 frames."""
         height, width = frame.shape[:2]
-        target_w, target_h = self.MP4_TARGET_SIZE
+        target_w, target_h = target_size
         scale = min(target_w / width, target_h / height)
         resized_w = max(2, int(round(width * scale)))
         resized_h = max(2, int(round(height * scale)))
@@ -87,11 +105,12 @@ class MediaWorker:
         x_offset: int,
         y_offset: int,
         scale: float,
+        target_size: tuple[int, int],
     ) -> np.ndarray:
         """Resize a frame and pad to target size."""
         interpolation = cv2.INTER_LANCZOS4 if scale > 1 else cv2.INTER_AREA
         resized = cv2.resize(frame, (resized_w, resized_h), interpolation=interpolation)
-        canvas = np.zeros((self.MP4_TARGET_SIZE[1], self.MP4_TARGET_SIZE[0], 3), dtype=np.uint8)
+        canvas = np.zeros((target_size[1], target_size[0], 3), dtype=np.uint8)
         canvas[y_offset:y_offset + resized_h, x_offset:x_offset + resized_w] = resized
         return canvas
 
@@ -126,48 +145,75 @@ class MediaWorker:
             writer.release()
         return None
 
-    def _encode_mp4_ffmpeg(self, frames: List[np.ndarray], output_path: str, fps: int) -> bool:
+    def _encode_mp4_ffmpeg(
+        self,
+        frames: List[np.ndarray],
+        output_path: str,
+        fps: int,
+        size: tuple[int, int],
+    ) -> bool:
         """Encode MP4 using ffmpeg for better quality."""
         ffmpeg = shutil.which("ffmpeg")
         if not ffmpeg:
             return False
         try:
-            with tempfile.TemporaryDirectory() as tmpdir:
-                for idx, frame in enumerate(frames):
-                    frame_path = os.path.join(tmpdir, f"frame_{idx:04d}.jpg")
-                    cv2.imwrite(frame_path, frame, [cv2.IMWRITE_JPEG_QUALITY, 95])
-                cmd = [
-                    ffmpeg,
-                    "-y",
-                    "-framerate",
-                    str(fps),
-                    "-i",
-                    os.path.join(tmpdir, "frame_%04d.jpg"),
-                    "-c:v",
-                    "libx264",
-                    "-preset",
-                    self.MP4_PRESET,
-                    "-crf",
-                    str(self.MP4_CRF),
-                    "-pix_fmt",
-                    "yuv420p",
-                    "-movflags",
-                    "+faststart",
-                    output_path,
-                ]
-                result = subprocess.run(cmd, capture_output=True, check=False)
-                if result.returncode != 0:
-                    stderr = result.stderr.decode(errors="ignore")
-                    logger.warning("FFmpeg encode failed: %s", stderr.strip())
-                    return False
+            width, height = size
+            cmd = [
+                ffmpeg,
+                "-y",
+                "-f",
+                "rawvideo",
+                "-pix_fmt",
+                "bgr24",
+                "-s",
+                f"{width}x{height}",
+                "-r",
+                str(fps),
+                "-i",
+                "pipe:0",
+                "-c:v",
+                "libx264",
+                "-preset",
+                self.MP4_PRESET,
+                "-crf",
+                str(self.MP4_CRF),
+                "-pix_fmt",
+                "yuv420p",
+                "-movflags",
+                "+faststart",
+                output_path,
+            ]
+            proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            try:
+                for frame in frames:
+                    if frame is None:
+                        continue
+                    if frame.shape[1] != width or frame.shape[0] != height:
+                        frame = cv2.resize(frame, (width, height), interpolation=cv2.INTER_AREA)
+                    proc.stdin.write(frame.tobytes())
+                proc.stdin.close()
+                stdout, stderr = proc.communicate()
+            finally:
+                if proc.stdin and not proc.stdin.closed:
+                    proc.stdin.close()
+            if proc.returncode != 0:
+                error_text = stderr.decode(errors="ignore").strip()
+                logger.warning("FFmpeg encode failed: %s", error_text)
+                return False
             return True
         except Exception as exc:
             logger.warning("FFmpeg encode error: %s", exc)
             return False
 
-    def _encode_mp4_opencv(self, frames: List[np.ndarray], output_path: str, fps: int) -> None:
+    def _encode_mp4_opencv(
+        self,
+        frames: List[np.ndarray],
+        output_path: str,
+        fps: int,
+        size: tuple[int, int],
+    ) -> None:
         """Fallback MP4 encoder using OpenCV."""
-        out = self._open_video_writer(output_path, self.MP4_TARGET_SIZE, fps)
+        out = self._open_video_writer(output_path, size, fps)
         if out is None:
             logger.error("Failed to open MP4 writer: %s", output_path)
             return
@@ -504,7 +550,7 @@ class MediaWorker:
         """
         Create timelapse MP4 with detection boxes.
         
-        Better than Scrypted: 720p upscale, detection boxes!
+        Balanced MP4 quality with detection overlays.
         
         Args:
             frames: List of frames
@@ -519,7 +565,8 @@ class MediaWorker:
         if len(frames) == 0:
             raise ValueError("Need at least 1 frame for MP4")
         
-        scale, resized_w, resized_h, x_offset, y_offset = self._get_mp4_layout(frames[0])
+        target_size = self._get_mp4_target_size(frames[0])
+        scale, resized_w, resized_h, x_offset, y_offset = self._get_mp4_layout(frames[0], target_size)
         frame_count = len(frames)
         actual_duration = None
         if timestamps and len(timestamps) == frame_count:
@@ -527,28 +574,29 @@ class MediaWorker:
         if not actual_duration:
             actual_duration = frame_count / max(self.MP4_FPS, 1)
 
+        min_duration = min(self.MP4_MIN_DURATION, actual_duration / 2) if actual_duration else self.MP4_MIN_DURATION
         target_duration = max(
-            self.MP4_MIN_DURATION,
+            min_duration,
             min(self.MP4_MAX_DURATION, actual_duration / self.MP4_SPEED_FACTOR),
         )
-        if actual_duration < self.MP4_MIN_DURATION:
-            target_duration = actual_duration
         if frame_count > 0:
             max_duration_for_frames = frame_count / max(self.MP4_MIN_OUTPUT_FPS, 1)
             if max_duration_for_frames > 0:
                 target_duration = min(target_duration, max_duration_for_frames)
+        target_duration = min(target_duration, actual_duration)
 
-        target_fps = min(self.MP4_FPS, frame_count / max(target_duration, 0.1)) if frame_count > 0 else self.MP4_FPS
-        target_fps = max(1, target_fps)
-        target_frame_count = max(1, int(round(target_duration * target_fps)))
+        target_fps = min(self.MP4_MAX_OUTPUT_FPS, frame_count / max(target_duration, 0.1)) if frame_count > 0 else self.MP4_FPS
+        target_fps = max(1.0, target_fps)
+        target_fps_int = max(1, int(round(target_fps)))
+        target_frame_count = max(1, int(round(target_duration * target_fps_int)))
         target_frame_count = min(target_frame_count, frame_count)
         indices = self._select_indices(frame_count, target_frame_count)
         speed_factor = max(actual_duration / max(target_duration, 0.1), 1.0)
-        scale_ref = 1.0
-        margin = max(10, int(20 * scale_ref))
-        font_large = max(0.6, 1.0 * scale_ref)
-        font_medium = max(0.5, 0.8 * scale_ref)
-        font_small = max(0.5, 0.7 * scale_ref)
+        scale_ref = min(target_size[0] / 1280, target_size[1] / 720)
+        margin = max(8, int(16 * scale_ref))
+        font_large = max(0.5, 1.0 * scale_ref)
+        font_medium = max(0.45, 0.8 * scale_ref)
+        font_small = max(0.45, 0.7 * scale_ref)
         text_thickness = max(1, int(2 * scale_ref))
 
         processed_frames: List[np.ndarray] = []
@@ -561,6 +609,7 @@ class MediaWorker:
                 x_offset,
                 y_offset,
                 scale,
+                target_size,
             )
 
             # Draw detection box if available
@@ -596,7 +645,7 @@ class MediaWorker:
                 if timestamps and len(timestamps) == frame_count:
                     frame_time = datetime.fromtimestamp(timestamps[frame_idx])
                 else:
-                    frame_time = timestamp + timedelta(seconds=out_idx / target_fps)
+                    frame_time = timestamp + timedelta(seconds=out_idx / target_fps_int)
                 cv2.putText(
                     img,
                     frame_time.strftime("%H:%M:%S.%f")[:-3],
@@ -617,7 +666,7 @@ class MediaWorker:
                 cv2.putText(
                     img,
                     camera_name,
-                    (self.MP4_TARGET_SIZE[0] - name_w - margin, max(margin, name_h + margin // 2)),
+                    (target_size[0] - name_w - margin, max(margin, name_h + margin // 2)),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     font_medium,
                     self.COLOR_WHITE,
@@ -634,7 +683,7 @@ class MediaWorker:
             cv2.putText(
                 img,
                 speed_text,
-                (self.MP4_TARGET_SIZE[0] - speed_w - margin, self.MP4_TARGET_SIZE[1] - margin),
+                (target_size[0] - speed_w - margin, target_size[1] - margin),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 font_small,
                 self.COLOR_WHITE,
@@ -643,10 +692,18 @@ class MediaWorker:
 
             processed_frames.append(img)
 
-        if not self._encode_mp4_ffmpeg(processed_frames, output_path, target_fps):
-            self._encode_mp4_opencv(processed_frames, output_path, target_fps)
-        
-        logger.info(f"Timelapse MP4 created: {output_path}")
+        if not self._encode_mp4_ffmpeg(processed_frames, output_path, target_fps_int, target_size):
+            self._encode_mp4_opencv(processed_frames, output_path, target_fps_int, target_size)
+
+        logger.info(
+            "Timelapse MP4 created: %s size=%sx%s fps=%s duration=%.2fs speed=%.1fx",
+            output_path,
+            target_size[0],
+            target_size[1],
+            target_fps_int,
+            target_duration,
+            speed_factor,
+        )
         return output_path
 
 

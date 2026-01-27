@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 from typing import List
 
+from app.utils.rtsp import redact_rtsp_urls_in_text
 
 logger = logging.getLogger(__name__)
 
@@ -56,8 +57,8 @@ class LogsService:
             # Get last N lines
             log_lines = all_lines[-lines:] if len(all_lines) > lines else all_lines
             
-            # Strip newlines
-            log_lines = [line.rstrip('\n') for line in log_lines]
+            # Strip newlines and redact RTSP credentials
+            log_lines = [redact_rtsp_urls_in_text(line.rstrip('\n')) for line in log_lines]
             
             logger.debug(f"Retrieved {len(log_lines)} log lines")
             return log_lines

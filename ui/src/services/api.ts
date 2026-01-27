@@ -8,11 +8,12 @@ const resolveIngressApiBase = () => {
   const path = window.location.pathname || '';
   const cleanPath = path.replace(/\/index\.html$/, '').replace(/\/+$/, '');
 
-  if (!cleanPath || cleanPath === '/') {
-    return '/api';
+  const ingressMatch = cleanPath.match(/(\/api\/hassio_ingress\/[^/]+)/);
+  if (ingressMatch) {
+    return `${ingressMatch[1]}/api`;
   }
 
-  return `${cleanPath}/api`;
+  return '/api';
 };
 
 // Use injected config from Nginx sub_filter (Frigate style),

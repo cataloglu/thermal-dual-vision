@@ -1,49 +1,62 @@
 #!/bin/bash
+set -euo pipefail
 
 echo "Starting Thermal Dual Vision..."
 
 # Ensure data directory exists
 mkdir -p /app/data
 
+shutdown() {
+    echo "Shutting down..."
+    for pid in "${GO2RTC_PID:-}" "${BACKEND_PID:-}" "${NGINX_PID:-}"; do
+        if [ -n "${pid}" ] && kill -0 "$pid" 2>/dev/null; then
+            kill -TERM "$pid" 2>/dev/null || true
+        fi
+    done
+    wait || true
+}
+
+trap shutdown SIGTERM SIGINT
+
 # ---------------------------------------------------------
 # AUTO-DISCOVER MQTT FROM HA SUPERVISOR API
 # ---------------------------------------------------------
-if [ -n "$SUPERVISOR_TOKEN" ]; then
+if [ -n "${SUPERVISOR_TOKEN:-}" ]; then
     echo "Querying HA Supervisor for MQTT service..."
     
     # Get MQTT service info
-    MQTT_INFO=$(curl -s -H "Authorization: Bearer $SUPERVISOR_TOKEN" http://supervisor/services/mqtt)
+    if MQTT_INFO=$(curl -s --connect-timeout 5 --max-time 10 -H "Authorization: Bearer $SUPERVISOR_TOKEN" http://supervisor/services/mqtt); then
     
-    # Check if result is valid JSON and has host
-    if echo "$MQTT_INFO" | jq -e '.result == "ok"' > /dev/null; then
-        echo "MQTT Service found! configuring..."
-        
-        MQTT_HOST=$(echo "$MQTT_INFO" | jq -r '.data.host')
-        MQTT_PORT=$(echo "$MQTT_INFO" | jq -r '.data.port')
-        MQTT_USER=$(echo "$MQTT_INFO" | jq -r '.data.username')
-        MQTT_PASS=$(echo "$MQTT_INFO" | jq -r '.data.password')
+        # Check if result is valid JSON and has host
+        if echo "$MQTT_INFO" | jq -e '.result == "ok"' > /dev/null; then
+            echo "MQTT Service found! configuring..."
+            
+            MQTT_HOST=$(echo "$MQTT_INFO" | jq -r '.data.host')
+            MQTT_PORT=$(echo "$MQTT_INFO" | jq -r '.data.port')
+            MQTT_USER=$(echo "$MQTT_INFO" | jq -r '.data.username')
+            MQTT_PASS=$(echo "$MQTT_INFO" | jq -r '.data.password')
 
-        # Normalize null/empty values for anonymous connections
-        if [ "$MQTT_HOST" = "null" ] || [ -z "$MQTT_HOST" ]; then MQTT_HOST="core-mosquitto"; fi
-        if [ "$MQTT_USER" = "null" ]; then MQTT_USER=""; fi
-        if [ "$MQTT_PASS" = "null" ]; then MQTT_PASS=""; fi
-        
-        # Export as ENV variables for Python app
-        export MQTT_HOST="$MQTT_HOST"
-        export MQTT_PORT="$MQTT_PORT"
-        export MQTT_USER="$MQTT_USER"
-        export MQTT_PASS="$MQTT_PASS"
-        
-        # Also update config.json directly to persist settings
-        # We use a small python script to inject these into config.json
-        python3 -c "
+            # Normalize null/empty values for anonymous connections
+            if [ "$MQTT_HOST" = "null" ] || [ -z "$MQTT_HOST" ]; then MQTT_HOST="core-mosquitto"; fi
+            if [ "$MQTT_USER" = "null" ]; then MQTT_USER=""; fi
+            if [ "$MQTT_PASS" = "null" ]; then MQTT_PASS=""; fi
+            
+            # Export as ENV variables for Python app
+            export MQTT_HOST="$MQTT_HOST"
+            export MQTT_PORT="$MQTT_PORT"
+            export MQTT_USER="$MQTT_USER"
+            export MQTT_PASS="$MQTT_PASS"
+            
+            # Also update config.json directly to persist settings
+            # We use a small python script to inject these into config.json
+            python3 - <<'PY'
 import json
 import os
 
 config_path = '/app/data/config.json'
 try:
     if os.path.exists(config_path):
-        with open(config_path, 'r') as f:
+        with open(config_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
     else:
         data = {}
@@ -52,16 +65,16 @@ try:
         data['mqtt'] = {}
 
     data['mqtt']['enabled'] = True
-    host = '$MQTT_HOST'
-    port_raw = '$MQTT_PORT'
-    user = '$MQTT_USER'
-    password = '$MQTT_PASS'
+    host = os.getenv('MQTT_HOST')
+    port_raw = os.getenv('MQTT_PORT')
+    user = os.getenv('MQTT_USER')
+    password = os.getenv('MQTT_PASS')
 
     if not host or host == 'null':
         host = 'core-mosquitto'
 
     try:
-        port = int(port_raw)
+        port = int(port_raw or 1883)
     except Exception:
         port = 1883
 
@@ -78,22 +91,26 @@ try:
     else:
         data['mqtt'].pop('password', None)
 
-    with open(config_path, 'w') as f:
-        json.dump(data, f, indent=2)
+    with open(config_path, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
     print('Updated config.json with auto-discovered MQTT settings')
 except Exception as e:
     print(f'Failed to update config: {e}')
-"
-    else:
-        echo "MQTT Service not available via Supervisor."
-        echo "Supervisor response: $MQTT_INFO"
+PY
+        else:
+            result=$(echo "$MQTT_INFO" | jq -r '.result' 2>/dev/null || echo "unknown")
+            echo "MQTT Service not available via Supervisor (result: $result)."
+        fi
+    else
+        echo "Failed to query Supervisor for MQTT service."
     fi
 fi
 # ---------------------------------------------------------
 
 # Start go2rtc
 echo "Starting go2rtc..."
-/usr/local/bin/go2rtc -config /app/go2rtc.yaml 2>&1 | sed 's/^/[go2rtc] /' &
+/usr/local/bin/go2rtc -config /app/go2rtc.yaml &
+GO2RTC_PID=$!
 sleep 2  # Wait for go2rtc to start
 
 # Fix stream_roles for existing cameras (migration)
@@ -106,8 +123,15 @@ fi
 echo "Starting Backend API..."
 cd /app
 python3 -m app.main &
+BACKEND_PID=$!
 
 # Start Nginx
 echo "Starting Nginx..."
-# Daemon off keeps the container running
-nginx -g "daemon off;"
+nginx -g "daemon off;" &
+NGINX_PID=$!
+
+wait -n "$GO2RTC_PID" "$BACKEND_PID" "$NGINX_PID"
+exit_code=$?
+echo "Process exited (code $exit_code), shutting down..."
+shutdown
+exit "$exit_code"

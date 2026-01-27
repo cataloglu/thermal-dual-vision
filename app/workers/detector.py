@@ -35,6 +35,7 @@ from app.services.time_utils import get_detection_source
 from app.services.websocket import get_websocket_manager
 from app.services.mqtt import get_mqtt_service
 from app.services.go2rtc import get_go2rtc_service
+from app.utils.rtsp import redact_rtsp_url
 
 
 logger = logging.getLogger(__name__)
@@ -253,19 +254,21 @@ class DetectorWorker:
             
             # Determine detection source (auto mode support)
             detection_source = get_detection_source(camera.detection_source.value)
+            detection_source, restream_source, rtsp_url = self._resolve_detection_stream(
+                camera,
+                detection_source,
+            )
             
-            # Get RTSP URL based on source
-            if detection_source == "thermal":
-                rtsp_url = camera.rtsp_url_thermal
-            else:
-                rtsp_url = camera.rtsp_url_color or camera.rtsp_url
-            
-            rtsp_urls = self._get_detection_rtsp_urls(camera_id, rtsp_url)
+            rtsp_urls = self._get_detection_rtsp_urls(camera_id, restream_source, rtsp_url)
             if not rtsp_urls:
                 logger.error(f"No RTSP URL for camera {camera_id}")
                 return
             
-            logger.info("Starting detection for camera %s: %s", camera_id, rtsp_urls[0])
+            logger.info(
+                "Starting detection for camera %s: %s",
+                camera_id,
+                redact_rtsp_url(rtsp_urls[0]),
+            )
             
             # Open video capture with codec fallback
             cap = self._open_capture_with_fallbacks(rtsp_urls, config, camera_id)
@@ -743,13 +746,13 @@ class DetectorWorker:
         t.join(timeout=15)  # Increased from 5 to 15 seconds
         
         if t.is_alive():
-            logger.error(f"Camera connection timeout after 15s: {rtsp_url}")
+            logger.error("Camera connection timeout after 15s: %s", redact_rtsp_url(rtsp_url))
             return None
             
         if cap and cap.isOpened():
             return cap
         
-        logger.error(f"Failed to open camera: {rtsp_url}")
+        logger.error("Failed to open camera: %s", redact_rtsp_url(rtsp_url))
         return None
 
     def _open_capture_with_fallbacks(
@@ -764,22 +767,67 @@ class DetectorWorker:
             cap = self._open_capture(url, config, camera_id)
             if cap and cap.isOpened():
                 if len(rtsp_urls) > 1 and url != rtsp_urls[0]:
-                    logger.info("Fallback stream selected for camera %s: %s", camera_id, url)
+                    logger.info(
+                        "Fallback stream selected for camera %s: %s",
+                        camera_id,
+                        redact_rtsp_url(url),
+                    )
                 return cap
         if last_url:
             logger.error("All RTSP sources failed for camera %s", camera_id)
         return None
 
-    def _get_detection_rtsp_urls(self, camera_id: str, primary_url: Optional[str]) -> List[str]:
+    def _resolve_detection_stream(
+        self,
+        camera: Camera,
+        detection_source: str,
+    ) -> Tuple[str, Optional[str], Optional[str]]:
+        if detection_source == "thermal":
+            if camera.rtsp_url_thermal:
+                return "thermal", "thermal", camera.rtsp_url_thermal
+            if camera.rtsp_url:
+                return "thermal", None, camera.rtsp_url
+        if detection_source == "color":
+            if camera.rtsp_url_color:
+                return "color", "color", camera.rtsp_url_color
+            if camera.rtsp_url:
+                return "color", None, camera.rtsp_url
+
+        if camera.rtsp_url_color:
+            return "color", "color", camera.rtsp_url_color
+        if camera.rtsp_url_thermal:
+            return "thermal", "thermal", camera.rtsp_url_thermal
+        if camera.rtsp_url:
+            fallback_source = "thermal" if camera.type and camera.type.value == "thermal" else "color"
+            return fallback_source, None, camera.rtsp_url
+
+        return detection_source, None, None
+
+    def _get_detection_rtsp_urls(
+        self,
+        camera_id: str,
+        restream_source: Optional[str],
+        primary_url: Optional[str],
+    ) -> List[str]:
         urls: List[str] = []
-        if self.go2rtc_service and self.go2rtc_service.enabled:
-            rtsp_base = os.getenv("GO2RTC_RTSP_URL", "rtsp://127.0.0.1:8554")
-            restream_url = f"{rtsp_base}/{camera_id}"
-            if primary_url and restream_url != primary_url:
-                urls.append(restream_url)
+        restream_url = self._get_go2rtc_restream_url(camera_id, restream_source)
+        if primary_url and restream_url and restream_url != primary_url:
+            urls.append(restream_url)
         if primary_url:
             urls.append(primary_url)
         return urls
+
+    def _get_go2rtc_restream_url(
+        self,
+        camera_id: str,
+        source: Optional[str] = None,
+    ) -> Optional[str]:
+        if not self.go2rtc_service or not self.go2rtc_service.enabled:
+            return None
+        rtsp_base = os.getenv("GO2RTC_RTSP_URL", "rtsp://127.0.0.1:8554")
+        normalized_source = source if source in ("color", "thermal") else None
+        stream_name = f"{camera_id}_{normalized_source}" if normalized_source else camera_id
+        return f"{rtsp_base}/{stream_name}"
 
     def _get_adaptive_clahe_clip(self, frame: np.ndarray, config) -> float:
         if len(frame.shape) == 3:

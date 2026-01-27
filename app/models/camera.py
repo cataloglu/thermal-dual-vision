@@ -7,6 +7,8 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.utils.rtsp import validate_rtsp_url
+
 
 class CameraTestRequest(BaseModel):
     """Request model for camera connection test."""
@@ -39,6 +41,11 @@ class CameraTestRequest(BaseModel):
         
         if self.type in ["color", "dual"] and not self.rtsp_url_color:
             raise ValueError("rtsp_url_color is required for color or dual camera type")
+
+        if self.rtsp_url_thermal:
+            validate_rtsp_url(self.rtsp_url_thermal)
+        if self.rtsp_url_color:
+            validate_rtsp_url(self.rtsp_url_color)
         
         return self
 

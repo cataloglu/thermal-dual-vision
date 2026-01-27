@@ -37,7 +37,7 @@ class SettingsService:
     CONFIG_FILE = DATA_DIR / "config.json"
     
     # Secrets to mask in responses
-    SECRET_FIELDS = ["api_key", "bot_token"]
+    SECRET_FIELDS = ["api_key", "bot_token", "password"]
     MASKED_VALUE = "***REDACTED***"
     
     def __new__(cls) -> "SettingsService":
@@ -211,6 +211,7 @@ class SettingsService:
         # Deep merge partial data into current config
         merged_dict = self._deep_merge(current_dict, partial_data)
         merged_dict = self._sanitize_config_dict(merged_dict)
+        merged_dict = self._restore_masked_secrets(current_dict, merged_dict)
         
         # Validate merged config
         try:
@@ -268,6 +269,19 @@ class SettingsService:
                 record["delete_order"] = allowed.copy()
             result["record"] = record
         return result
+
+    def _restore_masked_secrets(self, current: Any, merged: Any) -> Any:
+        if isinstance(merged, dict) and isinstance(current, dict):
+            restored: Dict[str, Any] = {}
+            for key, value in merged.items():
+                if isinstance(value, dict):
+                    restored[key] = self._restore_masked_secrets(current.get(key, {}), value)
+                elif key in self.SECRET_FIELDS and value == self.MASKED_VALUE:
+                    restored[key] = current.get(key)
+                else:
+                    restored[key] = value
+            return restored
+        return merged
     
     def _mask_secrets(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """

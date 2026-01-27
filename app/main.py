@@ -33,6 +33,7 @@ from app.services.ai import get_ai_service
 from app.services.time_utils import get_detection_source
 from app.services.go2rtc import get_go2rtc_service
 from app.services.mqtt import get_mqtt_service
+from app.utils.rtsp import redact_rtsp_url, validate_rtsp_url
 from telegram import Bot
 from app.workers.retention import get_retention_worker
 from app.workers.detector import get_detector_worker
@@ -99,14 +100,68 @@ go2rtc_service = get_go2rtc_service()
 mqtt_service = get_mqtt_service()
 
 
-def _resolve_camera_rtsp_url(camera) -> Optional[str]:
+def _resolve_default_rtsp_url(camera) -> Optional[str]:
     if camera.type.value == "thermal":
-        return camera.rtsp_url_thermal
+        return camera.rtsp_url_thermal or camera.rtsp_url
     if camera.type.value == "color":
         return camera.rtsp_url_color or camera.rtsp_url
-    if camera.detection_source.value == "thermal" and camera.rtsp_url_thermal:
-        return camera.rtsp_url_thermal
-    return camera.rtsp_url_color or camera.rtsp_url_thermal
+    return camera.rtsp_url_color or camera.rtsp_url_thermal or camera.rtsp_url
+
+
+def _resolve_default_stream_source(camera) -> Optional[str]:
+    if camera.type.value == "thermal" and camera.rtsp_url_thermal:
+        return "thermal"
+    if camera.type.value == "color" and camera.rtsp_url_color:
+        return "color"
+    if camera.rtsp_url_color:
+        return "color"
+    if camera.rtsp_url_thermal:
+        return "thermal"
+    return None
+
+
+def _get_go2rtc_restream_url(camera_id: str, source: Optional[str] = None) -> Optional[str]:
+    if not go2rtc_service or not go2rtc_service.enabled:
+        return None
+    rtsp_base = os.getenv("GO2RTC_RTSP_URL", "rtsp://127.0.0.1:8554")
+    normalized_source = source if source in ("color", "thermal") else None
+    stream_name = f"{camera_id}_{normalized_source}" if normalized_source else camera_id
+    return f"{rtsp_base}/{stream_name}"
+
+
+def _get_live_rtsp_urls(camera) -> List[str]:
+    primary = _resolve_default_rtsp_url(camera)
+    urls: List[str] = []
+    restream = _get_go2rtc_restream_url(camera.id, source=_resolve_default_stream_source(camera))
+    if restream and restream != primary:
+        urls.append(restream)
+    if primary:
+        urls.append(primary)
+    return urls
+
+
+def _normalize_rtsp_value(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    cleaned = value.strip()
+    if not cleaned:
+        return None
+    return validate_rtsp_url(cleaned)
+
+
+def _sanitize_rtsp_updates(payload: Dict[str, Any]) -> Dict[str, Optional[str]]:
+    sanitized: Dict[str, Optional[str]] = {}
+    for key in ("rtsp_url", "rtsp_url_color", "rtsp_url_thermal"):
+        if key not in payload:
+            continue
+        value = payload.get(key)
+        if value is None:
+            sanitized[key] = None
+            continue
+        if not isinstance(value, str):
+            raise ValueError(f"{key} must be a string")
+        sanitized[key] = _normalize_rtsp_value(value)
+    return sanitized
 
 
 def _resolve_media_urls(event, ingress_path: str = "") -> Dict[str, Optional[str]]:
@@ -942,9 +997,8 @@ async def get_live_stream(camera_id: str, db: Session = Depends(get_session)):
             }
         )
 
-    stream_url = _resolve_camera_rtsp_url(camera)
-
-    if not stream_url:
+    stream_urls = _get_live_rtsp_urls(camera)
+    if not stream_urls:
         raise HTTPException(
             status_code=400,
             detail={
@@ -955,12 +1009,7 @@ async def get_live_stream(camera_id: str, db: Session = Depends(get_session)):
         )
 
     if settings.stream.protocol == "tcp":
-        stream_url = camera_service.force_tcp_protocol(stream_url)
-    logger.info(
-        "Opening live stream for camera %s: %s",
-        camera_id,
-        stream_url
-    )
+        stream_urls = [camera_service.force_tcp_protocol(url) for url in stream_urls]
 
     def detector_stream_generator():
         while True:
@@ -979,28 +1028,38 @@ async def get_live_stream(camera_id: str, db: Session = Depends(get_session)):
                 b"Content-Type: image/jpeg\r\n\r\n" + frame_bytes + b"\r\n"
             )
 
-    cap = cv2.VideoCapture(stream_url, cv2.CAP_FFMPEG)
-    cap.set(cv2.CAP_PROP_BUFFERSIZE, settings.stream.buffer_size)
-    if hasattr(cv2, "CAP_PROP_OPEN_TIMEOUT_MSEC"):
-        cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 5000)
-    if hasattr(cv2, "CAP_PROP_READ_TIMEOUT_MSEC"):
-        cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, 5000)
-    if not cap.isOpened():
+    cap = None
+    selected_url = None
+    for candidate_url in stream_urls:
+        tmp_cap = cv2.VideoCapture(candidate_url, cv2.CAP_FFMPEG)
+        tmp_cap.set(cv2.CAP_PROP_BUFFERSIZE, settings.stream.buffer_size)
+        if hasattr(cv2, "CAP_PROP_OPEN_TIMEOUT_MSEC"):
+            tmp_cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 5000)
+        if hasattr(cv2, "CAP_PROP_READ_TIMEOUT_MSEC"):
+            tmp_cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, 5000)
+        if not tmp_cap.isOpened():
+            tmp_cap.release()
+            continue
+        warmup_ok, warmup_frame = tmp_cap.read()
+        if not warmup_ok or warmup_frame is None:
+            tmp_cap.release()
+            continue
+        cap = tmp_cap
+        selected_url = candidate_url
+        break
+
+    if cap is None or not cap.isOpened():
         logger.warning("Live stream fallback to detector frames for %s", camera_id)
         return StreamingResponse(
             detector_stream_generator(),
             media_type="multipart/x-mixed-replace; boundary=frame"
         )
 
-    # Warmup read to fail fast on dead streams
-    warmup_ok, warmup_frame = cap.read()
-    if not warmup_ok or warmup_frame is None:
-        cap.release()
-        logger.warning("Live stream read failed, fallback to detector frames for %s", camera_id)
-        return StreamingResponse(
-            detector_stream_generator(),
-            media_type="multipart/x-mixed-replace; boundary=frame"
-        )
+    logger.info(
+        "Opening live stream for camera %s: %s",
+        camera_id,
+        redact_rtsp_url(selected_url)
+    )
 
     def stream_generator():
         consecutive_failures = 0
@@ -1051,8 +1110,8 @@ async def get_camera_snapshot(camera_id: str, db: Session = Depends(get_session)
             }
         )
 
-    stream_url = _resolve_camera_rtsp_url(camera)
-    if not stream_url:
+    stream_urls = _get_live_rtsp_urls(camera)
+    if not stream_urls:
         raise HTTPException(
             status_code=400,
             detail={
@@ -1064,10 +1123,14 @@ async def get_camera_snapshot(camera_id: str, db: Session = Depends(get_session)
 
     settings = settings_service.load_config()
     if settings.stream.protocol == "tcp":
-        stream_url = camera_service.force_tcp_protocol(stream_url)
+        stream_urls = [camera_service.force_tcp_protocol(url) for url in stream_urls]
 
-    result = camera_service.test_rtsp_connection(stream_url)
-    if not result["success"]:
+    result = None
+    for candidate_url in stream_urls:
+        result = camera_service.test_rtsp_connection(candidate_url)
+        if result["success"]:
+            break
+    if not result or not result["success"]:
         raise HTTPException(
             status_code=500,
             detail={
@@ -1298,12 +1361,24 @@ async def create_camera(
         HTTPException: 400 if validation fails, 500 if creation fails
     """
     try:
+        try:
+            rtsp_updates = _sanitize_rtsp_updates(request)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": True,
+                    "code": "VALIDATION_ERROR",
+                    "message": str(e),
+                },
+            )
+
         camera = camera_crud_service.create_camera(
             db=db,
             name=request.get("name"),
             camera_type=request.get("type"),
-            rtsp_url_thermal=request.get("rtsp_url_thermal"),
-            rtsp_url_color=request.get("rtsp_url_color"),
+            rtsp_url_thermal=rtsp_updates.get("rtsp_url_thermal"),
+            rtsp_url_color=rtsp_updates.get("rtsp_url_color"),
             channel_color=request.get("channel_color"),
             channel_thermal=request.get("channel_thermal"),
             detection_source=request.get("detection_source", "auto"),
@@ -1322,9 +1397,13 @@ async def create_camera(
             detector_worker.stop_camera_detection(camera.id)
 
         # Add to go2rtc
-        rtsp_url = camera.rtsp_url_thermal or camera.rtsp_url_color or camera.rtsp_url
-        if rtsp_url:
-            go2rtc_service.add_camera(camera.id, rtsp_url)
+        go2rtc_service.update_camera_streams(
+            camera_id=camera.id,
+            rtsp_url=camera.rtsp_url,
+            rtsp_url_color=camera.rtsp_url_color,
+            rtsp_url_thermal=camera.rtsp_url_thermal,
+            default_url=_resolve_default_rtsp_url(camera),
+        )
 
         # Refresh MQTT discovery for this camera
         mqtt_service.publish_camera_update(camera.id)
@@ -1373,6 +1452,18 @@ async def update_camera(
         HTTPException: 404 if not found, 400 if validation fails, 500 if update fails
     """
     try:
+        try:
+            request.update(_sanitize_rtsp_updates(request))
+        except ValueError as e:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": True,
+                    "code": "VALIDATION_ERROR",
+                    "message": str(e),
+                },
+            )
+
         camera = camera_crud_service.update_camera(db, camera_id, request)
         
         if not camera:
@@ -1390,6 +1481,14 @@ async def update_camera(
                 detector_worker.start_camera_detection(camera)
             except Exception as e:
                 logger.error("Failed to start detection for camera %s: %s", camera.id, e)
+
+        go2rtc_service.update_camera_streams(
+            camera_id=camera.id,
+            rtsp_url=camera.rtsp_url,
+            rtsp_url_color=camera.rtsp_url_color,
+            rtsp_url_thermal=camera.rtsp_url_thermal,
+            default_url=_resolve_default_rtsp_url(camera),
+        )
 
         mqtt_service.publish_camera_update(camera.id)
         return camera_crud_service.mask_rtsp_urls(camera)
