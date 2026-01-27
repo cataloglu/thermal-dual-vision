@@ -193,7 +193,7 @@ def test_mp4_generation(media_worker, test_frames, test_detections):
 
 
 def test_mp4_720p_resolution(media_worker, test_frames, test_detections):
-    """Test that MP4 is 720p resolution."""
+    """Test that MP4 keeps native resolution when below 720p."""
     with tempfile.TemporaryDirectory() as tmpdir:
         output_path = os.path.join(tmpdir, "timelapse.mp4")
         
@@ -209,8 +209,8 @@ def test_mp4_720p_resolution(media_worker, test_frames, test_detections):
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         cap.release()
         
-        assert width == 1280
-        assert height == 720
+        assert width == 640
+        assert height == 480
 
 
 def test_mp4_no_frames(media_worker):

@@ -191,7 +191,7 @@ def test_post_cameras_test_invalid_type(client):
 
 @patch('cv2.VideoCapture')
 def test_post_cameras_test_tcp_protocol_added(mock_video_capture, client):
-    """Test that TCP protocol is added to RTSP URL."""
+    """Test that RTSP URL is passed through unchanged."""
     # Mock VideoCapture
     mock_cap = mock_video_capture.return_value
     mock_cap.isOpened.return_value = True
@@ -208,10 +208,10 @@ def test_post_cameras_test_tcp_protocol_added(mock_video_capture, client):
     
     assert response.status_code == 200
     
-    # Verify VideoCapture was called with TCP parameter
+    # Verify VideoCapture was called without forced TCP parameter
     call_args = mock_video_capture.call_args
     url_used = call_args[0][0]
-    assert "?tcp" in url_used or "&tcp" in url_used
+    assert "?tcp" not in url_used and "&tcp" not in url_used
 
 
 @patch('cv2.VideoCapture')

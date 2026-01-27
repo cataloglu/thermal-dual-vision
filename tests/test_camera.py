@@ -28,22 +28,21 @@ def camera_service():
 
 
 def test_force_tcp_protocol(camera_service):
-    """Test that TCP protocol is forced in RTSP URL."""
+    """Test that TCP protocol is not forcibly appended."""
     # URL without query parameters
     url1 = "rtsp://admin:12345@192.168.1.100:554/Streaming/Channels/101"
     result1 = camera_service.force_tcp_protocol(url1)
-    assert "?tcp" in result1
-    assert result1.endswith("?tcp")
+    assert result1 == url1
     
     # URL with existing query parameters
     url2 = "rtsp://admin:12345@192.168.1.100:554/stream?param=value"
     result2 = camera_service.force_tcp_protocol(url2)
-    assert "&tcp" in result2
+    assert result2 == url2
     
     # URL already has tcp parameter
     url3 = "rtsp://admin:12345@192.168.1.100:554/stream?tcp"
     result3 = camera_service.force_tcp_protocol(url3)
-    assert result3.count("tcp") == 1  # Should not add duplicate
+    assert result3 == url3  # Should not change URL
     
     # Empty URL
     url4 = ""
@@ -262,7 +261,7 @@ def test_frame_read_failure(mock_video_capture, camera_service):
 
 @patch('cv2.VideoCapture')
 def test_codec_setting(mock_video_capture, camera_service):
-    """Test that H.264 codec is set."""
+    """Test that codec is not forcibly set."""
     # Mock VideoCapture
     mock_cap = Mock()
     mock_cap.isOpened.return_value = True
@@ -273,9 +272,11 @@ def test_codec_setting(mock_video_capture, camera_service):
     url = "rtsp://admin:12345@192.168.1.100/stream"
     camera_service.test_rtsp_connection(url)
     
-    # Verify codec was set to H.264
-    h264_fourcc = cv2.VideoWriter_fourcc(*'H264')
-    mock_cap.set.assert_any_call(cv2.CAP_PROP_FOURCC, h264_fourcc)
+    # Verify no explicit codec override was set
+    assert not any(
+        call_args[0][0] == cv2.CAP_PROP_FOURCC
+        for call_args in mock_cap.set.call_args_list
+    )
 
 
 @patch('cv2.VideoCapture')
