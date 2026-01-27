@@ -4,6 +4,7 @@ Logs service for Smart Motion Detector v2.
 Handles log file reading for diagnostics.
 """
 import logging
+from collections import deque
 from pathlib import Path
 from typing import List
 
@@ -50,15 +51,14 @@ class LogsService:
                 logger.warning(f"Log file not found: {self.log_file}")
                 return [f"Log file not found: {self.log_file}"]
             
-            # Read file
+            # Read file with bounded memory
+            tail: deque[str] = deque(maxlen=lines)
             with open(self.log_file, 'r', encoding='utf-8', errors='ignore') as f:
-                all_lines = f.readlines()
-            
-            # Get last N lines
-            log_lines = all_lines[-lines:] if len(all_lines) > lines else all_lines
-            
-            # Strip newlines and redact RTSP credentials
-            log_lines = [redact_rtsp_urls_in_text(line.rstrip('\n')) for line in log_lines]
+                for line in f:
+                    tail.append(line.rstrip('\n'))
+
+            # Redact RTSP credentials
+            log_lines = [redact_rtsp_urls_in_text(line) for line in tail]
             
             logger.debug(f"Retrieved {len(log_lines)} log lines")
             return log_lines

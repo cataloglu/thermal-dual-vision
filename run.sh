@@ -6,18 +6,6 @@ echo "Starting Thermal Dual Vision..."
 # Ensure data directory exists
 mkdir -p /app/data
 
-shutdown() {
-    echo "Shutting down..."
-    for pid in "${GO2RTC_PID:-}" "${BACKEND_PID:-}" "${NGINX_PID:-}"; do
-        if [ -n "${pid}" ] && kill -0 "$pid" 2>/dev/null; then
-            kill -TERM "$pid" 2>/dev/null || true
-        fi
-    done
-    wait || true
-}
-
-trap shutdown SIGTERM SIGINT
-
 # ---------------------------------------------------------
 # AUTO-DISCOVER MQTT FROM HA SUPERVISOR API
 # ---------------------------------------------------------
@@ -107,31 +95,11 @@ PY
 fi
 # ---------------------------------------------------------
 
-# Start go2rtc
-echo "Starting go2rtc..."
-/usr/local/bin/go2rtc -config /app/go2rtc.yaml &
-GO2RTC_PID=$!
-sleep 2  # Wait for go2rtc to start
-
 # Fix stream_roles for existing cameras (migration)
 echo "Checking database migrations..."
 if [ -f /app/data/app.db ]; then
     python3 /app/fix_stream_roles.py || true
 fi
 
-# Start Backend
-echo "Starting Backend API..."
-cd /app
-python3 -m app.main &
-BACKEND_PID=$!
-
-# Start Nginx
-echo "Starting Nginx..."
-nginx -g "daemon off;" &
-NGINX_PID=$!
-
-wait -n "$GO2RTC_PID" "$BACKEND_PID" "$NGINX_PID"
-exit_code=$?
-echo "Process exited (code $exit_code), shutting down..."
-shutdown
-exit "$exit_code"
+echo "Starting supervisor..."
+exec supervisord -c /etc/supervisor/supervisord.conf

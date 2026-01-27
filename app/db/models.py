@@ -188,3 +188,22 @@ class Event(Base):
         Index("idx_event_confidence", "confidence"),
         Index("idx_event_camera_timestamp", "camera_id", "timestamp"),
     )
+
+
+class RecordingState(Base):
+    """
+    Recording state model for per-camera record toggles.
+    """
+    __tablename__ = "recording_state"
+
+    camera_id = Column(
+        String(36),
+        ForeignKey("cameras.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    recording = Column(Boolean, default=False, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        Index("idx_recording_state_recording", "recording"),
+    )

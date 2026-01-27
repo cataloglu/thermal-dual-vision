@@ -33,6 +33,7 @@ from app.services.ai import get_ai_service
 from app.services.time_utils import get_detection_source
 from app.services.go2rtc import get_go2rtc_service
 from app.services.mqtt import get_mqtt_service
+from app.services.recording_state import get_recording_state_service
 from app.utils.rtsp import redact_rtsp_url, validate_rtsp_url
 from telegram import Bot
 from app.workers.retention import get_retention_worker
@@ -54,9 +55,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 APP_START_TS = time.time()
 
-# TODO: Move to Redis/DB for multi-worker support
-recording_state: Dict[str, bool] = {}
-
 app = FastAPI(
     title="Smart Motion Detector API",
     version="2.0.0",
@@ -71,6 +69,11 @@ def _load_cors_origins() -> List[str]:
         "http://localhost:5173",
         "http://127.0.0.1:5173",
     ]
+
+
+def _debug_headers_enabled() -> bool:
+    value = os.getenv("DEBUG_HEADERS", "").strip().lower()
+    return value in {"1", "true", "yes", "on"}
 
 # CORS
 app.add_middleware(
@@ -98,6 +101,7 @@ telegram_service = get_telegram_service()
 logs_service = get_logs_service()
 go2rtc_service = get_go2rtc_service()
 mqtt_service = get_mqtt_service()
+recording_state_service = get_recording_state_service()
 
 
 def _resolve_default_rtsp_url(camera) -> Optional[str]:
@@ -256,14 +260,15 @@ async def ready():
     return {"ready": True, "status": "ok"}
 
 
-@app.get("/api/debug/headers")
-async def debug_headers(request: Request):
-    """Debug endpoint to see all headers."""
-    return {
-        "all_headers": dict(request.headers),
-        "x_ingress_path": request.headers.get("X-Ingress-Path", "NOT_FOUND"),
-        "x_ingress_path_lower": request.headers.get("x-ingress-path", "NOT_FOUND"),
-    }
+if _debug_headers_enabled():
+    @app.get("/api/debug/headers")
+    async def debug_headers(request: Request):
+        """Debug endpoint to see all headers."""
+        return {
+            "all_headers": dict(request.headers),
+            "x_ingress_path": request.headers.get("X-Ingress-Path", "NOT_FOUND"),
+            "x_ingress_path_lower": request.headers.get("x-ingress-path", "NOT_FOUND"),
+        }
 
 @app.get("/api/health")
 async def health():
@@ -1537,6 +1542,7 @@ async def delete_camera(
     try:
         # Remove from go2rtc first
         go2rtc_service.remove_camera(camera_id)
+        recording_state_service.clear_state(db, camera_id)
         
         detector_worker.stop_camera_detection(camera_id)
         deleted = camera_crud_service.delete_camera(db, camera_id)
@@ -1584,7 +1590,8 @@ async def get_recording_status(camera_id: str, db: Session = Depends(get_session
                 "message": f"Camera not found: {camera_id}",
             },
         )
-    return {"camera_id": camera_id, "recording": recording_state.get(camera_id, False)}
+    recording = recording_state_service.get_state(db, camera_id)
+    return {"camera_id": camera_id, "recording": recording}
 
 
 @app.post("/api/cameras/{camera_id}/record/start")
@@ -1599,7 +1606,7 @@ async def start_recording(camera_id: str, db: Session = Depends(get_session)) ->
                 "message": f"Camera not found: {camera_id}",
             },
         )
-    recording_state[camera_id] = True
+    recording_state_service.set_state(db, camera_id, True)
     return {"camera_id": camera_id, "recording": True}
 
 
@@ -1615,7 +1622,7 @@ async def stop_recording(camera_id: str, db: Session = Depends(get_session)) -> 
                 "message": f"Camera not found: {camera_id}",
             },
         )
-    recording_state[camera_id] = False
+    recording_state_service.set_state(db, camera_id, False)
     return {"camera_id": camera_id, "recording": False}
 
 @app.websocket("/api/ws/events")
