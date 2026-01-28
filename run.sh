@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-ADDON_VERSION="${ADDON_VERSION:-2.1.96}"
+ADDON_VERSION="${ADDON_VERSION:-2.1.97}"
 echo "Starting Thermal Dual Vision (v${ADDON_VERSION})..."
 
 # Ensure data directory exists
@@ -20,6 +20,12 @@ fi
 LOG_LEVEL="${LOG_LEVEL:-info}"
 export LOG_LEVEL
 echo "Log level: ${LOG_LEVEL}"
+
+# Quiet noisy OpenCV/FFmpeg logs by default
+OPENCV_LOG_LEVEL="${OPENCV_LOG_LEVEL:-ERROR}"
+OPENCV_FFMPEG_LOGLEVEL="${OPENCV_FFMPEG_LOGLEVEL:-error}"
+export OPENCV_LOG_LEVEL
+export OPENCV_FFMPEG_LOGLEVEL
 
 # ---------------------------------------------------------
 # AUTO-DISCOVER MQTT FROM HA SUPERVISOR API

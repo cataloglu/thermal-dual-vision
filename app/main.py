@@ -2,6 +2,7 @@
 Smart Motion Detector v2 - Main Entry Point
 """
 import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
 from datetime import date
 from typing import Any, Dict, Optional, List
@@ -79,12 +80,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 APP_START_TS = time.time()
 
-app = FastAPI(
-    title="Smart Motion Detector API",
-    version="2.0.0",
-    description="Person detection with thermal/color camera support"
-)
-
 def _load_cors_origins() -> List[str]:
     raw = os.getenv("CORS_ORIGINS", "").strip()
     if raw:
@@ -98,6 +93,70 @@ def _load_cors_origins() -> List[str]:
 def _debug_headers_enabled() -> bool:
     value = os.getenv("DEBUG_HEADERS", "").strip().lower()
     return value in {"1", "true", "yes", "on"}
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan for startup/shutdown tasks."""
+    import asyncio
+
+    logger.info("Starting Smart Motion Detector v2")
+
+    # Start retention worker
+    retention_worker.start()
+    logger.info("Retention worker started")
+
+    # Wait for services to initialize
+    logger.info("Waiting 10 seconds for services to initialize...")
+    await asyncio.sleep(10)
+
+    # Sync cameras to go2rtc before detection starts
+    db = next(get_session())
+    try:
+        cameras = camera_crud_service.get_cameras(db)
+        go2rtc_service.sync_all_cameras(cameras)
+        logger.info("Cameras synced to go2rtc")
+    except Exception as e:
+        logger.error(f"Failed to sync cameras to go2rtc: {e}")
+    finally:
+        db.close()
+
+    # Give go2rtc a moment to reload config
+    await asyncio.sleep(2)
+
+    # Start detector worker
+    detector_worker.start()
+    logger.info("Detector worker started")
+
+    # Start MQTT service
+    mqtt_service.start()
+    logger.info("MQTT service started")
+
+    logger.info("Services initialized, application ready")
+    try:
+        yield
+    finally:
+        logger.info("Shutting down Smart Motion Detector v2")
+
+        # Stop MQTT service
+        mqtt_service.stop()
+        logger.info("MQTT service stopped")
+
+        # Stop detector worker
+        detector_worker.stop()
+        logger.info("Detector worker stopped")
+
+        # Stop retention worker
+        retention_worker.stop()
+        logger.info("Retention worker stopped")
+
+
+app = FastAPI(
+    title="Smart Motion Detector API",
+    version="2.0.0",
+    description="Person detection with thermal/color camera support",
+    lifespan=lifespan,
+)
 
 # CORS
 app.add_middleware(
@@ -216,60 +275,6 @@ def _resolve_media_urls(event, ingress_path: str = "") -> Dict[str, Optional[str
         "gif_url": gif_url if gif_path and gif_path.exists() else None,
         "mp4_url": mp4_url if mp4_path and mp4_path.exists() else None,
     }
-
-
-@app.on_event("startup")
-async def startup_event():
-    """Application startup event."""
-    import asyncio
-    
-    logger.info("Starting Smart Motion Detector v2")
-    
-    # Start retention worker
-    retention_worker.start()
-    logger.info("Retention worker started")
-    
-    # TASK 21: Wait for services to initialize
-    logger.info("Waiting 10 seconds for services to initialize...")
-    await asyncio.sleep(10)
-    logger.info("Services initialized, application ready")
-
-    # Start detector worker
-    detector_worker.start()
-    logger.info("Detector worker started")
-
-    # Start MQTT service
-    mqtt_service.start()
-    logger.info("MQTT service started")
-
-    # Sync cameras to go2rtc
-    db = next(get_session())
-    try:
-        cameras = camera_crud_service.get_cameras(db)
-        go2rtc_service.sync_all_cameras(cameras)
-        logger.info("Cameras synced to go2rtc")
-    except Exception as e:
-        logger.error(f"Failed to sync cameras to go2rtc: {e}")
-    finally:
-        db.close()
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Application shutdown event."""
-    logger.info("Shutting down Smart Motion Detector v2")
-    
-    # Stop retention worker
-    retention_worker.stop()
-    logger.info("Retention worker stopped")
-
-    # Stop detector worker
-    detector_worker.stop()
-    logger.info("Detector worker stopped")
-
-    # Stop MQTT service
-    mqtt_service.stop()
-    logger.info("MQTT service stopped")
 
 
 @app.get("/")
