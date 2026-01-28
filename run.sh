@@ -85,7 +85,7 @@ try:
 except Exception as e:
     print(f'Failed to update config: {e}')
 PY
-        else:
+        else
             result=$(echo "$MQTT_INFO" | jq -r '.result' 2>/dev/null || echo "unknown")
             echo "MQTT Service not available via Supervisor (result: $result)."
         fi
