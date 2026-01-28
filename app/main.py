@@ -41,11 +41,35 @@ from app.workers.detector import get_detector_worker
 
 
 # Configure logging
+def _resolve_log_level(raw: str) -> int:
+    value = (raw or "").strip().lower()
+    if not value:
+        return logging.INFO
+    if value == "trace":
+        return logging.DEBUG
+    if value == "notice":
+        return logging.INFO
+    if value == "fatal":
+        return logging.CRITICAL
+    return getattr(logging, value.upper(), logging.INFO)
+
+
+def _resolve_uvicorn_log_level(raw: str) -> str:
+    value = (raw or "").strip().lower()
+    if value in {"trace", "debug", "info", "warning", "error", "critical"}:
+        return value
+    if value == "fatal":
+        return "critical"
+    if value == "notice":
+        return "info"
+    return "info"
+
+
 log_dir = Path("logs")
 log_dir.mkdir(parents=True, exist_ok=True)
 log_file = log_dir / "app.log"
 logging.basicConfig(
-    level=logging.INFO,
+    level=_resolve_log_level(os.getenv("LOG_LEVEL", "INFO")),
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
         logging.StreamHandler(),
@@ -2040,4 +2064,9 @@ async def get_system_info() -> Dict[str, Any]:
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=8000,
+        log_level=_resolve_uvicorn_log_level(os.getenv("LOG_LEVEL", "info")),
+    )

@@ -421,7 +421,7 @@ class DetectorWorker:
                 def _log_gate(reason: str) -> None:
                     last_gate = self.last_gate_log.get(camera_id, 0.0)
                     if current_time - last_gate >= 5:
-                        logger.info("EVENT_GATE camera=%s reason=%s", camera_id, reason)
+                        logger.debug("EVENT_GATE camera=%s reason=%s", camera_id, reason)
                         self.last_gate_log[camera_id] = current_time
 
                 frame_age = self._get_last_frame_age(camera_id, current_time)
@@ -478,7 +478,7 @@ class DetectorWorker:
                 last_log = self.last_detection_log.get(camera_id, 0.0)
                 if current_time - last_log >= 5:
                     best_conf = max((d.get("confidence", 0.0) for d in detections), default=0.0)
-                    logger.info(
+                    logger.debug(
                         "DETECT camera=%s count=%s best_conf=%.2f",
                         camera_id,
                         len(detections),
@@ -901,7 +901,7 @@ class DetectorWorker:
         fail_rate = (delta_failed / max(delta_read + delta_failed, 1)) * 100
         last_error = stats.get("last_error")
         last_reconnect_reason = stats.get("last_reconnect_reason")
-        logger.info(
+        logger.debug(
             "STREAM camera=%s protocol=%s fps=%.1f fail=%.1f%% read=%s failed=%s reconnects=%s last_error=%s last_reconnect=%s",
             camera_id,
             protocol,

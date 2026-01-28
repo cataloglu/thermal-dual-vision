@@ -1,11 +1,25 @@
 #!/bin/bash
 set -euo pipefail
 
-ADDON_VERSION="${ADDON_VERSION:-2.1.95}"
+ADDON_VERSION="${ADDON_VERSION:-2.1.96}"
 echo "Starting Thermal Dual Vision (v${ADDON_VERSION})..."
 
 # Ensure data directory exists
 mkdir -p /app/data
+
+# Ensure Ultralytics config directory is writable
+YOLO_CONFIG_DIR="/app/data/ultralytics"
+mkdir -p "$YOLO_CONFIG_DIR"
+export YOLO_CONFIG_DIR
+
+# Load HA add-on options (log level)
+LOG_LEVEL=""
+if [ -f /data/options.json ]; then
+    LOG_LEVEL=$(jq -r '.log_level // empty' /data/options.json 2>/dev/null || true)
+fi
+LOG_LEVEL="${LOG_LEVEL:-info}"
+export LOG_LEVEL
+echo "Log level: ${LOG_LEVEL}"
 
 # ---------------------------------------------------------
 # AUTO-DISCOVER MQTT FROM HA SUPERVISOR API
