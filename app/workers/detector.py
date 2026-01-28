@@ -84,6 +84,8 @@ class DetectorWorker:
         self.last_gate_log: Dict[str, float] = {}
         self.stream_stats: Dict[str, Dict[str, Any]] = defaultdict(dict)
         self.stream_stats_lock = threading.Lock()
+        self.restream_failures: Dict[str, int] = defaultdict(int)
+        self.restream_backoff_until: Dict[str, float] = {}
         
         logger.info("DetectorWorker initialized")
     
@@ -187,6 +189,8 @@ class DetectorWorker:
         self.latest_frame_locks.pop(camera_id, None)
         self.last_detection_log.pop(camera_id, None)
         self.last_gate_log.pop(camera_id, None)
+        self.restream_failures.pop(camera_id, None)
+        self.restream_backoff_until.pop(camera_id, None)
         with self.stream_stats_lock:
             self.stream_stats.pop(camera_id, None)
 
@@ -259,7 +263,14 @@ class DetectorWorker:
                 detection_source,
             )
             
-            rtsp_urls = self._get_detection_rtsp_urls(camera_id, restream_source, rtsp_url)
+            restream_url = self._get_go2rtc_restream_url(camera_id, restream_source)
+            prefer_direct = time.time() < self.restream_backoff_until.get(camera_id, 0.0)
+            rtsp_urls = self._get_detection_rtsp_urls(
+                camera_id,
+                restream_source,
+                rtsp_url,
+                prefer_direct=prefer_direct,
+            )
             if not rtsp_urls:
                 logger.error(f"No RTSP URL for camera {camera_id}")
                 return
@@ -271,7 +282,7 @@ class DetectorWorker:
             )
             
             # Open video capture with codec fallback
-            cap = self._open_capture_with_fallbacks(rtsp_urls, config, camera_id)
+            cap, active_url = self._open_capture_with_fallbacks(rtsp_urls, config, camera_id)
             
             if not cap or not cap.isOpened():
                 logger.error(f"Failed to open camera {camera_id}")
@@ -291,7 +302,7 @@ class DetectorWorker:
             self._init_stream_stats(camera_id)
 
             def reader_loop() -> None:
-                nonlocal cap
+                nonlocal cap, active_url, rtsp_urls
                 failures = 0
                 open_failures = 0
                 while self.running and not reader_stop.is_set():
@@ -301,7 +312,7 @@ class DetectorWorker:
                         protocol=protocol,
                     )
                     if cap is None or not cap.isOpened():
-                        cap = self._open_capture_with_fallbacks(rtsp_urls, config, camera_id)
+                        cap, active_url = self._open_capture_with_fallbacks(rtsp_urls, config, camera_id)
                         if cap is None or not cap.isOpened():
                             open_failures += 1
                             if open_failures >= max(config.stream.max_reconnect_attempts, 1):
@@ -329,11 +340,34 @@ class DetectorWorker:
                             )
                             if failures >= 3:
                                 logger.warning("Reconnecting camera %s after read failures", camera_id)
+                                if (
+                                    restream_url
+                                    and rtsp_url
+                                    and restream_url != rtsp_url
+                                    and active_url == restream_url
+                                ):
+                                    self.restream_failures[camera_id] += 1
+                                    if self.restream_failures[camera_id] >= 2:
+                                        self.restream_failures[camera_id] = 0
+                                        self.restream_backoff_until[camera_id] = time.time() + 300
+                                        rtsp_urls = self._get_detection_rtsp_urls(
+                                            camera_id,
+                                            restream_source,
+                                            rtsp_url,
+                                            prefer_direct=True,
+                                        )
+                                        logger.warning(
+                                            "Restream unstable for camera %s; preferring direct RTSP for 5m",
+                                            camera_id,
+                                        )
+                                elif active_url == rtsp_url:
+                                    self.restream_failures[camera_id] = 0
                                 try:
                                     cap.release()
                                 except Exception:
                                     pass
                                 cap = None
+                                active_url = None
                                 failures = 0
                                 self._update_stream_stats(
                                     camera_id,
@@ -760,7 +794,7 @@ class DetectorWorker:
         rtsp_urls: List[str],
         config,
         camera_id: Optional[str] = None,
-    ) -> Optional[cv2.VideoCapture]:
+    ) -> Tuple[Optional[cv2.VideoCapture], Optional[str]]:
         last_url = None
         for url in rtsp_urls:
             last_url = url
@@ -772,10 +806,10 @@ class DetectorWorker:
                         camera_id,
                         redact_rtsp_url(url),
                     )
-                return cap
+                return cap, url
         if last_url:
             logger.error("All RTSP sources failed for camera %s", camera_id)
-        return None
+        return None, None
 
     def _resolve_detection_stream(
         self,
@@ -808,10 +842,15 @@ class DetectorWorker:
         camera_id: str,
         restream_source: Optional[str],
         primary_url: Optional[str],
+        prefer_direct: bool = False,
     ) -> List[str]:
         urls: List[str] = []
         restream_url = self._get_go2rtc_restream_url(camera_id, restream_source)
         if primary_url and restream_url and restream_url != primary_url:
+            if prefer_direct:
+                urls.append(primary_url)
+                urls.append(restream_url)
+                return urls
             urls.append(restream_url)
         if primary_url:
             urls.append(primary_url)

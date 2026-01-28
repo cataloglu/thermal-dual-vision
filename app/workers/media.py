@@ -48,7 +48,7 @@ class MediaWorker:
     MP4_MAX_SIZE = (1280, 720)
     MP4_FPS = 12
     MP4_MAX_OUTPUT_FPS = 20
-    MP4_CODECS = ("avc1", "H264", "mp4v")
+    MP4_CODECS = ("mp4v", "avc1", "H264")
     MP4_CRF = 18
     MP4_PRESET = "medium"
     MP4_MIN_DURATION = 0.5
@@ -156,10 +156,21 @@ class MediaWorker:
         ffmpeg = shutil.which("ffmpeg")
         if not ffmpeg:
             return False
-        try:
-            width, height = size
+        if not frames:
+            return False
+
+        width, height = size
+        codec_candidates = (
+            ("libx264", ["-preset", self.MP4_PRESET, "-crf", str(self.MP4_CRF), "-pix_fmt", "yuv420p"]),
+            ("mpeg4", ["-q:v", "5", "-pix_fmt", "yuv420p"]),
+        )
+
+        for codec, extra_args in codec_candidates:
             cmd = [
                 ffmpeg,
+                "-hide_banner",
+                "-loglevel",
+                "error",
                 "-y",
                 "-f",
                 "rawvideo",
@@ -172,38 +183,47 @@ class MediaWorker:
                 "-i",
                 "pipe:0",
                 "-c:v",
-                "libx264",
-                "-preset",
-                self.MP4_PRESET,
-                "-crf",
-                str(self.MP4_CRF),
-                "-pix_fmt",
-                "yuv420p",
+                codec,
+                *extra_args,
                 "-movflags",
                 "+faststart",
                 output_path,
             ]
             proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            write_error: Optional[Exception] = None
+            written = 0
             try:
                 for frame in frames:
                     if frame is None:
                         continue
                     if frame.shape[1] != width or frame.shape[0] != height:
                         frame = cv2.resize(frame, (width, height), interpolation=cv2.INTER_AREA)
-                    proc.stdin.write(frame.tobytes())
-                proc.stdin.close()
+                    try:
+                        proc.stdin.write(frame.tobytes())
+                        written += 1
+                    except (BrokenPipeError, ValueError) as exc:
+                        write_error = exc
+                        break
+                if proc.stdin and not proc.stdin.closed:
+                    proc.stdin.close()
                 stdout, stderr = proc.communicate()
             finally:
                 if proc.stdin and not proc.stdin.closed:
                     proc.stdin.close()
-            if proc.returncode != 0:
-                error_text = stderr.decode(errors="ignore").strip()
-                logger.warning("FFmpeg encode failed: %s", error_text)
+
+            if written == 0:
+                logger.warning("FFmpeg encode skipped: no frames written")
                 return False
+
+            if write_error or proc.returncode != 0:
+                error_text = stderr.decode(errors="ignore").strip()
+                detail = error_text or str(write_error or "unknown error")
+                logger.warning("FFmpeg encode failed (%s): %s", codec, detail)
+                continue
+
             return True
-        except Exception as exc:
-            logger.warning("FFmpeg encode error: %s", exc)
-            return False
+
+        return False
 
     def _encode_mp4_opencv(
         self,
