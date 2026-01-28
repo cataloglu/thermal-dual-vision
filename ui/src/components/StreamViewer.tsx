@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { MdRefresh, MdError, MdCheckCircle, MdFullscreen, MdPhotoCamera } from 'react-icons/md'
 import { api } from '../services/api'
 import { useSettings } from '../hooks/useSettings'
+import '../go2rtc-player'
 
 // Helper to get go2rtc URL (Ingress-aware)
 const getGo2rtcUrl = () => {
@@ -12,6 +13,9 @@ const getGo2rtcUrl = () => {
 };
 
 const GO2RTC_URL = import.meta.env.VITE_GO2RTC_URL || getGo2rtcUrl();
+const normalizeGo2rtcBase = (url: string) => url.replace(/\/+$/, '');
+const getGo2rtcWsUrl = (cameraId: string) =>
+  `${normalizeGo2rtcBase(GO2RTC_URL)}/api/ws?src=${encodeURIComponent(cameraId)}`;
 
 interface StreamViewerProps {
   cameraId: string
@@ -39,7 +43,7 @@ export function StreamViewer({
   const outputMode = settings?.live?.output_mode || 'mjpeg'
 
   const imgRef = useRef<HTMLImageElement>(null)
-  const iframeRef = useRef<HTMLIFrameElement>(null)
+  const playerRef = useRef<HTMLElement>(null)
   const retryTimeoutRef = useRef<number | null>(null)
   const loadingTimeoutRef = useRef<number | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -70,7 +74,7 @@ export function StreamViewer({
       window.clearTimeout(loadingTimeoutRef.current)
       loadingTimeoutRef.current = null
     }
-  }, [streamUrl])
+  }, [streamUrl, cameraId, outputMode])
 
   useEffect(() => {
     if (!containerRef.current) {
@@ -125,37 +129,14 @@ export function StreamViewer({
   }, [])
 
   useEffect(() => {
-    if (!isVisible || !streamUrl) return
+    if (!isVisible) return
     if (loadingTimeoutRef.current) {
       window.clearTimeout(loadingTimeoutRef.current)
     }
     loadingTimeoutRef.current = window.setTimeout(() => {
       setLoading(false)
     }, 2000)
-  }, [isVisible, streamUrl])
-
-  const tryEnhanceIframePlayback = () => {
-    const iframe = iframeRef.current
-    if (!iframe) return
-
-    try {
-      const doc = iframe.contentDocument || iframe.contentWindow?.document
-      if (!doc) return
-      const video = doc.querySelector('video') as HTMLVideoElement | null
-      if (!video) return
-
-      // Hide native controls and force autoplay
-      video.controls = false
-      video.muted = true
-      video.playsInline = true
-      const playResult = video.play()
-      if (playResult && typeof playResult.catch === 'function') {
-        playResult.catch(() => undefined)
-      }
-    } catch {
-      // Cross-origin iframe: ignore
-    }
-  }
+  }, [isVisible, streamUrl, outputMode])
 
   const handleLoad = () => {
     if (!isVisible) return
@@ -163,25 +144,82 @@ export function StreamViewer({
     setError(false)
     setRetryCount(0)
 
-    if (outputMode === 'webrtc' && go2rtcAvailable) {
-      let attempts = 0
-      const maxAttempts = 10
-      const tick = () => {
-        attempts += 1
-        tryEnhanceIframePlayback()
-        if (attempts < maxAttempts) {
-          window.setTimeout(tick, 200)
-        }
-      }
-      window.setTimeout(tick, 200)
-    }
   }
+
+  const shouldShowWebrtc = outputMode === 'webrtc' && go2rtcAvailable
+  const webrtcActive = shouldShowWebrtc && isVisible
+
+  useEffect(() => {
+    const player = playerRef.current as any
+    if (!player) return
+
+    if (!webrtcActive) {
+      if (typeof player.ondisconnect === 'function') {
+        player.ondisconnect()
+      }
+      return
+    }
+
+    player.mode = 'webrtc'
+    player.media = 'video,audio'
+    player.src = getGo2rtcWsUrl(cameraId)
+  }, [webrtcActive, cameraId])
+
+  useEffect(() => {
+    if (!webrtcActive) return
+    let cancelled = false
+    let cleanup: (() => void) | null = null
+    let attempts = 0
+
+    const attach = () => {
+      if (cancelled) return
+      const player = playerRef.current as any
+      const video = player?.video as HTMLVideoElement | undefined
+      if (video) {
+        const onReady = () => {
+          if (!isVisible) return
+          handleLoad()
+        }
+        const onVideoError = () => {
+          if (!isVisible) return
+          setLoading(false)
+          setError(true)
+        }
+        video.addEventListener('playing', onReady)
+        video.addEventListener('loadeddata', onReady)
+        video.addEventListener('error', onVideoError)
+        cleanup = () => {
+          video.removeEventListener('playing', onReady)
+          video.removeEventListener('loadeddata', onReady)
+          video.removeEventListener('error', onVideoError)
+        }
+        return
+      }
+
+      attempts += 1
+      if (attempts < 20) {
+        window.setTimeout(attach, 200)
+      }
+    }
+
+    attach()
+
+    return () => {
+      cancelled = true
+      if (cleanup) {
+        cleanup()
+      }
+    }
+  }, [webrtcActive, cameraId, isVisible])
 
   const handleError = () => {
     if (!isVisible) return
     setLoading(false)
     setError(true)
-    
+    if (outputMode === 'webrtc') {
+      return
+    }
+
     // Auto-retry up to 10 times
     if (retryCount < maxRetries) {
       retryTimeoutRef.current = window.setTimeout(() => {
@@ -200,6 +238,20 @@ export function StreamViewer({
     if (retryTimeoutRef.current) {
       window.clearTimeout(retryTimeoutRef.current)
       retryTimeoutRef.current = null
+    }
+    if (outputMode === 'webrtc') {
+      const player = playerRef.current as any
+      if (player) {
+        if (typeof player.ondisconnect === 'function') {
+          player.ondisconnect()
+        }
+        if (webrtcActive) {
+          player.mode = 'webrtc'
+          player.media = 'video,audio'
+          player.src = getGo2rtcWsUrl(cameraId)
+        }
+      }
+      return
     }
     if (imgRef.current) {
       imgRef.current.src = `${streamUrl}?t=${Date.now()}`
@@ -296,14 +348,11 @@ export function StreamViewer({
       )}
 
       {/* MJPEG Stream / WebRTC Player */}
-      {outputMode === 'webrtc' && go2rtcAvailable ? (
-        <iframe
-          ref={iframeRef}
-          src={`${GO2RTC_URL}/stream.html?src=${cameraId}&mode=webrtc`}
-          className="w-full h-full border-0"
-          allow="autoplay"
+      {shouldShowWebrtc ? (
+        <video-stream
+          ref={playerRef}
+          className="w-full h-full"
           title="WebRTC Stream"
-          onLoad={handleLoad}
         />
       ) : (
         <img
