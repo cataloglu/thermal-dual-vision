@@ -194,6 +194,15 @@ class DetectorWorker:
         with self.stream_stats_lock:
             self.stream_stats.pop(camera_id, None)
 
+    def _reset_motion_buffers(self, camera_id: str) -> None:
+        lock = self.frame_buffer_locks[camera_id]
+        with lock:
+            buffer = self.frame_buffers.get(camera_id)
+            if buffer is not None:
+                buffer.clear()
+        self.frame_counters[camera_id] = 0
+        self.detection_history[camera_id].clear()
+
     def start_camera_detection(self, camera: Camera) -> None:
         """
         Start detection thread for a camera.
@@ -1006,9 +1015,11 @@ class DetectorWorker:
         )
 
         state = self.motion_state[camera.id]
+        motion_active = bool(state.get("motion_active"))
         last_motion = state.get("last_motion", 0.0)
         now = time.time()
         if cooldown_seconds and now - last_motion < cooldown_seconds:
+            state["motion_active"] = False
             return False
 
         if len(frame.shape) == 3:
@@ -1040,9 +1051,13 @@ class DetectorWorker:
         state["prev_frame"] = gray
 
         if motion_area >= min_area:
+            if not motion_active:
+                self._reset_motion_buffers(camera.id)
             state["last_motion"] = now
+            state["motion_active"] = True
             return True
 
+        state["motion_active"] = False
         return False
 
     def _filter_detections_by_zones(

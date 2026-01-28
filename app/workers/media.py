@@ -52,9 +52,10 @@ class MediaWorker:
     MP4_CRF = 18
     MP4_PRESET = "medium"
     MP4_MIN_DURATION = 0.5
+    MP4_MIN_OUTPUT_DURATION = 10.0
     MP4_MAX_DURATION = 12.0
     MP4_SPEED_FACTOR = 4.0
-    MP4_MIN_OUTPUT_FPS = 6
+    MP4_MIN_OUTPUT_FPS = 1
     
     # Overlay colors (BGR format)
     COLOR_WHITE = (255, 255, 255)
@@ -599,11 +600,12 @@ class MediaWorker:
             min_duration,
             min(self.MP4_MAX_DURATION, actual_duration / self.MP4_SPEED_FACTOR),
         )
+        if self.MP4_MIN_OUTPUT_DURATION:
+            target_duration = max(target_duration, self.MP4_MIN_OUTPUT_DURATION)
         if frame_count > 0:
             max_duration_for_frames = frame_count / max(self.MP4_MIN_OUTPUT_FPS, 1)
             if max_duration_for_frames > 0:
                 target_duration = min(target_duration, max_duration_for_frames)
-        target_duration = min(target_duration, actual_duration)
 
         target_fps = min(self.MP4_MAX_OUTPUT_FPS, frame_count / max(target_duration, 0.1)) if frame_count > 0 else self.MP4_FPS
         target_fps = max(1.0, target_fps)
