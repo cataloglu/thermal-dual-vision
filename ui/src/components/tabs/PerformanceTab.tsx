@@ -14,10 +14,12 @@ interface CameraSettingsTabProps {
 export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, onChange, onSave }) => {
   const { t } = useTranslation()
 
-  const applyPreset = async (preset: 'eco' | 'balanced' | 'quality') => {
+  const applyPreset = async (preset: 'eco' | 'balanced' | 'quality' | 'frigate') => {
     const baseDetection = settings.detection
     const baseMotion = settings.motion
     const baseThermal = settings.thermal
+    const baseStream = settings.stream
+    const baseEvent = settings.event
 
     const updates: Partial<Settings> = (() => {
       if (preset === 'eco') {
@@ -38,6 +40,46 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
           thermal: {
             ...baseThermal,
             enable_enhancement: false,
+          },
+        }
+      }
+      if (preset === 'frigate') {
+        return {
+          detection: {
+            ...baseDetection,
+            model: 'yolov8s-person',
+            inference_fps: 5,
+            inference_resolution: [640, 640],
+            confidence_threshold: 0.3,
+          },
+          motion: {
+            ...baseMotion,
+            sensitivity: 7,
+            min_area: 500,
+            cooldown_seconds: 5,
+          },
+          thermal: {
+            ...baseThermal,
+            enable_enhancement: true,
+            enhancement_method: 'clahe',
+            clahe_clip_limit: 2.0,
+          },
+          stream: {
+            ...baseStream,
+            protocol: 'tcp',
+            capture_backend: 'auto',
+            buffer_size: 1,
+            reconnect_delay_seconds: 5,
+            max_reconnect_attempts: 10,
+            read_failure_threshold: 3,
+            read_failure_timeout_seconds: 12,
+          },
+          event: {
+            ...baseEvent,
+            prebuffer_seconds: 5,
+            postbuffer_seconds: 5,
+            frame_interval: 2,
+            min_event_duration: 1.0,
           },
         }
       }
@@ -117,7 +159,7 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
           <h4 className="text-base font-semibold text-text">{t('perfPresetsTitle')}</h4>
           <p className="text-sm text-muted">{t('perfPresetsDesc')}</p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
           <button
             onClick={() => applyPreset('eco')}
             className="p-4 rounded-lg border border-border bg-surface1 text-left hover:bg-surface1/80 transition-colors"
@@ -131,6 +173,13 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
           >
             <div className="font-semibold text-text">{t('perfPresetBalancedTitle')}</div>
             <div className="text-xs text-muted mt-1">{t('perfPresetBalancedDesc')}</div>
+          </button>
+          <button
+            onClick={() => applyPreset('frigate')}
+            className="p-4 rounded-lg border border-border bg-surface1 text-left hover:bg-surface1/80 transition-colors"
+          >
+            <div className="font-semibold text-text">{t('perfPresetFrigateTitle')}</div>
+            <div className="text-xs text-muted mt-1">{t('perfPresetFrigateDesc')}</div>
           </button>
           <button
             onClick={() => applyPreset('quality')}

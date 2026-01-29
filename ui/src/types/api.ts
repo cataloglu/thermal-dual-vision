@@ -63,6 +63,8 @@ export interface RecordConfig {
 
 export interface EventConfig {
   cooldown_seconds: number;
+  prebuffer_seconds: number;
+  postbuffer_seconds: number;
   frame_buffer_size: number;
   frame_interval: number;
   min_event_duration: number;
