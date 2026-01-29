@@ -86,8 +86,7 @@ class DetectorWorker:
         self.ffmpeg_frame_shapes: Dict[str, Tuple[int, int]] = {}
         self.ffmpeg_last_errors: Dict[str, deque] = defaultdict(lambda: deque(maxlen=3))
         self.ffmpeg_error_lock = threading.Lock()
-        self.ffmpeg_stimeout_supported: Optional[bool] = None
-        self.ffmpeg_rw_timeout_supported: Optional[bool] = None
+        self.ffmpeg_option_support: Optional[Dict[str, bool]] = None
         self.last_detection_log: Dict[str, float] = {}
         self.last_gate_log: Dict[str, float] = {}
         self.stream_stats: Dict[str, Dict[str, Any]] = defaultdict(dict)
@@ -1000,121 +999,110 @@ class DetectorWorker:
 
         transport = getattr(config.stream, "protocol", "tcp")
         loglevel = os.getenv("FFMPEG_LOGLEVEL", "error").strip() or "error"
-        use_stimeout = self.ffmpeg_stimeout_supported is not False
-        use_rw_timeout = self.ffmpeg_rw_timeout_supported is not False
+        option_support = self._get_ffmpeg_option_support()
         frame_size = output_size[0] * output_size[1] * 3
 
-        for attempt in range(3):
-            timeout_args: List[str] = []
-            if use_stimeout:
-                timeout_args.extend(["-stimeout", "10000000"])
-            if use_rw_timeout:
-                timeout_args.extend(["-rw_timeout", "15000000"])
+        timeout_args: List[str] = []
+        if option_support.get("stimeout", False):
+            timeout_args.extend(["-stimeout", "10000000"])
+        if option_support.get("rw_timeout", False):
+            timeout_args.extend(["-rw_timeout", "15000000"])
 
-            cmd = [
-                ffmpeg,
-                "-hide_banner",
-                "-loglevel",
-                loglevel,
-                "-rtsp_transport",
-                transport,
-                *timeout_args,
-                "-i",
-                rtsp_url,
-                "-an",
-                "-sn",
-                "-dn",
+        cmd = [
+            ffmpeg,
+            "-hide_banner",
+            "-loglevel",
+            loglevel,
+            "-rtsp_transport",
+            transport,
+            *timeout_args,
+            "-i",
+            rtsp_url,
+            "-an",
+            "-sn",
+            "-dn",
+        ]
+        if scale_output:
+            cmd.extend(["-vf", f"scale={output_size[0]}:{output_size[1]}"])
+        cmd.extend(
+            [
+                "-f",
+                "rawvideo",
+                "-pix_fmt",
+                "bgr24",
+                "-",
             ]
-            if scale_output:
-                cmd.extend(["-vf", f"scale={output_size[0]}:{output_size[1]}"])
-            cmd.extend(
-                [
-                    "-f",
-                    "rawvideo",
-                    "-pix_fmt",
-                    "bgr24",
-                    "-",
-                ]
+        )
+
+        try:
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                bufsize=frame_size * 2,
             )
+        except Exception as exc:
+            logger.warning("Failed to start ffmpeg capture for camera %s: %s", camera_id, exc)
+            return None
 
-            try:
-                process = subprocess.Popen(
-                    cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    bufsize=frame_size * 2,
+        time.sleep(0.2)
+        if process.poll() is not None:
+            detail = ""
+            if process.stderr:
+                try:
+                    detail = process.stderr.read(4096).decode(errors="ignore").strip()
+                except Exception:
+                    detail = ""
+            if detail:
+                logger.warning(
+                    "FFmpeg exited immediately for camera %s (url=%s): %s",
+                    camera_id,
+                    redact_rtsp_url(rtsp_url),
+                    detail,
                 )
-            except Exception as exc:
-                logger.warning("Failed to start ffmpeg capture for camera %s: %s", camera_id, exc)
-                return None
+            else:
+                logger.warning(
+                    "FFmpeg exited immediately for camera %s (url=%s)",
+                    camera_id,
+                    redact_rtsp_url(rtsp_url),
+                )
+            self._stop_ffmpeg_capture(process)
+            return None
 
-            time.sleep(0.2)
-            if process.poll() is not None:
-                detail = ""
-                if process.stderr:
-                    try:
-                        detail = process.stderr.read(4096).decode(errors="ignore").strip()
-                    except Exception:
-                        detail = ""
-                unsupported_stimeout = use_stimeout and self._ffmpeg_option_unsupported(detail, "stimeout")
-                unsupported_rw_timeout = use_rw_timeout and self._ffmpeg_option_unsupported(detail, "rw_timeout")
-                if unsupported_stimeout:
-                    self.ffmpeg_stimeout_supported = False
-                    use_stimeout = False
-                if unsupported_rw_timeout:
-                    self.ffmpeg_rw_timeout_supported = False
-                    use_rw_timeout = False
-                if unsupported_stimeout or unsupported_rw_timeout:
-                    self._stop_ffmpeg_capture(process)
-                    if attempt < 2:
-                        if unsupported_stimeout:
-                            logger.warning(
-                                "FFmpeg does not support -stimeout; retrying without it for camera %s",
-                                camera_id,
-                            )
-                        if unsupported_rw_timeout:
-                            logger.warning(
-                                "FFmpeg does not support -rw_timeout; retrying without it for camera %s",
-                                camera_id,
-                            )
-                        continue
-                if detail:
-                    logger.warning(
-                        "FFmpeg exited immediately for camera %s (url=%s): %s",
-                        camera_id,
-                        redact_rtsp_url(rtsp_url),
-                        detail,
-                    )
-                else:
-                    logger.warning(
-                        "FFmpeg exited immediately for camera %s (url=%s)",
-                        camera_id,
-                        redact_rtsp_url(rtsp_url),
-                    )
-                self._stop_ffmpeg_capture(process)
-                return None
+        self._start_ffmpeg_stderr_reader(process, camera_id)
+        logger.info("Opened camera %s with ffmpeg backend", camera_id)
+        return process
 
-            if use_stimeout and self.ffmpeg_stimeout_supported is None:
-                self.ffmpeg_stimeout_supported = True
-            if use_rw_timeout and self.ffmpeg_rw_timeout_supported is None:
-                self.ffmpeg_rw_timeout_supported = True
-
-            self._start_ffmpeg_stderr_reader(process, camera_id)
-            logger.info("Opened camera %s with ffmpeg backend", camera_id)
-            return process
-
-        return None
-
-    def _ffmpeg_option_unsupported(self, detail: str, option: str) -> bool:
-        if not detail:
-            return False
-        text = detail.lower()
-        opt = option.lower()
-        if f"unrecognized option '{opt}'" in text or f"unrecognized option \"{opt}\"" in text:
-            return True
-        if "option not found" in text and opt in text:
-            return True
-        return False
+    def _get_ffmpeg_option_support(self) -> Dict[str, bool]:
+        if self.ffmpeg_option_support is not None:
+            return self.ffmpeg_option_support
+        support = {"stimeout": False, "rw_timeout": False}
+        ffmpeg = shutil.which("ffmpeg")
+        if not ffmpeg:
+            self.ffmpeg_option_support = support
+            return support
+        try:
+            result = subprocess.run(
+                [ffmpeg, "-hide_banner", "-h", "full"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+            output = f"{result.stdout}\n{result.stderr}"
+        except Exception as exc:
+            logger.warning("Failed to inspect ffmpeg options: %s", exc)
+            self.ffmpeg_option_support = support
+            return support
+        support["stimeout"] = "-stimeout" in output
+        support["rw_timeout"] = "-rw_timeout" in output
+        self.ffmpeg_option_support = support
+        logger.info(
+            "FFmpeg option support: stimeout=%s rw_timeout=%s",
+            support["stimeout"],
+            support["rw_timeout"],
+        )
+        return support
 
     def _start_ffmpeg_stderr_reader(
         self,
