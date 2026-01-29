@@ -36,9 +36,12 @@ export interface ThermalConfig {
 
 export interface StreamConfig {
   protocol: 'tcp' | 'udp';
+  capture_backend: 'auto' | 'opencv' | 'ffmpeg';
   buffer_size: number;
   reconnect_delay_seconds: number;
   max_reconnect_attempts: number;
+  read_failure_threshold: number;
+  read_failure_timeout_seconds: number;
 }
 
 export interface LiveConfig {

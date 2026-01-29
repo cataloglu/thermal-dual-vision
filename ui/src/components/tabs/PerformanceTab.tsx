@@ -520,6 +520,21 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
               <option value="tcp">TCP ({t('stable')})</option>
               <option value="udp">UDP ({t('lowLatency')})</option>
             </select>
+            <label className="text-xs text-muted">{t('streamBackend')}</label>
+            <select
+              value={settings.stream.capture_backend || 'auto'}
+              onChange={(e) =>
+                onChange({
+                  ...settings,
+                  stream: { ...settings.stream, capture_backend: e.target.value as Settings['stream']['capture_backend'] },
+                })
+              }
+              className="w-full px-3 py-2 bg-surface1 border border-border rounded-lg text-text"
+            >
+              <option value="auto">{t('streamBackendAuto')}</option>
+              <option value="opencv">{t('streamBackendOpenCV')}</option>
+              <option value="ffmpeg">{t('streamBackendFFmpeg')}</option>
+            </select>
             <label className="text-xs text-muted">{t('bufferSize')}</label>
             <input
               type="number"
@@ -555,6 +570,33 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
                 onChange({
                   ...settings,
                   stream: { ...settings.stream, max_reconnect_attempts: parseInt(e.target.value) || 1 },
+                })
+              }
+              className="w-full px-3 py-2 bg-surface1 border border-border rounded-lg text-text"
+            />
+            <label className="text-xs text-muted">{t('readFailureThreshold')}</label>
+            <input
+              type="number"
+              min="1"
+              value={settings.stream.read_failure_threshold}
+              onChange={(e) =>
+                onChange({
+                  ...settings,
+                  stream: { ...settings.stream, read_failure_threshold: parseInt(e.target.value) || 1 },
+                })
+              }
+              className="w-full px-3 py-2 bg-surface1 border border-border rounded-lg text-text"
+            />
+            <label className="text-xs text-muted">{t('readFailureTimeout')} ({t('seconds')})</label>
+            <input
+              type="number"
+              min="1"
+              step="0.5"
+              value={settings.stream.read_failure_timeout_seconds}
+              onChange={(e) =>
+                onChange({
+                  ...settings,
+                  stream: { ...settings.stream, read_failure_timeout_seconds: parseFloat(e.target.value) || 1 },
                 })
               }
               className="w-full px-3 py-2 bg-surface1 border border-border rounded-lg text-text"

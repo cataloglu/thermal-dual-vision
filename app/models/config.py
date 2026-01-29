@@ -157,6 +157,10 @@ class StreamConfig(BaseModel):
         default="tcp",
         description="RTSP protocol (tcp recommended)"
     )
+    capture_backend: Literal["auto", "opencv", "ffmpeg"] = Field(
+        default="auto",
+        description="Capture backend for RTSP streams"
+    )
     buffer_size: int = Field(
         default=1,
         ge=1,
@@ -171,6 +175,17 @@ class StreamConfig(BaseModel):
         default=10,
         ge=1,
         description="Maximum reconnect attempts"
+    )
+    read_failure_threshold: int = Field(
+        default=3,
+        ge=1,
+        description="Consecutive read failures before reconnect logic"
+    )
+    read_failure_timeout_seconds: float = Field(
+        default=8.0,
+        ge=1.0,
+        le=60.0,
+        description="Seconds without frames before reconnect"
     )
 
 

@@ -14,6 +14,8 @@ import os
 import threading
 import time
 import asyncio
+import shutil
+import subprocess
 from collections import defaultdict, deque
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple, Any
@@ -81,6 +83,7 @@ class DetectorWorker:
         self.zone_cache: Dict[str, Dict[str, Any]] = defaultdict(dict)
         self.last_status_update: Dict[str, float] = {}
         self.codec_cache: Dict[str, str] = {}
+        self.ffmpeg_frame_shapes: Dict[str, Tuple[int, int]] = {}
         self.last_detection_log: Dict[str, float] = {}
         self.last_gate_log: Dict[str, float] = {}
         self.stream_stats: Dict[str, Dict[str, Any]] = defaultdict(dict)
@@ -292,14 +295,40 @@ class DetectorWorker:
                 camera_id,
                 redact_rtsp_url(rtsp_urls[0]),
             )
-            
-            # Open video capture with codec fallback
-            cap, active_url = self._open_capture_with_fallbacks(rtsp_urls, config, camera_id)
-            
-            if not cap or not cap.isOpened():
-                logger.error(f"Failed to open camera {camera_id}")
-                self._update_camera_status(camera_id, CameraStatus.DOWN, None)
-                return
+
+            capture_backend = getattr(config.stream, "capture_backend", "auto")
+            ffmpeg_proc = None
+            ffmpeg_frame_shape = None
+            ffmpeg_frame_size = None
+            active_backend = "opencv"
+            cap = None
+            active_url = None
+
+            if capture_backend in ("auto", "ffmpeg"):
+                ffmpeg_proc, active_url, ffmpeg_frame_shape = self._open_ffmpeg_with_fallbacks(
+                    rtsp_urls,
+                    config,
+                    camera_id,
+                )
+                if ffmpeg_proc and ffmpeg_frame_shape:
+                    active_backend = "ffmpeg"
+                    ffmpeg_frame_size = ffmpeg_frame_shape[0] * ffmpeg_frame_shape[1] * 3
+                elif capture_backend == "ffmpeg":
+                    logger.warning(
+                        "FFmpeg capture failed for camera %s; falling back to OpenCV",
+                        camera_id,
+                    )
+
+            if active_backend != "ffmpeg":
+                # Open video capture with codec fallback
+                cap, active_url = self._open_capture_with_fallbacks(rtsp_urls, config, camera_id)
+
+                if not cap or not cap.isOpened():
+                    logger.error(f"Failed to open camera {camera_id}")
+                    self._update_camera_status(camera_id, CameraStatus.DOWN, None)
+                    return
+
+            logger.info("Capture backend for camera %s: %s", camera_id, active_backend)
             
             # FPS control
             target_fps = config.detection.inference_fps
@@ -314,112 +343,168 @@ class DetectorWorker:
             self._init_stream_stats(camera_id)
 
             def reader_loop() -> None:
-                nonlocal cap, active_url, rtsp_urls
+                nonlocal cap, active_url, rtsp_urls, ffmpeg_proc, ffmpeg_frame_shape, ffmpeg_frame_size, active_backend
                 failures = 0
                 open_failures = 0
-                while self.running and not reader_stop.is_set():
-                    self._log_stream_summary(
-                        camera_id=camera_id,
-                        interval=stream_log_interval,
-                        protocol=protocol,
-                    )
-                    if cap is None or not cap.isOpened():
-                        cap, active_url = self._open_capture_with_fallbacks(rtsp_urls, config, camera_id)
-                        if cap is None or not cap.isOpened():
-                            open_failures += 1
-                            if open_failures >= max(config.stream.max_reconnect_attempts, 1):
-                                logger.warning(
-                                    "STREAM camera=%s reopen_failed=%s delay=%ss",
-                                    camera_id,
-                                    open_failures,
-                                    config.stream.reconnect_delay_seconds,
-                                )
-                                open_failures = 0
-                                time.sleep(max(config.stream.reconnect_delay_seconds, 1))
-                            failures = 0
-                            time.sleep(1)
-                            continue
-                        open_failures = 0
 
-                    try:
-                        ret, frame = cap.read()
-                        if not ret or frame is None:
+                def _capture_ready() -> bool:
+                    if active_backend == "ffmpeg":
+                        return (
+                            ffmpeg_proc is not None
+                            and ffmpeg_proc.poll() is None
+                            and ffmpeg_frame_size
+                        )
+                    return cap is not None and cap.isOpened()
+
+                def _open_capture_backend() -> bool:
+                    nonlocal cap, active_url, ffmpeg_proc, ffmpeg_frame_shape, ffmpeg_frame_size, active_backend
+                    if active_backend == "ffmpeg":
+                        ffmpeg_proc, active_url, ffmpeg_frame_shape = self._open_ffmpeg_with_fallbacks(
+                            rtsp_urls,
+                            config,
+                            camera_id,
+                        )
+                        if ffmpeg_proc and ffmpeg_frame_shape:
+                            ffmpeg_frame_size = ffmpeg_frame_shape[0] * ffmpeg_frame_shape[1] * 3
+                            return True
+                        if capture_backend == "auto":
+                            active_backend = "opencv"
+                    if active_backend == "opencv":
+                        cap, active_url = self._open_capture_with_fallbacks(rtsp_urls, config, camera_id)
+                        if cap is not None and cap.isOpened():
+                            return True
+                    return False
+
+                try:
+                    while self.running and not reader_stop.is_set():
+                        self._log_stream_summary(
+                            camera_id=camera_id,
+                            interval=stream_log_interval,
+                            protocol=protocol,
+                        )
+                        if not _capture_ready():
+                            if not _open_capture_backend():
+                                open_failures += 1
+                                if open_failures >= max(config.stream.max_reconnect_attempts, 1):
+                                    logger.warning(
+                                        "STREAM camera=%s reopen_failed=%s delay=%ss",
+                                        camera_id,
+                                        open_failures,
+                                        config.stream.reconnect_delay_seconds,
+                                    )
+                                    open_failures = 0
+                                    time.sleep(max(config.stream.reconnect_delay_seconds, 1))
+                                failures = 0
+                                time.sleep(1)
+                                continue
+                            open_failures = 0
+
+                        try:
+                            if active_backend == "ffmpeg":
+                                frame = self._read_ffmpeg_frame(
+                                    ffmpeg_proc,
+                                    ffmpeg_frame_size,
+                                    ffmpeg_frame_shape,
+                                )
+                                ret = frame is not None
+                            else:
+                                ret, frame = cap.read()
+
+                            if not ret or frame is None:
+                                failures += 1
+                                self._update_stream_stats(
+                                    camera_id,
+                                    failed_increment=1,
+                                    last_error="read_failed",
+                                )
+                                failure_threshold = max(1, int(getattr(config.stream, "read_failure_threshold", 3)))
+                                failure_timeout = float(getattr(config.stream, "read_failure_timeout_seconds", 8.0))
+                                if failures >= failure_threshold:
+                                    now = time.time()
+                                    last_frame_age = self._get_last_frame_age(camera_id, now)
+                                    is_stale = last_frame_age is None or last_frame_age >= failure_timeout
+                                    if is_stale:
+                                        logger.warning("Reconnecting camera %s after read failures", camera_id)
+                                        if (
+                                            restream_url
+                                            and rtsp_url
+                                            and restream_url != rtsp_url
+                                            and active_url == restream_url
+                                        ):
+                                            self.restream_failures[camera_id] += 1
+                                            if self.restream_failures[camera_id] >= 2:
+                                                self.restream_failures[camera_id] = 0
+                                                self.restream_backoff_until[camera_id] = time.time() + 300
+                                                rtsp_urls = self._get_detection_rtsp_urls(
+                                                    camera_id,
+                                                    restream_source,
+                                                    rtsp_url,
+                                                    prefer_direct=True,
+                                                )
+                                                logger.warning(
+                                                    "Restream unstable for camera %s; preferring direct RTSP for 5m",
+                                                    camera_id,
+                                                )
+                                        elif active_url == rtsp_url:
+                                            self.restream_failures[camera_id] = 0
+                                        if active_backend == "ffmpeg":
+                                            self._stop_ffmpeg_capture(ffmpeg_proc)
+                                            ffmpeg_proc = None
+                                        else:
+                                            try:
+                                                cap.release()
+                                            except Exception:
+                                                pass
+                                            cap = None
+                                        active_url = None
+                                        failures = 0
+                                        self._update_stream_stats(
+                                            camera_id,
+                                            reconnect_increment=1,
+                                            last_reconnect_reason="read_failures",
+                                        )
+                                        if config.stream.reconnect_delay_seconds:
+                                            time.sleep(config.stream.reconnect_delay_seconds)
+                                time.sleep(0.2)
+                                continue
+
+                            # Optimization: Resize large frames immediately to save memory
+                            # YOLO usually needs 640x640, so keeping 1080p in memory is wasteful
+                            if frame.shape[1] > 1280: 
+                                height = int(frame.shape[0] * 1280 / frame.shape[1])
+                                frame = cv2.resize(frame, (1280, height))
+
+                            failures = 0
+                            self._update_stream_stats(
+                                camera_id,
+                                read_increment=1,
+                                last_frame_time=time.time(),
+                            )
+                            with frame_lock:
+                                latest_frame["frame"] = frame
+                            with self.latest_frame_locks[camera_id]:
+                                self.latest_frames[camera_id] = frame
+
+                            if reader_delay > 0:
+                                time.sleep(reader_delay)
+
+                        except Exception as e:
+                            logger.error(f"Reader loop error: {e}")
                             failures += 1
                             self._update_stream_stats(
                                 camera_id,
                                 failed_increment=1,
-                                last_error="read_failed",
+                                last_error=str(e),
                             )
-                            if failures >= 3:
-                                logger.warning("Reconnecting camera %s after read failures", camera_id)
-                                if (
-                                    restream_url
-                                    and rtsp_url
-                                    and restream_url != rtsp_url
-                                    and active_url == restream_url
-                                ):
-                                    self.restream_failures[camera_id] += 1
-                                    if self.restream_failures[camera_id] >= 2:
-                                        self.restream_failures[camera_id] = 0
-                                        self.restream_backoff_until[camera_id] = time.time() + 300
-                                        rtsp_urls = self._get_detection_rtsp_urls(
-                                            camera_id,
-                                            restream_source,
-                                            rtsp_url,
-                                            prefer_direct=True,
-                                        )
-                                        logger.warning(
-                                            "Restream unstable for camera %s; preferring direct RTSP for 5m",
-                                            camera_id,
-                                        )
-                                elif active_url == rtsp_url:
-                                    self.restream_failures[camera_id] = 0
-                                try:
-                                    cap.release()
-                                except Exception:
-                                    pass
-                                cap = None
-                                active_url = None
-                                failures = 0
-                                self._update_stream_stats(
-                                    camera_id,
-                                    reconnect_increment=1,
-                                    last_reconnect_reason="read_failures",
-                                )
-                                if config.stream.reconnect_delay_seconds:
-                                    time.sleep(config.stream.reconnect_delay_seconds)
-                            time.sleep(0.2)
-                            continue
-                        
-                        # Optimization: Resize large frames immediately to save memory
-                        # YOLO usually needs 640x640, so keeping 1080p in memory is wasteful
-                        if frame.shape[1] > 1280: 
-                            height = int(frame.shape[0] * 1280 / frame.shape[1])
-                            frame = cv2.resize(frame, (1280, height))
-
-                        failures = 0
-                        self._update_stream_stats(
-                            camera_id,
-                            read_increment=1,
-                            last_frame_time=time.time(),
-                        )
-                        with frame_lock:
-                            latest_frame["frame"] = frame
-                        with self.latest_frame_locks[camera_id]:
-                            self.latest_frames[camera_id] = frame
-
-                        if reader_delay > 0:
-                            time.sleep(reader_delay)
-                            
-                    except Exception as e:
-                        logger.error(f"Reader loop error: {e}")
-                        failures += 1
-                        self._update_stream_stats(
-                            camera_id,
-                            failed_increment=1,
-                            last_error=str(e),
-                        )
-                        time.sleep(0.5)
+                            time.sleep(0.5)
+                finally:
+                    if ffmpeg_proc is not None:
+                        self._stop_ffmpeg_capture(ffmpeg_proc)
+                    if cap is not None:
+                        try:
+                            cap.release()
+                        except Exception:
+                            pass
 
             reader_thread = threading.Thread(
                 target=reader_loop,
@@ -842,6 +927,215 @@ class DetectorWorker:
         if last_url:
             logger.error("All RTSP sources failed for camera %s", camera_id)
         return None, None
+
+    def _probe_stream_resolution(
+        self,
+        rtsp_url: str,
+        config,
+        camera_id: Optional[str] = None,
+    ) -> Optional[Tuple[int, int]]:
+        ffprobe = shutil.which("ffprobe")
+        if ffprobe:
+            cmd = [
+                ffprobe,
+                "-v",
+                "error",
+                "-select_streams",
+                "v:0",
+                "-show_entries",
+                "stream=width,height",
+                "-of",
+                "csv=p=0",
+                rtsp_url,
+            ]
+            try:
+                output = subprocess.check_output(
+                    cmd,
+                    stderr=subprocess.STDOUT,
+                    timeout=10,
+                ).decode("utf-8", errors="ignore").strip()
+                if output:
+                    parts = output.split(",")
+                    if len(parts) >= 2:
+                        width = int(parts[0])
+                        height = int(parts[1])
+                        if width > 0 and height > 0:
+                            return width, height
+            except Exception as exc:
+                logger.debug(
+                    "ffprobe failed for camera %s: %s",
+                    camera_id or "unknown",
+                    exc,
+                )
+
+        cap = self._open_capture(rtsp_url, config, camera_id)
+        if cap and cap.isOpened():
+            try:
+                ret, frame = cap.read()
+                if ret and frame is not None:
+                    return frame.shape[1], frame.shape[0]
+            finally:
+                try:
+                    cap.release()
+                except Exception:
+                    pass
+        return None
+
+    def _open_ffmpeg_capture(
+        self,
+        rtsp_url: str,
+        config,
+        camera_id: Optional[str],
+        output_size: Tuple[int, int],
+        scale_output: bool,
+    ) -> Optional[subprocess.Popen]:
+        ffmpeg = shutil.which("ffmpeg")
+        if not ffmpeg:
+            logger.warning("ffmpeg not found; skipping ffmpeg capture for camera %s", camera_id)
+            return None
+
+        transport = getattr(config.stream, "protocol", "tcp")
+        cmd = [
+            ffmpeg,
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-rtsp_transport",
+            transport,
+            "-stimeout",
+            "10000000",
+            "-rw_timeout",
+            "15000000",
+            "-i",
+            rtsp_url,
+            "-an",
+            "-sn",
+            "-dn",
+        ]
+        if scale_output:
+            cmd.extend(["-vf", f"scale={output_size[0]}:{output_size[1]}"])
+        cmd.extend(
+            [
+                "-f",
+                "rawvideo",
+                "-pix_fmt",
+                "bgr24",
+                "-",
+            ]
+        )
+        frame_size = output_size[0] * output_size[1] * 3
+        try:
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                bufsize=frame_size * 2,
+            )
+        except Exception as exc:
+            logger.warning("Failed to start ffmpeg capture for camera %s: %s", camera_id, exc)
+            return None
+
+        time.sleep(0.2)
+        if process.poll() is not None:
+            logger.warning("FFmpeg exited immediately for camera %s", camera_id)
+            self._stop_ffmpeg_capture(process)
+            return None
+
+        logger.info("Opened camera %s with ffmpeg backend", camera_id)
+        return process
+
+    def _open_ffmpeg_with_fallbacks(
+        self,
+        rtsp_urls: List[str],
+        config,
+        camera_id: Optional[str] = None,
+    ) -> Tuple[Optional[subprocess.Popen], Optional[str], Optional[Tuple[int, int]]]:
+        if not shutil.which("ffmpeg"):
+            return None, None, None
+
+        for url in rtsp_urls:
+            scale_output = False
+            cached = self.ffmpeg_frame_shapes.get(camera_id)
+            if cached:
+                width, height = cached
+            else:
+                size = self._probe_stream_resolution(url, config, camera_id)
+                if size:
+                    width, height = size
+                    if camera_id:
+                        self.ffmpeg_frame_shapes[camera_id] = (width, height)
+                else:
+                    width = height = 0
+
+            if width <= 0 or height <= 0:
+                if getattr(config.stream, "capture_backend", "auto") == "ffmpeg":
+                    width, height = config.detection.inference_resolution
+                    scale_output = True
+                    logger.warning(
+                        "FFmpeg capture using inference resolution %sx%s for camera %s",
+                        width,
+                        height,
+                        camera_id,
+                    )
+                else:
+                    continue
+
+            process = self._open_ffmpeg_capture(
+                url,
+                config,
+                camera_id,
+                (width, height),
+                scale_output,
+            )
+            if process:
+                if len(rtsp_urls) > 1 and url != rtsp_urls[0]:
+                    logger.info(
+                        "FFmpeg fallback stream selected for camera %s: %s",
+                        camera_id,
+                        redact_rtsp_url(url),
+                    )
+                return process, url, (height, width)
+
+        if rtsp_urls:
+            logger.error("All RTSP sources failed for ffmpeg capture camera %s", camera_id)
+        return None, None, None
+
+    def _read_ffmpeg_frame(
+        self,
+        process: Optional[subprocess.Popen],
+        frame_size: Optional[int],
+        frame_shape: Optional[Tuple[int, int]],
+    ) -> Optional[np.ndarray]:
+        if process is None or process.stdout is None or not frame_size or not frame_shape:
+            return None
+        try:
+            raw = process.stdout.read(frame_size)
+        except Exception:
+            return None
+        if not raw or len(raw) < frame_size:
+            return None
+        try:
+            return np.frombuffer(raw, dtype=np.uint8).reshape((frame_shape[0], frame_shape[1], 3))
+        except Exception:
+            return None
+
+    def _stop_ffmpeg_capture(self, process: Optional[subprocess.Popen]) -> None:
+        if process is None:
+            return
+        try:
+            if process.poll() is None:
+                process.terminate()
+                process.wait(timeout=5)
+        except Exception:
+            try:
+                process.kill()
+            except Exception:
+                pass
+        try:
+            if process.stdout:
+                process.stdout.close()
+        except Exception:
+            pass
 
     def _resolve_detection_stream(
         self,

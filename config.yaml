@@ -1,5 +1,5 @@
 name: "Thermal Dual Vision"
-version: "2.1.105"
+version: "2.1.107"
 slug: "thermal_dual_vision"
 description: "AI supported thermal & color person detection system with MQTT Auto-Discovery."
 url: "https://github.com/cataloglu/thermal-dual-vision"

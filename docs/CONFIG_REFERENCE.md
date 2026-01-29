@@ -61,9 +61,12 @@ Bu doküman `/api/settings` endpoint'indeki tüm config alanlarını açıklar.
 | Alan | Tip | Default | Açıklama |
 |------|-----|---------|----------|
 | `protocol` | string | `"tcp"` | RTSP protocol: `tcp` (önerilen) veya `udp` |
+| `capture_backend` | string | `"auto"` | Capture backend: `auto`, `opencv`, `ffmpeg` |
 | `buffer_size` | int | `1` | OpenCV VideoCapture buffer size |
 | `reconnect_delay_seconds` | int | `5` | Reconnect denemesi arasındaki süre |
 | `max_reconnect_attempts` | int | `10` | Maksimum reconnect deneme sayısı |
+| `read_failure_threshold` | int | `3` | Reconnect öncesi ardışık read hata sayısı |
+| `read_failure_timeout_seconds` | float | `8.0` | Reconnect tetiklemeden önce framesiz max süre |
 
 **Not**: Bu **kameradan backend'e** gelen stream için. Browser'a giden stream `live` section'da.
 
@@ -107,6 +110,8 @@ Bu doküman `/api/settings` endpoint'indeki tüm config alanlarını açıklar.
 | Alan | Tip | Default | Açıklama |
 |------|-----|---------|----------|
 | `cooldown_seconds` | int | `5` | Minimum süre iki event arasında |
+| `prebuffer_seconds` | float | `5.0` | Hareket öncesi buffer (saniye) |
+| `postbuffer_seconds` | float | `5.0` | Hareket sonrası buffer (saniye) |
 | `frame_buffer_size` | int | `10` | Collage için frame buffer |
 | `frame_interval` | int | `2` | Her kaç frame'de bir kaydet |
 | `min_event_duration` | float | `1.0` | Minimum event süresi (saniye) |
