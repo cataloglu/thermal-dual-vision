@@ -1556,7 +1556,8 @@ class DetectorWorker:
                 self.frame_buffers[camera_id] = buffer
 
             self.frame_counters[camera_id] += 1
-            should_sample = self.frame_counters[camera_id] % frame_interval == 0
+            has_detection = bool(detections)
+            should_sample = has_detection or self.frame_counters[camera_id] % frame_interval == 0
             if not should_sample and len(buffer) == 0:
                 should_sample = True
             if not should_sample:
