@@ -159,7 +159,7 @@ class AIService:
                         }
                     ],
                     max_tokens=config.ai.max_tokens,
-                    temperature=config.ai.temperature or 0.3
+                    temperature=config.ai.temperature if config.ai.temperature is not None else 0.3
                 )
             finally:
                 await client.close()

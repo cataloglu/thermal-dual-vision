@@ -108,9 +108,11 @@ class WebSocketManager:
         message_json = json.dumps(message)
         
         # Send to all connections
+        async with self._lock:
+            connections = list(self.active_connections)
         disconnected = []
-        
-        for connection in self.active_connections:
+
+        for connection in connections:
             try:
                 await connection.send_text(message_json)
             except Exception as e:

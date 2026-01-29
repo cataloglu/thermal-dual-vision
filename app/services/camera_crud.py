@@ -81,6 +81,8 @@ class CameraCRUDService:
                     "sensitivity": 7,
                     "threshold": 500,
                     "cooldown": 5,
+                    "min_area": 500,
+                    "cooldown_seconds": 5,
                     "roi": ""
                 }
             )

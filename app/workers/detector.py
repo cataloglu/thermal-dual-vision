@@ -1009,9 +1009,14 @@ class DetectorWorker:
             return True
 
         sensitivity = int(motion_settings.get("sensitivity", config.motion.sensitivity))
-        min_area = int(motion_settings.get("min_area", config.motion.min_area))
+        min_area = int(
+            motion_settings.get("min_area", motion_settings.get("threshold", config.motion.min_area))
+        )
         cooldown_seconds = int(
-            motion_settings.get("cooldown_seconds", config.motion.cooldown_seconds)
+            motion_settings.get(
+                "cooldown_seconds",
+                motion_settings.get("cooldown", config.motion.cooldown_seconds),
+            )
         )
 
         state = self.motion_state[camera.id]

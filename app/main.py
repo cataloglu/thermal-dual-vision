@@ -1515,6 +1515,8 @@ async def update_camera(
                 detector_worker.start_camera_detection(camera)
             except Exception as e:
                 logger.error("Failed to start detection for camera %s: %s", camera.id, e)
+        else:
+            detector_worker.stop_camera_detection(camera.id)
 
         go2rtc_service.update_camera_streams(
             camera_id=camera.id,
