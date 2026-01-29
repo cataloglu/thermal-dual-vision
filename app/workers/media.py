@@ -55,7 +55,7 @@ class MediaWorker:
     MP4_MIN_OUTPUT_DURATION = 10.0
     MP4_MAX_DURATION = 12.0
     MP4_SPEED_FACTOR = 4.0
-    MP4_MIN_OUTPUT_FPS = 1
+    MP4_MIN_OUTPUT_FPS = 3
     
     # Overlay colors (BGR format)
     COLOR_WHITE = (255, 255, 255)
@@ -251,6 +251,29 @@ class MediaWorker:
             logger.warning("OpenCV MP4 encode failed: %s", exc)
         finally:
             out.release()
+
+    def _select_indices_by_time(
+        self,
+        timestamps: List[float],
+        target_count: int,
+    ) -> List[int]:
+        if not timestamps:
+            return []
+        if target_count <= 1:
+            return [0]
+        start = timestamps[0]
+        end = timestamps[-1]
+        if end <= start:
+            return [0 for _ in range(target_count)]
+        step = (end - start) / (target_count - 1)
+        targets = [start + (i * step) for i in range(target_count)]
+        indices: List[int] = []
+        idx = 0
+        for target in targets:
+            while idx + 1 < len(timestamps) and abs(timestamps[idx + 1] - target) <= abs(timestamps[idx] - target):
+                idx += 1
+            indices.append(idx)
+        return indices
     
     def create_collage(
         self,
@@ -619,10 +642,13 @@ class MediaWorker:
                 target_duration = min(target_duration, max_duration_for_frames)
 
         target_fps = min(self.MP4_MAX_OUTPUT_FPS, frame_count / max(target_duration, 0.1)) if frame_count > 0 else self.MP4_FPS
-        target_fps = max(1.0, target_fps)
+        target_fps = max(self.MP4_MIN_OUTPUT_FPS, target_fps)
         target_fps_int = max(1, int(round(target_fps)))
         target_frame_count = max(1, int(round(target_duration * target_fps_int)))
-        indices = self._select_indices(frame_count, target_frame_count)
+        if timestamps and len(timestamps) == frame_count:
+            indices = self._select_indices_by_time(timestamps, target_frame_count)
+        else:
+            indices = self._select_indices(frame_count, target_frame_count)
         speed_factor = max(actual_duration / max(target_duration, 0.1), 1.0)
         scale_ref = min(target_size[0] / 1280, target_size[1] / 720)
         margin = max(8, int(16 * scale_ref))
