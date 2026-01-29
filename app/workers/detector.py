@@ -997,11 +997,12 @@ class DetectorWorker:
             return None
 
         transport = getattr(config.stream, "protocol", "tcp")
+        loglevel = os.getenv("FFMPEG_LOGLEVEL", "error").strip() or "error"
         cmd = [
             ffmpeg,
             "-hide_banner",
             "-loglevel",
-            "error",
+            loglevel,
             "-rtsp_transport",
             transport,
             "-stimeout",

@@ -18,14 +18,27 @@ if [ -f /data/options.json ]; then
     LOG_LEVEL=$(jq -r '.log_level // empty' /data/options.json 2>/dev/null || true)
 fi
 LOG_LEVEL="${LOG_LEVEL:-info}"
+LOG_LEVEL_LOWER="$(echo "${LOG_LEVEL}" | tr '[:upper:]' '[:lower:]')"
 export LOG_LEVEL
-echo "Log level: ${LOG_LEVEL}"
 
-# Quiet noisy OpenCV/FFmpeg logs by default
-OPENCV_LOG_LEVEL="${OPENCV_LOG_LEVEL:-ERROR}"
-OPENCV_FFMPEG_LOGLEVEL="${OPENCV_FFMPEG_LOGLEVEL:-error}"
+# Adjust noisy OpenCV/FFmpeg logs based on requested log level
+if [ "${LOG_LEVEL_LOWER}" = "trace" ]; then
+    OPENCV_LOG_LEVEL="${OPENCV_LOG_LEVEL:-DEBUG}"
+    OPENCV_FFMPEG_LOGLEVEL="${OPENCV_FFMPEG_LOGLEVEL:-verbose}"
+    FFMPEG_LOGLEVEL="${FFMPEG_LOGLEVEL:-verbose}"
+elif [ "${LOG_LEVEL_LOWER}" = "debug" ]; then
+    OPENCV_LOG_LEVEL="${OPENCV_LOG_LEVEL:-INFO}"
+    OPENCV_FFMPEG_LOGLEVEL="${OPENCV_FFMPEG_LOGLEVEL:-info}"
+    FFMPEG_LOGLEVEL="${FFMPEG_LOGLEVEL:-info}"
+else
+    OPENCV_LOG_LEVEL="${OPENCV_LOG_LEVEL:-ERROR}"
+    OPENCV_FFMPEG_LOGLEVEL="${OPENCV_FFMPEG_LOGLEVEL:-error}"
+    FFMPEG_LOGLEVEL="${FFMPEG_LOGLEVEL:-error}"
+fi
 export OPENCV_LOG_LEVEL
 export OPENCV_FFMPEG_LOGLEVEL
+export FFMPEG_LOGLEVEL
+echo "Log level: ${LOG_LEVEL} (opencv=${OPENCV_LOG_LEVEL}, ffmpeg=${FFMPEG_LOGLEVEL})"
 
 # ---------------------------------------------------------
 # AUTO-DISCOVER MQTT FROM HA SUPERVISOR API
