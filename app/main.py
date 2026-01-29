@@ -2,6 +2,7 @@
 Smart Motion Detector v2 - Main Entry Point
 """
 import logging
+import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 from datetime import date
@@ -69,13 +70,14 @@ def _resolve_uvicorn_log_level(raw: str) -> str:
 log_dir = Path("logs")
 log_dir.mkdir(parents=True, exist_ok=True)
 log_file = log_dir / "app.log"
+_IS_TEST = "pytest" in sys.modules
+_handlers = [logging.StreamHandler()]
+if not _IS_TEST:
+    _handlers.append(logging.FileHandler(log_file, encoding="utf-8"))
 logging.basicConfig(
     level=_resolve_log_level(os.getenv("LOG_LEVEL", "INFO")),
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler(log_file, encoding="utf-8"),
-    ],
+    handlers=_handlers,
 )
 logger = logging.getLogger(__name__)
 APP_START_TS = time.time()
