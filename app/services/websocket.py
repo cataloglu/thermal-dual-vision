@@ -5,7 +5,7 @@ Handles real-time event and status updates via WebSocket connections.
 """
 import json
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Callable, Coroutine
 from fastapi import WebSocket
 import asyncio
 
@@ -101,19 +101,27 @@ class WebSocketManager:
         logger.debug("Broadcasted status update")
 
     def broadcast_event_sync(self, event_data: Dict[str, Any]) -> None:
-        self._run_async(self.broadcast_event(event_data))
+        if not self.active_connections:
+            return
+        self._run_async(lambda: self.broadcast_event(event_data))
 
     def broadcast_status_sync(self, status_data: Dict[str, Any]) -> None:
-        self._run_async(self.broadcast_status(status_data))
+        if not self.active_connections:
+            return
+        self._run_async(lambda: self.broadcast_status(status_data))
 
-    def _run_async(self, coro: asyncio.Future) -> None:
+    def _run_async(self, coro_factory: Callable[[], Coroutine[Any, Any, Any]]) -> None:
         try:
             loop = asyncio.get_running_loop()
-            loop.create_task(coro)
+            loop.create_task(coro_factory())
         except RuntimeError:
             if not self._loop or not self.active_connections:
+                try:
+                    coro_factory().close()
+                except Exception:
+                    pass
                 return
-            asyncio.run_coroutine_threadsafe(coro, self._loop)
+            asyncio.run_coroutine_threadsafe(coro_factory(), self._loop)
     
     async def _broadcast(self, message: Dict[str, Any]):
         """
