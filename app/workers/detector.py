@@ -87,6 +87,7 @@ class DetectorWorker:
         self.ffmpeg_last_errors: Dict[str, deque] = defaultdict(lambda: deque(maxlen=3))
         self.ffmpeg_error_lock = threading.Lock()
         self.ffmpeg_stimeout_supported: Optional[bool] = None
+        self.ffmpeg_rw_timeout_supported: Optional[bool] = None
         self.last_detection_log: Dict[str, float] = {}
         self.last_gate_log: Dict[str, float] = {}
         self.stream_stats: Dict[str, Dict[str, Any]] = defaultdict(dict)
@@ -1000,13 +1001,15 @@ class DetectorWorker:
         transport = getattr(config.stream, "protocol", "tcp")
         loglevel = os.getenv("FFMPEG_LOGLEVEL", "error").strip() or "error"
         use_stimeout = self.ffmpeg_stimeout_supported is not False
+        use_rw_timeout = self.ffmpeg_rw_timeout_supported is not False
         frame_size = output_size[0] * output_size[1] * 3
 
-        for attempt in range(2):
+        for attempt in range(3):
             timeout_args: List[str] = []
             if use_stimeout:
                 timeout_args.extend(["-stimeout", "10000000"])
-            timeout_args.extend(["-rw_timeout", "15000000"])
+            if use_rw_timeout:
+                timeout_args.extend(["-rw_timeout", "15000000"])
 
             cmd = [
                 ffmpeg,
@@ -1053,15 +1056,27 @@ class DetectorWorker:
                         detail = process.stderr.read(4096).decode(errors="ignore").strip()
                     except Exception:
                         detail = ""
-                if use_stimeout and self._ffmpeg_option_unsupported(detail, "stimeout"):
+                unsupported_stimeout = use_stimeout and self._ffmpeg_option_unsupported(detail, "stimeout")
+                unsupported_rw_timeout = use_rw_timeout and self._ffmpeg_option_unsupported(detail, "rw_timeout")
+                if unsupported_stimeout:
                     self.ffmpeg_stimeout_supported = False
                     use_stimeout = False
+                if unsupported_rw_timeout:
+                    self.ffmpeg_rw_timeout_supported = False
+                    use_rw_timeout = False
+                if unsupported_stimeout or unsupported_rw_timeout:
                     self._stop_ffmpeg_capture(process)
-                    if attempt == 0:
-                        logger.warning(
-                            "FFmpeg does not support -stimeout; retrying without it for camera %s",
-                            camera_id,
-                        )
+                    if attempt < 2:
+                        if unsupported_stimeout:
+                            logger.warning(
+                                "FFmpeg does not support -stimeout; retrying without it for camera %s",
+                                camera_id,
+                            )
+                        if unsupported_rw_timeout:
+                            logger.warning(
+                                "FFmpeg does not support -rw_timeout; retrying without it for camera %s",
+                                camera_id,
+                            )
                         continue
                 if detail:
                     logger.warning(
@@ -1081,6 +1096,8 @@ class DetectorWorker:
 
             if use_stimeout and self.ffmpeg_stimeout_supported is None:
                 self.ffmpeg_stimeout_supported = True
+            if use_rw_timeout and self.ffmpeg_rw_timeout_supported is None:
+                self.ffmpeg_rw_timeout_supported = True
 
             self._start_ffmpeg_stderr_reader(process, camera_id)
             logger.info("Opened camera %s with ffmpeg backend", camera_id)
