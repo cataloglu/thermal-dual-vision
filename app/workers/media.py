@@ -340,6 +340,9 @@ class MediaWorker:
                     break
                 indices.append(closest)
                 unused.remove(closest)
+
+        if indices and len(indices) < self.COLLAGE_FRAMES:
+            indices.extend([indices[-1]] * (self.COLLAGE_FRAMES - len(indices)))
         
         def _draw_badge(img: np.ndarray, text: str) -> None:
             (w, h), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.9, 2)
@@ -611,7 +614,6 @@ class MediaWorker:
         target_fps = max(1.0, target_fps)
         target_fps_int = max(1, int(round(target_fps)))
         target_frame_count = max(1, int(round(target_duration * target_fps_int)))
-        target_frame_count = min(target_frame_count, frame_count)
         indices = self._select_indices(frame_count, target_frame_count)
         speed_factor = max(actual_duration / max(target_duration, 0.1), 1.0)
         scale_ref = min(target_size[0] / 1280, target_size[1] / 720)
