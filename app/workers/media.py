@@ -397,12 +397,40 @@ class MediaWorker:
             )
 
         # Select 5 evenly distributed frames
-        selected = [frames[i] for i in indices]
+        selected_indices = list(indices)
+        selected = [frames[i] for i in selected_indices]
         
         # Resize all frames
         resized = []
         for idx, frame in enumerate(selected):
             img = cv2.resize(frame, self.COLLAGE_FRAME_SIZE)
+            frame_idx = selected_indices[idx] if idx < len(selected_indices) else None
+
+            if detections and frame_idx is not None and frame_idx < len(detections):
+                detection = detections[frame_idx]
+                if detection and detection.get("bbox"):
+                    x1, y1, x2, y2 = detection["bbox"]
+                    scale_x = self.COLLAGE_FRAME_SIZE[0] / frame.shape[1]
+                    scale_y = self.COLLAGE_FRAME_SIZE[1] / frame.shape[0]
+                    x1 = int(x1 * scale_x)
+                    y1 = int(y1 * scale_y)
+                    x2 = int(x2 * scale_x)
+                    y2 = int(y2 * scale_y)
+                    x1 = max(0, min(x1, self.COLLAGE_FRAME_SIZE[0] - 1))
+                    y1 = max(0, min(y1, self.COLLAGE_FRAME_SIZE[1] - 1))
+                    x2 = max(0, min(x2, self.COLLAGE_FRAME_SIZE[0] - 1))
+                    y2 = max(0, min(y2, self.COLLAGE_FRAME_SIZE[1] - 1))
+                    cv2.rectangle(img, (x1, y1), (x2, y2), self.COLOR_ACCENT, 2)
+                    label = f"Person {float(detection.get('confidence', 0.0)):.0%}"
+                    cv2.putText(
+                        img,
+                        label,
+                        (x1, max(20, y1 - 10)),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.6,
+                        self.COLOR_ACCENT,
+                        2,
+                    )
             
             # Add frame number badge (1-5)
             _draw_badge(img, str(idx + 1))

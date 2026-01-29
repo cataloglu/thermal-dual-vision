@@ -84,6 +84,8 @@ class DetectorWorker:
         self.last_status_update: Dict[str, float] = {}
         self.codec_cache: Dict[str, str] = {}
         self.ffmpeg_frame_shapes: Dict[str, Tuple[int, int]] = {}
+        self.ffmpeg_last_errors: Dict[str, deque] = defaultdict(lambda: deque(maxlen=3))
+        self.ffmpeg_error_lock = threading.Lock()
         self.last_detection_log: Dict[str, float] = {}
         self.last_gate_log: Dict[str, float] = {}
         self.stream_stats: Dict[str, Dict[str, Any]] = defaultdict(dict)
@@ -1028,7 +1030,7 @@ class DetectorWorker:
             process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
                 bufsize=frame_size * 2,
             )
         except Exception as exc:
@@ -1037,12 +1039,58 @@ class DetectorWorker:
 
         time.sleep(0.2)
         if process.poll() is not None:
-            logger.warning("FFmpeg exited immediately for camera %s", camera_id)
+            detail = ""
+            if process.stderr:
+                try:
+                    detail = process.stderr.read(4096).decode(errors="ignore").strip()
+                except Exception:
+                    detail = ""
+            if detail:
+                logger.warning(
+                    "FFmpeg exited immediately for camera %s (url=%s): %s",
+                    camera_id,
+                    redact_rtsp_url(rtsp_url),
+                    detail,
+                )
+            else:
+                logger.warning(
+                    "FFmpeg exited immediately for camera %s (url=%s)",
+                    camera_id,
+                    redact_rtsp_url(rtsp_url),
+                )
             self._stop_ffmpeg_capture(process)
             return None
 
+        self._start_ffmpeg_stderr_reader(process, camera_id)
         logger.info("Opened camera %s with ffmpeg backend", camera_id)
         return process
+
+    def _start_ffmpeg_stderr_reader(
+        self,
+        process: subprocess.Popen,
+        camera_id: Optional[str],
+    ) -> None:
+        if not process.stderr or not camera_id:
+            return
+
+        def _reader() -> None:
+            try:
+                for raw in iter(process.stderr.readline, b""):
+                    if not raw:
+                        break
+                    text = raw.decode(errors="ignore").strip()
+                    if not text:
+                        continue
+                    with self.ffmpeg_error_lock:
+                        self.ffmpeg_last_errors[camera_id].append(text)
+            except Exception:
+                return
+
+        threading.Thread(
+            target=_reader,
+            daemon=True,
+            name=f"ffmpeg-stderr-{camera_id}",
+        ).start()
 
     def _open_ffmpeg_with_fallbacks(
         self,
@@ -1134,6 +1182,11 @@ class DetectorWorker:
         try:
             if process.stdout:
                 process.stdout.close()
+        except Exception:
+            pass
+        try:
+            if process.stderr:
+                process.stderr.close()
         except Exception:
             pass
 
