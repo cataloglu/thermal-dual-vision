@@ -1022,13 +1022,9 @@ async def get_live_stream(camera_id: str, db: Session = Depends(get_session)):
 
     settings = settings_service.load_config()
     if settings.live.output_mode == "webrtc":
-        raise HTTPException(
-            status_code=409,
-            detail={
-                "error": True,
-                "code": "LIVE_MODE_MISMATCH",
-                "message": "Live output mode is WebRTC; MJPEG stream unavailable."
-            }
+        logger.info(
+            "Live output mode is WebRTC; serving MJPEG fallback for camera %s",
+            camera_id,
         )
 
     stream_urls = _get_live_rtsp_urls(camera)

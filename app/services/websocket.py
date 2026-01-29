@@ -24,8 +24,25 @@ class WebSocketManager:
     def __init__(self):
         """Initialize WebSocket manager."""
         self.active_connections: List[WebSocket] = []
-        self._lock = asyncio.Lock()
+        self._lock: asyncio.Lock | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
         logger.info("WebSocketManager initialized")
+
+    def _ensure_loop(self) -> None:
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        if self._loop is None:
+            self._loop = loop
+        if self._lock is None:
+            self._lock = asyncio.Lock()
+
+    def _get_lock(self) -> asyncio.Lock:
+        self._ensure_loop()
+        if self._lock is None:
+            self._lock = asyncio.Lock()
+        return self._lock
     
     async def connect(self, websocket: WebSocket):
         """
@@ -35,7 +52,8 @@ class WebSocketManager:
             websocket: WebSocket connection to register
         """
         await websocket.accept()
-        async with self._lock:
+        lock = self._get_lock()
+        async with lock:
             self.active_connections.append(websocket)
         logger.info(f"WebSocket connected. Total connections: {len(self.active_connections)}")
     
@@ -46,7 +64,8 @@ class WebSocketManager:
         Args:
             websocket: WebSocket connection to remove
         """
-        async with self._lock:
+        lock = self._get_lock()
+        async with lock:
             if websocket in self.active_connections:
                 self.active_connections.remove(websocket)
         logger.info(f"WebSocket disconnected. Total connections: {len(self.active_connections)}")
@@ -92,7 +111,9 @@ class WebSocketManager:
             loop = asyncio.get_running_loop()
             loop.create_task(coro)
         except RuntimeError:
-            asyncio.run(coro)
+            if not self._loop or not self.active_connections:
+                return
+            asyncio.run_coroutine_threadsafe(coro, self._loop)
     
     async def _broadcast(self, message: Dict[str, Any]):
         """
@@ -108,7 +129,8 @@ class WebSocketManager:
         message_json = json.dumps(message)
         
         # Send to all connections
-        async with self._lock:
+        lock = self._get_lock()
+        async with lock:
             connections = list(self.active_connections)
         disconnected = []
 
@@ -121,7 +143,8 @@ class WebSocketManager:
         
         # Remove disconnected clients
         if disconnected:
-            async with self._lock:
+            lock = self._get_lock()
+            async with lock:
                 for connection in disconnected:
                     if connection in self.active_connections:
                         self.active_connections.remove(connection)
