@@ -190,39 +190,45 @@ class MediaWorker:
                 "+faststart",
                 output_path,
             ]
-            proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            write_error: Optional[Exception] = None
-            written = 0
             try:
-                for frame in frames:
-                    if frame is None:
-                        continue
-                    if frame.shape[1] != width or frame.shape[0] != height:
-                        frame = cv2.resize(frame, (width, height), interpolation=cv2.INTER_AREA)
-                    try:
-                        proc.stdin.write(frame.tobytes())
-                        written += 1
-                    except (BrokenPipeError, ValueError) as exc:
-                        write_error = exc
-                        break
-                if proc.stdin and not proc.stdin.closed:
-                    proc.stdin.close()
-                stdout, stderr = proc.communicate()
-            finally:
-                if proc.stdin and not proc.stdin.closed:
-                    proc.stdin.close()
+                proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                write_error: Optional[Exception] = None
+                written = 0
+                stdout = b""
+                stderr = b""
+                try:
+                    for frame in frames:
+                        if frame is None:
+                            continue
+                        if frame.shape[1] != width or frame.shape[0] != height:
+                            frame = cv2.resize(frame, (width, height), interpolation=cv2.INTER_AREA)
+                        try:
+                            proc.stdin.write(frame.tobytes())
+                            written += 1
+                        except (BrokenPipeError, ValueError) as exc:
+                            write_error = exc
+                            break
+                    if proc.stdin and not proc.stdin.closed:
+                        proc.stdin.close()
+                    stdout, stderr = proc.communicate()
+                finally:
+                    if proc.stdin and not proc.stdin.closed:
+                        proc.stdin.close()
 
-            if written == 0:
-                logger.warning("FFmpeg encode skipped: no frames written")
-                return False
+                if written == 0:
+                    logger.warning("FFmpeg encode skipped: no frames written")
+                    return False
 
-            if write_error or proc.returncode != 0:
-                error_text = stderr.decode(errors="ignore").strip()
-                detail = error_text or str(write_error or "unknown error")
-                logger.warning("FFmpeg encode failed (%s): %s", codec, detail)
+                if write_error or proc.returncode != 0:
+                    error_text = stderr.decode(errors="ignore").strip()
+                    detail = error_text or str(write_error or "unknown error")
+                    logger.warning("FFmpeg encode failed (%s): %s", codec, detail)
+                    continue
+
+                return True
+            except Exception as exc:
+                logger.warning("FFmpeg encode failed (%s): %s", codec, exc)
                 continue
-
-            return True
 
         return False
 
@@ -241,6 +247,8 @@ class MediaWorker:
         try:
             for frame in frames:
                 out.write(frame)
+        except Exception as exc:
+            logger.warning("OpenCV MP4 encode failed: %s", exc)
         finally:
             out.release()
     
