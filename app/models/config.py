@@ -242,13 +242,13 @@ class EventConfig(BaseModel):
         description="Minimum time between events"
     )
     prebuffer_seconds: float = Field(
-        default=3.0,
+        default=5.0,
         ge=0.0,
         le=30.0,
         description="Seconds of frames to keep before motion"
     )
     postbuffer_seconds: float = Field(
-        default=3.0,
+        default=5.0,
         ge=0.0,
         le=30.0,
         description="Seconds of frames to keep after motion"
