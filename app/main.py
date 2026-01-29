@@ -2012,6 +2012,32 @@ async def get_logs(lines: int = Query(200, ge=1, le=1000, description="Number of
         )
 
 
+@app.post("/api/logs/clear")
+async def clear_logs() -> Dict[str, Any]:
+    """
+    Clear application logs.
+    
+    Returns:
+        Dict with clear status
+    """
+    try:
+        cleared = logs_service.clear_logs()
+        return {
+            "success": True,
+            "cleared": cleared,
+        }
+    except Exception as e:
+        logger.error("Failed to clear logs: %s", e)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": True,
+                "code": "INTERNAL_ERROR",
+                "message": f"Failed to clear logs: {str(e)}"
+            }
+        )
+
+
 @app.get("/api/system/info")
 async def get_system_info() -> Dict[str, Any]:
     """

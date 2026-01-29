@@ -1,16 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api } from '../services/api'
-import { MdContentCopy, MdCheckCircle, MdRefresh, MdDownload } from 'react-icons/md'
+import { MdContentCopy, MdCheckCircle, MdRefresh, MdDownload, MdDelete } from 'react-icons/md'
 import { LoadingState } from '../components/LoadingState'
+
+const LOG_LINE_OPTIONS = [200, 500, 1000]
 
 export function Diagnostics() {
   const { t } = useTranslation()
   const [systemInfo, setSystemInfo] = useState<any>(null)
   const [logs, setLogs] = useState<string[]>([])
+  const [logLineLimit, setLogLineLimit] = useState(1000)
   const [loading, setLoading] = useState(true)
   const [logsLoading, setLogsLoading] = useState(false)
   const [copiedLogs, setCopiedLogs] = useState(false)
+  const [clearingLogs, setClearingLogs] = useState(false)
+  const [clearedLogs, setClearedLogs] = useState(false)
   const [autoRefresh, setAutoRefresh] = useState(false)
   const [appLogFilter, setAppLogFilter] = useState('')
   const [cameraLogFilter, setCameraLogFilter] = useState('')
@@ -28,7 +33,7 @@ export function Diagnostics() {
   const fetchLogs = async () => {
     try {
       setLogsLoading(true)
-      const data = await api.getLogs(200)
+      const data = await api.getLogs(logLineLimit)
       setLogs(data.lines || [])
     } catch (error) {
       console.error('Failed to fetch logs:', error)
@@ -46,6 +51,12 @@ export function Diagnostics() {
 
     fetchData()
   }, [])
+
+  useEffect(() => {
+    if (!loading) {
+      fetchLogs()
+    }
+  }, [logLineLimit])
 
   // Auto-refresh
   useEffect(() => {
@@ -67,6 +78,22 @@ export function Diagnostics() {
       navigator.clipboard.writeText(logs.join('\n'))
       setCopiedLogs(true)
       setTimeout(() => setCopiedLogs(false), 2000)
+    }
+  }
+
+  const handleClearLogs = async () => {
+    if (clearingLogs) return
+    if (!window.confirm(t('clearLogsConfirm'))) return
+    try {
+      setClearingLogs(true)
+      await api.clearLogs()
+      await fetchLogs()
+      setClearedLogs(true)
+      setTimeout(() => setClearedLogs(false), 2000)
+    } catch (error) {
+      console.error('Failed to clear logs:', error)
+    } finally {
+      setClearingLogs(false)
     }
   }
 
@@ -180,8 +207,39 @@ export function Diagnostics() {
       {/* Logs */}
       <div className="bg-surface1 border border-border rounded-lg p-6 mb-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-text">{t('applicationLogs')} (200)</h2>
+          <h2 className="text-lg font-semibold text-text">
+            {t('applicationLogs')} ({applicationLogs.length} / {logLineLimit})
+          </h2>
           <div className="flex items-center gap-2">
+            <label className="text-xs text-muted">{t('logLines')}</label>
+            <select
+              value={logLineLimit}
+              onChange={(e) => setLogLineLimit(Number(e.target.value))}
+              className="px-2 py-1 bg-surface2 border border-border text-text rounded-lg text-xs"
+            >
+              {LOG_LINE_OPTIONS.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={handleClearLogs}
+              disabled={logsLoading || clearingLogs}
+              className="flex items-center gap-2 px-3 py-1.5 bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors text-sm disabled:opacity-50"
+            >
+              {clearedLogs ? (
+                <>
+                  <MdCheckCircle className="text-green-500" />
+                  {t('cleared')}
+                </>
+              ) : (
+                <>
+                  <MdDelete />
+                  {t('clearLogs')}
+                </>
+              )}
+            </button>
             <button
               onClick={handleDownloadLogs}
               className="flex items-center gap-2 px-3 py-1.5 bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors text-sm"
@@ -258,7 +316,9 @@ export function Diagnostics() {
 
       <div className="bg-surface1 border border-border rounded-lg p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-text">{t('cameraLogs')}</h2>
+          <h2 className="text-lg font-semibold text-text">
+            {t('cameraLogs')} ({cameraLogs.length} / {logLineLimit})
+          </h2>
         </div>
 
         <div className="mb-4">
@@ -347,8 +407,8 @@ export function Diagnostics() {
         </div>
 
         <div className="bg-surface1 border border-border rounded-lg p-6">
-          <h3 className="text-sm font-semibold text-muted mb-2">Log Lines</h3>
-          <p className="text-text font-mono text-sm">{logs.length} / 200</p>
+          <h3 className="text-sm font-semibold text-muted mb-2">{t('logLines')}</h3>
+          <p className="text-text font-mono text-sm">{logs.length} / {logLineLimit}</p>
         </div>
       </div>
     </div>

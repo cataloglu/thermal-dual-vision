@@ -79,6 +79,11 @@ export const getLogs = async (lines = 200) => {
   return response.data;
 };
 
+export const clearLogs = async () => {
+  const response = await apiClient.post('logs/clear');
+  return response.data;
+};
+
 // Settings
 export const getSettings = async (): Promise<Settings> => {
   const response = await apiClient.get<Settings>('settings');

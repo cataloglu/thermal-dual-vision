@@ -81,6 +81,23 @@ class LogsService:
         except Exception:
             return 0
 
+    def clear_logs(self) -> bool:
+        """
+        Truncate the log file.
+        
+        Returns:
+            True if the file existed and was cleared, False otherwise
+        """
+        try:
+            if not self.log_file.exists():
+                return False
+            with open(self.log_file, "w", encoding="utf-8"):
+                pass
+            return True
+        except Exception as e:
+            logger.error("Failed to clear logs: %s", e)
+            return False
+
 
 # Global singleton instance
 _logs_service: LogsService | None = None
