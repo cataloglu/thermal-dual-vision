@@ -209,6 +209,7 @@ export const api = {
   getHealth,
   getSystemInfo,
   getLogs,
+  clearLogs,
   getSettings,
   updateSettings,
   getDefaultSettings,
