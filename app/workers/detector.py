@@ -9,6 +9,7 @@ This worker handles YOLOv8 person detection pipeline including:
 - Event generation
 """
 import logging
+import math
 import os
 import threading
 import time
@@ -194,12 +195,14 @@ class DetectorWorker:
         with self.stream_stats_lock:
             self.stream_stats.pop(camera_id, None)
 
-    def _reset_motion_buffers(self, camera_id: str) -> None:
+    def _reset_motion_buffers(self, camera_id: str, prebuffer_seconds: float) -> None:
         lock = self.frame_buffer_locks[camera_id]
         with lock:
             buffer = self.frame_buffers.get(camera_id)
-            if buffer is not None:
-                buffer.clear()
+            if buffer is not None and prebuffer_seconds > 0:
+                cutoff = time.time() - prebuffer_seconds
+                trimmed = deque((item for item in buffer if item[2] >= cutoff), maxlen=buffer.maxlen)
+                self.frame_buffers[camera_id] = trimmed
         self.frame_counters[camera_id] = 0
         self.detection_history[camera_id].clear()
 
@@ -475,9 +478,29 @@ class DetectorWorker:
                     time.sleep(0.2)
                     continue
 
-                if not self._is_motion_active(camera, frame, config):
+                prebuffer_seconds = float(getattr(config.event, "prebuffer_seconds", 0.0))
+                postbuffer_seconds = float(getattr(config.event, "postbuffer_seconds", 0.0))
+                frame_interval = max(int(config.event.frame_interval), 1)
+                sample_rate = max(config.detection.inference_fps / frame_interval, 1.0)
+                min_event_window = max(4.0, float(config.event.min_event_duration))
+                window_seconds = prebuffer_seconds + postbuffer_seconds + min_event_window
+                buffer_size = max(
+                    config.event.frame_buffer_size,
+                    int(math.ceil(window_seconds * sample_rate)),
+                    10,
+                )
+
+                motion_active = self._is_motion_active(camera, frame, config)
+                if not motion_active:
+                    self._update_frame_buffer(
+                        camera_id=camera_id,
+                        frame=frame,
+                        detections=[],
+                        frame_interval=frame_interval,
+                        buffer_size=buffer_size,
+                    )
                     continue
-                
+
                 # Preprocess frame
                 if detection_source == "thermal" and config.thermal.enable_enhancement:
                     adaptive_clip = self._get_adaptive_clahe_clip(frame, config)
@@ -509,7 +532,7 @@ class DetectorWorker:
                     camera_id=camera_id,
                     frame=frame,
                     detections=detections,
-                    frame_interval=config.event.frame_interval,
+                    frame_interval=frame_interval,
                     buffer_size=buffer_size,
                 )
 
@@ -1055,9 +1078,11 @@ class DetectorWorker:
         motion_area = cv2.countNonZero(thresh)
         state["prev_frame"] = gray
 
+        prebuffer_seconds = float(getattr(config.event, "prebuffer_seconds", 0.0))
+
         if motion_area >= min_area:
             if not motion_active:
-                self._reset_motion_buffers(camera.id)
+                self._reset_motion_buffers(camera.id, prebuffer_seconds)
             state["last_motion"] = now
             state["motion_active"] = True
             return True
@@ -1166,15 +1191,18 @@ class DetectorWorker:
             buffer.append((frame.copy(), best_detection, time.time()))
 
     def _start_media_generation(self, camera: Camera, event_id: str, config) -> None:
-        frames, detections, timestamps = self._get_event_media_data(camera.id)
-        if len(frames) == 0:
-            logger.warning(
-                "Skipping media generation for event %s (no frames)",
-                event_id,
-            )
-            return
+        postbuffer_seconds = float(getattr(config.event, "postbuffer_seconds", 0.0))
 
         def _run_media() -> None:
+            if postbuffer_seconds > 0:
+                time.sleep(postbuffer_seconds)
+            frames, detections, timestamps = self._get_event_media_data(camera.id)
+            if len(frames) == 0:
+                logger.warning(
+                    "Skipping media generation for event %s (no frames)",
+                    event_id,
+                )
+                return
             db = next(get_session())
             try:
                 self.media_service.generate_event_media(
