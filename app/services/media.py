@@ -39,9 +39,10 @@ class MediaService:
         detections: List[Optional[Dict]],
         timestamps: Optional[List[float]] = None,
         camera_name: str = "Camera",
+        include_gif: bool = False,
     ) -> Dict[str, str]:
         """
-        Generate all media files for an event (collage, MP4).
+        Generate all media files for an event (collage, MP4, optional GIF).
         
         Generates files in parallel for speed.
         
@@ -52,6 +53,7 @@ class MediaService:
             detections: List of detections (one per frame)
             timestamps: Optional list of frame timestamps (epoch seconds)
             camera_name: Camera name for overlay
+            include_gif: Whether to generate preview GIF
             
         Returns:
             Dict with media URLs (collage_url, gif_url, mp4_url)
@@ -76,30 +78,51 @@ class MediaService:
         gif_path = str(event_dir / "preview.gif")
         mp4_path = str(event_dir / "timelapse.mp4")
         
-        # Generate media in parallel (skip GIF by default)
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            futures = []
-            futures.append(executor.submit(
-                self.media_worker.create_collage,
-                frames,
-                detections,
-                timestamps,
-                collage_path,
-                camera_name,
-                event.timestamp,
-                event.confidence,
-            ))
-            futures.append(executor.submit(
-                self.media_worker.create_timelapse_mp4,
-                frames,
-                detections,
-                mp4_path,
-                camera_name,
-                event.timestamp,
-                timestamps,
-            ))
-            for future in futures:
-                future.result()
+        # Generate media in parallel
+        worker_count = 2 + (1 if include_gif else 0)
+        errors: List[Exception] = []
+        with ThreadPoolExecutor(max_workers=max(1, worker_count)) as executor:
+            tasks = [
+                ("collage", executor.submit(
+                    self.media_worker.create_collage,
+                    frames,
+                    detections,
+                    timestamps,
+                    collage_path,
+                    camera_name,
+                    event.timestamp,
+                    event.confidence,
+                )),
+                ("mp4", executor.submit(
+                    self.media_worker.create_timelapse_mp4,
+                    frames,
+                    detections,
+                    mp4_path,
+                    camera_name,
+                    event.timestamp,
+                    timestamps,
+                )),
+            ]
+            if include_gif:
+                tasks.append((
+                    "gif",
+                    executor.submit(
+                        self.media_worker.create_timeline_gif,
+                        frames,
+                        gif_path,
+                        camera_name,
+                        event.timestamp,
+                    ),
+                ))
+            for label, future in tasks:
+                try:
+                    future.result()
+                except Exception as exc:
+                    logger.warning("Failed to generate %s for event %s: %s", label, event_id, exc)
+                    if label == "collage":
+                        errors.append(exc)
+        if errors:
+            raise errors[0]
         
         # Save URLs to database WITHOUT prefix (prefix added at runtime in main.py)
         event.collage_url = f"/api/events/{event_id}/collage" if os.path.exists(collage_path) else None

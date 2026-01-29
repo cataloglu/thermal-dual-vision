@@ -1506,6 +1506,7 @@ class DetectorWorker:
                     detections=detections,
                     timestamps=timestamps,
                     camera_name=camera.name or "Camera",
+                    include_gif=True,
                 )
                 event = db.query(Event).filter(Event.id == event_id).first()
                 if event:
@@ -1560,7 +1561,7 @@ class DetectorWorker:
                         logger.error("MQTT update failed: %s", e)
 
                     try:
-                        if not ai_required or self._is_ai_confirmed(summary):
+                        if ai_confirmed:
                             asyncio.run(
                                 self.telegram_service.send_event_notification(
                                     event={
@@ -1577,7 +1578,7 @@ class DetectorWorker:
                             )
                     except RuntimeError:
                         loop = asyncio.new_event_loop()
-                        if not ai_required or self._is_ai_confirmed(summary):
+                        if ai_confirmed:
                             loop.run_until_complete(
                                 self.telegram_service.send_event_notification(
                                     event={

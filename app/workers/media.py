@@ -3,7 +3,7 @@ Media generation worker for Smart Motion Detector v2.
 
 This worker handles creation of event media files:
 - Collage (5 frame grid)
-- Timeline GIF (deprecated)
+- Timeline GIF (preview)
 - Timelapse MP4 (720p with detection boxes)
 
 Better than Scrypted: More frames, higher quality, detection boxes!
