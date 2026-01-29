@@ -1060,6 +1060,14 @@ async def get_live_stream(camera_id: str, db: Session = Depends(get_session)):
                 b"Content-Type: image/jpeg\r\n\r\n" + frame_bytes + b"\r\n"
             )
 
+    stream_roles = camera.stream_roles or []
+    if "detect" in stream_roles:
+        logger.info("Live stream using detector frames for %s", camera_id)
+        return StreamingResponse(
+            detector_stream_generator(),
+            media_type="multipart/x-mixed-replace; boundary=frame"
+        )
+
     cap = None
     selected_url = None
     for candidate_url in stream_urls:
