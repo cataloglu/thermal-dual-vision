@@ -173,29 +173,29 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
             onClick={() => applyPreset('eco')}
             className="p-4 rounded-lg border border-border bg-surface1 text-left hover:bg-surface1/80 transition-colors"
           >
-            <div className="font-semibold text-text">{t('perfPresetEcoTitle')}</div>
-            <div className="text-xs text-muted mt-1">{t('perfPresetEcoDesc')}</div>
+            <div className="font-semibold text-text">⚡ Ekonomik</div>
+            <div className="text-xs text-muted mt-1">Düşük CPU, temel algılama</div>
           </button>
           <button
             onClick={() => applyPreset('balanced')}
             className="p-4 rounded-lg border border-border bg-surface1 text-left hover:bg-surface1/80 transition-colors"
           >
-            <div className="font-semibold text-text">{t('perfPresetBalancedTitle')}</div>
-            <div className="text-xs text-muted mt-1">{t('perfPresetBalancedDesc')}</div>
+            <div className="font-semibold text-text">⚖️ Dengeli</div>
+            <div className="text-xs text-muted mt-1">Orta seviye, genel kullanım</div>
           </button>
           <button
             onClick={() => applyPreset('frigate')}
             className="p-4 rounded-lg border border-border bg-surface1 text-left hover:bg-surface1/80 transition-colors"
           >
-            <div className="font-semibold text-text">{t('perfPresetFrigateTitle')}</div>
-            <div className="text-xs text-muted mt-1">{t('perfPresetFrigateDesc')}</div>
+            <div className="font-semibold text-text">🛡️ Güvenilir</div>
+            <div className="text-xs text-muted mt-1">Stabil, MOG2 + FFmpeg</div>
           </button>
           <button
             onClick={() => applyPreset('quality')}
             className="p-4 rounded-lg border border-border bg-surface1 text-left hover:bg-surface1/80 transition-colors"
           >
-            <div className="font-semibold text-text">{t('perfPresetQualityTitle')}</div>
-            <div className="text-xs text-muted mt-1">{t('perfPresetQualityDesc')}</div>
+            <div className="font-semibold text-text">🎯 Hassas</div>
+            <div className="text-xs text-muted mt-1">Yüksek doğruluk, YOLOv9t</div>
           </button>
         </div>
         <p className="text-xs text-muted mt-3">{t('perfPresetNote')}</p>
