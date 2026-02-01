@@ -4,18 +4,19 @@
 
 @layer base {
   :root {
-    /* Default theme (Slate) */
-    --color-background: #0F172A;
-    --color-surface1: #1E293B;
-    --color-surface2: #334155;
-    --color-border: #475569;
-    --color-text: #F1F5F9;
-    --color-muted: #94A3B8;
-    --color-accent: #10B981;
-    --color-success: #10B981;
-    --color-warning: #F59E0B;
-    --color-error: #EF4444;
-    --color-info: #3B82F6;
+    /* Pure Black theme (OLED friendly, single theme) */
+    --color-background: #000000;
+    --color-surface1: #1A1A1A;
+    --color-surface2: #2A2A2A;
+    --color-surface3: #3A3A3A;
+    --color-border: #3A3A3A;
+    --color-text: #FFFFFF;
+    --color-muted: #888888;
+    --color-accent: #FF6B6B;
+    --color-success: #51CF66;
+    --color-warning: #FFD93D;
+    --color-error: #FF6B6B;
+    --color-info: #4DABF7;
   }
 
   body {

@@ -21,7 +21,7 @@ export function Layout({ children }: LayoutProps) {
     }
 
     checkHealth()
-    const interval = setInterval(checkHealth, 10000)
+    const interval = setInterval(checkHealth, 30000)  // Optimized: 10s → 30s
 
     return () => clearInterval(interval)
   }, [])
