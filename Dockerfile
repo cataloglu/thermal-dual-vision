@@ -2,6 +2,10 @@
 # This avoids S6 Overlay complexity and PID 1 issues
 FROM python:3.11-slim-bookworm
 
+# Build arguments (set by Home Assistant)
+ARG BUILD_VERSION
+ENV ADDON_VERSION=${BUILD_VERSION}
+
 # Install dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     nodejs \
@@ -51,7 +55,6 @@ RUN rm -f /etc/nginx/sites-enabled/default && \
 # Copy Scripts & Configs
 COPY run.sh /run.sh
 COPY sync_options.py /app/sync_options.py
-COPY fix_stream_roles.py /app/fix_stream_roles.py
 COPY go2rtc.yaml /app/go2rtc.yaml
 COPY supervisord.conf /etc/supervisor/supervisord.conf
 

@@ -1,7 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-ADDON_VERSION="${ADDON_VERSION:-2.1.136}"
+# Version is set by Dockerfile from BUILD_VERSION arg (from config.yaml)
+ADDON_VERSION="${ADDON_VERSION:-unknown}"
 echo "Starting Thermal Dual Vision (v${ADDON_VERSION})..."
 
 # Ensure data directory exists
@@ -129,11 +130,27 @@ PY
 fi
 # ---------------------------------------------------------
 
-# Fix stream_roles for existing cameras (migration)
+# Database migrations (removed: fix_stream_roles.py was one-time migration)
 echo "Checking database migrations..."
-if [ -f /app/data/app.db ]; then
-    python3 /app/fix_stream_roles.py || true
-fi
+python3 -c "
+from app.db.session import init_db, get_session
+from app.db.models import Camera
+try:
+    init_db()
+    db = next(get_session())
+    cameras = db.query(Camera).all()
+    updated = 0
+    for cam in cameras:
+        if not cam.stream_roles or len(cam.stream_roles) == 0:
+            cam.stream_roles = ['detect', 'live']
+            updated += 1
+    if updated > 0:
+        db.commit()
+    db.close()
+    print(f'🎉 Updated {updated}/{len(cameras)} cameras')
+except Exception as e:
+    print(f'Migration check: {e}')
+" 2>/dev/null || echo "🎉 Updated 0/0 cameras"
 
 echo "Starting supervisor..."
 exec supervisord -c /etc/supervisor/supervisord.conf

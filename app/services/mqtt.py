@@ -228,12 +228,15 @@ class MqttService:
         self.client.publish(discovery_topic, "", retain=True)
 
     def _get_device_info(self) -> Dict[str, str]:
+        # Get version from environment (set by Dockerfile)
+        import os
+        version = os.getenv("ADDON_VERSION", "2.3")
         return {
             "identifiers": ["thermal_dual_vision"],
             "name": "Thermal Dual Vision",
             "manufacturer": "Custom",
-            "model": "v2.1.0",
-            "sw_version": "2.1.0",
+            "model": f"v{version}",
+            "sw_version": version,
         }
 
     def _publish_system_discovery(
