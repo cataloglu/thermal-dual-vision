@@ -508,8 +508,7 @@ class DetectorWorker:
                             record_fps_local = max(1.0, float(record_fps))
                             prebuffer_seconds = float(getattr(config.event, "prebuffer_seconds", 0.0))
                             postbuffer_seconds = float(getattr(config.event, "postbuffer_seconds", 0.0))
-                            min_event_window = max(4.0, float(config.event.min_event_duration))
-                            window_seconds = prebuffer_seconds + postbuffer_seconds + min_event_window
+                            window_seconds = max(prebuffer_seconds + postbuffer_seconds, 1.0)
                             video_buffer_size = max(
                                 int(math.ceil(window_seconds * record_fps_local)),
                                 10,
