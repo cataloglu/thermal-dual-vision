@@ -401,6 +401,21 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
 
           <div className="space-y-3">
             <h5 className="text-sm font-semibold text-text">{t('perfSectionMotion')}</h5>
+            <label className="text-xs text-muted">{t('motionAlgorithmLabel')}</label>
+            <select
+              value={settings.motion.algorithm ?? 'mog2'}
+              onChange={(e) =>
+                onChange({
+                  ...settings,
+                  motion: { ...settings.motion, algorithm: e.target.value as 'frame_diff' | 'mog2' | 'knn' },
+                })
+              }
+              className="w-full px-3 py-2 bg-surface1 border border-border rounded-lg text-text"
+            >
+              <option value="frame_diff">{t('motionAlgorithmFrameDiff')}</option>
+              <option value="mog2">{t('motionAlgorithmMOG2')}</option>
+              <option value="knn">{t('motionAlgorithmKNN')}</option>
+            </select>
             <label className="text-xs text-muted">{t('motionSensitivityLabel', { value: settings.motion.sensitivity })}</label>
             <input
               type="number"

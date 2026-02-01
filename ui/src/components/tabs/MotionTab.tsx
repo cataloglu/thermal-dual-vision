@@ -6,15 +6,18 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import type { MotionConfig } from '../../types/api';
 
+type MotionAlgorithm = 'frame_diff' | 'mog2' | 'knn';
+
 interface MotionTabProps {
   config: MotionConfig;
   onChange: (config: MotionConfig) => void;
   onSave: () => void;
 }
 
-export const MotionTab: React.FC<MotionTabProps> = ({ config }) => {
+export const MotionTab: React.FC<MotionTabProps> = ({ config, onChange }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const algorithm = (config.algorithm ?? 'mog2') as MotionAlgorithm;
 
   return (
     <div className="space-y-6">
@@ -23,6 +26,22 @@ export const MotionTab: React.FC<MotionTabProps> = ({ config }) => {
         <p className="text-sm text-muted mb-6">
           {t('motionDesc')}
         </p>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-text mb-2">
+          {t('motionAlgorithmLabel')}
+        </label>
+        <select
+          value={algorithm}
+          onChange={(e) => onChange({ ...config, algorithm: e.target.value as MotionAlgorithm })}
+          className="w-full px-3 py-2 bg-surface1 border border-border rounded-lg text-text"
+        >
+          <option value="frame_diff">{t('motionAlgorithmFrameDiff')}</option>
+          <option value="mog2">{t('motionAlgorithmMOG2')}</option>
+          <option value="knn">{t('motionAlgorithmKNN')}</option>
+        </select>
+        <p className="text-xs text-muted mt-1">{t('motionAlgorithmHint')}</p>
       </div>
 
       <div className="bg-surface2 border-l-4 border-info p-4 rounded-lg">
@@ -39,6 +58,7 @@ export const MotionTab: React.FC<MotionTabProps> = ({ config }) => {
           </button>
         </div>
         <div className="mt-3 text-xs text-muted space-y-1">
+          <div>{t('motionSummaryAlgorithm', { value: algorithm === 'frame_diff' ? t('motionAlgorithmFrameDiff') : algorithm === 'mog2' ? t('motionAlgorithmMOG2') : t('motionAlgorithmKNN') })}</div>
           <div>{t('motionSummarySensitivity', { value: config.sensitivity })}</div>
           <div>{t('motionSummaryMinArea', { value: config.min_area })}</div>
           <div>{t('motionSummaryCooldown', { value: config.cooldown_seconds })}</div>

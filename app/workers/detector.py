@@ -650,11 +650,12 @@ class DetectorWorker:
                     inference_resolution=tuple(config.detection.inference_resolution),
                 )
                 
-                # Filter by aspect ratio
+                # Filter by aspect ratio (preset or custom)
+                ar_min, ar_max = config.detection.get_effective_aspect_ratio_bounds()
                 detections = self.inference_service.filter_by_aspect_ratio(
                     detections,
-                    min_ratio=config.detection.aspect_ratio_min,
-                    max_ratio=config.detection.aspect_ratio_max,
+                    min_ratio=ar_min,
+                    max_ratio=ar_max,
                 )
                 
                 # Update frame buffer for media generation
@@ -1445,6 +1446,7 @@ class DetectorWorker:
         if motion_settings.get("enabled", True) is False:
             return True
 
+        algorithm = motion_settings.get("algorithm", "mog2")
         sensitivity = int(motion_settings.get("sensitivity", config.motion.sensitivity))
         min_area = int(
             motion_settings.get("min_area", motion_settings.get("threshold", config.motion.min_area))
@@ -1457,6 +1459,9 @@ class DetectorWorker:
         )
 
         state = self.motion_state[camera.id]
+        if state.get("algorithm") != algorithm:
+            state.clear()
+            state["algorithm"] = algorithm
         motion_active = bool(state.get("motion_active"))
         last_motion = state.get("last_motion", 0.0)
         now = time.time()
@@ -1475,18 +1480,12 @@ class DetectorWorker:
             min_area = max(1, int(min_area * scale * scale))
         gray = cv2.GaussianBlur(gray, (5, 5), 0)
 
-        prev = state.get("prev_frame")
-        if prev is None:
-            state["prev_frame"] = gray
-            return True
-
-        diff = cv2.absdiff(prev, gray)
-        threshold = max(10, 60 - (sensitivity * 5))
-        _, thresh = cv2.threshold(diff, threshold, 255, cv2.THRESH_BINARY)
-        thresh = cv2.dilate(thresh, None, iterations=2)
-
-        motion_area = cv2.countNonZero(thresh)
-        state["prev_frame"] = gray
+        if algorithm in ("mog2", "knn"):
+            motion_area = self._motion_area_background_subtractor(
+                camera.id, gray, algorithm, sensitivity, state
+            )
+        else:
+            motion_area = self._motion_area_frame_diff(gray, sensitivity, state)
 
         prebuffer_seconds = float(getattr(config.event, "prebuffer_seconds", 0.0))
 
@@ -1503,6 +1502,46 @@ class DetectorWorker:
 
         state["motion_active"] = False
         return False
+
+    def _motion_area_frame_diff(self, gray: np.ndarray, sensitivity: int, state: Dict[str, Any]) -> int:
+        """Frame-diff motion area (original method)."""
+        prev = state.get("prev_frame")
+        if prev is None:
+            state["prev_frame"] = gray.copy()
+            return 0
+        diff = cv2.absdiff(prev, gray)
+        threshold = max(10, 60 - (sensitivity * 5))
+        _, thresh = cv2.threshold(diff, threshold, 255, cv2.THRESH_BINARY)
+        thresh = cv2.dilate(thresh, None, iterations=2)
+        motion_area = int(cv2.countNonZero(thresh))
+        state["prev_frame"] = gray.copy()
+        return motion_area
+
+    def _motion_area_background_subtractor(
+        self, camera_id: str, gray: np.ndarray, algorithm: str, sensitivity: int, state: Dict[str, Any]
+    ) -> int:
+        """MOG2/KNN background subtractor motion area (stable, fewer shadow false alarms)."""
+        if "subtractor" not in state:
+            if algorithm == "knn":
+                state["subtractor"] = cv2.createBackgroundSubtractorKNN(
+                    history=500, dist2Threshold=400.0, detectShadows=True
+                )
+            else:
+                state["subtractor"] = cv2.createBackgroundSubtractorMOG2(
+                    history=500, varThreshold=max(8, 24 - sensitivity * 2), detectShadows=True
+                )
+            state["warmup_frames"] = 0
+        subtractor = state["subtractor"]
+        warmup = state.get("warmup_frames", 0)
+        warmup_max = 30
+        if warmup < warmup_max:
+            state["warmup_frames"] = warmup + 1
+            subtractor.apply(gray)
+            return 0
+        fg_mask = subtractor.apply(gray)
+        # 0=background, 127=shadow (MOG2/KNN), 255=foreground; count only foreground
+        motion_area = int(np.sum(fg_mask == 255))
+        return motion_area
 
     def _filter_detections_by_zones(
         self,

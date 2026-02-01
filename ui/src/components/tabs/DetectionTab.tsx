@@ -70,42 +70,57 @@ export const DetectionTab: React.FC<DetectionTabProps> = ({ config, onChange, on
           </p>
         </div>
 
-        {/* Aspect Ratio - TASK 12 */}
+        {/* Aspect ratio preset (person / thermal / custom) */}
         <div>
           <label className="block text-sm font-medium text-text mb-2">
-            {t('detectionAspectRatioMinLabel', { value: config.aspect_ratio_min?.toFixed(2) || 0.3 })}
+            {t('aspectRatioPresetLabel')}
           </label>
-          <input
-            type="range"
-            min="0.05"
-            max="1.0"
-            step="0.05"
-            value={config.aspect_ratio_min || 0.3}
-            onChange={(e) => onChange({ ...config, aspect_ratio_min: parseFloat(e.target.value) })}
-            className="w-full"
-          />
-          <p className="text-xs text-muted mt-1">
-            {t('detectionAspectRatioMinHint')}
-          </p>
+          <select
+            value={config.aspect_ratio_preset ?? 'person'}
+            onChange={(e) => onChange({ ...config, aspect_ratio_preset: e.target.value as 'person' | 'thermal_person' | 'custom' })}
+            className="w-full px-3 py-2 bg-surface1 border border-border rounded-lg text-text"
+          >
+            <option value="person">{t('aspectRatioPresetPerson')}</option>
+            <option value="thermal_person">{t('aspectRatioPresetThermalPerson')}</option>
+            <option value="custom">{t('aspectRatioPresetCustom')}</option>
+          </select>
+          <p className="text-xs text-muted mt-1">{t('aspectRatioPresetHint')}</p>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-text mb-2">
-            {t('detectionAspectRatioMaxLabel', { value: config.aspect_ratio_max?.toFixed(2) || 3.0 })}
-          </label>
-          <input
-            type="range"
-            min="1.0"
-            max="5.0"
-            step="0.1"
-            value={config.aspect_ratio_max || 3.0}
-            onChange={(e) => onChange({ ...config, aspect_ratio_max: parseFloat(e.target.value) })}
-            className="w-full"
-          />
-          <p className="text-xs text-muted mt-1">
-            {t('detectionAspectRatioMaxHint')}
-          </p>
-        </div>
+        {(config.aspect_ratio_preset ?? 'person') === 'custom' && (
+          <>
+            <div>
+              <label className="block text-sm font-medium text-text mb-2">
+                {t('detectionAspectRatioMinLabel', { value: config.aspect_ratio_min?.toFixed(2) || 0.3 })}
+              </label>
+              <input
+                type="range"
+                min="0.05"
+                max="1.0"
+                step="0.05"
+                value={config.aspect_ratio_min || 0.3}
+                onChange={(e) => onChange({ ...config, aspect_ratio_min: parseFloat(e.target.value) })}
+                className="w-full"
+              />
+              <p className="text-xs text-muted mt-1">{t('detectionAspectRatioMinHint')}</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-text mb-2">
+                {t('detectionAspectRatioMaxLabel', { value: config.aspect_ratio_max?.toFixed(2) || 3.0 })}
+              </label>
+              <input
+                type="range"
+                min="1.0"
+                max="5.0"
+                step="0.1"
+                value={config.aspect_ratio_max || 3.0}
+                onChange={(e) => onChange({ ...config, aspect_ratio_max: parseFloat(e.target.value) })}
+                className="w-full"
+              />
+              <p className="text-xs text-muted mt-1">{t('detectionAspectRatioMaxHint')}</p>
+            </div>
+          </>
+        )}
 
         {/* Enable Tracking - TASK 13 */}
         <div className="flex items-center space-x-3">

@@ -9,17 +9,24 @@ export interface DetectionConfig {
   nms_iou_threshold: number;
   inference_resolution: [number, number];
   inference_fps: number;
+  aspect_ratio_preset?: 'person' | 'thermal_person' | 'custom';
   aspect_ratio_min: number;
   aspect_ratio_max: number;
   enable_tracking: boolean;
 }
 
 export interface MotionConfig {
+  algorithm?: 'frame_diff' | 'mog2' | 'knn';
   sensitivity: number;
   min_area: number;
   cooldown_seconds: number;
   presets: {
     thermal_recommended: {
+      sensitivity: number;
+      min_area: number;
+      cooldown_seconds: number;
+    };
+    color_recommended?: {
       sensitivity: number;
       min_area: number;
       cooldown_seconds: number;

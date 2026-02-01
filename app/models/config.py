@@ -5,7 +5,7 @@ This module contains Pydantic models for all configuration sections.
 All models include validation rules and default values.
 """
 import re
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Tuple
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -44,17 +44,21 @@ class DetectionConfig(BaseModel):
         le=30,
         description="Frames per second for inference"
     )
+    aspect_ratio_preset: Literal["person", "thermal_person", "custom"] = Field(
+        default="person",
+        description="Preset for person shape: person (general), thermal_person (thermal), custom (use min/max below)"
+    )
     aspect_ratio_min: float = Field(
         default=0.2,
         ge=0.0,
         le=5.0,
-        description="Minimum person aspect ratio (width/height)"
+        description="Minimum person aspect ratio (width/height); used when preset is custom"
     )
     aspect_ratio_max: float = Field(
         default=1.2,
         ge=0.0,
         le=5.0,
-        description="Maximum person aspect ratio (width/height)"
+        description="Maximum person aspect ratio (width/height); used when preset is custom"
     )
     enable_tracking: bool = Field(
         default=False,
@@ -80,6 +84,14 @@ class DetectionConfig(BaseModel):
             raise ValueError("aspect_ratio_max must be >= aspect_ratio_min")
         return v
 
+    def get_effective_aspect_ratio_bounds(self) -> Tuple[float, float]:
+        """Return (min_ratio, max_ratio) from preset or custom values."""
+        if self.aspect_ratio_preset == "person":
+            return 0.2, 1.2
+        if self.aspect_ratio_preset == "thermal_person":
+            return 0.25, 1.0
+        return self.aspect_ratio_min, self.aspect_ratio_max
+
 
 class MotionPreset(BaseModel):
     """Motion detection preset configuration."""
@@ -92,6 +104,10 @@ class MotionPreset(BaseModel):
 class MotionConfig(BaseModel):
     """Motion detection configuration (pre-filter for person detection)."""
     
+    algorithm: Literal["frame_diff", "mog2", "knn"] = Field(
+        default="mog2",
+        description="Algorithm: frame_diff (simple), mog2/knn (stable, fewer false alarms from shadows)"
+    )
     sensitivity: int = Field(
         default=7,
         ge=1,
@@ -114,7 +130,12 @@ class MotionConfig(BaseModel):
                 sensitivity=8,
                 min_area=450,
                 cooldown_seconds=4
-            )
+            ),
+            "color_recommended": MotionPreset(
+                sensitivity=7,
+                min_area=500,
+                cooldown_seconds=5
+            ),
         },
         description="Predefined motion presets"
     )
