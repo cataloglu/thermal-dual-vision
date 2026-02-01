@@ -296,6 +296,26 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
                 className="w-full"
               />
             </div>
+            <div>
+              <label className="text-xs text-muted">
+                {t('perfThermalConfidenceLabel')} {settings.detection.thermal_confidence_threshold.toFixed(2)}
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={settings.detection.thermal_confidence_threshold}
+                onChange={(e) =>
+                  onChange({
+                    ...settings,
+                    detection: { ...settings.detection, thermal_confidence_threshold: parseFloat(e.target.value) },
+                  })
+                }
+                className="w-full"
+              />
+              <p className="text-xs text-muted mt-1">{t('perfThermalConfidenceHint')}</p>
+            </div>
 
             <div>
               <label className="text-xs text-muted">

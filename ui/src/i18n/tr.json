@@ -411,6 +411,8 @@
   "perfSectionStream": "Stream",
   "perfFpsLabel": "FPS",
   "perfConfidenceLabel": "Güven",
+  "perfThermalConfidenceLabel": "Termal güven eşiği",
+  "perfThermalConfidenceHint": "Sadece termal tespitlerde geçerli. Artırmak yanlış alarmları azaltır.",
   "perfThermalEnhance": "Termal geliştirmeyi aç",
   "perfShortcutTitle": "Performans ayarları toplandı",
   "perfShortcutDesc": "Temel ayarlar çakışmaması için Performans sayfasına taşındı.",

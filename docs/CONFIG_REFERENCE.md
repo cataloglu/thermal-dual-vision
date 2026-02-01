@@ -14,6 +14,7 @@ Bu doküman `/api/settings` endpoint'indeki tüm config alanlarını açıklar.
 |------|-----|---------|----------|
 | `model` | string | `"yolov8n-person"` | Model seçimi: `yolov8n-person` veya `yolov8s-person` |
 | `confidence_threshold` | float | `0.25` | Minimum confidence (0.0-1.0) |
+| `thermal_confidence_threshold` | float | `0.45` | Termal algılamada minimum confidence tabanı |
 | `nms_iou_threshold` | float | `0.45` | Non-Maximum Suppression IoU threshold |
 | `inference_resolution` | [int, int] | `[640, 640]` | Inference için frame resolution |
 | `inference_fps` | int | `5` | Saniyede kaç frame işlenecek |

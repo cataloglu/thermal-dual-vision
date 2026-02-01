@@ -412,6 +412,8 @@
   "perfSectionStream": "Stream",
   "perfFpsLabel": "FPS",
   "perfConfidenceLabel": "Confidence",
+  "perfThermalConfidenceLabel": "Thermal confidence floor",
+  "perfThermalConfidenceHint": "Applies to thermal detections only. Increase to reduce false positives.",
   "perfThermalEnhance": "Enable thermal enhancement",
   "perfShortcutTitle": "Performance controls moved",
   "perfShortcutDesc": "Common tuning lives on the Performance page to avoid duplicates.",

@@ -640,9 +640,13 @@ class DetectorWorker:
                     preprocessed = self.inference_service.preprocess_color(frame)
                 
                 # Run inference
+                confidence_threshold = float(config.detection.confidence_threshold)
+                thermal_floor = float(getattr(config.detection, "thermal_confidence_threshold", confidence_threshold))
+                if detection_source == "thermal":
+                    confidence_threshold = max(confidence_threshold, thermal_floor)
                 detections = self.inference_service.infer(
                     preprocessed,
-                    confidence_threshold=config.detection.confidence_threshold,
+                    confidence_threshold=confidence_threshold,
                     inference_resolution=tuple(config.detection.inference_resolution),
                 )
                 
