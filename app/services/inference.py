@@ -149,6 +149,7 @@ class InferenceService:
                 if not tensorrt_path.exists():
                     logger.info("CUDA detected, exporting to TensorRT (this may take a few minutes)...")
                     try:
+                        # Export to current directory first
                         self.model.export(
                             format='engine',
                             device=0,           # GPU 0
@@ -156,8 +157,20 @@ class InferenceService:
                             workspace=4,        # 4GB workspace
                             simplify=True,      # ONNX simplification
                         )
-                        logger.info(f"TensorRT model exported: {tensorrt_path}")
-                        logger.info("Next startup will use TensorRT (2-3x faster)")
+                        
+                        # Move exported file to models directory
+                        exported_file = Path.cwd() / f"{model_name}.engine"
+                        if exported_file.exists() and not tensorrt_path.exists():
+                            import shutil
+                            shutil.move(str(exported_file), str(tensorrt_path))
+                            logger.info(f"TensorRT model moved to: {tensorrt_path}")
+                        
+                        if tensorrt_path.exists():
+                            logger.info(f"TensorRT model exported: {tensorrt_path}")
+                            logger.info("Next startup will use TensorRT (2-3x faster)")
+                        else:
+                            logger.warning("TensorRT export succeeded but file not found")
+                            
                     except Exception as e:
                         logger.warning(f"TensorRT export failed: {e}")
                         logger.info("Falling back to ONNX export...")
@@ -170,13 +183,26 @@ class InferenceService:
                 if not onnx_path.exists():
                     logger.info("Exporting to ONNX (this may take a minute)...")
                     try:
+                        # Export to current directory first
                         self.model.export(
                             format='onnx',
                             simplify=True,      # ONNX simplification
                             dynamic=False,      # Fixed input size (faster)
                         )
-                        logger.info(f"ONNX model exported: {onnx_path}")
-                        logger.info("Next startup will use ONNX (1.5x faster)")
+                        
+                        # Move exported file to models directory
+                        exported_file = Path.cwd() / f"{model_name}.onnx"
+                        if exported_file.exists() and not onnx_path.exists():
+                            import shutil
+                            shutil.move(str(exported_file), str(onnx_path))
+                            logger.info(f"ONNX model moved to: {onnx_path}")
+                        
+                        if onnx_path.exists():
+                            logger.info(f"ONNX model exported: {onnx_path}")
+                            logger.info("Next startup will use ONNX (1.5x faster)")
+                        else:
+                            logger.warning("ONNX export succeeded but file not found")
+                            
                     except Exception as e:
                         logger.warning(f"ONNX export failed: {e}")
                         logger.info("Continuing with PyTorch model")
