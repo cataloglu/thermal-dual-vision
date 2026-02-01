@@ -73,14 +73,14 @@ class InferenceService:
             # Priority 1: TensorRT (NVIDIA GPU)
             if tensorrt_path.exists():
                 logger.info(f"Loading TensorRT optimized model: {tensorrt_path}")
-                self.model = YOLO(str(tensorrt_path))
+                self.model = YOLO(str(tensorrt_path), task='detect')
                 self.model_name = model_name
                 logger.info("TensorRT model loaded (2-3x faster than PyTorch)")
             
             # Priority 2: ONNX (CPU/cross-platform)
             elif onnx_path.exists():
                 logger.info(f"Loading ONNX optimized model: {onnx_path}")
-                self.model = YOLO(str(onnx_path))
+                self.model = YOLO(str(onnx_path), task='detect')
                 self.model_name = model_name
                 logger.info("ONNX model loaded (1.5x faster than PyTorch)")
             
@@ -108,7 +108,7 @@ class InferenceService:
                     source = f"{model_name}.pt"
                 
                 logger.info(f"Loading PyTorch model: {source}")
-                self.model = YOLO(source)
+                self.model = YOLO(source, task='detect')
                 self.model_name = model_name
                 logger.info("PyTorch model loaded")
                 
