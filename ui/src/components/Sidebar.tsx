@@ -10,7 +10,8 @@ import {
   MdExpandMore,
   MdChevronRight,
   MdLanguage,
-  MdRefresh
+  MdRefresh,
+  MdHub
 } from 'react-icons/md'
 import { useWebSocket } from '../hooks/useWebSocket'
 
@@ -42,6 +43,7 @@ export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
     { path: '/live', icon: MdVideocam, label: t('live') },
     { path: '/events', icon: MdEvent, label: t('events') },
     { path: '/diagnostics', icon: MdSearch, label: t('diagnostics') },
+    { path: '/mqtt', icon: MdHub, label: 'MQTT Bilgileri' },
   ]
 
   const settingsSubItems = [

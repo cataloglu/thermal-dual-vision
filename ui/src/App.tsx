@@ -13,6 +13,7 @@ const Live = lazy(() => import('./pages/Live').then(m => ({ default: m.Live })))
 const Events = lazy(() => import('./pages/Events').then(m => ({ default: m.Events })))
 const Settings = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })))
 const Diagnostics = lazy(() => import('./pages/Diagnostics').then(m => ({ default: m.Diagnostics })))
+const MqttMonitoring = lazy(() => import('./pages/MqttMonitoring').then(m => ({ default: m.MqttMonitoring })))
 
 function App() {
   // Apply theme
@@ -27,8 +28,9 @@ function App() {
               <Route path="/" element={<Dashboard />} />
               <Route path="/live" element={<Live />} />
               <Route path="/events" element={<Events />} />
-              <Route path="/settings" element={<Settings />} />
               <Route path="/diagnostics" element={<Diagnostics />} />
+              <Route path="/mqtt" element={<MqttMonitoring />} />
+              <Route path="/settings" element={<Settings />} />
             </Routes>
           </Suspense>
         </Layout>
