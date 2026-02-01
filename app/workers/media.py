@@ -50,8 +50,8 @@ class MediaWorker:
     MP4_FPS = 12
     MP4_MAX_OUTPUT_FPS = 20
     MP4_CODECS = ("mp4v", "avc1", "H264")
-    MP4_CRF = 18
-    MP4_PRESET = "medium"
+    MP4_CRF = 10  # Ultra high quality (thermal optimization)
+    MP4_PRESET = "veryslow"  # Best compression quality
     MP4_MIN_DURATION = 0.5
     MP4_MIN_OUTPUT_DURATION = 10.0
     MP4_MAX_DURATION = 12.0
