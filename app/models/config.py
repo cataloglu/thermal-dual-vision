@@ -194,22 +194,22 @@ class StreamConfig(BaseModel):
         description="OpenCV VideoCapture buffer size"
     )
     reconnect_delay_seconds: int = Field(
-        default=5,
+        default=10,
         ge=1,
         description="Delay between reconnect attempts"
     )
     max_reconnect_attempts: int = Field(
-        default=10,
+        default=20,
         ge=1,
         description="Maximum reconnect attempts"
     )
     read_failure_threshold: int = Field(
-        default=3,
+        default=5,
         ge=1,
         description="Consecutive read failures before reconnect logic"
     )
     read_failure_timeout_seconds: float = Field(
-        default=8.0,
+        default=20.0,
         ge=1.0,
         le=60.0,
         description="Seconds without frames before reconnect"
