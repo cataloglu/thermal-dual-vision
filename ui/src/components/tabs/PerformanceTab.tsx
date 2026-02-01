@@ -144,6 +144,7 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
       motion: settings.motion,
       thermal: settings.thermal,
       stream: settings.stream,
+      performance: settings.performance,
     })
   }
 
