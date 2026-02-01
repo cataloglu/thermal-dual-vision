@@ -24,6 +24,20 @@ export function MqttTab() {
   const { t } = useTranslation();
   const [mqttStatus, setMqttStatus] = useState<MqttStatus | null>(null);
   const [statusLoading, setStatusLoading] = useState(false);
+  const [cameras, setCameras] = useState<any[]>([]);
+
+  // Fetch cameras for sensor list
+  useEffect(() => {
+    const fetchCameras = async () => {
+      try {
+        const response = await api.getCameras();
+        setCameras(response.cameras || []);
+      } catch (error) {
+        console.error('Failed to fetch cameras:', error);
+      }
+    };
+    fetchCameras();
+  }, []);
 
   // Fetch MQTT status
   useEffect(() => {
@@ -273,6 +287,34 @@ export function MqttTab() {
                   <div className="text-xs text-red-400 font-mono">{mqttStatus.last_error}</div>
                 </div>
               )}
+
+              {/* HA Sensor List */}
+              <div className="mt-6">
+                <h4 className="text-sm font-semibold text-foreground mb-2">
+                  🏠 Home Assistant Sensor'ları (Auto-Discovery)
+                </h4>
+                <div className="p-4 bg-background rounded-lg border border-border">
+                  <div className="space-y-2 text-xs">
+                    {cameras && cameras.length > 0 ? (
+                      cameras.map((cam: any) => (
+                        <div key={cam.id} className="p-2 bg-surface1 rounded border-l-2 border-accent">
+                          <div className="font-semibold text-foreground mb-1">{cam.name}</div>
+                          <div className="space-y-0.5 text-muted-foreground font-mono">
+                            <div>🔴 binary_sensor.{cam.name.toLowerCase().replace(/\s+/g, '_')}_person_detected</div>
+                            <div>🔢 sensor.{cam.name.toLowerCase().replace(/\s+/g, '_')}_person_count</div>
+                            <div>📝 sensor.{cam.name.toLowerCase().replace(/\s+/g, '_')}_last_event</div>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-muted-foreground">No cameras configured</div>
+                    )}
+                  </div>
+                  <div className="mt-3 p-2 bg-info/10 border border-info rounded text-xs text-info">
+                    💡 Bu sensor'ları Home Assistant → Settings → Devices & Services → MQTT'de bulabilirsiniz
+                  </div>
+                </div>
+              </div>
             </div>
           ) : (
             <div className="text-sm text-muted-foreground">
