@@ -276,6 +276,56 @@ class MediaWorker:
         finally:
             out.release()
 
+    def _encode_mp4_imageio(
+        self,
+        frames: List[np.ndarray],
+        output_path: str,
+        fps: int,
+        size: tuple[int, int],
+    ) -> bool:
+        """Encode MP4 using imageio-ffmpeg (H.264 preferred)."""
+        if not frames:
+            return False
+
+        width, height = size
+        for codec in ("libx264", "mpeg4"):
+            writer = None
+            try:
+                writer = imageio.get_writer(
+                    output_path,
+                    fps=fps,
+                    codec=codec,
+                    format="FFMPEG",
+                    macro_block_size=None,
+                    ffmpeg_params=["-pix_fmt", "yuv420p", "-movflags", "+faststart"],
+                )
+                for frame in frames:
+                    if frame is None:
+                        continue
+                    if frame.shape[1] != width or frame.shape[0] != height:
+                        frame = cv2.resize(frame, (width, height), interpolation=cv2.INTER_AREA)
+                    writer.append_data(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+                writer.close()
+                writer = None
+                if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+                    logger.info("MP4 encoded with imageio (%s)", codec)
+                    return True
+            except Exception as exc:
+                logger.warning("imageio MP4 encode failed (%s): %s", codec, exc)
+            finally:
+                try:
+                    if writer is not None:
+                        writer.close()
+                except Exception:
+                    pass
+            try:
+                if os.path.exists(output_path):
+                    os.remove(output_path)
+            except Exception:
+                pass
+
+        return False
+
     def _select_indices_by_time(
         self,
         timestamps: List[float],
@@ -802,8 +852,22 @@ class MediaWorker:
 
             processed_frames.append(img)
 
-        if not self._encode_mp4_ffmpeg(processed_frames, output_path, target_fps_int, target_size):
+        legacy_marker = f"{output_path}.legacy"
+        encoded = self._encode_mp4_ffmpeg(processed_frames, output_path, target_fps_int, target_size)
+        if not encoded:
+            encoded = self._encode_mp4_imageio(processed_frames, output_path, target_fps_int, target_size)
+        if encoded:
+            try:
+                if os.path.exists(legacy_marker):
+                    os.remove(legacy_marker)
+            except Exception:
+                pass
+        else:
             self._encode_mp4_opencv(processed_frames, output_path, target_fps_int, target_size)
+            try:
+                Path(legacy_marker).write_text("mp4v", encoding="utf-8")
+            except Exception:
+                pass
 
         logger.info(
             "Timelapse MP4 created: %s size=%sx%s fps=%s duration=%.2fs speed=%.1fx",

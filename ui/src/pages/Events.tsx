@@ -19,6 +19,7 @@ interface Camera {
 export function Events() {
   const { t } = useTranslation()
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
+  const [selectedEventTab, setSelectedEventTab] = useState<'collage' | 'video' | null>(null)
   const [cameras, setCameras] = useState<Camera[]>([])
   const [showFilters, setShowFilters] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -124,8 +125,9 @@ export function Events() {
     })
   }, [])
 
-  const handleOpen = useCallback((eventId: string) => {
+  const handleOpen = useCallback((eventId: string, tab?: 'collage' | 'video') => {
     setSelectedEventId(eventId)
+    setSelectedEventTab(tab ?? null)
   }, [])
   const commitConfidence = useCallback(() => {
     setConfidenceFilter(confidenceInput)
@@ -500,7 +502,11 @@ export function Events() {
       {selectedEvent && (
         <EventDetail
           event={selectedEvent}
-          onClose={() => setSelectedEventId(null)}
+          initialTab={selectedEventTab ?? undefined}
+          onClose={() => {
+            setSelectedEventId(null)
+            setSelectedEventTab(null)
+          }}
           onDelete={handleDeleteEvent}
         />
       )}

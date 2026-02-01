@@ -42,7 +42,8 @@ class TelegramService:
         event: Dict[str, Any],
         camera: Optional[Dict[str, Any]] = None,
         collage_path: Optional[Path] = None,
-        mp4_path: Optional[Path] = None
+        mp4_path: Optional[Path] = None,
+        gif_path: Optional[Path] = None,
     ) -> bool:
         """
         Send event notification to Telegram.
@@ -113,14 +114,21 @@ class TelegramService:
                             parse_mode='HTML'
                         )
                     
-                    # Send MP4 timelapse if available
-                    if mp4_path and mp4_path.exists() and config.telegram.send_images:
+                    # Send MP4 timelapse if available and playable
+                    if mp4_path and config.telegram.send_images and self._is_playable_mp4(mp4_path):
                         with open(mp4_path, 'rb') as video:
                             await bot.send_video(
                                 chat_id=chat_id,
                                 video=video,
                                 caption="🎥 Event Video",
                                 supports_streaming=True
+                            )
+                    elif gif_path and gif_path.exists() and config.telegram.send_images:
+                        with open(gif_path, 'rb') as animation:
+                            await bot.send_animation(
+                                chat_id=chat_id,
+                                animation=animation,
+                                caption="🎞️ Event Preview",
                             )
                     
                     logger.info(f"Telegram notification sent to {chat_id}")
@@ -177,6 +185,19 @@ class TelegramService:
 {summary}"""
         
         return message
+
+    def _is_playable_mp4(self, mp4_path: Path) -> bool:
+        if not mp4_path or not mp4_path.exists():
+            return False
+        legacy_marker = Path(f"{mp4_path}.legacy")
+        if legacy_marker.exists():
+            return False
+        try:
+            if mp4_path.stat().st_size < 1024:
+                return False
+        except Exception:
+            return False
+        return True
     
     def _check_rate_limit(self, camera_id: str, rate_limit_seconds: int) -> bool:
         """

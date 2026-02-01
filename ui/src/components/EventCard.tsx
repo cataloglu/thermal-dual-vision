@@ -13,7 +13,7 @@ interface EventCardProps {
   mp4Url: string | null
   selected?: boolean
   onSelect?: (id: string) => void
-  onClick: (id: string) => void
+  onClick: (id: string, tab?: 'collage' | 'video') => void
 }
 
 export const EventCard = memo(function EventCard({
@@ -134,16 +134,14 @@ export const EventCard = memo(function EventCard({
               {t('view')}
             </button>
             {mp4Url ? (
-              <a
-                href={mp4Url}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
+              <button
+                type="button"
+                onClick={() => onClick(id, 'video')}
                 className="flex items-center gap-2 px-4 py-2 bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors text-sm"
               >
                 <MdPlayArrow />
                 Video
-              </a>
+              </button>
             ) : (
               <span className="flex items-center gap-2 px-4 py-2 bg-surface2 border border-border text-muted rounded-lg text-sm opacity-60">
                 <MdPlayArrow />

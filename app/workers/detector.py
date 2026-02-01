@@ -1590,6 +1590,7 @@ class DetectorWorker:
                 if event:
                     collage_path = self.media_service.get_media_path(event_id, "collage")
                     mp4_path = self.media_service.get_media_path(event_id, "mp4")
+                    gif_path = self.media_service.get_media_path(event_id, "gif")
 
                     summary = None
                     if collage_path:
@@ -1652,6 +1653,7 @@ class DetectorWorker:
                                     camera={"id": camera.id, "name": camera.name},
                                     collage_path=collage_path,
                                     mp4_path=mp4_path,
+                                    gif_path=gif_path,
                                 )
                             )
                     except RuntimeError:
@@ -1669,6 +1671,7 @@ class DetectorWorker:
                                     camera={"id": camera.id, "name": camera.name},
                                     collage_path=collage_path,
                                     mp4_path=mp4_path,
+                                    gif_path=gif_path,
                                 )
                             )
                         loop.close()

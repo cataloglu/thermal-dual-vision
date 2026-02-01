@@ -127,7 +127,9 @@ class MediaService:
         # Save URLs to database WITHOUT prefix (prefix added at runtime in main.py)
         event.collage_url = f"/api/events/{event_id}/collage" if os.path.exists(collage_path) else None
         event.gif_url = f"/api/events/{event_id}/preview.gif" if os.path.exists(gif_path) else None
-        event.mp4_url = f"/api/events/{event_id}/timelapse.mp4" if os.path.exists(mp4_path) else None
+        mp4_legacy_marker = f"{mp4_path}.legacy"
+        mp4_ok = os.path.exists(mp4_path) and not os.path.exists(mp4_legacy_marker)
+        event.mp4_url = f"/api/events/{event_id}/timelapse.mp4" if mp4_ok else None
         db.commit()
         
         logger.info(f"Event media generated: {event_id}")

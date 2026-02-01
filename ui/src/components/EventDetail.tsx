@@ -13,18 +13,19 @@ interface EventDetailProps {
     collage_url: string | null
     mp4_url: string | null
   }
+  initialTab?: 'collage' | 'video'
   onClose: () => void
   onDelete?: (eventId: string) => void
 }
 
-export function EventDetail({ event, onClose, onDelete }: EventDetailProps) {
+export function EventDetail({ event, initialTab, onClose, onDelete }: EventDetailProps) {
   const { t } = useTranslation()
   const modalRef = useRef<HTMLDivElement>(null)
   const isRecent = (value: string) => Date.now() - new Date(value).getTime() < 30000
   const collagePending = !event.collage_url && isRecent(event.timestamp)
   const mp4Pending = !event.mp4_url && isRecent(event.timestamp)
   const [activeTab, setActiveTab] = useState<'collage' | 'video'>(
-    event.mp4_url ? 'video' : 'collage'
+    initialTab ?? (event.mp4_url ? 'video' : 'collage')
   )
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [tagInput, setTagInput] = useState('')
@@ -56,8 +57,12 @@ export function EventDetail({ event, onClose, onDelete }: EventDetailProps) {
   }, [onClose])
 
   useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab)
+      return
+    }
     setActiveTab(event.mp4_url ? 'video' : 'collage')
-  }, [event.id, event.mp4_url])
+  }, [event.id, event.mp4_url, initialTab])
 
   useEffect(() => {
     const raw = localStorage.getItem('event_meta')
