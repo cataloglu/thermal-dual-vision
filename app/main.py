@@ -477,6 +477,28 @@ async def update_settings(partial_data: Dict[str, Any]) -> Dict[str, Any]:
         )
 
 
+@app.get("/api/mqtt/status")
+async def get_mqtt_status() -> Dict[str, Any]:
+    """
+    Get MQTT monitoring status.
+    
+    Returns connection status, active topics, publish stats, and last messages.
+    """
+    try:
+        status = mqtt_service.get_monitoring_status()
+        return status
+    except Exception as e:
+        logger.error(f"Failed to get MQTT status: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": True,
+                "code": "INTERNAL_ERROR",
+                "message": f"Failed to get MQTT status: {str(e)}"
+            }
+        )
+
+
 @app.post("/api/cameras/test", response_model=CameraTestResponse)
 async def test_camera(request: CameraTestRequest) -> CameraTestResponse:
     """

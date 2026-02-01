@@ -40,6 +40,13 @@ class MqttService:
         self._reconnect_lock = threading.Lock()
         self._reconnecting = False
         
+        # Monitoring state (NEW)
+        self.active_topics: set = set()
+        self.publish_count: int = 0
+        self.last_messages: Dict[str, Dict[str, Any]] = {}  # topic → {payload, timestamp}
+        self.connected_at: Optional[datetime] = None
+        self.last_error: Optional[str] = None
+        
         logger.info("MqttService initialized")
 
     def start(self):
@@ -105,13 +112,16 @@ class MqttService:
         if rc == 0:
             logger.info("Connected to MQTT broker")
             self.connected = True
+            self.connected_at = datetime.utcnow()
             if self.availability_topic:
                 self.client.publish(self.availability_topic, "online", retain=True)
+                self._track_publish(self.availability_topic, "online")
             # Publish discovery config on connect
             self.publish_discovery()
         else:
             logger.error(f"Failed to connect to MQTT broker, return code: {rc}")
             self.connected = False
+            self.last_error = f"Connection failed (rc={rc})"
 
     def _on_disconnect(self, client, userdata, rc):
         logger.info(f"Disconnected from MQTT broker (rc={rc})")
@@ -407,14 +417,20 @@ class MqttService:
 
             # 1. Publish binary sensor state ON
             if person_detected:
-                self.client.publish(f"{prefix}/camera/{camera_id}/person", "ON")
+                person_topic = f"{prefix}/camera/{camera_id}/person"
+                self.client.publish(person_topic, "ON")
+                self._track_publish(person_topic, "ON")
 
             # 2. Publish event details (JSON)
             payload = json.dumps(event_data, default=str)
-            self.client.publish(f"{prefix}/camera/{camera_id}/event", payload, retain=True)
+            event_topic = f"{prefix}/camera/{camera_id}/event"
+            self.client.publish(event_topic, payload, retain=True)
+            self._track_publish(event_topic, event_data)
             
             # 3. Publish global event feed
-            self.client.publish(f"{prefix}/events", payload)
+            events_topic = f"{prefix}/events"
+            self.client.publish(events_topic, payload)
+            self._track_publish(events_topic, event_data)
 
             # Note: The binary sensor will stay ON until expire_after (configured in discovery)
             # or we can explicitly turn it off after some time if we want logic here.
@@ -422,6 +438,49 @@ class MqttService:
 
         except Exception as e:
             logger.error(f"Failed to publish event: {e}")
+            self.last_error = str(e)
+    
+    def _track_publish(self, topic: str, payload: Any) -> None:
+        """Track published messages for monitoring."""
+        try:
+            self.active_topics.add(topic)
+            self.publish_count += 1
+            self.last_messages[topic] = {
+                "payload": payload if isinstance(payload, (str, int, float, bool)) else str(payload)[:200],
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+            }
+            # Keep only last 50 topics
+            if len(self.last_messages) > 50:
+                oldest_topic = min(self.last_messages.keys(), key=lambda k: self.last_messages[k]["timestamp"])
+                self.last_messages.pop(oldest_topic, None)
+        except Exception:
+            pass
+    
+    def get_monitoring_status(self) -> Dict[str, Any]:
+        """
+        Get MQTT monitoring status for UI display.
+        
+        Returns:
+            Dict with connection status, topics, messages, stats
+        """
+        config = self.settings_service.load_config().mqtt
+        
+        return {
+            "enabled": config.enabled,
+            "connected": self.connected,
+            "broker": f"{config.host}:{config.port}",
+            "topic_prefix": config.topic_prefix,
+            "availability_topic": self.availability_topic,
+            "connected_at": self.connected_at.isoformat() + "Z" if self.connected_at else None,
+            "active_topics": sorted(list(self.active_topics)),
+            "publish_count": self.publish_count,
+            "last_messages": dict(sorted(
+                self.last_messages.items(),
+                key=lambda x: x[1]["timestamp"],
+                reverse=True
+            )[:10]),  # Last 10 messages
+            "last_error": self.last_error,
+        }
 
 # Singleton
 _mqtt_service: Optional[MqttService] = None
