@@ -23,7 +23,7 @@ class DetectionConfig(BaseModel):
         description="Minimum confidence for detections"
     )
     thermal_confidence_threshold: float = Field(
-        default=0.45,
+        default=0.25,
         ge=0.0,
         le=1.0,
         description="Minimum confidence floor for thermal detections"
