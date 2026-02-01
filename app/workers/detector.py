@@ -518,6 +518,7 @@ class DetectorWorker:
                                 frame=frame,
                                 buffer_size=video_buffer_size,
                                 record_interval=1.0 / record_fps_local,
+                                max_age_seconds=window_seconds,
                             )
 
                             if reader_delay > 0:
@@ -1606,6 +1607,7 @@ class DetectorWorker:
         frame: np.ndarray,
         buffer_size: int,
         record_interval: float,
+        max_age_seconds: Optional[float] = None,
     ) -> None:
         if record_interval <= 0:
             return
@@ -1621,6 +1623,10 @@ class DetectorWorker:
                 buffer = deque(buffer, maxlen=buffer_size)
                 self.video_buffers[camera_id] = buffer
             buffer.append((frame.copy(), now))
+            if max_age_seconds and max_age_seconds > 0:
+                cutoff = now - max_age_seconds
+                while buffer and buffer[0][1] < cutoff:
+                    buffer.popleft()
 
     def _align_detections_to_timestamps(
         self,

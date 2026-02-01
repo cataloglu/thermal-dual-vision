@@ -735,6 +735,18 @@ class MediaWorker:
         min_duration = min(self.MP4_MIN_DURATION, actual_duration / 2) if actual_duration else self.MP4_MIN_DURATION
         if real_time:
             target_duration = max(actual_duration, self.MP4_MIN_OUTPUT_DURATION)
+            if timestamps and len(timestamps) == frame_count and actual_duration > 0:
+                target_fps = frame_count / actual_duration
+            else:
+                target_fps = self.MP4_FPS
+            target_fps = min(self.MP4_MAX_OUTPUT_FPS, target_fps)
+            target_fps = max(self.MP4_MIN_OUTPUT_FPS, target_fps)
+            target_fps_int = max(1, int(round(target_fps)))
+            target_frame_count = max(1, int(round(target_duration * target_fps_int)))
+            indices = list(range(frame_count))
+            if target_frame_count > frame_count and frame_count > 0:
+                indices.extend([frame_count - 1] * (target_frame_count - frame_count))
+            speed_factor = 1.0
         else:
             target_duration = max(
                 min_duration,
@@ -743,15 +755,15 @@ class MediaWorker:
             if self.MP4_MIN_OUTPUT_DURATION:
                 target_duration = max(target_duration, self.MP4_MIN_OUTPUT_DURATION)
 
-        target_fps = min(self.MP4_MAX_OUTPUT_FPS, frame_count / max(target_duration, 0.1)) if frame_count > 0 else self.MP4_FPS
-        target_fps = max(self.MP4_MIN_OUTPUT_FPS, target_fps)
-        target_fps_int = max(1, int(round(target_fps)))
-        target_frame_count = max(1, int(round(target_duration * target_fps_int)))
-        if timestamps and len(timestamps) == frame_count:
-            indices = self._select_indices_by_time(timestamps, target_frame_count)
-        else:
-            indices = self._select_indices(frame_count, target_frame_count)
-        speed_factor = max(actual_duration / max(target_duration, 0.1), 1.0)
+            target_fps = min(self.MP4_MAX_OUTPUT_FPS, frame_count / max(target_duration, 0.1)) if frame_count > 0 else self.MP4_FPS
+            target_fps = max(self.MP4_MIN_OUTPUT_FPS, target_fps)
+            target_fps_int = max(1, int(round(target_fps)))
+            target_frame_count = max(1, int(round(target_duration * target_fps_int)))
+            if timestamps and len(timestamps) == frame_count:
+                indices = self._select_indices_by_time(timestamps, target_frame_count)
+            else:
+                indices = self._select_indices(frame_count, target_frame_count)
+            speed_factor = max(actual_duration / max(target_duration, 0.1), 1.0)
         scale_ref = min(target_size[0] / 1280, target_size[1] / 720)
         margin = max(8, int(16 * scale_ref))
         font_large = max(0.5, 1.0 * scale_ref)
