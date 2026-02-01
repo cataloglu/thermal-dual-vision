@@ -55,6 +55,10 @@ def _resolve_log_level(raw: str) -> int:
         return logging.CRITICAL
     return getattr(logging, value.upper(), logging.INFO)
 
+def _resolve_access_log_enabled(raw: str) -> bool:
+    value = (raw or "").strip().lower()
+    return value in {"trace", "debug"}
+
 
 def _resolve_uvicorn_log_level(raw: str) -> str:
     value = (raw or "").strip().lower()
@@ -76,7 +80,8 @@ if not _IS_TEST:
     _handlers.append(logging.FileHandler(log_file, encoding="utf-8"))
 logging.basicConfig(
     level=_resolve_log_level(os.getenv("LOG_LEVEL", "INFO")),
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
     handlers=_handlers,
 )
 logger = logging.getLogger(__name__)
@@ -837,7 +842,8 @@ async def get_event_collage(event_id: str) -> FileResponse:
         return FileResponse(
             path=str(media_path),
             media_type="image/jpeg",
-            filename=f"event-{event_id}-collage.jpg"
+            filename=f"event-{event_id}-collage.jpg",
+            content_disposition_type="inline",
         )
         
     except HTTPException:
@@ -884,7 +890,8 @@ async def get_event_gif(event_id: str) -> FileResponse:
         return FileResponse(
             path=str(media_path),
             media_type="image/gif",
-            filename=f"event-{event_id}-preview.gif"
+            filename=f"event-{event_id}-preview.gif",
+            content_disposition_type="inline",
         )
         
     except HTTPException:
@@ -931,7 +938,8 @@ async def get_event_mp4(event_id: str) -> FileResponse:
         return FileResponse(
             path=str(media_path),
             media_type="video/mp4",
-            filename=f"event-{event_id}-timelapse.mp4"
+            filename=f"event-{event_id}-timelapse.mp4",
+            content_disposition_type="inline",
         )
         
     except HTTPException:
@@ -2108,4 +2116,5 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8000,
         log_level=_resolve_uvicorn_log_level(os.getenv("LOG_LEVEL", "info")),
+        access_log=_resolve_access_log_enabled(os.getenv("LOG_LEVEL", "info")),
     )

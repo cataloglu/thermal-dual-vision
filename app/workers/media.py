@@ -12,6 +12,7 @@ import logging
 import os
 import shutil
 import subprocess
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Dict, Optional
@@ -146,6 +147,28 @@ class MediaWorker:
             writer.release()
         return None
 
+    def _resolve_ffmpeg_candidates(self) -> List[str]:
+        if hasattr(self, "_ffmpeg_candidates"):
+            return list(self._ffmpeg_candidates)
+
+        candidates: List[str] = []
+        system_ffmpeg = shutil.which("ffmpeg")
+        if system_ffmpeg:
+            candidates.append(system_ffmpeg)
+
+        if "pytest" not in sys.modules:
+            try:
+                import imageio_ffmpeg
+
+                imageio_ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+                if imageio_ffmpeg_exe and imageio_ffmpeg_exe not in candidates:
+                    candidates.append(imageio_ffmpeg_exe)
+            except Exception as exc:
+                logger.debug("imageio-ffmpeg unavailable: %s", exc)
+
+        self._ffmpeg_candidates = candidates
+        return candidates
+
     def _encode_mp4_ffmpeg(
         self,
         frames: List[np.ndarray],
@@ -154,8 +177,8 @@ class MediaWorker:
         size: tuple[int, int],
     ) -> bool:
         """Encode MP4 using ffmpeg for better quality."""
-        ffmpeg = shutil.which("ffmpeg")
-        if not ffmpeg:
+        ffmpeg_candidates = self._resolve_ffmpeg_candidates()
+        if not ffmpeg_candidates:
             return False
         if not frames:
             return False
@@ -166,69 +189,70 @@ class MediaWorker:
             ("mpeg4", ["-q:v", "5", "-pix_fmt", "yuv420p"]),
         )
 
-        for codec, extra_args in codec_candidates:
-            cmd = [
-                ffmpeg,
-                "-hide_banner",
-                "-loglevel",
-                "error",
-                "-y",
-                "-f",
-                "rawvideo",
-                "-pix_fmt",
-                "bgr24",
-                "-s",
-                f"{width}x{height}",
-                "-r",
-                str(fps),
-                "-i",
-                "pipe:0",
-                "-c:v",
-                codec,
-                *extra_args,
-                "-movflags",
-                "+faststart",
-                output_path,
-            ]
-            try:
-                proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                write_error: Optional[Exception] = None
-                written = 0
-                stdout = b""
-                stderr = b""
+        for ffmpeg in ffmpeg_candidates:
+            for codec, extra_args in codec_candidates:
+                cmd = [
+                    ffmpeg,
+                    "-hide_banner",
+                    "-loglevel",
+                    "error",
+                    "-y",
+                    "-f",
+                    "rawvideo",
+                    "-pix_fmt",
+                    "bgr24",
+                    "-s",
+                    f"{width}x{height}",
+                    "-r",
+                    str(fps),
+                    "-i",
+                    "pipe:0",
+                    "-c:v",
+                    codec,
+                    *extra_args,
+                    "-movflags",
+                    "+faststart",
+                    output_path,
+                ]
                 try:
-                    for frame in frames:
-                        if frame is None:
-                            continue
-                        if frame.shape[1] != width or frame.shape[0] != height:
-                            frame = cv2.resize(frame, (width, height), interpolation=cv2.INTER_AREA)
-                        try:
-                            proc.stdin.write(frame.tobytes())
-                            written += 1
-                        except (BrokenPipeError, ValueError) as exc:
-                            write_error = exc
-                            break
-                    if proc.stdin and not proc.stdin.closed:
-                        proc.stdin.close()
-                    stdout, stderr = proc.communicate()
-                finally:
-                    if proc.stdin and not proc.stdin.closed:
-                        proc.stdin.close()
+                    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    write_error: Optional[Exception] = None
+                    written = 0
+                    stdout = b""
+                    stderr = b""
+                    try:
+                        for frame in frames:
+                            if frame is None:
+                                continue
+                            if frame.shape[1] != width or frame.shape[0] != height:
+                                frame = cv2.resize(frame, (width, height), interpolation=cv2.INTER_AREA)
+                            try:
+                                proc.stdin.write(frame.tobytes())
+                                written += 1
+                            except (BrokenPipeError, ValueError) as exc:
+                                write_error = exc
+                                break
+                        if proc.stdin and not proc.stdin.closed:
+                            proc.stdin.close()
+                        stdout, stderr = proc.communicate()
+                    finally:
+                        if proc.stdin and not proc.stdin.closed:
+                            proc.stdin.close()
 
-                if written == 0:
-                    logger.warning("FFmpeg encode skipped: no frames written")
-                    return False
+                    if written == 0:
+                        logger.warning("FFmpeg encode skipped: no frames written")
+                        return False
 
-                if write_error or proc.returncode != 0:
-                    error_text = stderr.decode(errors="ignore").strip()
-                    detail = error_text or str(write_error or "unknown error")
-                    logger.warning("FFmpeg encode failed (%s): %s", codec, detail)
+                    if write_error or proc.returncode != 0:
+                        error_text = stderr.decode(errors="ignore").strip()
+                        detail = error_text or str(write_error or "unknown error")
+                        logger.warning("FFmpeg encode failed (%s): %s", codec, detail)
+                        continue
+
+                    return True
+                except Exception as exc:
+                    logger.warning("FFmpeg encode failed (%s): %s", codec, exc)
                     continue
-
-                return True
-            except Exception as exc:
-                logger.warning("FFmpeg encode failed (%s): %s", codec, exc)
-                continue
 
         return False
 
