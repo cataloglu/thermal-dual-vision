@@ -66,6 +66,7 @@ class MediaWorker:
         """Initialize media worker."""
         # Ensure media directory exists
         self.MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+        self._ffmpeg_blacklist: set[str] = set()
         logger.info("MediaWorker initialized")
 
     def _get_mp4_target_size(self, frame: np.ndarray) -> tuple[int, int]:
@@ -149,25 +150,26 @@ class MediaWorker:
 
     def _resolve_ffmpeg_candidates(self) -> List[str]:
         if hasattr(self, "_ffmpeg_candidates"):
-            return list(self._ffmpeg_candidates)
+            return [c for c in self._ffmpeg_candidates if c not in self._ffmpeg_blacklist]
 
         candidates: List[str] = []
-        system_ffmpeg = shutil.which("ffmpeg")
-        if system_ffmpeg:
-            candidates.append(system_ffmpeg)
 
         if "pytest" not in sys.modules:
             try:
                 import imageio_ffmpeg
 
                 imageio_ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
-                if imageio_ffmpeg_exe and imageio_ffmpeg_exe not in candidates:
+                if imageio_ffmpeg_exe:
                     candidates.append(imageio_ffmpeg_exe)
             except Exception as exc:
                 logger.debug("imageio-ffmpeg unavailable: %s", exc)
 
+        system_ffmpeg = shutil.which("ffmpeg")
+        if system_ffmpeg and system_ffmpeg not in candidates:
+            candidates.append(system_ffmpeg)
+
         self._ffmpeg_candidates = candidates
-        return candidates
+        return [c for c in candidates if c not in self._ffmpeg_blacklist]
 
     def _encode_mp4_ffmpeg(
         self,
@@ -190,6 +192,7 @@ class MediaWorker:
         )
 
         for ffmpeg in ffmpeg_candidates:
+            candidate_ok = False
             for codec, extra_args in codec_candidates:
                 cmd = [
                     ffmpeg,
@@ -249,11 +252,14 @@ class MediaWorker:
                         logger.warning("FFmpeg encode failed (%s): %s", codec, detail)
                         continue
 
+                    candidate_ok = True
                     return True
                 except Exception as exc:
                     logger.warning("FFmpeg encode failed (%s): %s", codec, exc)
                     continue
-
+            if not candidate_ok:
+                self._ffmpeg_blacklist.add(ffmpeg)
+                logger.warning("FFmpeg binary disabled after failures: %s", ffmpeg)
         return False
 
     def _encode_mp4_opencv(
