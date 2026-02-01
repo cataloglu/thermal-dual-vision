@@ -268,6 +268,12 @@ class EventConfig(BaseModel):
         le=30.0,
         description="Seconds of frames to keep after motion"
     )
+    record_fps: int = Field(
+        default=10,
+        ge=1,
+        le=30,
+        description="Frame rate for event video buffer"
+    )
     frame_buffer_size: int = Field(
         default=10,
         ge=1,

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { api } from '../services/api'
+import apiClient, { api } from '../services/api'
 import { MdContentCopy, MdCheckCircle, MdRefresh, MdDownload, MdDelete } from 'react-icons/md'
 import { LoadingState } from '../components/LoadingState'
 
@@ -128,16 +128,29 @@ export function Diagnostics() {
   )
 
   const parseLogLine = (line: string) => {
-    const match = line.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}) - ([^-]+) - (\w+) - (.*)$/)
-    if (!match) {
-      return { time: '', logger: '', level: '', message: line }
+    const pipeMatch = line.match(
+      /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})(?:,\d{3})?\s+\|\s+(\w+)\s+\|\s+([^|]+)\|\s+(.*)$/
+    )
+    if (pipeMatch) {
+      return {
+        time: pipeMatch[1],
+        logger: pipeMatch[3].trim(),
+        level: pipeMatch[2].trim(),
+        message: pipeMatch[4],
+      }
     }
-    return {
-      time: match[1],
-      logger: match[2].trim(),
-      level: match[3],
-      message: match[4],
+
+    const dashMatch = line.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}) - ([^-]+) - (\w+) - (.*)$/)
+    if (dashMatch) {
+      return {
+        time: dashMatch[1],
+        logger: dashMatch[2].trim(),
+        level: dashMatch[3],
+        message: dashMatch[4],
+      }
     }
+
+    return { time: '', logger: '', level: '', message: line }
   }
 
   const levelClass = (level: string) => {
@@ -398,12 +411,17 @@ export function Diagnostics() {
       <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-surface1 border border-border rounded-lg p-6">
           <h3 className="text-sm font-semibold text-muted mb-2">API Base URL</h3>
-          <p className="text-text font-mono text-sm">{window.location.origin}/api</p>
+          <p className="text-text font-mono text-sm">
+            {(() => {
+              const base = apiClient.defaults.baseURL || '/api'
+              return base.startsWith('http') ? base : new URL(base, window.location.origin).toString()
+            })()}
+          </p>
         </div>
 
         <div className="bg-surface1 border border-border rounded-lg p-6">
-          <h3 className="text-sm font-semibold text-muted mb-2">Frontend Version</h3>
-          <p className="text-text font-mono text-sm">2.0.0</p>
+          <h3 className="text-sm font-semibold text-muted mb-2">Addon Version</h3>
+          <p className="text-text font-mono text-sm">{systemInfo?.version ?? '-'}</p>
         </div>
 
         <div className="bg-surface1 border border-border rounded-lg p-6">

@@ -703,6 +703,7 @@ class MediaWorker:
         camera_name: str = "Camera",
         timestamp: Optional[datetime] = None,
         timestamps: Optional[List[float]] = None,
+        real_time: bool = False,
     ) -> str:
         """
         Create timelapse MP4 with detection boxes.
@@ -732,16 +733,13 @@ class MediaWorker:
             actual_duration = frame_count / max(self.MP4_FPS, 1)
 
         min_duration = min(self.MP4_MIN_DURATION, actual_duration / 2) if actual_duration else self.MP4_MIN_DURATION
+        speed_base = 1.0 if real_time else self.MP4_SPEED_FACTOR
         target_duration = max(
             min_duration,
-            min(self.MP4_MAX_DURATION, actual_duration / self.MP4_SPEED_FACTOR),
+            min(self.MP4_MAX_DURATION, actual_duration / speed_base),
         )
         if self.MP4_MIN_OUTPUT_DURATION:
             target_duration = max(target_duration, self.MP4_MIN_OUTPUT_DURATION)
-        if frame_count > 0:
-            max_duration_for_frames = frame_count / max(self.MP4_MIN_OUTPUT_FPS, 1)
-            if max_duration_for_frames > 0:
-                target_duration = min(target_duration, max_duration_for_frames)
 
         target_fps = min(self.MP4_MAX_OUTPUT_FPS, frame_count / max(target_duration, 0.1)) if frame_count > 0 else self.MP4_FPS
         target_fps = max(self.MP4_MIN_OUTPUT_FPS, target_fps)
@@ -870,7 +868,7 @@ class MediaWorker:
                 pass
 
         logger.info(
-            "Timelapse MP4 created: %s size=%sx%s fps=%s duration=%.2fs speed=%.1fx",
+            "Event MP4 created: %s size=%sx%s fps=%s duration=%.2fs speed=%.1fx",
             output_path,
             target_size[0],
             target_size[1],

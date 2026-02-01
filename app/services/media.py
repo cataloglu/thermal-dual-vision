@@ -40,6 +40,10 @@ class MediaService:
         timestamps: Optional[List[float]] = None,
         camera_name: str = "Camera",
         include_gif: bool = False,
+        mp4_frames: Optional[List[np.ndarray]] = None,
+        mp4_detections: Optional[List[Optional[Dict]]] = None,
+        mp4_timestamps: Optional[List[float]] = None,
+        mp4_real_time: bool = False,
     ) -> Dict[str, str]:
         """
         Generate all media files for an event (collage, MP4, optional GIF).
@@ -81,6 +85,9 @@ class MediaService:
         # Generate media in parallel
         worker_count = 2 + (1 if include_gif else 0)
         errors: List[Exception] = []
+        mp4_source_frames = mp4_frames if mp4_frames else frames
+        mp4_source_detections = mp4_detections if mp4_detections is not None else detections
+        mp4_source_timestamps = mp4_timestamps if mp4_timestamps is not None else timestamps
         with ThreadPoolExecutor(max_workers=max(1, worker_count)) as executor:
             tasks = [
                 ("collage", executor.submit(
@@ -95,12 +102,13 @@ class MediaService:
                 )),
                 ("mp4", executor.submit(
                     self.media_worker.create_timelapse_mp4,
-                    frames,
-                    detections,
+                    mp4_source_frames,
+                    mp4_source_detections,
                     mp4_path,
                     camera_name,
                     event.timestamp,
-                    timestamps,
+                    mp4_source_timestamps,
+                    mp4_real_time,
                 )),
             ]
             if include_gif:

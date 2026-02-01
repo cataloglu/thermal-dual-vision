@@ -112,6 +112,7 @@ Bu doküman `/api/settings` endpoint'indeki tüm config alanlarını açıklar.
 | `cooldown_seconds` | int | `5` | Minimum süre iki event arasında |
 | `prebuffer_seconds` | float | `5.0` | Hareket öncesi buffer (saniye) |
 | `postbuffer_seconds` | float | `5.0` | Hareket sonrası buffer (saniye) |
+| `record_fps` | int | `10` | Event video buffer FPS |
 | `frame_buffer_size` | int | `10` | Collage için frame buffer |
 | `frame_interval` | int | `2` | Her kaç frame'de bir kaydet |
 | `min_event_duration` | float | `1.0` | Minimum event süresi (saniye) |

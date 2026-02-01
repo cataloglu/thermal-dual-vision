@@ -591,13 +591,13 @@ async def get_events(
         
         # Get Ingress path from header
         ingress_path = request.headers.get("X-Ingress-Path", "")
-        logger.info(f"GET /api/events - X-Ingress-Path: '{ingress_path}'")
+        logger.debug("GET /api/events - X-Ingress-Path: '%s'", ingress_path)
         
         # Convert events to dict
         events_list = []
         for event in result["events"]:
             media_urls = _resolve_media_urls(event, ingress_path)
-            logger.info(f"Event {event.id} - collage_url: {media_urls['collage_url']}")
+            logger.debug("Event %s - collage_url: %s", event.id, media_urls["collage_url"])
             events_list.append({
                 "id": event.id,
                 "camera_id": event.camera_id,
@@ -2163,6 +2163,19 @@ async def get_system_info() -> Dict[str, Any]:
         disk_total_gb = disk.total / (1024 ** 3)
         disk_percent = disk.percent
         
+        addon_version = os.getenv("ADDON_VERSION")
+        if not addon_version:
+            try:
+                config_path = Path("config.yaml")
+                if config_path.exists():
+                    import yaml
+
+                    with open(config_path, "r", encoding="utf-8") as file:
+                        config_data = yaml.safe_load(file) or {}
+                        addon_version = str(config_data.get("version") or "").strip() or None
+            except Exception:
+                addon_version = None
+
         return {
             "cpu": {
                 "percent": round(cpu_percent, 1)
@@ -2176,7 +2189,8 @@ async def get_system_info() -> Dict[str, Any]:
                 "used_gb": round(disk_used_gb, 2),
                 "total_gb": round(disk_total_gb, 2),
                 "percent": round(disk_percent, 1)
-            }
+            },
+            "version": addon_version,
         }
         
     except Exception as e:

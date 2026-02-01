@@ -164,24 +164,16 @@ export function Events() {
   }
 
   const handleDeleteAll = async () => {
-    if (total === 0 || deleteAllLoading) return
-    const confirmText = hasActiveFilters
-      ? t('deleteFilteredConfirm', { count: total })
-      : t('deleteAllConfirm', { count: total })
+    if (deleteAllLoading) return
+    const confirmText = t('deleteAllConfirmAll')
     if (!window.confirm(confirmText)) return
 
     try {
       setDeleteAllLoading(true)
-      const result = await api.deleteEventsFiltered({
-        camera_id: debouncedCameraFilter || undefined,
-        date: debouncedDateFilter || undefined,
-        min_confidence: debouncedConfidenceFilter > 0 ? debouncedConfidenceFilter / 100 : undefined,
-      })
-      const deletedCount = result?.deleted_count ?? total
+      const result = await api.deleteEventsFiltered({})
+      const deletedCount = result?.deleted_count ?? 0
       toast.success(
-        hasActiveFilters
-          ? t('deleteFilteredSuccess', { count: deletedCount })
-          : t('deleteAllSuccess', { count: deletedCount })
+        t('deleteAllSuccess', { count: deletedCount })
       )
       setSelectedIds(new Set())
       resetPage()
@@ -290,19 +282,17 @@ export function Events() {
               className="flex items-center gap-2 px-4 py-2 rounded-lg transition-colors bg-error text-white"
             >
               <MdDelete className="text-xl" />
-              {t('delete')} ({selectedIds.size})
+              {t('deleteSelected')} ({selectedIds.size})
             </button>
           )}
-          {total > 0 && (
-            <button
-              onClick={handleDeleteAll}
-              disabled={deleteAllLoading}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg transition-colors bg-error/20 text-error border border-error/50 hover:bg-error/30 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <MdDelete className="text-xl" />
-              {hasActiveFilters ? t('deleteFiltered') : t('deleteAll')} ({total})
-            </button>
-          )}
+          <button
+            onClick={handleDeleteAll}
+            disabled={deleteAllLoading}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg transition-colors bg-error/20 text-error border border-error/50 hover:bg-error/30 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <MdDelete className="text-xl" />
+            {t('deleteAllEvents')}
+          </button>
           <button
             onClick={() => setCompareOpen(true)}
             disabled={!compareEvents}

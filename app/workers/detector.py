@@ -73,6 +73,9 @@ class DetectorWorker:
         self.frame_buffers: Dict[str, deque] = defaultdict(deque)
         self.frame_counters: Dict[str, int] = defaultdict(int)
         self.frame_buffer_locks: Dict[str, threading.Lock] = defaultdict(threading.Lock)
+        self.video_buffers: Dict[str, deque] = defaultdict(deque)
+        self.video_buffer_locks: Dict[str, threading.Lock] = defaultdict(threading.Lock)
+        self.video_last_sample: Dict[str, float] = {}
         self.latest_frames: Dict[str, np.ndarray] = {}
         self.latest_frame_locks: Dict[str, threading.Lock] = defaultdict(threading.Lock)
         self.detection_history: Dict[str, deque] = defaultdict(lambda: deque(maxlen=5))
@@ -154,6 +157,9 @@ class DetectorWorker:
         self.frame_buffers.clear()
         self.frame_counters.clear()
         self.frame_buffer_locks.clear()
+        self.video_buffers.clear()
+        self.video_buffer_locks.clear()
+        self.video_last_sample.clear()
         self.detection_history.clear()
         self.zone_history.clear()
         self.last_event_time.clear()
@@ -183,6 +189,9 @@ class DetectorWorker:
         self.frame_buffers.pop(camera_id, None)
         self.frame_counters.pop(camera_id, None)
         self.frame_buffer_locks.pop(camera_id, None)
+        self.video_buffers.pop(camera_id, None)
+        self.video_buffer_locks.pop(camera_id, None)
+        self.video_last_sample.pop(camera_id, None)
         self.detection_history.pop(camera_id, None)
         self.zone_history.pop(camera_id, None)
         self.last_event_time.pop(camera_id, None)
@@ -208,6 +217,13 @@ class DetectorWorker:
                 cutoff = time.time() - prebuffer_seconds
                 trimmed = deque((item for item in buffer if item[2] >= cutoff), maxlen=buffer.maxlen)
                 self.frame_buffers[camera_id] = trimmed
+        video_lock = self.video_buffer_locks[camera_id]
+        with video_lock:
+            buffer = self.video_buffers.get(camera_id)
+            if buffer is not None and prebuffer_seconds > 0:
+                cutoff = time.time() - prebuffer_seconds
+                trimmed = deque((item for item in buffer if item[1] >= cutoff), maxlen=buffer.maxlen)
+                self.video_buffers[camera_id] = trimmed
         self.frame_counters[camera_id] = 0
         self.detection_history[camera_id].clear()
 
@@ -281,7 +297,8 @@ class DetectorWorker:
             )
             
             restream_url = self._get_go2rtc_restream_url(camera_id, restream_source)
-            prefer_direct = time.time() < self.restream_backoff_until.get(camera_id, 0.0)
+            # Prefer direct RTSP for detection; restream stays as fallback.
+            prefer_direct = True
             rtsp_urls = self._get_detection_rtsp_urls(
                 camera_id,
                 restream_source,
@@ -335,7 +352,9 @@ class DetectorWorker:
             # FPS control
             target_fps = config.detection.inference_fps
             frame_delay = 1.0 / target_fps
-            reader_delay = frame_delay
+            record_fps = float(getattr(config.event, "record_fps", target_fps))
+            record_fps = max(1.0, min(record_fps, 30.0))
+            reader_delay = 1.0 / record_fps
             last_inference_time = 0
             buffer_size = max(config.event.frame_buffer_size, 10)
             last_cpu_check = 0.0
@@ -486,6 +505,21 @@ class DetectorWorker:
                                 latest_frame["frame"] = frame
                             with self.latest_frame_locks[camera_id]:
                                 self.latest_frames[camera_id] = frame
+                            record_fps_local = max(1.0, float(record_fps))
+                            prebuffer_seconds = float(getattr(config.event, "prebuffer_seconds", 0.0))
+                            postbuffer_seconds = float(getattr(config.event, "postbuffer_seconds", 0.0))
+                            min_event_window = max(4.0, float(config.event.min_event_duration))
+                            window_seconds = prebuffer_seconds + postbuffer_seconds + min_event_window
+                            video_buffer_size = max(
+                                int(math.ceil(window_seconds * record_fps_local)),
+                                10,
+                            )
+                            self._update_video_buffer(
+                                camera_id=camera_id,
+                                frame=frame,
+                                buffer_size=video_buffer_size,
+                                record_interval=1.0 / record_fps_local,
+                            )
 
                             if reader_delay > 0:
                                 time.sleep(reader_delay)
@@ -520,6 +554,9 @@ class DetectorWorker:
                 if current_time - last_config_refresh >= 5:
                     config = self.settings_service.load_config()
                     last_config_refresh = current_time
+                    record_fps = float(getattr(config.event, "record_fps", config.detection.inference_fps))
+                    record_fps = max(1.0, min(record_fps, 30.0))
+                    reader_delay = 1.0 / record_fps
                 
                 # Dynamic FPS based on CPU load
                 if current_time - last_cpu_check >= 5.0:
@@ -530,7 +567,9 @@ class DetectorWorker:
                         elif cpu_percent < 40:
                             target_fps = min(7, config.detection.inference_fps + 2)
                         frame_delay = 1.0 / max(target_fps, 1)
-                        reader_delay = frame_delay
+                        record_fps = float(getattr(config.event, "record_fps", target_fps))
+                        record_fps = max(1.0, min(record_fps, 30.0))
+                        reader_delay = 1.0 / record_fps
                         last_cpu_check = current_time
                     except Exception:
                         last_cpu_check = current_time
@@ -1417,10 +1456,6 @@ class DetectorWorker:
         motion_active = bool(state.get("motion_active"))
         last_motion = state.get("last_motion", 0.0)
         now = time.time()
-        if cooldown_seconds and now - last_motion < cooldown_seconds:
-            state["motion_active"] = False
-            return False
-
         if len(frame.shape) == 3:
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         else:
@@ -1457,6 +1492,10 @@ class DetectorWorker:
             state["last_motion"] = now
             state["motion_active"] = True
             return True
+
+        if cooldown_seconds and now - last_motion < cooldown_seconds:
+            state["motion_active"] = motion_active
+            return motion_active
 
         state["motion_active"] = False
         return False
@@ -1562,6 +1601,56 @@ class DetectorWorker:
 
             buffer.append((frame.copy(), best_detection, time.time()))
 
+    def _update_video_buffer(
+        self,
+        camera_id: str,
+        frame: np.ndarray,
+        buffer_size: int,
+        record_interval: float,
+    ) -> None:
+        if record_interval <= 0:
+            return
+        now = time.time()
+        last_sample = self.video_last_sample.get(camera_id, 0.0)
+        if now - last_sample < record_interval:
+            return
+        self.video_last_sample[camera_id] = now
+        lock = self.video_buffer_locks[camera_id]
+        with lock:
+            buffer = self.video_buffers[camera_id]
+            if buffer.maxlen != buffer_size:
+                buffer = deque(buffer, maxlen=buffer_size)
+                self.video_buffers[camera_id] = buffer
+            buffer.append((frame.copy(), now))
+
+    def _align_detections_to_timestamps(
+        self,
+        detections: List[Optional[Dict]],
+        detection_timestamps: List[float],
+        target_timestamps: List[float],
+        max_gap_seconds: float = 0.75,
+    ) -> List[Optional[Dict]]:
+        if not target_timestamps:
+            return []
+        if not detections or not detection_timestamps:
+            return [None for _ in target_timestamps]
+        if len(detections) != len(detection_timestamps):
+            return [None for _ in target_timestamps]
+        idx = 0
+        aligned: List[Optional[Dict]] = []
+        for ts in target_timestamps:
+            while idx + 1 < len(detection_timestamps) and detection_timestamps[idx + 1] <= ts:
+                idx += 1
+            candidates = [idx]
+            if idx + 1 < len(detection_timestamps):
+                candidates.append(idx + 1)
+            best = min(candidates, key=lambda i: abs(detection_timestamps[i] - ts))
+            if abs(detection_timestamps[best] - ts) <= max_gap_seconds:
+                aligned.append(detections[best])
+            else:
+                aligned.append(None)
+        return aligned
+
     def _start_media_generation(self, camera: Camera, event_id: str, config) -> None:
         postbuffer_seconds = float(getattr(config.event, "postbuffer_seconds", 0.0))
 
@@ -1569,6 +1658,7 @@ class DetectorWorker:
             if postbuffer_seconds > 0:
                 time.sleep(postbuffer_seconds)
             frames, detections, timestamps = self._get_event_media_data(camera.id)
+            video_frames, video_timestamps = self._get_event_video_data(camera.id)
             if len(frames) == 0:
                 logger.warning(
                     "Skipping media generation for event %s (no frames)",
@@ -1577,6 +1667,13 @@ class DetectorWorker:
                 return
             db = next(get_session())
             try:
+                mp4_frames = video_frames if video_frames else frames
+                mp4_timestamps = video_timestamps if video_frames else timestamps
+                mp4_detections = (
+                    self._align_detections_to_timestamps(detections, timestamps, mp4_timestamps)
+                    if video_frames
+                    else detections
+                )
                 self.media_service.generate_event_media(
                     db=db,
                     event_id=event_id,
@@ -1585,6 +1682,10 @@ class DetectorWorker:
                     timestamps=timestamps,
                     camera_name=camera.name or "Camera",
                     include_gif=True,
+                    mp4_frames=mp4_frames,
+                    mp4_detections=mp4_detections,
+                    mp4_timestamps=mp4_timestamps,
+                    mp4_real_time=True,
                 )
                 event = db.query(Event).filter(Event.id == event_id).first()
                 if event:
@@ -1705,6 +1806,19 @@ class DetectorWorker:
         if len(timestamps) != len(frames):
             timestamps = []
         return frames, detections, timestamps
+
+    def _get_event_video_data(
+        self, camera_id: str
+    ) -> Tuple[List[np.ndarray], List[float]]:
+        buffer = self.video_buffers.get(camera_id)
+        if not buffer or len(buffer) == 0:
+            return [], []
+        lock = self.video_buffer_locks[camera_id]
+        with lock:
+            items = list(buffer)
+        frames = [item[0] for item in items]
+        timestamps = [item[1] for item in items]
+        return frames, timestamps
 
     def get_latest_frame(self, camera_id: str) -> Optional[np.ndarray]:
         lock = self.latest_frame_locks[camera_id]
