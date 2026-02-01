@@ -829,7 +829,8 @@ class DetectorWorker:
                             )
                             return
 
-                # Create event
+                # Create event with person count
+                person_count = len(detections)
                 event = self.event_service.create_event(
                     db=db,
                     camera_id=camera.id,
@@ -874,6 +875,7 @@ class DetectorWorker:
                             "confidence": event.confidence,
                             "event_type": event.event_type,
                             "summary": event.summary,
+                            "person_count": person_count,
                             "ai_required": False,
                             "ai_confirmed": True,
                         })

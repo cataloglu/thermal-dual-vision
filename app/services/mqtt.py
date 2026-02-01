@@ -268,6 +268,8 @@ class MqttService:
         availability_fields: Dict[str, str],
     ) -> None:
         safe_id = cam.id.replace("-", "_")
+        
+        # Binary sensor: Person detected (1+ person)
         self._publish_ha_config(
             component="binary_sensor",
             object_id=f"person_detected_{safe_id}",
@@ -279,6 +281,21 @@ class MqttService:
                 "payload_off": "OFF",
                 "off_delay": 30,
                 "unique_id": f"tdv_person_{safe_id}",
+                "device": device_info,
+                **availability_fields,
+            },
+        )
+        
+        # Sensor: Person count (0, 1, 2, 3...)
+        self._publish_ha_config(
+            component="sensor",
+            object_id=f"person_count_{safe_id}",
+            config={
+                "name": f"{cam.name} Person Count",
+                "state_topic": f"{prefix}/camera/{cam.id}/person_count",
+                "unit_of_measurement": "persons",
+                "icon": "mdi:account-multiple",
+                "unique_id": f"tdv_person_count_{safe_id}",
                 "device": device_info,
                 **availability_fields,
             },
@@ -423,6 +440,12 @@ class MqttService:
                 person_topic = f"{prefix}/camera/{camera_id}/person"
                 self.client.publish(person_topic, "ON")
                 self._track_publish(person_topic, "ON")
+            
+            # 1b. Publish person count
+            person_count = event_data.get("person_count", 1)
+            count_topic = f"{prefix}/camera/{camera_id}/person_count"
+            self.client.publish(count_topic, str(person_count), retain=True)
+            self._track_publish(count_topic, person_count)
 
             # 2. Publish event details (JSON)
             payload = json.dumps(event_data, default=str)
