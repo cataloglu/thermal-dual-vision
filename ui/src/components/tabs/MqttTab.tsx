@@ -35,8 +35,7 @@ export function MqttTab() {
     const fetchStatus = async () => {
       try {
         setStatusLoading(true);
-        const response = await fetch('/api/mqtt/status');
-        const data = await response.json();
+        const data = await api.getMqttStatus();
         setMqttStatus(data);
       } catch (error) {
         console.error('Failed to fetch MQTT status:', error);

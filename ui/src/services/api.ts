@@ -219,6 +219,12 @@ export const getLiveStreams = async () => {
   return response.data;
 };
 
+// MQTT Monitoring
+export const getMqttStatus = async () => {
+  const response = await apiClient.get('mqtt/status');
+  return response.data;
+};
+
 export const api = {
   getHealth,
   getSystemInfo,
@@ -248,6 +254,7 @@ export const api = {
   getCameraZones,
   createCameraZone,
   deleteZone,
+  getMqttStatus,
 };
 
 export default apiClient;
