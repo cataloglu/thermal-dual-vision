@@ -49,23 +49,19 @@ export function StreamViewer({
   const containerRef = useRef<HTMLDivElement>(null)
   const maxRetries = 10
 
-  // Go2rtc check moved to parent component for performance
   useEffect(() => {
-    // Check once only if WebRTC mode
-    if (outputMode === 'webrtc') {
-      const checkGo2rtc = async () => {
-        try {
-          await fetch(`${GO2RTC_URL}/api`, { mode: 'no-cors' })
-          setGo2rtcAvailable(true)
-        } catch {
-          setGo2rtcAvailable(false)
-        }
+    const checkGo2rtc = async () => {
+      try {
+        await fetch(`${GO2RTC_URL}/api`, { mode: 'no-cors' })
+        setGo2rtcAvailable(true)
+      } catch {
+        setGo2rtcAvailable(false)
       }
-      checkGo2rtc()
-    } else {
-      setGo2rtcAvailable(false)
     }
-  }, [outputMode])
+    checkGo2rtc()
+    const interval = setInterval(checkGo2rtc, 30000)
+    return () => clearInterval(interval)
+  }, [])
 
   useEffect(() => {
     setLoading(true)
