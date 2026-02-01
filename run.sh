@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-ADDON_VERSION="${ADDON_VERSION:-2.1.127}"
+ADDON_VERSION="${ADDON_VERSION:-2.1.128}"
 echo "Starting Thermal Dual Vision (v${ADDON_VERSION})..."
 
 # Ensure data directory exists

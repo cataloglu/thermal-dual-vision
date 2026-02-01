@@ -221,6 +221,10 @@ export function Events() {
     return items
   }, [page, totalPages])
 
+  const scrollToTop = useCallback(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [])
+
   if (loading && events.length === 0) {
     return <LoadingState variant="list" listCount={3} />
   }
@@ -296,6 +300,74 @@ export function Events() {
           </button>
         </div>
       </div>
+
+      {/* Top Pagination */}
+      {totalPages > 1 && events.length > 0 && (
+        <div className="mb-6 flex items-center justify-center gap-2">
+          <button
+            onClick={() => {
+              prevPage()
+              scrollToTop()
+            }}
+            disabled={page === 1}
+            className="px-4 py-2 bg-surface1 border border-border text-text rounded-lg hover:bg-surface2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {t('previous')}
+          </button>
+          
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                if (allSelected) {
+                  setSelectedIds(new Set())
+                } else {
+                  setSelectedIds(new Set(events.map((e) => e.id)))
+                }
+              }}
+              className="px-4 py-2 bg-surface1 border border-border text-text rounded-lg hover:bg-surface2 transition-colors"
+            >
+              {allSelected ? t('clearFilters') : t('selectAll')}
+            </button>
+            {paginationItems.map((item, index) => {
+              if (item === '...') {
+                return (
+                  <span key={`ellipsis-top-${index}`} className="px-2 text-muted">
+                    ...
+                  </span>
+                )
+              }
+              const pageNum = item
+              return (
+                <button
+                  key={`page-top-${pageNum}`}
+                  onClick={() => {
+                    goToPage(pageNum)
+                    scrollToTop()
+                  }}
+                  className={`w-10 h-10 rounded-lg transition-colors ${
+                    page === pageNum
+                      ? 'bg-accent text-white'
+                      : 'bg-surface1 border border-border text-text hover:bg-surface2'
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              )
+            })}
+          </div>
+          
+          <button
+            onClick={() => {
+              nextPage()
+              scrollToTop()
+            }}
+            disabled={page === totalPages}
+            className="px-4 py-2 bg-surface1 border border-border text-text rounded-lg hover:bg-surface2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {t('next')}
+          </button>
+        </div>
+      )}
 
       {/* Filters Panel */}
       {showFilters && (
@@ -431,7 +503,10 @@ export function Events() {
       {totalPages > 1 && (
         <div className="mt-8 flex items-center justify-center gap-2">
           <button
-            onClick={prevPage}
+            onClick={() => {
+              prevPage()
+              scrollToTop()
+            }}
             disabled={page === 1}
             className="px-4 py-2 bg-surface1 border border-border text-text rounded-lg hover:bg-surface2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
@@ -465,7 +540,7 @@ export function Events() {
                   key={pageNum}
                   onClick={() => {
                     goToPage(pageNum)
-                    window.scrollTo({ top: 0, behavior: 'smooth' })
+                    scrollToTop()
                   }}
                   className={`w-10 h-10 rounded-lg transition-colors ${
                     page === pageNum
@@ -480,7 +555,10 @@ export function Events() {
           </div>
           
           <button
-            onClick={nextPage}
+            onClick={() => {
+              nextPage()
+              scrollToTop()
+            }}
             disabled={page === totalPages}
             className="px-4 py-2 bg-surface1 border border-border text-text rounded-lg hover:bg-surface2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
