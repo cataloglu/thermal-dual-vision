@@ -356,6 +356,8 @@
   "cooldown": "Bekleme Süresi",
   "prebufferSeconds": "Ön tampon",
   "postbufferSeconds": "Son tampon",
+  "recordFps": "Event video FPS",
+  "recordFpsHint": "Değer arttıkça görüntü akıcı olur, CPU/bellek artar.",
   "frameBuffer": "Kare Tamponu",
   "frameInterval": "Kare Aralığı",
   "minEventDuration": "Minimum Olay Süresi",

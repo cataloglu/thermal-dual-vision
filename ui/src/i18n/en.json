@@ -357,6 +357,8 @@
   "cooldown": "Cooldown",
   "prebufferSeconds": "Pre-buffer",
   "postbufferSeconds": "Post-buffer",
+  "recordFps": "Event video FPS",
+  "recordFpsHint": "Higher values look smoother but use more CPU/memory.",
   "frameBuffer": "Frame Buffer",
   "frameInterval": "Frame Interval",
   "minEventDuration": "Min Event Duration",

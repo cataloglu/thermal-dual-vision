@@ -70,6 +70,22 @@ export const EventsTab: React.FC<EventsTabProps> = ({ config, onChange, onSave }
 
         <div>
           <label className="block text-sm font-medium text-text mb-2">
+            {t('recordFps')}
+          </label>
+          <input
+            type="number"
+            min="1"
+            max="30"
+            step="1"
+            value={config.record_fps}
+            onChange={(e) => onChange({ ...config, record_fps: parseInt(e.target.value) || 10 })}
+            className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
+          />
+          <p className="text-xs text-muted mt-1">{t('recordFpsHint')}</p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-text mb-2">
             {t('frameBuffer')}
           </label>
           <input
