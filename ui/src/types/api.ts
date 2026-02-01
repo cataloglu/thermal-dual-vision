@@ -123,6 +123,12 @@ export interface AppearanceConfig {
   language: 'tr' | 'en';
 }
 
+export interface PerformanceConfig {
+  worker_mode: 'threading' | 'multiprocessing';
+  enable_metrics: boolean;
+  metrics_port: number;
+}
+
 export interface Settings {
   detection: DetectionConfig;
   motion: MotionConfig;
@@ -134,6 +140,7 @@ export interface Settings {
   media: MediaConfig;
   ai: AIConfig;
   telegram: TelegramConfig;
+  performance: PerformanceConfig;
   mqtt: MqttConfig;
   appearance: AppearanceConfig;
 }

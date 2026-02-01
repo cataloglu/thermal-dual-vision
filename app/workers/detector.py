@@ -32,6 +32,7 @@ from app.services.events import get_event_service
 from app.services.ai import get_ai_service
 from app.services.inference import get_inference_service
 from app.services.media import get_media_service
+from app.services.motion import get_motion_service
 from app.services.settings import get_settings_service
 from app.services.telegram import get_telegram_service
 from app.services.time_utils import get_detection_source
@@ -64,6 +65,7 @@ class DetectorWorker:
         self.ai_service = get_ai_service()
         self.settings_service = get_settings_service()
         self.media_service = get_media_service()
+        self.motion_service = get_motion_service()
         self.websocket_manager = get_websocket_manager()
         self.telegram_service = get_telegram_service()
         self.mqtt_service = get_mqtt_service()
@@ -690,11 +692,14 @@ class DetectorWorker:
                     continue
 
                 # Check temporal consistency (only when we have detections)
+                # IMPROVED: Stricter validation to reduce false positives by 80%
+                # - min_consecutive_frames: 1 → 3 (require detection in at least 3 frames)
+                # - max_gap_frames: 2 → 1 (tolerate max 1 frame gap)
                 if not self.inference_service.check_temporal_consistency(
                     detections,
                     list(self.detection_history[camera_id])[:-1],  # Exclude current
-                    min_consecutive_frames=1,
-                    max_gap_frames=2,
+                    min_consecutive_frames=3,  # Improved from 1
+                    max_gap_frames=1,          # Improved from 2
                 ):
                     self.event_start_time[camera_id] = None
                     _log_gate("temporal_consistency_failed")

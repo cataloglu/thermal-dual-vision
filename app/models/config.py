@@ -483,6 +483,25 @@ class AppearanceConfig(BaseModel):
     )
 
 
+class PerformanceConfig(BaseModel):
+    """Performance and optimization configuration."""
+    
+    worker_mode: Literal["threading", "multiprocessing"] = Field(
+        default="threading",
+        description="Worker mode: threading (stable) or multiprocessing (experimental, no GIL)"
+    )
+    enable_metrics: bool = Field(
+        default=False,
+        description="Enable Prometheus metrics export"
+    )
+    metrics_port: int = Field(
+        default=9090,
+        ge=1024,
+        le=65535,
+        description="Prometheus metrics HTTP port"
+    )
+
+
 class MqttConfig(BaseModel):
     """MQTT / Home Assistant integration configuration."""
     
@@ -554,6 +573,10 @@ class AppConfig(BaseModel):
     telegram: TelegramConfig = Field(
         default_factory=TelegramConfig,
         description="Telegram notification configuration"
+    )
+    performance: PerformanceConfig = Field(
+        default_factory=PerformanceConfig,
+        description="Performance and optimization configuration"
     )
     mqtt: MqttConfig = Field(
         default_factory=MqttConfig,

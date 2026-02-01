@@ -37,6 +37,7 @@ export const SettingsTabs: React.FC<SettingsTabsProps> = ({ activeTab, onTabChan
   const tabs: Tab[] = [
     { id: 'cameras', label: t('cameras') },
     { id: 'camera_settings', label: t('cameraSettings') },
+    { id: 'performance', label: t('performance') },
     { id: 'zones', label: t('zones') },
     { id: 'live', label: t('live') },
     { id: 'recording', label: t('recording') },

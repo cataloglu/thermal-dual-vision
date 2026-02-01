@@ -70,6 +70,7 @@ export const Settings: React.FC = () => {
           updates.motion = localSettings.motion;
           updates.thermal = localSettings.thermal;
           updates.stream = localSettings.stream;
+          updates.performance = localSettings.performance;
           break;
         case 'live':
           updates.live = localSettings.live;

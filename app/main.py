@@ -37,6 +37,7 @@ from app.services.time_utils import get_detection_source
 from app.services.go2rtc import get_go2rtc_service
 from app.services.mqtt import get_mqtt_service
 from app.services.recording_state import get_recording_state_service
+from app.services.metrics import get_metrics_service
 from app.utils.rtsp import redact_rtsp_url, validate_rtsp_url
 from telegram import Bot
 from app.workers.retention import get_retention_worker
@@ -132,7 +133,18 @@ async def lifespan(app: FastAPI):
     # Give go2rtc a moment to reload config
     await asyncio.sleep(2)
 
+    # Start metrics server (if enabled)
+    try:
+        config = settings_service.load_config()
+        if hasattr(config, 'performance') and config.performance.enable_metrics:
+            metrics_service.start_server(config.performance.metrics_port)
+            logger.info(f"Metrics server started on port {config.performance.metrics_port}")
+    except Exception as e:
+        logger.warning(f"Failed to start metrics server: {e}")
+
     # Start detector worker
+    # NOTE: Multiprocessing mode is experimental (detector_mp.py)
+    # Production uses threading mode (detector.py)
     detector_worker.start()
     logger.info("Detector worker started")
 
@@ -193,6 +205,7 @@ logs_service = get_logs_service()
 go2rtc_service = get_go2rtc_service()
 mqtt_service = get_mqtt_service()
 recording_state_service = get_recording_state_service()
+metrics_service = get_metrics_service()
 
 
 def _resolve_default_rtsp_url(camera) -> Optional[str]:
