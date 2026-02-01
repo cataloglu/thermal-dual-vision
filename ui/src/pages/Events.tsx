@@ -24,6 +24,7 @@ export function Events() {
   const [showFilters, setShowFilters] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [compareOpen, setCompareOpen] = useState(false)
+  const [deleteAllLoading, setDeleteAllLoading] = useState(false)
   
   // Filter states
   const [cameraFilter, setCameraFilter] = useState<string>('')
@@ -152,12 +153,43 @@ export function Events() {
     if (selectedIds.size === 0) return
     const ids = Array.from(selectedIds)
     try {
-      await Promise.all(ids.map((id) => api.deleteEvent(id)))
-      toast.success(`${ids.length} event silindi`)
+      const result = await api.bulkDeleteEvents(ids)
+      const deletedCount = result?.deleted_count ?? ids.length
+      toast.success(`${deletedCount} event silindi`)
       setSelectedIds(new Set())
       refresh()
     } catch (error) {
       toast.error('Toplu silme başarısız')
+    }
+  }
+
+  const handleDeleteAll = async () => {
+    if (total === 0 || deleteAllLoading) return
+    const confirmText = hasActiveFilters
+      ? t('deleteFilteredConfirm', { count: total })
+      : t('deleteAllConfirm', { count: total })
+    if (!window.confirm(confirmText)) return
+
+    try {
+      setDeleteAllLoading(true)
+      const result = await api.deleteEventsFiltered({
+        camera_id: debouncedCameraFilter || undefined,
+        date: debouncedDateFilter || undefined,
+        min_confidence: debouncedConfidenceFilter > 0 ? debouncedConfidenceFilter / 100 : undefined,
+      })
+      const deletedCount = result?.deleted_count ?? total
+      toast.success(
+        hasActiveFilters
+          ? t('deleteFilteredSuccess', { count: deletedCount })
+          : t('deleteAllSuccess', { count: deletedCount })
+      )
+      setSelectedIds(new Set())
+      resetPage()
+      refresh()
+    } catch (error) {
+      toast.error(t('deleteAllFailed'))
+    } finally {
+      setDeleteAllLoading(false)
     }
   }
 
@@ -261,6 +293,16 @@ export function Events() {
               {t('delete')} ({selectedIds.size})
             </button>
           )}
+          {total > 0 && (
+            <button
+              onClick={handleDeleteAll}
+              disabled={deleteAllLoading}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg transition-colors bg-error/20 text-error border border-error/50 hover:bg-error/30 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <MdDelete className="text-xl" />
+              {hasActiveFilters ? t('deleteFiltered') : t('deleteAll')} ({total})
+            </button>
+          )}
           <button
             onClick={() => setCompareOpen(true)}
             disabled={!compareEvents}
@@ -326,7 +368,7 @@ export function Events() {
               }}
               className="px-4 py-2 bg-surface1 border border-border text-text rounded-lg hover:bg-surface2 transition-colors"
             >
-              {allSelected ? t('clearFilters') : t('selectAll')}
+              {allSelected ? t('clearFilters') : t('selectPage')}
             </button>
             {paginationItems.map((item, index) => {
               if (item === '...') {
@@ -524,7 +566,7 @@ export function Events() {
               }}
               className="px-4 py-2 bg-surface1 border border-border text-text rounded-lg hover:bg-surface2 transition-colors"
             >
-              {allSelected ? t('clearFilters') : t('selectAll')}
+              {allSelected ? t('clearFilters') : t('selectPage')}
             </button>
             {paginationItems.map((item, index) => {
               if (item === '...') {

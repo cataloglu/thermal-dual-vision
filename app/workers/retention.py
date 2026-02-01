@@ -222,8 +222,8 @@ class RetentionWorker:
         if not event_dir.exists():
             return
         
-        # Delete in order: mp4 (largest) → collage
-        delete_order = ["timelapse.mp4", "collage.jpg"]
+        # Delete in order: mp4 (largest) → gif → collage → legacy marker
+        delete_order = ["timelapse.mp4", "preview.gif", "collage.jpg", "timelapse.mp4.legacy"]
         
         for filename in delete_order:
             file_path = event_dir / filename

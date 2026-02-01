@@ -5,7 +5,7 @@ import logging
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
-from datetime import date
+from datetime import date, datetime
 from typing import Any, Dict, Optional, List
 
 import os
@@ -13,6 +13,7 @@ from fastapi import FastAPI, HTTPException, Depends, Query, WebSocket, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import ValidationError, BaseModel
+from sqlalchemy import and_
 from sqlalchemy.orm import Session
 import cv2
 import time
@@ -784,6 +785,7 @@ async def bulk_delete_events(
         
         for event_id in event_ids:
             try:
+                retention_worker.delete_event_media(event_id)
                 deleted = event_service.delete_event(db=db, event_id=event_id)
                 if deleted:
                     deleted_count += 1
@@ -811,6 +813,86 @@ async def bulk_delete_events(
             }
         )
 
+
+@app.post("/api/events/clear")
+async def clear_events(
+    request: Dict[str, Any],
+    db: Session = Depends(get_session),
+) -> Dict[str, Any]:
+    """
+    Delete all events matching filters.
+    """
+    try:
+        camera_id = request.get("camera_id")
+        date_raw = request.get("date")
+        min_confidence = request.get("min_confidence")
+        date_filter = None
+        if date_raw:
+            try:
+                date_filter = datetime.fromisoformat(date_raw).date()
+            except Exception:
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "error": True,
+                        "code": "VALIDATION_ERROR",
+                        "message": "Invalid date format. Use YYYY-MM-DD."
+                    }
+                )
+
+        query = db.query(Event)
+        filters = []
+        if camera_id:
+            filters.append(Event.camera_id == camera_id)
+        if date_filter:
+            start_of_day = datetime.combine(date_filter, datetime.min.time())
+            end_of_day = datetime.combine(date_filter, datetime.max.time())
+            filters.append(and_(
+                Event.timestamp >= start_of_day,
+                Event.timestamp <= end_of_day
+            ))
+        if min_confidence is not None:
+            try:
+                min_confidence_val = float(min_confidence)
+            except Exception:
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "error": True,
+                        "code": "VALIDATION_ERROR",
+                        "message": "min_confidence must be a number."
+                    }
+                )
+            filters.append(Event.confidence >= min_confidence_val)
+        if filters:
+            query = query.filter(and_(*filters))
+
+        events = query.all()
+        deleted_count = 0
+        for event in events:
+            try:
+                retention_worker.delete_event_media(event.id)
+                db.delete(event)
+                deleted_count += 1
+            except Exception as e:
+                logger.error("Failed to delete event %s: %s", event.id, e)
+        db.commit()
+
+        return {
+            "deleted_count": deleted_count
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to clear events: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": True,
+                "code": "INTERNAL_ERROR",
+                "message": f"Failed to clear events: {str(e)}"
+            }
+        )
 
 @app.get("/api/events/{event_id}/collage")
 async def get_event_collage(event_id: str) -> FileResponse:

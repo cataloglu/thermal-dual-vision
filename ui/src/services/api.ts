@@ -178,6 +178,20 @@ export const deleteEvent = async (eventId: string) => {
   return response.data;
 };
 
+export const bulkDeleteEvents = async (eventIds: string[]) => {
+  const response = await apiClient.post('events/bulk-delete', { event_ids: eventIds });
+  return response.data;
+};
+
+export const deleteEventsFiltered = async (filters: {
+  camera_id?: string;
+  date?: string;
+  min_confidence?: number;
+}) => {
+  const response = await apiClient.post('events/clear', filters);
+  return response.data;
+};
+
 export const getCameraSnapshotUrl = (cameraId: string) =>
   joinApiUrl(`cameras/${cameraId}/snapshot`);
 
@@ -227,6 +241,8 @@ export const api = {
   getEvents,
   getEvent,
   deleteEvent,
+  bulkDeleteEvents,
+  deleteEventsFiltered,
   getLiveStreams,
   getCameraSnapshotUrl,
   getCameraZones,
