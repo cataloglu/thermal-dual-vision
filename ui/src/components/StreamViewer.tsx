@@ -49,19 +49,23 @@ export function StreamViewer({
   const containerRef = useRef<HTMLDivElement>(null)
   const maxRetries = 10
 
+  // Go2rtc check moved to parent component for performance
   useEffect(() => {
-    const checkGo2rtc = async () => {
-      try {
-        await fetch(`${GO2RTC_URL}/api`, { mode: 'no-cors' })
-        setGo2rtcAvailable(true)
-      } catch {
-        setGo2rtcAvailable(false)
+    // Check once only if WebRTC mode
+    if (outputMode === 'webrtc') {
+      const checkGo2rtc = async () => {
+        try {
+          await fetch(`${GO2RTC_URL}/api`, { mode: 'no-cors' })
+          setGo2rtcAvailable(true)
+        } catch {
+          setGo2rtcAvailable(false)
+        }
       }
+      checkGo2rtc()
+    } else {
+      setGo2rtcAvailable(false)
     }
-    checkGo2rtc()
-    const interval = setInterval(checkGo2rtc, 30000)
-    return () => clearInterval(interval)
-  }, [])
+  }, [outputMode])
 
   useEffect(() => {
     setLoading(true)
@@ -105,16 +109,11 @@ export function StreamViewer({
     }
   }, [isVisible])
 
+  // Recording status removed from individual components
+  // Will be loaded at page level if needed
   useEffect(() => {
-    const loadRecording = async () => {
-      try {
-        const data = await api.getRecordingStatus(cameraId)
-        setRecording(Boolean(data.recording))
-      } catch {
-        setRecording(false)
-      }
-    }
-    loadRecording()
+    // Disabled: Recording status check moved to parent for batch loading
+    setRecording(false)
   }, [cameraId])
 
   useEffect(() => {
@@ -135,7 +134,7 @@ export function StreamViewer({
     }
     loadingTimeoutRef.current = window.setTimeout(() => {
       setLoading(false)
-    }, 2000)
+    }, 500)  // Reduced from 2000ms to 500ms
   }, [isVisible, streamUrl, outputMode])
 
   const handleLoad = () => {
