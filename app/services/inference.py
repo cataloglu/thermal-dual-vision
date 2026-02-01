@@ -20,8 +20,9 @@ class InferenceService:
     """Service for YOLOv8 inference and preprocessing."""
     
     # Model configuration
-    # Use absolute path to avoid working directory issues
-    MODELS_DIR = Path(__file__).parent.parent / "models"
+    # Use /app/data/models for persistence (data dir is mounted)
+    from app.utils.paths import DATA_DIR
+    MODELS_DIR = DATA_DIR / "models"
     PERSON_CLASS_ID = 0  # COCO class ID for person
     
     # Preprocessing configuration
