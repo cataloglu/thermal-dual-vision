@@ -47,8 +47,8 @@ class MediaWorker:
     
     # MP4 settings
     MP4_MAX_SIZE = (1280, 720)
-    MP4_FPS = 12
-    MP4_MAX_OUTPUT_FPS = 20
+    MP4_FPS = 20  # Smooth playback (was 12)
+    MP4_MAX_OUTPUT_FPS = 30
     MP4_CODECS = ("mp4v", "avc1", "H264")
     MP4_CRF = 10  # Ultra high quality (thermal optimization)
     MP4_PRESET = "veryslow"  # Best compression quality
