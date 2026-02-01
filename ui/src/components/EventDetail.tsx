@@ -27,7 +27,6 @@ export function EventDetail({ event, initialTab, onClose, onDelete }: EventDetai
   const [activeTab, setActiveTab] = useState<'collage' | 'video'>(
     initialTab ?? (event.mp4_url ? 'video' : 'collage')
   )
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [tagInput, setTagInput] = useState('')
   const [tags, setTags] = useState<string[]>([])
   const [note, setNote] = useState('')
@@ -118,6 +117,8 @@ export function EventDetail({ event, initialTab, onClose, onDelete }: EventDetai
   }
 
   const handleDelete = () => {
+    if (!onDelete) return
+    if (!window.confirm(`${t('delete')}?`)) return
     if (onDelete) {
       onDelete(event.id)
       onClose()
@@ -345,7 +346,7 @@ export function EventDetail({ event, initialTab, onClose, onDelete }: EventDetai
 
             {onDelete && (
               <button
-                onClick={() => setShowDeleteConfirm(true)}
+                onClick={handleDelete}
                 className="flex items-center gap-2 px-6 py-3 bg-error/20 text-error border border-error/50 rounded-lg hover:bg-error/30 transition-colors ml-auto"
               >
                 <MdDelete />
@@ -353,29 +354,6 @@ export function EventDetail({ event, initialTab, onClose, onDelete }: EventDetai
               </button>
             )}
           </div>
-
-          {/* Delete Confirmation */}
-          {showDeleteConfirm && (
-            <div className="bg-error/10 border border-error/50 rounded-lg p-4">
-              <p className="text-text mb-4">
-                {t('delete')}?
-              </p>
-              <div className="flex gap-3">
-                <button
-                  onClick={handleDelete}
-                  className="px-4 py-2 bg-error text-white rounded-lg hover:bg-error/90 transition-colors font-medium"
-                >
-                  {t('delete')}
-                </button>
-                <button
-                  onClick={() => setShowDeleteConfirm(false)}
-                  className="px-4 py-2 bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors"
-                >
-                  {t('cancel')}
-                </button>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>
