@@ -42,6 +42,7 @@ from app.utils.rtsp import redact_rtsp_url, validate_rtsp_url
 from telegram import Bot
 from app.workers.retention import get_retention_worker
 from app.workers.detector import get_detector_worker
+from app.workers.detector_mp import get_mp_detector_worker
 
 
 # Configure logging
@@ -198,7 +199,21 @@ event_service = get_event_service()
 ai_service = get_ai_service()
 media_service = get_media_service()
 retention_worker = get_retention_worker()
-detector_worker = get_detector_worker()
+
+# Select detector worker based on config
+try:
+    config = settings_service.load_config()
+    worker_mode = getattr(config.performance, 'worker_mode', 'threading') if hasattr(config, 'performance') else 'threading'
+    if worker_mode == 'multiprocessing':
+        detector_worker = get_mp_detector_worker()
+        logger.info("Using multiprocessing detector worker")
+    else:
+        detector_worker = get_detector_worker()
+        logger.info("Using threading detector worker")
+except Exception:
+    detector_worker = get_detector_worker()
+    logger.info("Using threading detector worker (default)")
+
 websocket_manager = get_websocket_manager()
 telegram_service = get_telegram_service()
 logs_service = get_logs_service()

@@ -65,29 +65,76 @@ def camera_detection_process(
         
         process_logger.info(f"Services initialized for camera {camera_id}")
         
-        # TODO: Implement detection loop
-        # This will be similar to DetectorWorker._detection_loop
-        # but adapted for multiprocessing
+        # Simple detection loop (multiprocessing version)
+        rtsp_url = camera_config.get("rtsp_url") or camera_config.get("rtsp_url_thermal")
+        if not rtsp_url:
+            process_logger.error(f"No RTSP URL for camera {camera_id}")
+            return
+        
+        # Open camera
+        cap = cv2.VideoCapture(rtsp_url, cv2.CAP_FFMPEG)
+        if not cap or not cap.isOpened():
+            process_logger.error(f"Failed to open camera {camera_id}")
+            return
+        
+        process_logger.info(f"Camera {camera_id} opened")
+        
+        # Detection loop
+        frame_delay = 1.0 / config.detection.inference_fps
+        last_inference = 0
         
         while not stop_event.is_set():
-            # Check control queue for commands
+            # Check control queue
             try:
                 if not control_queue.empty():
                     command = control_queue.get_nowait()
                     if command == "stop":
-                        process_logger.info(f"Stop command received for {camera_id}")
                         break
             except:
                 pass
             
-            # TODO: Main detection logic here
-            # - Read frames
-            # - Run inference
-            # - Generate events
-            # - Send events via event_queue
+            # FPS throttling
+            current_time = time.time()
+            if current_time - last_inference < frame_delay:
+                time.sleep(0.01)
+                continue
             
-            time.sleep(0.1)  # Placeholder
+            # Read frame
+            ret, frame = cap.read()
+            if not ret or frame is None:
+                time.sleep(0.1)
+                continue
+            
+            last_inference = current_time
+            
+            # Preprocess
+            detection_source = camera_config.get("type", "thermal")
+            if detection_source == "thermal":
+                preprocessed = inference_service.preprocess_thermal(frame)
+            else:
+                preprocessed = inference_service.preprocess_color(frame)
+            
+            # Inference
+            detections = inference_service.infer(
+                preprocessed,
+                confidence_threshold=config.detection.confidence_threshold
+            )
+            
+            # If detection found, send event
+            if len(detections) > 0:
+                event_data = {
+                    "type": "detection",
+                    "camera_id": camera_id,
+                    "person_count": len(detections),
+                    "confidence": max(d["confidence"] for d in detections),
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+                try:
+                    event_queue.put_nowait(event_data)
+                except:
+                    pass
         
+        cap.release()
         process_logger.info(f"Camera detection process stopped: {camera_id}")
         
     except Exception as e:
