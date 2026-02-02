@@ -301,9 +301,44 @@ def camera_detection_process(
                     # Simple circular increment (worker is single-threaded)
                     if not hasattr(camera_detection_process, f'_write_idx_{camera_id}'):
                         setattr(camera_detection_process, f'_write_idx_{camera_id}', 0)
+                        # #region agent log - H1: Track buffer writes
+                        import json
+                        log_path = r"c:\Users\Administrator\OneDrive\Desktop\Thermal Kamera Projesi\thermal-dual-vision\.cursor\debug.log"
+                        with open(log_path, 'a') as f:
+                            f.write(json.dumps({
+                                "location": "detector_mp.py:buffer_write_init",
+                                "message": "Buffer write initialized",
+                                "data": {"camera_id": camera_id, "buffer_size": frame_buffer['buffer_size']},
+                                "timestamp": time.time() * 1000,
+                                "sessionId": "debug-session",
+                                "hypothesisId": "H1"
+                            }) + '\n')
+                        # #endregion
                     
                     write_idx = getattr(camera_detection_process, f'_write_idx_{camera_id}')
                     frame_buffer['frames'][write_idx] = frame_resized
+                    
+                    # #region agent log - H1: Track each buffer write
+                    import json
+                    import hashlib
+                    frame_hash = hashlib.md5(frame_resized.tobytes()).hexdigest()[:8]
+                    log_path = r"c:\Users\Administrator\OneDrive\Desktop\Thermal Kamera Projesi\thermal-dual-vision\.cursor\debug.log"
+                    with open(log_path, 'a') as f:
+                        f.write(json.dumps({
+                            "location": "detector_mp.py:buffer_write",
+                            "message": "Frame written to buffer",
+                            "data": {
+                                "camera_id": camera_id,
+                                "write_idx": write_idx,
+                                "frame_hash": frame_hash,
+                                "timestamp_s": current_time
+                            },
+                            "timestamp": time.time() * 1000,
+                            "sessionId": "debug-session",
+                            "hypothesisId": "H1"
+                        }) + '\n')
+                    # #endregion
+                    
                     setattr(camera_detection_process, f'_write_idx_{camera_id}', (write_idx + 1) % frame_buffer['buffer_size'])
                 except Exception as e:
                     process_logger.debug(f"Frame buffer write error: {e}")
@@ -416,6 +451,27 @@ def camera_detection_process(
                     'buffer_size': frame_buffer['buffer_size'],
                     'frame_shape': frame_buffer['frame_shape'],
                 }
+                
+                # #region agent log - H3: Track event creation with buffer state
+                import json
+                log_path = r"c:\Users\Administrator\OneDrive\Desktop\Thermal Kamera Projesi\thermal-dual-vision\.cursor\debug.log"
+                with open(log_path, 'a') as f:
+                    f.write(json.dumps({
+                        "location": "detector_mp.py:event_creation",
+                        "message": "Event created, sending to main process",
+                        "data": {
+                            "camera_id": camera_id,
+                            "person_count": len(detections),
+                            "confidence": best_detection["confidence"],
+                            "buffer_current_idx": write_idx,
+                            "buffer_size": frame_buffer['buffer_size'],
+                            "timestamp_s": current_time
+                        },
+                        "timestamp": time.time() * 1000,
+                        "sessionId": "debug-session",
+                        "hypothesisId": "H3"
+                    }) + '\n')
+                # #endregion
             
             event_data = {
                 "type": "detection",
@@ -806,10 +862,61 @@ class MultiprocessingDetectorWorker:
                                         total_frames = min(total_frames, buffer_size)
                                         
                                         # Circular buffer read
+                                        # #region agent log - H2: Track buffer read parameters
+                                        import json
+                                        log_path = r"c:\Users\Administrator\OneDrive\Desktop\Thermal Kamera Projesi\thermal-dual-vision\.cursor\debug.log"
+                                        with open(log_path, 'a') as f:
+                                            f.write(json.dumps({
+                                                "location": "detector_mp.py:buffer_read_start",
+                                                "message": "Starting buffer read for event",
+                                                "data": {
+                                                    "camera_id": camera_id,
+                                                    "event_id": event.id,
+                                                    "current_idx": current_idx,
+                                                    "buffer_size": buffer_size,
+                                                    "total_frames_to_read": total_frames,
+                                                    "start_idx": (current_idx - total_frames) % buffer_size
+                                                },
+                                                "timestamp": time.time() * 1000,
+                                                "sessionId": "debug-session",
+                                                "hypothesisId": "H2"
+                                            }) + '\n')
+                                        # #endregion
+                                        
                                         frames = []
+                                        frame_hashes = []
                                         for i in range(total_frames):
                                             idx = (current_idx - total_frames + i) % buffer_size
-                                            frames.append(frames_array[idx].copy())
+                                            frame = frames_array[idx].copy()
+                                            frames.append(frame)
+                                            
+                                            # #region agent log - H2: Track each frame read
+                                            import hashlib
+                                            frame_hash = hashlib.md5(frame.tobytes()).hexdigest()[:8]
+                                            frame_hashes.append(frame_hash)
+                                            # #endregion
+                                        
+                                        # #region agent log - H2: Check for duplicate hashes
+                                        unique_hashes = len(set(frame_hashes))
+                                        duplicate_count_local = len(frame_hashes) - unique_hashes
+                                        with open(log_path, 'a') as f:
+                                            f.write(json.dumps({
+                                                "location": "detector_mp.py:buffer_read_complete",
+                                                "message": "Buffer read complete",
+                                                "data": {
+                                                    "camera_id": camera_id,
+                                                    "event_id": event.id,
+                                                    "total_frames_read": len(frames),
+                                                    "unique_frames": unique_hashes,
+                                                    "duplicate_frames": duplicate_count_local,
+                                                    "duplicate_percentage": (duplicate_count_local / len(frame_hashes) * 100) if len(frame_hashes) > 0 else 0,
+                                                    "frame_hashes_sample": frame_hashes[:10]
+                                                },
+                                                "timestamp": time.time() * 1000,
+                                                "sessionId": "debug-session",
+                                                "hypothesisId": "H2"
+                                            }) + '\n')
+                                        # #endregion
                                         
                                         shm.close()
                                         
