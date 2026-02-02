@@ -635,39 +635,8 @@ class MultiprocessingDetectorWorker:
         Args:
             camera: Camera model instance
         """
-        # #region agent log - H1: Track start_camera_detection calls
-        import json
-        log_path = r"c:\Users\Administrator\OneDrive\Desktop\Thermal Kamera Projesi\thermal-dual-vision\.cursor\debug.log"
-        with open(log_path, 'a') as f:
-            f.write(json.dumps({
-                "location": "detector_mp.py:start_camera_detection",
-                "message": "start_camera_detection called",
-                "data": {
-                    "camera_id": camera.id,
-                    "camera_name": camera.name,
-                    "enabled": camera.enabled,
-                    "stream_roles": camera.stream_roles,
-                    "already_running": camera.id in self.processes
-                },
-                "timestamp": time.time() * 1000,
-                "sessionId": "debug-session",
-                "hypothesisId": "H1"
-            }) + '\n')
-        # #endregion
-        
         if camera.id in self.processes:
             logger.warning(f"Detection process already running for camera {camera.id}")
-            # #region agent log - H1: Already running
-            with open(log_path, 'a') as f:
-                f.write(json.dumps({
-                    "location": "detector_mp.py:start_camera_detection_skip",
-                    "message": "Skipped - process already running",
-                    "data": {"camera_id": camera.id, "pid": self.processes[camera.id].pid},
-                    "timestamp": time.time() * 1000,
-                    "sessionId": "debug-session",
-                    "hypothesisId": "H1"
-                }) + '\n')
-            # #endregion
             return
         
         # Create IPC primitives
@@ -718,24 +687,6 @@ class MultiprocessingDetectorWorker:
         self.event_queues[camera.id] = event_queue
         self.control_queues[camera.id] = control_queue
         
-        # #region agent log - H1: Process started successfully
-        import json
-        log_path = r"c:\Users\Administrator\OneDrive\Desktop\Thermal Kamera Projesi\thermal-dual-vision\.cursor\debug.log"
-        with open(log_path, 'a') as f:
-            f.write(json.dumps({
-                "location": "detector_mp.py:start_camera_detection_success",
-                "message": "Process started successfully",
-                "data": {
-                    "camera_id": camera.id,
-                    "pid": process.pid,
-                    "buffer_created": camera.id in self.frame_buffers
-                },
-                "timestamp": time.time() * 1000,
-                "sessionId": "debug-session",
-                "hypothesisId": "H1"
-            }) + '\n')
-        # #endregion
-        
         logger.info(f"Started detection process for camera {camera.id} (PID: {process.pid})")
     
     def stop_camera_detection(self, camera_id: str) -> None:
@@ -745,36 +696,8 @@ class MultiprocessingDetectorWorker:
         Args:
             camera_id: Camera identifier
         """
-        # #region agent log - H2: Track stop_camera_detection calls
-        import json
-        log_path = r"c:\Users\Administrator\OneDrive\Desktop\Thermal Kamera Projesi\thermal-dual-vision\.cursor\debug.log"
-        with open(log_path, 'a') as f:
-            f.write(json.dumps({
-                "location": "detector_mp.py:stop_camera_detection",
-                "message": "stop_camera_detection called",
-                "data": {
-                    "camera_id": camera_id,
-                    "process_exists": camera_id in self.processes
-                },
-                "timestamp": time.time() * 1000,
-                "sessionId": "debug-session",
-                "hypothesisId": "H2"
-            }) + '\n')
-        # #endregion
-        
         if camera_id not in self.processes:
             logger.warning(f"No detection process running for camera {camera_id}")
-            # #region agent log - H2: Process not found
-            with open(log_path, 'a') as f:
-                f.write(json.dumps({
-                    "location": "detector_mp.py:stop_camera_detection_skip",
-                    "message": "Skipped - no process found",
-                    "data": {"camera_id": camera_id},
-                    "timestamp": time.time() * 1000,
-                    "sessionId": "debug-session",
-                    "hypothesisId": "H2"
-                }) + '\n')
-            # #endregion
             return
         
         # Signal stop
@@ -790,68 +713,18 @@ class MultiprocessingDetectorWorker:
         process = self.processes[camera_id]
         process.join(timeout=5)
         
-        # #region agent log - H3: Process termination status
-        import json
-        log_path = r"c:\Users\Administrator\OneDrive\Desktop\Thermal Kamera Projesi\thermal-dual-vision\.cursor\debug.log"
-        # #endregion
-        
         if process.is_alive():
             logger.warning(f"Force terminating camera process: {camera_id}")
             process.terminate()
             process.join(timeout=2)
-            # #region agent log - H3: Force terminated
-            with open(log_path, 'a') as f:
-                f.write(json.dumps({
-                    "location": "detector_mp.py:stop_force_terminate",
-                    "message": "Process force terminated",
-                    "data": {"camera_id": camera_id, "still_alive": process.is_alive()},
-                    "timestamp": time.time() * 1000,
-                    "sessionId": "debug-session",
-                    "hypothesisId": "H3"
-                }) + '\n')
-            # #endregion
-        else:
-            # #region agent log - H3: Clean exit
-            with open(log_path, 'a') as f:
-                f.write(json.dumps({
-                    "location": "detector_mp.py:stop_clean_exit",
-                    "message": "Process exited cleanly",
-                    "data": {"camera_id": camera_id},
-                    "timestamp": time.time() * 1000,
-                    "sessionId": "debug-session",
-                    "hypothesisId": "H3"
-                }) + '\n')
-            # #endregion
         
         # Cleanup frame buffer
         frame_buffer = self.frame_buffers.pop(camera_id, None)
         if frame_buffer:
             try:
                 frame_buffer.cleanup()
-                # #region agent log - H4: Buffer cleanup success
-                with open(log_path, 'a') as f:
-                    f.write(json.dumps({
-                        "location": "detector_mp.py:buffer_cleanup_success",
-                        "message": "Frame buffer cleaned up",
-                        "data": {"camera_id": camera_id},
-                        "timestamp": time.time() * 1000,
-                        "sessionId": "debug-session",
-                        "hypothesisId": "H4"
-                    }) + '\n')
-                # #endregion
             except Exception as e:
                 logger.error(f"Failed to cleanup frame buffer for {camera_id}: {e}")
-                # #region agent log - H4: Buffer cleanup failed
-                with open(log_path, 'a') as f:
-                    f.write(json.dumps({
-                        "location": "detector_mp.py:buffer_cleanup_failed",
-                        "message": "Frame buffer cleanup FAILED",
-                        "data": {"camera_id": camera_id, "error": str(e)},
-                        "timestamp": time.time() * 1000,
-                        "sessionId": "debug-session",
-                        "hypothesisId": "H4"
-                    }) + '\n')
-                # #endregion
         
         # Cleanup
         self.processes.pop(camera_id, None)
