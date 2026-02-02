@@ -11,8 +11,10 @@ import multiprocessing as mp
 import os
 import signal
 import time
+from collections import deque
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
+import numpy as np
 
 from app.db.models import Camera, CameraStatus
 from app.db.session import get_session
@@ -21,12 +23,149 @@ from app.db.session import get_session
 logger = logging.getLogger(__name__)
 
 
+class SharedFrameBuffer:
+    """
+    Shared memory circular buffer for frame storage.
+    
+    Allows worker processes to write frames and main process to read them
+    without serialization overhead (pickle).
+    
+    Uses numpy arrays backed by shared memory.
+    """
+    
+    def __init__(self, camera_id: str, buffer_size: int = 60, frame_shape: Tuple[int, int, int] = (720, 1280, 3)):
+        """
+        Initialize shared frame buffer.
+        
+        Args:
+            camera_id: Camera identifier
+            buffer_size: Number of frames to buffer (circular)
+            frame_shape: Shape of frames (height, width, channels)
+        """
+        self.camera_id = camera_id
+        self.buffer_size = buffer_size
+        self.frame_shape = frame_shape
+        
+        # Shared memory for frames (circular buffer)
+        frame_size = int(np.prod(frame_shape))
+        total_size = frame_size * buffer_size
+        
+        try:
+            from multiprocessing import shared_memory
+            self.shm = shared_memory.SharedMemory(
+                name=f"tdv_frames_{camera_id}",
+                create=True,
+                size=total_size
+            )
+            
+            # Numpy array view of shared memory
+            self.frames = np.ndarray(
+                (buffer_size, *frame_shape),
+                dtype=np.uint8,
+                buffer=self.shm.buf
+            )
+            
+            # Shared values for circular buffer management
+            self.write_index = mp.Value('i', 0)  # Current write position
+            self.read_index = mp.Value('i', 0)   # Current read position
+            self.count = mp.Value('i', 0)        # Number of frames in buffer
+            self.lock = mp.Lock()                # Lock for thread-safe access
+            
+            logger.info(f"SharedFrameBuffer created for {camera_id}: {buffer_size} frames, shape={frame_shape}")
+            
+        except Exception as e:
+            logger.error(f"Failed to create shared memory for {camera_id}: {e}")
+            raise
+    
+    def write_frame(self, frame: np.ndarray) -> int:
+        """
+        Write frame to buffer.
+        
+        Args:
+            frame: Frame to write (numpy array)
+            
+        Returns:
+            Index where frame was written
+        """
+        with self.lock:
+            # Resize frame if needed
+            if frame.shape != self.frame_shape:
+                import cv2
+                frame = cv2.resize(frame, (self.frame_shape[1], self.frame_shape[0]))
+            
+            # Write to current position
+            idx = self.write_index.value
+            self.frames[idx] = frame
+            
+            # Update indices (circular)
+            self.write_index.value = (idx + 1) % self.buffer_size
+            
+            # Update count (max = buffer_size)
+            if self.count.value < self.buffer_size:
+                self.count.value += 1
+            else:
+                # Buffer full, advance read index
+                self.read_index.value = (self.read_index.value + 1) % self.buffer_size
+            
+            return idx
+    
+    def read_frames(self, n: int = None) -> List[np.ndarray]:
+        """
+        Read frames from buffer.
+        
+        Args:
+            n: Number of frames to read (None = all available)
+            
+        Returns:
+            List of frames
+        """
+        with self.lock:
+            available = self.count.value
+            if n is None or n > available:
+                n = available
+            
+            if n == 0:
+                return []
+            
+            frames = []
+            for i in range(n):
+                idx = (self.read_index.value + i) % self.buffer_size
+                frames.append(self.frames[idx].copy())
+            
+            return frames
+    
+    def get_latest_frame(self) -> Optional[np.ndarray]:
+        """
+        Get most recent frame without consuming.
+        
+        Returns:
+            Latest frame or None if empty
+        """
+        with self.lock:
+            if self.count.value == 0:
+                return None
+            
+            # Latest frame is at (write_index - 1)
+            idx = (self.write_index.value - 1) % self.buffer_size
+            return self.frames[idx].copy()
+    
+    def cleanup(self):
+        """Cleanup shared memory."""
+        try:
+            self.shm.close()
+            self.shm.unlink()
+            logger.info(f"SharedFrameBuffer cleaned up for {self.camera_id}")
+        except Exception as e:
+            logger.error(f"Failed to cleanup shared memory for {self.camera_id}: {e}")
+
+
 def camera_detection_process(
     camera_id: str,
     camera_config: Dict,
     event_queue: mp.Queue,
     control_queue: mp.Queue,
     stop_event: mp.Event,
+    frame_buffer_name: Optional[str] = None,
 ):
     """
     Individual camera detection process.
@@ -50,6 +189,7 @@ def camera_detection_process(
         import cv2
         import numpy as np
         from collections import deque
+        from multiprocessing import shared_memory
         from app.services.inference import get_inference_service
         from app.services.motion import get_motion_service
         from app.services.settings import get_settings_service
@@ -63,6 +203,29 @@ def camera_detection_process(
         config = settings_service.load_config()
         model_name = config.detection.model.replace("-person", "")
         inference_service.load_model(model_name)
+        
+        # Attach to shared frame buffer (if provided)
+        frame_buffer = None
+        if frame_buffer_name:
+            try:
+                shm = shared_memory.SharedMemory(name=frame_buffer_name)
+                # Reconstruct buffer metadata (assume 720p)
+                buffer_size = 60
+                frame_shape = (720, 1280, 3)
+                frames_array = np.ndarray(
+                    (buffer_size, *frame_shape),
+                    dtype=np.uint8,
+                    buffer=shm.buf
+                )
+                frame_buffer = {
+                    'shm': shm,
+                    'frames': frames_array,
+                    'buffer_size': buffer_size,
+                    'frame_shape': frame_shape,
+                }
+                process_logger.info(f"Attached to shared frame buffer: {frame_buffer_name}")
+            except Exception as e:
+                process_logger.warning(f"Failed to attach to frame buffer: {e}")
         
         process_logger.info(f"Services initialized for camera {camera_id}")
         
@@ -123,6 +286,27 @@ def camera_detection_process(
             if frame.shape[1] > 1280:
                 height = int(frame.shape[0] * 1280 / frame.shape[1])
                 frame = cv2.resize(frame, (1280, height))
+            
+            # Write frame to shared buffer (for collage/MP4)
+            if frame_buffer:
+                try:
+                    # Resize to buffer shape if needed
+                    buffer_shape = frame_buffer['frame_shape']
+                    if frame.shape != buffer_shape:
+                        frame_resized = cv2.resize(frame, (buffer_shape[1], buffer_shape[0]))
+                    else:
+                        frame_resized = frame
+                    
+                    # Write to circular buffer (no lock needed, single writer)
+                    # Simple circular increment (worker is single-threaded)
+                    if not hasattr(camera_detection_process, f'_write_idx_{camera_id}'):
+                        setattr(camera_detection_process, f'_write_idx_{camera_id}', 0)
+                    
+                    write_idx = getattr(camera_detection_process, f'_write_idx_{camera_id}')
+                    frame_buffer['frames'][write_idx] = frame_resized
+                    setattr(camera_detection_process, f'_write_idx_{camera_id}', (write_idx + 1) % frame_buffer['buffer_size'])
+                except Exception as e:
+                    process_logger.debug(f"Frame buffer write error: {e}")
             
             # Motion detection (pre-filter)
             motion_active, _ = motion_service.detect_motion(
@@ -221,14 +405,25 @@ def camera_detection_process(
             
             # Send event to main process
             best_detection = max(detections, key=lambda d: d["confidence"])
+            
+            # Get current buffer position (for frame extraction)
+            buffer_info = None
+            if frame_buffer:
+                write_idx = getattr(camera_detection_process, f'_write_idx_{camera_id}', 0)
+                buffer_info = {
+                    'name': frame_buffer_name,
+                    'current_idx': write_idx,
+                    'buffer_size': frame_buffer['buffer_size'],
+                    'frame_shape': frame_buffer['frame_shape'],
+                }
+            
             event_data = {
                 "type": "detection",
                 "camera_id": camera_id,
                 "person_count": len(detections),
                 "confidence": best_detection["confidence"],
                 "bbox": best_detection["bbox"],
-                # Note: frame not sent (too large for queue)
-                # TODO: Implement shared memory or media generation in worker
+                "buffer_info": buffer_info,  # Share buffer info (not frames)
                 "timestamp": datetime.utcnow().isoformat()
             }
             
@@ -241,6 +436,15 @@ def camera_detection_process(
                 process_logger.warning("Event queue full, dropping event")
         
         cap.release()
+        
+        # Cleanup shared memory
+        if frame_buffer:
+            try:
+                frame_buffer['shm'].close()
+                process_logger.info(f"Shared memory detached for {camera_id}")
+            except Exception as e:
+                process_logger.warning(f"Failed to detach shared memory: {e}")
+        
         process_logger.info(f"Camera detection process stopped: {camera_id}")
         
     except Exception as e:
@@ -280,6 +484,7 @@ class MultiprocessingDetectorWorker:
         self.stop_events: Dict[str, mp.Event] = {}
         self.event_queues: Dict[str, mp.Queue] = {}
         self.control_queues: Dict[str, mp.Queue] = {}
+        self.frame_buffers: Dict[str, SharedFrameBuffer] = {}
         
         # Event handler thread (in main process)
         self.event_handler_thread = None
@@ -367,11 +572,19 @@ class MultiprocessingDetectorWorker:
                     logger.error(f"Failed to terminate camera process: {camera_id}")
                     process.kill()
         
+        # Cleanup frame buffers
+        for camera_id, frame_buffer in self.frame_buffers.items():
+            try:
+                frame_buffer.cleanup()
+            except Exception as e:
+                logger.error(f"Failed to cleanup frame buffer for {camera_id}: {e}")
+        
         # Cleanup
         self.processes.clear()
         self.stop_events.clear()
         self.event_queues.clear()
         self.control_queues.clear()
+        self.frame_buffers.clear()
         
         logger.info("MultiprocessingDetectorWorker stopped")
     
@@ -391,6 +604,19 @@ class MultiprocessingDetectorWorker:
         event_queue = mp.Queue(maxsize=100)
         control_queue = mp.Queue(maxsize=10)
         
+        # Create shared frame buffer for collage/MP4
+        try:
+            frame_buffer = SharedFrameBuffer(
+                camera_id=camera.id,
+                buffer_size=60,  # 60 frames ~6s @ 10fps
+                frame_shape=(720, 1280, 3)  # Resize to 720p for efficiency
+            )
+            self.frame_buffers[camera.id] = frame_buffer
+            frame_buffer_name = frame_buffer.shm.name
+        except Exception as e:
+            logger.warning(f"Failed to create frame buffer for {camera.id}: {e}")
+            frame_buffer_name = None
+        
         # Create camera config dict (JSON-serializable)
         camera_config = {
             "id": camera.id,
@@ -407,7 +633,7 @@ class MultiprocessingDetectorWorker:
         # Create process
         process = mp.Process(
             target=camera_detection_process,
-            args=(camera.id, camera_config, event_queue, control_queue, stop_event),
+            args=(camera.id, camera_config, event_queue, control_queue, stop_event, frame_buffer_name),
             daemon=False,  # Don't use daemon for clean shutdown
             name=f"detector-{camera.id}"
         )
@@ -452,6 +678,14 @@ class MultiprocessingDetectorWorker:
             process.terminate()
             process.join(timeout=2)
         
+        # Cleanup frame buffer
+        frame_buffer = self.frame_buffers.pop(camera_id, None)
+        if frame_buffer:
+            try:
+                frame_buffer.cleanup()
+            except Exception as e:
+                logger.error(f"Failed to cleanup frame buffer for {camera_id}: {e}")
+        
         # Cleanup
         self.processes.pop(camera_id, None)
         self.stop_events.pop(camera_id, None)
@@ -470,15 +704,18 @@ class MultiprocessingDetectorWorker:
         
         try:
             # Import services
+            from multiprocessing import shared_memory
             from app.services.events import get_event_service
             from app.services.websocket import get_websocket_manager
             from app.services.mqtt import get_mqtt_service
             from app.services.ai import get_ai_service
+            from app.workers.media import get_media_worker
             
             event_service = get_event_service()
             websocket_manager = get_websocket_manager()
             mqtt_service = get_mqtt_service()
             ai_service = get_ai_service()
+            media_worker = get_media_worker()
             
             db = next(get_session())
             
@@ -546,6 +783,50 @@ class MultiprocessingDetectorWorker:
                                     })
                                 except:
                                     pass
+                                
+                                # Generate collage/MP4 from shared buffer
+                                buffer_info = event_data.get("buffer_info")
+                                if buffer_info and buffer_info['name']:
+                                    try:
+                                        # Attach to shared buffer
+                                        shm = shared_memory.SharedMemory(name=buffer_info['name'])
+                                        buffer_size = buffer_info['buffer_size']
+                                        frame_shape = tuple(buffer_info['frame_shape'])
+                                        frames_array = np.ndarray(
+                                            (buffer_size, *frame_shape),
+                                            dtype=np.uint8,
+                                            buffer=shm.buf
+                                        )
+                                        
+                                        # Extract frames for collage/MP4 (last N frames)
+                                        current_idx = buffer_info['current_idx']
+                                        prebuffer_frames = config.event.prebuffer_seconds * config.detection.inference_fps
+                                        postbuffer_frames = config.event.postbuffer_seconds * config.detection.inference_fps
+                                        total_frames = int(prebuffer_frames + postbuffer_frames)
+                                        total_frames = min(total_frames, buffer_size)
+                                        
+                                        # Circular buffer read
+                                        frames = []
+                                        for i in range(total_frames):
+                                            idx = (current_idx - total_frames + i) % buffer_size
+                                            frames.append(frames_array[idx].copy())
+                                        
+                                        shm.close()
+                                        
+                                        # Generate media (collage + MP4)
+                                        media_worker.generate_collage_and_video(
+                                            event_id=event.id,
+                                            camera_id=camera_id,
+                                            frames=frames,
+                                            detections=[event_data.get("bbox")],  # Best detection bbox
+                                        )
+                                        
+                                        logger.info(f"Media generation queued for event {event.id}: {len(frames)} frames")
+                                        
+                                    except Exception as e:
+                                        logger.error(f"Failed to generate media for event {event.id}: {e}")
+                                        import traceback
+                                        logger.error(traceback.format_exc())
                                 
                             elif event_type == "error":
                                 logger.error(f"Error event from {camera_id}: {event_data.get('error')}")
