@@ -25,12 +25,13 @@ logger = logging.getLogger(__name__)
 
 class SharedFrameBuffer:
     """
-    Shared memory circular buffer for frame storage.
+    Shared memory circular buffer for frame storage WITH TIMESTAMPS.
     
     Allows worker processes to write frames and main process to read them
     without serialization overhead (pickle).
     
     Uses numpy arrays backed by shared memory.
+    NOW WITH TIMESTAMP TRACKING TO FIX TIMELINE ISSUES!
     """
     
     def __init__(self, camera_id: str, buffer_size: int = 60, frame_shape: Tuple[int, int, int] = (720, 1280, 3)):
@@ -50,12 +51,24 @@ class SharedFrameBuffer:
         frame_size = int(np.prod(frame_shape))
         total_size = frame_size * buffer_size
         
+        # Shared memory for timestamps (one float64 per frame)
+        timestamp_size = buffer_size * 8  # 8 bytes per float64
+        
         try:
             from multiprocessing import shared_memory
+            
+            # Frames
             self.shm = shared_memory.SharedMemory(
                 name=f"tdv_frames_{camera_id}",
                 create=True,
                 size=total_size
+            )
+            
+            # Timestamps
+            self.shm_ts = shared_memory.SharedMemory(
+                name=f"tdv_timestamps_{camera_id}",
+                create=True,
+                size=timestamp_size
             )
             
             # Numpy array view of shared memory
@@ -65,13 +78,23 @@ class SharedFrameBuffer:
                 buffer=self.shm.buf
             )
             
+            # Timestamps array (float64 = seconds since epoch)
+            self.timestamps = np.ndarray(
+                (buffer_size,),
+                dtype=np.float64,
+                buffer=self.shm_ts.buf
+            )
+            
+            # Initialize timestamps to 0
+            self.timestamps[:] = 0.0
+            
             # Shared values for circular buffer management
             self.write_index = mp.Value('i', 0)  # Current write position
             self.read_index = mp.Value('i', 0)   # Current read position
             self.count = mp.Value('i', 0)        # Number of frames in buffer
             self.lock = mp.Lock()                # Lock for thread-safe access
             
-            logger.info(f"SharedFrameBuffer created for {camera_id}: {buffer_size} frames, shape={frame_shape}")
+            logger.info(f"SharedFrameBuffer created for {camera_id}: {buffer_size} frames, shape={frame_shape}, with timestamps")
             
         except Exception as e:
             logger.error(f"Failed to create shared memory for {camera_id}: {e}")
@@ -154,6 +177,8 @@ class SharedFrameBuffer:
         try:
             self.shm.close()
             self.shm.unlink()
+            self.shm_ts.close()
+            self.shm_ts.unlink()
             logger.info(f"SharedFrameBuffer cleaned up for {self.camera_id}")
         except Exception as e:
             logger.error(f"Failed to cleanup shared memory for {self.camera_id}: {e}")
@@ -209,6 +234,8 @@ def camera_detection_process(
         if frame_buffer_name:
             try:
                 shm = shared_memory.SharedMemory(name=frame_buffer_name)
+                shm_ts = shared_memory.SharedMemory(name=f"tdv_timestamps_{camera_id}")
+                
                 # Reconstruct buffer metadata (assume 720p)
                 buffer_size = 60
                 frame_shape = (720, 1280, 3)
@@ -217,13 +244,21 @@ def camera_detection_process(
                     dtype=np.uint8,
                     buffer=shm.buf
                 )
+                timestamps_array = np.ndarray(
+                    (buffer_size,),
+                    dtype=np.float64,
+                    buffer=shm_ts.buf
+                )
+                
                 frame_buffer = {
                     'shm': shm,
+                    'shm_ts': shm_ts,
                     'frames': frames_array,
+                    'timestamps': timestamps_array,
                     'buffer_size': buffer_size,
                     'frame_shape': frame_shape,
                 }
-                process_logger.info(f"Attached to shared frame buffer: {frame_buffer_name}")
+                process_logger.info(f"Attached to shared frame buffer with timestamps: {frame_buffer_name}")
             except Exception as e:
                 process_logger.warning(f"Failed to attach to frame buffer: {e}")
         
@@ -316,7 +351,10 @@ def camera_detection_process(
                         # #endregion
                     
                     write_idx = getattr(camera_detection_process, f'_write_idx_{camera_id}')
+                    
+                    # Write frame AND timestamp
                     frame_buffer['frames'][write_idx] = frame_resized
+                    frame_buffer['timestamps'][write_idx] = current_time
                     
                     # #region agent log - H1: Track each buffer write
                     import json
@@ -326,7 +364,7 @@ def camera_detection_process(
                     with open(log_path, 'a') as f:
                         f.write(json.dumps({
                             "location": "detector_mp.py:buffer_write",
-                            "message": "Frame written to buffer",
+                            "message": "Frame written to buffer WITH TIMESTAMP",
                             "data": {
                                 "camera_id": camera_id,
                                 "write_idx": write_idx,
@@ -497,6 +535,7 @@ def camera_detection_process(
         if frame_buffer:
             try:
                 frame_buffer['shm'].close()
+                frame_buffer['shm_ts'].close()
                 process_logger.info(f"Shared memory detached for {camera_id}")
             except Exception as e:
                 process_logger.warning(f"Failed to detach shared memory: {e}")
@@ -844,81 +883,87 @@ class MultiprocessingDetectorWorker:
                                 buffer_info = event_data.get("buffer_info")
                                 if buffer_info and buffer_info['name']:
                                     try:
-                                        # Attach to shared buffer
+                                        # Attach to shared buffer WITH timestamps
                                         shm = shared_memory.SharedMemory(name=buffer_info['name'])
+                                        shm_ts = shared_memory.SharedMemory(name=f"tdv_timestamps_{camera_id}")
+                                        
                                         buffer_size = buffer_info['buffer_size']
                                         frame_shape = tuple(buffer_info['frame_shape'])
+                                        
                                         frames_array = np.ndarray(
                                             (buffer_size, *frame_shape),
                                             dtype=np.uint8,
                                             buffer=shm.buf
                                         )
+                                        timestamps_array = np.ndarray(
+                                            (buffer_size,),
+                                            dtype=np.float64,
+                                            buffer=shm_ts.buf
+                                        )
                                         
-                                        # Extract frames for collage/MP4 (last N frames)
-                                        current_idx = buffer_info['current_idx']
-                                        prebuffer_frames = config.event.prebuffer_seconds * config.detection.inference_fps
-                                        postbuffer_frames = config.event.postbuffer_seconds * config.detection.inference_fps
-                                        total_frames = int(prebuffer_frames + postbuffer_frames)
-                                        total_frames = min(total_frames, buffer_size)
+                                        # FIXED: Smart frame selection with timestamps!
+                                        event_time = datetime.utcnow().timestamp()
                                         
-                                        # Circular buffer read
-                                        # #region agent log - H2: Track buffer read parameters
+                                        # Get desired time range
+                                        prebuffer_seconds = config.event.prebuffer_seconds
+                                        postbuffer_seconds = config.event.postbuffer_seconds
+                                        
+                                        start_time = event_time - prebuffer_seconds
+                                        end_time = event_time + postbuffer_seconds
+                                        
+                                        # Collect frames within time range (SORTED by timestamp!)
+                                        frames_with_ts = []
+                                        for i in range(buffer_size):
+                                            ts = timestamps_array[i]
+                                            if ts > 0 and start_time <= ts <= end_time:
+                                                frames_with_ts.append((ts, i, frames_array[i].copy()))
+                                        
+                                        # Sort by timestamp (ascending)
+                                        frames_with_ts.sort(key=lambda x: x[0])
+                                        
+                                        # Remove consecutive duplicates
+                                        import hashlib
+                                        frames_unique = []
+                                        frame_hashes_log = []
+                                        prev_hash = None
+                                        
+                                        for ts, idx, frame in frames_with_ts:
+                                            frame_hash = hashlib.md5(frame.tobytes()).hexdigest()[:8]
+                                            
+                                            if frame_hash != prev_hash:
+                                                frames_unique.append(frame)
+                                                frame_hashes_log.append(frame_hash)
+                                                prev_hash = frame_hash
+                                        
+                                        frames = frames_unique
+                                        
+                                        # #region agent log - H2: Track FIXED buffer read
                                         import json
                                         log_path = r"c:\Users\Administrator\OneDrive\Desktop\Thermal Kamera Projesi\thermal-dual-vision\.cursor\debug.log"
                                         with open(log_path, 'a') as f:
                                             f.write(json.dumps({
-                                                "location": "detector_mp.py:buffer_read_start",
-                                                "message": "Starting buffer read for event",
+                                                "location": "detector_mp.py:buffer_read_FIXED",
+                                                "message": "FIXED buffer read with timestamps",
                                                 "data": {
                                                     "camera_id": camera_id,
                                                     "event_id": event.id,
-                                                    "current_idx": current_idx,
-                                                    "buffer_size": buffer_size,
-                                                    "total_frames_to_read": total_frames,
-                                                    "start_idx": (current_idx - total_frames) % buffer_size
+                                                    "event_time": event_time,
+                                                    "time_range_seconds": f"{start_time:.2f} - {end_time:.2f}",
+                                                    "prebuffer_s": prebuffer_seconds,
+                                                    "postbuffer_s": postbuffer_seconds,
+                                                    "frames_in_time_range": len(frames_with_ts),
+                                                    "frames_after_dedup": len(frames),
+                                                    "duplicates_removed": len(frames_with_ts) - len(frames),
+                                                    "frame_hashes_sample": frame_hashes_log[:10]
                                                 },
                                                 "timestamp": time.time() * 1000,
                                                 "sessionId": "debug-session",
-                                                "hypothesisId": "H2"
-                                            }) + '\n')
-                                        # #endregion
-                                        
-                                        frames = []
-                                        frame_hashes = []
-                                        for i in range(total_frames):
-                                            idx = (current_idx - total_frames + i) % buffer_size
-                                            frame = frames_array[idx].copy()
-                                            frames.append(frame)
-                                            
-                                            # #region agent log - H2: Track each frame read
-                                            import hashlib
-                                            frame_hash = hashlib.md5(frame.tobytes()).hexdigest()[:8]
-                                            frame_hashes.append(frame_hash)
-                                            # #endregion
-                                        
-                                        # #region agent log - H2: Check for duplicate hashes
-                                        unique_hashes = len(set(frame_hashes))
-                                        duplicate_count_local = len(frame_hashes) - unique_hashes
-                                        with open(log_path, 'a') as f:
-                                            f.write(json.dumps({
-                                                "location": "detector_mp.py:buffer_read_complete",
-                                                "message": "Buffer read complete",
-                                                "data": {
-                                                    "camera_id": camera_id,
-                                                    "event_id": event.id,
-                                                    "total_frames_read": len(frames),
-                                                    "unique_frames": unique_hashes,
-                                                    "duplicate_frames": duplicate_count_local,
-                                                    "duplicate_percentage": (duplicate_count_local / len(frame_hashes) * 100) if len(frame_hashes) > 0 else 0,
-                                                    "frame_hashes_sample": frame_hashes[:10]
-                                                },
-                                                "timestamp": time.time() * 1000,
-                                                "sessionId": "debug-session",
-                                                "hypothesisId": "H2"
+                                                "hypothesisId": "H2_FIXED"
                                             }) + '\n')
                                         # #endregion
                                         
                                         shm.close()
+                                        shm_ts.close()
                                         
                                         # Generate media (collage + MP4)
                                         media_worker.generate_collage_and_video(
