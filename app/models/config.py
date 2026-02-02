@@ -42,7 +42,7 @@ class DetectionConfig(BaseModel):
         default=5,
         ge=1,
         le=30,
-        description="Frames per second for inference"
+        description="Frames per second for inference (lower = less CPU, less frame drops)"
     )
     aspect_ratio_preset: Literal["person", "thermal_person", "custom"] = Field(
         default="person",
