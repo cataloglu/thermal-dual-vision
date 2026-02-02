@@ -279,7 +279,7 @@ def camera_detection_process(
         process_logger.info(f"Camera {camera_id} opened successfully")
         
         # Detection state (process-local)
-        detection_history = deque(maxlen=config.detection.temporal_window_frames)
+        detection_history = deque(maxlen=5)  # Keep last 5 detections for temporal consistency
         event_start_time = None
         last_event_time = 0
         last_frame_time = 0
