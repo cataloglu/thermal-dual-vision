@@ -293,8 +293,43 @@ def camera_detection_process(
         
         process_logger.info(f"Detection parameters: source={detection_source}, fps={config.detection.inference_fps}, zones={len(zones)}")
         
+        # #region agent log - H6: Loop entry
+        import json
+        log_path = r"c:\Users\Administrator\OneDrive\Desktop\Thermal Kamera Projesi\thermal-dual-vision\.cursor\debug.log"
+        with open(log_path, 'a') as f:
+            f.write(json.dumps({
+                "location": "detector_mp.py:detection_loop_start",
+                "message": "DETECTION LOOP STARTING",
+                "data": {
+                    "camera_id": camera_id,
+                    "rtsp_url": rtsp_url,
+                    "detection_source": detection_source,
+                    "fps": config.detection.inference_fps
+                },
+                "timestamp": time.time() * 1000,
+                "sessionId": "debug-session",
+                "hypothesisId": "H6"
+            }) + '\n')
+        # #endregion
+        
+        loop_count = 0
+        
         # Main detection loop
         while not stop_event.is_set():
+            loop_count += 1
+            
+            # #region agent log - H6: Loop iteration (every 100 loops)
+            if loop_count % 100 == 1:
+                with open(log_path, 'a') as f:
+                    f.write(json.dumps({
+                        "location": "detector_mp.py:loop_iteration",
+                        "message": "Loop iteration",
+                        "data": {"camera_id": camera_id, "loop_count": loop_count},
+                        "timestamp": time.time() * 1000,
+                        "sessionId": "debug-session",
+                        "hypothesisId": "H6"
+                    }) + '\n')
+            # #endregion
             # Check control queue
             try:
                 if not control_queue.empty():
@@ -312,7 +347,38 @@ def camera_detection_process(
             
             # Read frame
             ret, frame = cap.read()
+            
+            # #region agent log - H6: Frame read status (every 50 frames)
+            if loop_count % 50 == 1:
+                with open(log_path, 'a') as f:
+                    f.write(json.dumps({
+                        "location": "detector_mp.py:frame_read",
+                        "message": "Frame read attempt",
+                        "data": {
+                            "camera_id": camera_id,
+                            "loop_count": loop_count,
+                            "ret": ret,
+                            "frame_is_none": frame is None
+                        },
+                        "timestamp": time.time() * 1000,
+                        "sessionId": "debug-session",
+                        "hypothesisId": "H6"
+                    }) + '\n')
+            # #endregion
+            
             if not ret or frame is None:
+                # #region agent log - H6: Frame read FAILED
+                if loop_count % 50 == 1:
+                    with open(log_path, 'a') as f:
+                        f.write(json.dumps({
+                            "location": "detector_mp.py:frame_read_failed",
+                            "message": "Frame read FAILED - continuing",
+                            "data": {"camera_id": camera_id, "loop_count": loop_count},
+                            "timestamp": time.time() * 1000,
+                            "sessionId": "debug-session",
+                            "hypothesisId": "H6"
+                        }) + '\n')
+                # #endregion
                 time.sleep(0.1)
                 continue
             
@@ -356,10 +422,9 @@ def camera_detection_process(
                 sensitivity=motion_config.get("sensitivity", 7)
             )
             
-            # #region agent log - H2: Motion detection result
-            import json
-            log_path = r"c:\Users\Administrator\OneDrive\Desktop\Thermal Kamera Projesi\thermal-dual-vision\.cursor\debug.log"
-            if frame_idx % 50 == 0:  # Log every 50 frames
+            # #region agent log - H2: Motion detection result (ALWAYS log if motion detected, or every 100 frames)
+            frame_idx = frame_idx + 1 if 'frame_idx' in locals() else 1
+            if motion_active or frame_idx % 100 == 1:
                 with open(log_path, 'a') as f:
                     f.write(json.dumps({
                         "location": "detector_mp.py:motion_detection",
@@ -375,7 +440,6 @@ def camera_detection_process(
                         "sessionId": "debug-session",
                         "hypothesisId": "H2"
                     }) + '\n')
-            frame_idx = frame_idx + 1 if 'frame_idx' in locals() else 1
             # #endregion
             
             if not motion_active:
@@ -404,18 +468,18 @@ def camera_detection_process(
                 inference_resolution=tuple(config.detection.inference_resolution),
             )
             
-            # #region agent log - H1: YOLO inference result
-            if len(detections) > 0 or frame_idx % 50 == 0:  # Log detections or every 50 frames
+            # #region agent log - H1: YOLO inference result (ALWAYS if detected!)
+            if len(detections) > 0:
                 with open(log_path, 'a') as f:
                     f.write(json.dumps({
-                        "location": "detector_mp.py:yolo_inference",
-                        "message": "YOLO inference result",
+                        "location": "detector_mp.py:yolo_inference_DETECTED",
+                        "message": "YOLO DETECTION FOUND!",
                         "data": {
                             "camera_id": camera_id,
                             "frame_idx": frame_idx,
                             "detections_count": len(detections),
                             "confidence_threshold": confidence_threshold,
-                            "best_confidence": max([d["confidence"] for d in detections]) if len(detections) > 0 else 0.0
+                            "best_confidence": max([d["confidence"] for d in detections])
                         },
                         "timestamp": time.time() * 1000,
                         "sessionId": "debug-session",
