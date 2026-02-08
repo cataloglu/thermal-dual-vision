@@ -283,6 +283,7 @@ def camera_detection_process(
         event_start_time = None
         last_event_time = 0
         last_frame_time = 0
+        frame_idx = 0  # For debug logging
         
         # Get detection parameters
         detection_source = camera_config.get("detection_source") or camera_config.get("type", "thermal")
@@ -348,12 +349,34 @@ def camera_detection_process(
                     process_logger.debug(f"Frame buffer write error: {e}")
             
             # Motion detection (pre-filter)
-            motion_active, _ = motion_service.detect_motion(
+            motion_active, fg_mask = motion_service.detect_motion(
                 camera_id=camera_id,
                 frame=frame,
                 min_area=motion_config.get("min_area", 500),
                 sensitivity=motion_config.get("sensitivity", 7)
             )
+            
+            # #region agent log - H2: Motion detection result
+            import json
+            log_path = r"c:\Users\Administrator\OneDrive\Desktop\Thermal Kamera Projesi\thermal-dual-vision\.cursor\debug.log"
+            if frame_idx % 50 == 0:  # Log every 50 frames
+                with open(log_path, 'a') as f:
+                    f.write(json.dumps({
+                        "location": "detector_mp.py:motion_detection",
+                        "message": "Motion detection result",
+                        "data": {
+                            "camera_id": camera_id,
+                            "frame_idx": frame_idx,
+                            "motion_active": motion_active,
+                            "min_area": motion_config.get("min_area", 500),
+                            "sensitivity": motion_config.get("sensitivity", 7)
+                        },
+                        "timestamp": time.time() * 1000,
+                        "sessionId": "debug-session",
+                        "hypothesisId": "H2"
+                    }) + '\n')
+            frame_idx = frame_idx + 1 if 'frame_idx' in locals() else 1
+            # #endregion
             
             if not motion_active:
                 continue
@@ -380,6 +403,25 @@ def camera_detection_process(
                 confidence_threshold=confidence_threshold,
                 inference_resolution=tuple(config.detection.inference_resolution),
             )
+            
+            # #region agent log - H1: YOLO inference result
+            if len(detections) > 0 or frame_idx % 50 == 0:  # Log detections or every 50 frames
+                with open(log_path, 'a') as f:
+                    f.write(json.dumps({
+                        "location": "detector_mp.py:yolo_inference",
+                        "message": "YOLO inference result",
+                        "data": {
+                            "camera_id": camera_id,
+                            "frame_idx": frame_idx,
+                            "detections_count": len(detections),
+                            "confidence_threshold": confidence_threshold,
+                            "best_confidence": max([d["confidence"] for d in detections]) if len(detections) > 0 else 0.0
+                        },
+                        "timestamp": time.time() * 1000,
+                        "sessionId": "debug-session",
+                        "hypothesisId": "H1"
+                    }) + '\n')
+            # #endregion
             
             # Filter by aspect ratio
             ar_min, ar_max = config.detection.get_effective_aspect_ratio_bounds()
@@ -421,12 +463,33 @@ def camera_detection_process(
                 continue
             
             # Check temporal consistency
-            if not inference_service.check_temporal_consistency(
+            temporal_pass = inference_service.check_temporal_consistency(
                 detections,
                 list(detection_history)[:-1],  # Exclude current
                 min_consecutive_frames=3,
                 max_gap_frames=1,
-            ):
+            )
+            
+            # #region agent log - H3: Temporal consistency check
+            if len(detections) > 0:
+                with open(log_path, 'a') as f:
+                    f.write(json.dumps({
+                        "location": "detector_mp.py:temporal_consistency",
+                        "message": "Temporal consistency check",
+                        "data": {
+                            "camera_id": camera_id,
+                            "frame_idx": frame_idx,
+                            "temporal_pass": temporal_pass,
+                            "detection_count": len(detections),
+                            "history_length": len(detection_history)
+                        },
+                        "timestamp": time.time() * 1000,
+                        "sessionId": "debug-session",
+                        "hypothesisId": "H3"
+                    }) + '\n')
+            # #endregion
+            
+            if not temporal_pass:
                 event_start_time = None
                 continue
             
@@ -471,8 +534,35 @@ def camera_detection_process(
                 last_event_time = current_time
                 event_start_time = None
                 process_logger.info(f"Event created: {len(detections)} persons, conf={best_detection['confidence']:.2f}")
-            except:
-                process_logger.warning("Event queue full, dropping event")
+                
+                # #region agent log - H4: Event sent to queue
+                with open(log_path, 'a') as f:
+                    f.write(json.dumps({
+                        "location": "detector_mp.py:event_sent",
+                        "message": "Event sent to queue",
+                        "data": {
+                            "camera_id": camera_id,
+                            "person_count": len(detections),
+                            "confidence": best_detection['confidence']
+                        },
+                        "timestamp": time.time() * 1000,
+                        "sessionId": "debug-session",
+                        "hypothesisId": "H4"
+                    }) + '\n')
+                # #endregion
+            except Exception as e:
+                process_logger.warning(f"Event queue error: {e}")
+                # #region agent log - H4: Queue error
+                with open(log_path, 'a') as f:
+                    f.write(json.dumps({
+                        "location": "detector_mp.py:event_queue_error",
+                        "message": "Event queue ERROR",
+                        "data": {"camera_id": camera_id, "error": str(e)},
+                        "timestamp": time.time() * 1000,
+                        "sessionId": "debug-session",
+                        "hypothesisId": "H4"
+                    }) + '\n')
+                # #endregion
         
         cap.release()
         
@@ -759,12 +849,46 @@ class MultiprocessingDetectorWorker:
             
             db = next(get_session())
             
+            # #region agent log - H5: Event handler loop started
+            import json
+            log_path = r"c:\Users\Administrator\OneDrive\Desktop\Thermal Kamera Projesi\thermal-dual-vision\.cursor\debug.log"
+            with open(log_path, 'a') as f:
+                f.write(json.dumps({
+                    "location": "detector_mp.py:event_handler_started",
+                    "message": "Event handler loop started",
+                    "data": {"active_cameras": len(self.event_queues)},
+                    "timestamp": time.time() * 1000,
+                    "sessionId": "debug-session",
+                    "hypothesisId": "H5"
+                }) + '\n')
+            # #endregion
+            
+            loop_iterations = 0
+            
             while self.running:
+                loop_iterations += 1
+                
                 # Check all event queues
                 for camera_id, event_queue in list(self.event_queues.items()):
                     try:
                         if not event_queue.empty():
                             event_data = event_queue.get_nowait()
+                            
+                            # #region agent log - H5: Event received
+                            with open(log_path, 'a') as f:
+                                f.write(json.dumps({
+                                    "location": "detector_mp.py:event_received",
+                                    "message": "Event received from queue",
+                                    "data": {
+                                        "camera_id": camera_id,
+                                        "event_type": event_data.get("type"),
+                                        "person_count": event_data.get("person_count", 0)
+                                    },
+                                    "timestamp": time.time() * 1000,
+                                    "sessionId": "debug-session",
+                                    "hypothesisId": "H5"
+                                }) + '\n')
+                            # #endregion
                             
                             # Handle event
                             event_type = event_data.get("type")
@@ -798,6 +922,23 @@ class MultiprocessingDetectorWorker:
                                 )
                                 
                                 logger.info(f"Event created: {event.id} for camera {camera_id}")
+                                
+                                # #region agent log - H5: Event created in DB
+                                with open(log_path, 'a') as f:
+                                    f.write(json.dumps({
+                                        "location": "detector_mp.py:event_created_db",
+                                        "message": "Event created in database",
+                                        "data": {
+                                            "camera_id": camera_id,
+                                            "event_id": event.id,
+                                            "person_count": person_count,
+                                            "confidence": confidence
+                                        },
+                                        "timestamp": time.time() * 1000,
+                                        "sessionId": "debug-session",
+                                        "hypothesisId": "H5"
+                                    }) + '\n')
+                                # #endregion
                                 
                                 # Publish to MQTT
                                 mqtt_service.publish_event({
