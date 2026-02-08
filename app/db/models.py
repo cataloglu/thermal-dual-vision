@@ -164,6 +164,7 @@ class Event(Base):
     timestamp = Column(DateTime, nullable=False, index=True)
     confidence = Column(Float, nullable=False)
     event_type = Column(String(50), default="person", nullable=False)
+    person_count = Column(Integer, default=1, nullable=False)  # Number of persons detected
     
     # AI summary (optional)
     summary = Column(Text, nullable=True)

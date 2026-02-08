@@ -55,6 +55,7 @@ RUN rm -f /etc/nginx/sites-enabled/default && \
 # Copy Scripts & Configs
 COPY run.sh /run.sh
 COPY sync_options.py /app/sync_options.py
+COPY add_person_count_migration.py /app/add_person_count_migration.py
 COPY go2rtc.yaml /app/go2rtc.yaml
 COPY supervisord.conf /etc/supervisor/supervisord.conf
 

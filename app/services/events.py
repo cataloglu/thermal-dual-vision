@@ -32,6 +32,7 @@ class EventService:
         mp4_url: Optional[str] = None,
         ai_enabled: bool = False,
         ai_reason: Optional[str] = None,
+        person_count: int = 1,
     ) -> Event:
         """
         Create a new event.
@@ -66,6 +67,7 @@ class EventService:
             timestamp=timestamp,
             confidence=confidence,
             event_type=event_type,
+            person_count=person_count,
             summary=summary,
             collage_url=collage_url,
             gif_url=gif_url,
