@@ -89,6 +89,11 @@ logging.basicConfig(
     handlers=_handlers,
 )
 logger = logging.getLogger(__name__)
+
+# Suppress noisy 3rd-party loggers
+for _noisy in ("httpcore", "httpx", "openai", "telegram", "hpack"):
+    logging.getLogger(_noisy).setLevel(logging.WARNING)
+
 APP_START_TS = time.time()
 
 def _load_cors_origins() -> List[str]:

@@ -553,7 +553,7 @@ class DetectorWorker:
             
             while self.running and not stop_event.is_set():
                 current_time = time.time()
-                if current_time - last_config_refresh >= 5:
+                if current_time - last_config_refresh >= 30:
                     config = self.settings_service.load_config()
                     last_config_refresh = current_time
                     record_fps = float(getattr(config.event, "record_fps", config.detection.inference_fps))
@@ -594,7 +594,7 @@ class DetectorWorker:
 
                 def _log_gate(reason: str) -> None:
                     last_gate = self.last_gate_log.get(camera_id, 0.0)
-                    if current_time - last_gate >= 5:
+                    if current_time - last_gate >= 30:
                         logger.debug("EVENT_GATE camera=%s reason=%s", camera_id, reason)
                         self.last_gate_log[camera_id] = current_time
 
@@ -673,9 +673,9 @@ class DetectorWorker:
                 detections = self._filter_detections_by_zones(camera, detections, frame.shape)
                 self.detection_history[camera_id].append(detections)
 
-                # Periodic detection log (every 5s)
+                # Detection log: always log when person found, empty results only every 60s
                 last_log = self.last_detection_log.get(camera_id, 0.0)
-                if current_time - last_log >= 5:
+                if len(detections) > 0 or current_time - last_log >= 60:
                     best_conf = max((d.get("confidence", 0.0) for d in detections), default=0.0)
                     logger.debug(
                         "DETECT camera=%s count=%s best_conf=%.2f",
