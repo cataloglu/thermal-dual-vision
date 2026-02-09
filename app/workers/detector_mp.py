@@ -270,8 +270,19 @@ def camera_detection_process(
             process_logger.error(f"No RTSP URL for camera {camera_id}")
             return
         
-        # Open camera
+        # Open camera with TCP transport (more reliable than UDP)
+        # Set environment variable for FFmpeg
+        import os
+        os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = 'rtsp_transport;tcp'
+        
         cap = cv2.VideoCapture(rtsp_url, cv2.CAP_FFMPEG)
+        
+        # Also set TCP transport via CAP_PROP
+        if cap and cap.isOpened():
+            # Force TCP transport
+            cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 10000)  # 10s timeout
+            cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, 10000)  # 10s timeout
+        
         if not cap or not cap.isOpened():
             process_logger.error(f"Failed to open camera {camera_id}")
             return
