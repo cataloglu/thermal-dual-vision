@@ -906,8 +906,15 @@ class MultiprocessingDetectorWorker:
                                         logger.info(f"  valid_timestamps={valid_timestamps}, frames_in_range={len(frames_with_ts)}")
                                         logger.info(f"  event_time={event_time:.0f} ({datetime.fromtimestamp(event_time).strftime('%H:%M:%S')})")
                                         logger.info(f"  time_range={start_time:.0f}-{end_time:.0f}")
-                                        logger.info(f"  buffer_ts_range={buffer_ts_min:.0f if buffer_ts_min else 0}-{buffer_ts_max:.0f if buffer_ts_max else 0}")
-                                        logger.info(f"  buffer_ts_readable={datetime.fromtimestamp(buffer_ts_min).strftime('%H:%M:%S') if buffer_ts_min else 'N/A'} - {datetime.fromtimestamp(buffer_ts_max).strftime('%H:%M:%S') if buffer_ts_max else 'N/A'}")
+                                        
+                                        # Fix syntax error: use variables outside f-string
+                                        buffer_min_str = f"{buffer_ts_min:.0f}" if buffer_ts_min else "0"
+                                        buffer_max_str = f"{buffer_ts_max:.0f}" if buffer_ts_max else "0"
+                                        logger.info(f"  buffer_ts_range={buffer_min_str}-{buffer_max_str}")
+                                        
+                                        buffer_min_readable = datetime.fromtimestamp(buffer_ts_min).strftime('%H:%M:%S') if buffer_ts_min else 'N/A'
+                                        buffer_max_readable = datetime.fromtimestamp(buffer_ts_max).strftime('%H:%M:%S') if buffer_ts_max else 'N/A'
+                                        logger.info(f"  buffer_ts_readable={buffer_min_readable} - {buffer_max_readable}")
                                         
                                         # Sort by timestamp (ascending)
                                         frames_with_ts.sort(key=lambda x: x[0])
