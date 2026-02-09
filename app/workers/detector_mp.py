@@ -344,7 +344,9 @@ def camera_detection_process(
                 frames_failed += 1
                 if frames_failed % 100 == 1:
                     process_logger.warning(f"[DEBUG-H6] Frame read failing! failed_count={frames_failed}")
-                time.sleep(0.1)
+                # Exponential backoff for failed reads (reduce CPU usage)
+                sleep_time = min(0.5, 0.1 + (frames_failed / 1000))  # Max 0.5s
+                time.sleep(sleep_time)
                 continue
             
             frames_read += 1
