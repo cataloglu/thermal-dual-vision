@@ -868,8 +868,15 @@ class MultiprocessingDetectorWorker:
                                             buffer=shm_ts.buf
                                         )
                                         
-                                        # FIXED: Smart frame selection with timestamps!
-                                        event_time = datetime.utcnow().timestamp()
+                                        # FIXED: Use event's ACTUAL timestamp (not current time!)
+                                        event_timestamp_str = event_data.get("timestamp")
+                                        if event_timestamp_str:
+                                            # Parse ISO timestamp
+                                            event_dt = datetime.fromisoformat(event_timestamp_str.replace("Z", "+00:00"))
+                                            event_time = event_dt.timestamp()
+                                        else:
+                                            # Fallback to current time (should not happen)
+                                            event_time = datetime.utcnow().timestamp()
                                         
                                         # Get desired time range
                                         prebuffer_seconds = config.event.prebuffer_seconds
