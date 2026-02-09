@@ -313,6 +313,7 @@ def camera_detection_process(
         frames_failed = 0
         motion_detections = 0
         yolo_detections = 0
+        yolo_inference_count = 0  # Total YOLO inferences
         
         # Main detection loop
         while not stop_event.is_set():
@@ -320,7 +321,7 @@ def camera_detection_process(
             
             # Log every 200 loops to process logger
             if loop_count % 200 == 1:
-                process_logger.info(f"[DEBUG-H6] Loop stats: count={loop_count}, frames_read={frames_read}, frames_failed={frames_failed}, motion={motion_detections}, yolo={yolo_detections}")
+                process_logger.info(f"[DEBUG-H6] Loop stats: count={loop_count}, frames_read={frames_read}, frames_failed={frames_failed}, motion={motion_detections}, yolo_inferences={yolo_inference_count}, yolo_detections={yolo_detections}")
             # Check control queue
             try:
                 if not control_queue.empty():
@@ -418,18 +419,29 @@ def camera_detection_process(
                 inference_resolution=tuple(config.detection.inference_resolution),
             )
             
+            yolo_inference_count += 1
+            
+            # Log YOLO result
             if len(detections) > 0:
                 yolo_detections += 1
                 best_conf = max([d["confidence"] for d in detections])
-                process_logger.info(f"[DEBUG-H1] YOLO DETECTION! count={len(detections)}, conf={best_conf:.2f}")
+                process_logger.info(f"[DEBUG-H1] YOLO DETECTION! count={len(detections)}, conf={best_conf:.2f}, inference#{yolo_inference_count}")
+            elif yolo_inference_count % 20 == 1:
+                # Log no detection periodically
+                process_logger.info(f"[DEBUG-H1] YOLO inference#{yolo_inference_count}: NO detection (threshold={confidence_threshold:.2f})")
             
             # Filter by aspect ratio
             ar_min, ar_max = config.detection.get_effective_aspect_ratio_bounds()
+            detections_before_ar = len(detections)
             detections = inference_service.filter_by_aspect_ratio(
                 detections,
                 min_ratio=ar_min,
                 max_ratio=ar_max,
             )
+            detections_after_ar = len(detections)
+            
+            if detections_before_ar > 0 and detections_after_ar == 0:
+                process_logger.warning(f"[DEBUG-AR] ALL detections filtered by aspect ratio! before={detections_before_ar}, ar_range={ar_min:.2f}-{ar_max:.2f}")
             
             # Filter by zones (if configured)
             if zones:
@@ -812,7 +824,6 @@ class MultiprocessingDetectorWorker:
             events_created = 0
             
             while self.running:
-                loop_iterations += 1
                 
                 # Check all event queues
                 for camera_id, event_queue in list(self.event_queues.items()):
