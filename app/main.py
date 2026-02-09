@@ -38,6 +38,7 @@ from app.services.go2rtc import get_go2rtc_service
 from app.services.mqtt import get_mqtt_service
 from app.services.recording_state import get_recording_state_service
 from app.services.metrics import get_metrics_service
+from app.services.recorder import get_continuous_recorder
 from app.utils.rtsp import redact_rtsp_url, validate_rtsp_url
 from telegram import Bot
 from app.workers.retention import get_retention_worker
@@ -148,6 +149,23 @@ async def lifespan(app: FastAPI):
     # Production uses threading mode (detector.py)
     detector_worker.start()
     logger.info("Detector worker started")
+    
+    # Start continuous recording for all enabled cameras (Scrypted-style)
+    db = next(get_session())
+    try:
+        cameras = camera_crud_service.get_cameras(db)
+        started = 0
+        for camera in cameras:
+            if camera.enabled:
+                rtsp_url = camera.rtsp_url or camera.rtsp_url_thermal or camera.rtsp_url_color
+                if rtsp_url:
+                    if continuous_recorder.start_recording(camera.id, rtsp_url):
+                        started += 1
+        logger.info(f"Started continuous recording for {started} cameras")
+    except Exception as e:
+        logger.error(f"Failed to start continuous recording: {e}")
+    finally:
+        db.close()
 
     # Start MQTT service
     mqtt_service.start()
@@ -166,6 +184,11 @@ async def lifespan(app: FastAPI):
         # Stop detector worker
         detector_worker.stop()
         logger.info("Detector worker stopped")
+        
+        # Stop continuous recording for all cameras
+        for camera_id in list(continuous_recorder.processes.keys()):
+            continuous_recorder.stop_recording(camera_id)
+        logger.info("Continuous recording stopped")
 
         # Stop retention worker
         retention_worker.stop()
@@ -221,6 +244,7 @@ go2rtc_service = get_go2rtc_service()
 mqtt_service = get_mqtt_service()
 recording_state_service = get_recording_state_service()
 metrics_service = get_metrics_service()
+continuous_recorder = get_continuous_recorder()
 
 
 def _resolve_default_rtsp_url(camera) -> Optional[str]:
@@ -1575,6 +1599,17 @@ async def create_camera(
                 logger.error("Failed to start detection for camera %s: %s", camera.id, e)
         else:
             detector_worker.stop_camera_detection(camera.id)
+        
+        # Start/stop continuous recording (Scrypted-style)
+        if camera.enabled:
+            try:
+                rtsp_url = camera.rtsp_url or camera.rtsp_url_thermal or camera.rtsp_url_color
+                if rtsp_url:
+                    continuous_recorder.start_recording(camera.id, rtsp_url)
+            except Exception as e:
+                logger.error("Failed to start continuous recording for camera %s: %s", camera.id, e)
+        else:
+            continuous_recorder.stop_recording(camera.id)
 
         # Add to go2rtc
         go2rtc_service.update_camera_streams(
@@ -1663,6 +1698,17 @@ async def update_camera(
                 logger.error("Failed to start detection for camera %s: %s", camera.id, e)
         else:
             detector_worker.stop_camera_detection(camera.id)
+        
+        # Start/stop continuous recording (Scrypted-style)
+        if camera.enabled:
+            try:
+                rtsp_url = camera.rtsp_url or camera.rtsp_url_thermal or camera.rtsp_url_color
+                if rtsp_url:
+                    continuous_recorder.start_recording(camera.id, rtsp_url)
+            except Exception as e:
+                logger.error("Failed to start continuous recording for camera %s: %s", camera.id, e)
+        else:
+            continuous_recorder.stop_recording(camera.id)
 
         go2rtc_service.update_camera_streams(
             camera_id=camera.id,
