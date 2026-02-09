@@ -748,10 +748,9 @@ class MediaWorker:
             target_fps = min(self.MP4_MAX_OUTPUT_FPS, target_fps)
             target_fps = max(self.MP4_MIN_OUTPUT_FPS, target_fps)
             target_fps_int = max(1, int(round(target_fps)))
-            target_frame_count = max(1, int(round(target_duration * target_fps_int)))
+            # DON'T pad with duplicate frames! Use actual frame count!
+            target_frame_count = frame_count  # Use all available frames
             indices = list(range(frame_count))
-            if target_frame_count > frame_count and frame_count > 0:
-                indices.extend([frame_count - 1] * (target_frame_count - frame_count))
             speed_factor = 1.0
         else:
             target_duration = max(
