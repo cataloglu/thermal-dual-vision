@@ -888,14 +888,26 @@ class MultiprocessingDetectorWorker:
                                         # Collect frames within time range (SORTED by timestamp!)
                                         frames_with_ts = []
                                         valid_timestamps = 0
+                                        buffer_ts_min = None
+                                        buffer_ts_max = None
+                                        
                                         for i in range(buffer_size):
                                             ts = timestamps_array[i]
                                             if ts > 0:
                                                 valid_timestamps += 1
+                                                if buffer_ts_min is None or ts < buffer_ts_min:
+                                                    buffer_ts_min = ts
+                                                if buffer_ts_max is None or ts > buffer_ts_max:
+                                                    buffer_ts_max = ts
                                                 if start_time <= ts <= end_time:
                                                     frames_with_ts.append((ts, i, frames_array[i].copy()))
                                         
-                                        logger.info(f"[DEBUG-BUFFER] Event {event.id}: valid_timestamps={valid_timestamps}, frames_in_range={len(frames_with_ts)}, time_range={start_time:.0f}-{end_time:.0f}, event_time={event_time:.0f}")
+                                        logger.info(f"[DEBUG-BUFFER] Event {event.id}:")
+                                        logger.info(f"  valid_timestamps={valid_timestamps}, frames_in_range={len(frames_with_ts)}")
+                                        logger.info(f"  event_time={event_time:.0f} ({datetime.fromtimestamp(event_time).strftime('%H:%M:%S')})")
+                                        logger.info(f"  time_range={start_time:.0f}-{end_time:.0f}")
+                                        logger.info(f"  buffer_ts_range={buffer_ts_min:.0f if buffer_ts_min else 0}-{buffer_ts_max:.0f if buffer_ts_max else 0}")
+                                        logger.info(f"  buffer_ts_readable={datetime.fromtimestamp(buffer_ts_min).strftime('%H:%M:%S') if buffer_ts_min else 'N/A'} - {datetime.fromtimestamp(buffer_ts_max).strftime('%H:%M:%S') if buffer_ts_max else 'N/A'}")
                                         
                                         # Sort by timestamp (ascending)
                                         frames_with_ts.sort(key=lambda x: x[0])
