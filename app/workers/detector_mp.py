@@ -284,7 +284,9 @@ def camera_detection_process(
             cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, 10000)  # 10s timeout
         
         if not cap or not cap.isOpened():
-            process_logger.error(f"Failed to open camera {camera_id}")
+            process_logger.error(f"Failed to open camera {camera_id} - EXITING to prevent CPU waste")
+            # Sleep before exiting to avoid rapid restarts
+            time.sleep(60)
             return
         
         process_logger.info(f"Camera {camera_id} opened successfully")
@@ -337,9 +339,16 @@ def camera_detection_process(
                 frames_failed += 1
                 if frames_failed % 100 == 1:
                     process_logger.warning(f"[DEBUG] Frame read FAILING! failed_count={frames_failed}")
-                # Exponential backoff for failed reads (reduce CPU usage)
-                sleep_time = min(1.0, 0.2 + (frames_failed / 500))  # Max 1.0s (increased!)
-                time.sleep(sleep_time)
+                
+                # Aggressive exponential backoff for failed reads (prevent CPU waste!)
+                if frames_failed > 500:
+                    # After 500 failures, give up for 30s
+                    process_logger.error(f"[DEBUG] Too many failures ({frames_failed}), sleeping 30s")
+                    time.sleep(30)
+                    frames_failed = 0  # Reset counter
+                else:
+                    sleep_time = min(2.0, 0.5 + (frames_failed / 100))  # Max 2.0s
+                    time.sleep(sleep_time)
                 continue
             
             frames_failed = 0  # Reset on successful read
