@@ -386,27 +386,37 @@ def camera_detection_process(
                 height = int(frame.shape[0] * 1280 / frame.shape[1])
                 frame = cv2.resize(frame, (1280, height))
             
-            # Write EVERY frame to shared buffer (NO duplicate prevention!)
+            # Write frame to buffer ONLY if timestamp advanced (prevent same-frame duplicates!)
             if frame_buffer:
                 try:
-                    # Resize to buffer shape if needed
-                    buffer_shape = frame_buffer['frame_shape']
-                    if frame.shape != buffer_shape:
-                        frame_resized = cv2.resize(frame, (buffer_shape[1], buffer_shape[0]))
-                    else:
-                        frame_resized = frame
+                    # Check if enough time passed since last buffer write
+                    if not hasattr(camera_detection_process, f'_last_buffer_time_{camera_id}'):
+                        setattr(camera_detection_process, f'_last_buffer_time_{camera_id}', 0.0)
                     
-                    # Write to circular buffer
-                    if not hasattr(camera_detection_process, f'_write_idx_{camera_id}'):
-                        setattr(camera_detection_process, f'_write_idx_{camera_id}', 0)
+                    last_buffer_time = getattr(camera_detection_process, f'_last_buffer_time_{camera_id}')
+                    time_since_last_buffer = current_time - last_buffer_time
                     
-                    write_idx = getattr(camera_detection_process, f'_write_idx_{camera_id}')
-                    
-                    # Write frame AND timestamp
-                    frame_buffer['frames'][write_idx] = frame_resized
-                    frame_buffer['timestamps'][write_idx] = time.time()
-                    
-                    setattr(camera_detection_process, f'_write_idx_{camera_id}', (write_idx + 1) % frame_buffer['buffer_size'])
+                    # Only buffer if at least 0.1s passed (prevent rapid duplicates)
+                    if time_since_last_buffer >= 0.1:  # 100ms minimum
+                        # Resize to buffer shape if needed
+                        buffer_shape = frame_buffer['frame_shape']
+                        if frame.shape != buffer_shape:
+                            frame_resized = cv2.resize(frame, (buffer_shape[1], buffer_shape[0]))
+                        else:
+                            frame_resized = frame
+                        
+                        # Write to circular buffer
+                        if not hasattr(camera_detection_process, f'_write_idx_{camera_id}'):
+                            setattr(camera_detection_process, f'_write_idx_{camera_id}', 0)
+                        
+                        write_idx = getattr(camera_detection_process, f'_write_idx_{camera_id}')
+                        
+                        # Write frame AND timestamp
+                        frame_buffer['frames'][write_idx] = frame_resized
+                        frame_buffer['timestamps'][write_idx] = current_time
+                        
+                        setattr(camera_detection_process, f'_write_idx_{camera_id}', (write_idx + 1) % frame_buffer['buffer_size'])
+                        setattr(camera_detection_process, f'_last_buffer_time_{camera_id}', current_time)
                     
                 except Exception as e:
                     process_logger.debug(f"Frame buffer write error: {e}")
