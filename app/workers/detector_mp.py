@@ -1032,34 +1032,24 @@ class MultiprocessingDetectorWorker:
                                             except Exception as e:
                                                 logger.error(f"Failed to create collage: {e}")
                                             
-                                            # Extract MP4 from continuous recording (Scrypted-style!)
-                                            from app.services.recorder import get_continuous_recorder
-                                            recorder = get_continuous_recorder()
-                                            
-                                            mp4_path = media_service.get_media_path(event.id, "mp4")
+                                            # For now: Use buffer frames for MP4 (continuous recording needs more work)
                                             mp4_url = None
                                             
                                             try:
-                                                start_dt = datetime.fromtimestamp(start_time)
-                                                end_dt = datetime.fromtimestamp(end_time)
+                                                # Use MediaService unified method
+                                                media_urls = media_service.generate_event_media(
+                                                    db=db,
+                                                    event_id=event.id,
+                                                    frames=frames,
+                                                    detections=[None] * len(frames),
+                                                    timestamps=frame_timestamps,
+                                                    camera_name=camera_name,
+                                                    include_gif=False,
+                                                    mp4_real_time=True,
+                                                )
                                                 
-                                                if recorder.extract_clip(camera_id, start_dt, end_dt, mp4_path):
-                                                    mp4_url = f"/api/media/{event.id}/timelapse.mp4"
-                                                    logger.info(f"[DEBUG-MEDIA] MP4 extracted from continuous recording")
-                                                else:
-                                                    logger.warning(f"[DEBUG-MEDIA] MP4 extraction failed, falling back to buffer frames")
-                                                    # Fallback: Use buffer frames
-                                                    media_worker.create_timelapse_mp4(
-                                                        frames=frames,
-                                                        detections=[None] * len(frames),
-                                                        output_path=mp4_path,
-                                                        camera_name=camera_name,
-                                                        timestamp=event.timestamp,
-                                                        timestamps=frame_timestamps,
-                                                        real_time=True,
-                                                    )
-                                                    mp4_url = f"/api/media/{event.id}/timelapse.mp4"
-                                                    logger.info(f"[DEBUG-MEDIA] MP4 created from buffer (fallback)")
+                                                mp4_url = media_urls.get('mp4_url')
+                                                logger.info(f"[DEBUG-MEDIA] MP4 created from buffer")
                                             except Exception as e:
                                                 logger.error(f"Failed to create MP4: {e}")
                                             
