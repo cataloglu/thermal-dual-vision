@@ -1010,7 +1010,7 @@ class MultiprocessingDetectorWorker:
                                                     timestamps=frame_timestamps,
                                                     camera_name=camera_name,
                                                     include_gif=False,
-                                                    mp4_real_time=True,
+                                                    mp4_real_time=False,  # False = allow speedup
                                                 )
                                                 
                                                 mp4_url = media_urls.get('mp4_url')
