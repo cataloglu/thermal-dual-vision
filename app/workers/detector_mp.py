@@ -294,10 +294,6 @@ def camera_detection_process(
         event_start_time = None
         last_event_time = 0
         last_frame_time = 0
-        frame_idx = 0  # For debug logging
-        
-        # Debug log path (persistent across loop)
-        log_path = "/app/data/debug_multiprocessing.log"
         
         # Get detection parameters
         detection_source = camera_config.get("detection_source") or camera_config.get("type", "thermal")
@@ -306,22 +302,11 @@ def camera_detection_process(
         zones = camera_config.get("zones", [])
         
         process_logger.info(f"Detection parameters: source={detection_source}, fps={config.detection.inference_fps}, zones={len(zones)}")
-        process_logger.info(f"[DEBUG-H6] STARTING DETECTION LOOP for {camera_id}")
         
-        loop_count = 0
-        frames_read = 0
         frames_failed = 0
-        motion_detections = 0
-        yolo_detections = 0
-        yolo_inference_count = 0  # Total YOLO inferences
         
         # Main detection loop
         while not stop_event.is_set():
-            loop_count += 1
-            
-            # Log every 200 loops to process logger
-            if loop_count % 200 == 1:
-                process_logger.info(f"[DEBUG-H6] Loop stats: count={loop_count}, frames_read={frames_read}, frames_failed={frames_failed}, motion={motion_detections}, yolo_inferences={yolo_inference_count}, yolo_detections={yolo_detections}")
             # Check control queue
             try:
                 if not control_queue.empty():
@@ -342,14 +327,12 @@ def camera_detection_process(
             
             if not ret or frame is None:
                 frames_failed += 1
-                if frames_failed % 100 == 1:
-                    process_logger.warning(f"[DEBUG-H6] Frame read failing! failed_count={frames_failed}")
                 # Exponential backoff for failed reads (reduce CPU usage)
                 sleep_time = min(0.5, 0.1 + (frames_failed / 1000))  # Max 0.5s
                 time.sleep(sleep_time)
                 continue
             
-            frames_read += 1
+            frames_failed = 0  # Reset on successful read
             
             last_frame_time = current_time
             
@@ -394,10 +377,6 @@ def camera_detection_process(
             if not motion_active:
                 continue
             
-            motion_detections += 1
-            if motion_detections % 10 == 1:
-                process_logger.info(f"[DEBUG-H2] MOTION DETECTED! count={motion_detections}")
-            
             # Preprocess frame
             if detection_source == "thermal" and config.thermal.enable_enhancement:
                 preprocessed = inference_service.preprocess_thermal(
@@ -421,29 +400,13 @@ def camera_detection_process(
                 inference_resolution=tuple(config.detection.inference_resolution),
             )
             
-            yolo_inference_count += 1
-            
-            # Log YOLO result
-            if len(detections) > 0:
-                yolo_detections += 1
-                best_conf = max([d["confidence"] for d in detections])
-                process_logger.info(f"[DEBUG-H1] YOLO DETECTION! count={len(detections)}, conf={best_conf:.2f}, inference#{yolo_inference_count}")
-            elif yolo_inference_count % 20 == 1:
-                # Log no detection periodically
-                process_logger.info(f"[DEBUG-H1] YOLO inference#{yolo_inference_count}: NO detection (threshold={confidence_threshold:.2f})")
-            
             # Filter by aspect ratio
             ar_min, ar_max = config.detection.get_effective_aspect_ratio_bounds()
-            detections_before_ar = len(detections)
             detections = inference_service.filter_by_aspect_ratio(
                 detections,
                 min_ratio=ar_min,
                 max_ratio=ar_max,
             )
-            detections_after_ar = len(detections)
-            
-            if detections_before_ar > 0 and detections_after_ar == 0:
-                process_logger.warning(f"[DEBUG-AR] ALL detections filtered by aspect ratio! before={detections_before_ar}, ar_range={ar_min:.2f}-{ar_max:.2f}")
             
             # Filter by zones (if configured)
             if zones:
@@ -485,11 +448,8 @@ def camera_detection_process(
             )
             
             if not temporal_pass:
-                process_logger.debug(f"[DEBUG-H3] Temporal consistency FAILED (history_len={len(detection_history)})")
                 event_start_time = None
                 continue
-            
-            process_logger.info(f"[DEBUG-H3] Temporal consistency PASSED!")
             
             # Enforce minimum event duration
             if event_start_time is None:
@@ -531,9 +491,9 @@ def camera_detection_process(
                 event_queue.put_nowait(event_data)
                 last_event_time = current_time
                 event_start_time = None
-                process_logger.info(f"[DEBUG-H4] Event created: {len(detections)} persons, conf={best_detection['confidence']:.2f} - SENT TO QUEUE")
+                process_logger.info(f"Event created: {len(detections)} persons, conf={best_detection['confidence']:.2f}")
             except Exception as e:
-                process_logger.error(f"[DEBUG-H4] Event queue error: {e}")
+                process_logger.warning(f"Event queue error: {e}")
         
         cap.release()
         
@@ -820,11 +780,6 @@ class MultiprocessingDetectorWorker:
             
             db = next(get_session())
             
-            logger.info(f"[DEBUG-H5] Event handler loop started, monitoring {len(self.event_queues)} cameras")
-            
-            events_received = 0
-            events_created = 0
-            
             while self.running:
                 
                 # Check all event queues
@@ -832,9 +787,6 @@ class MultiprocessingDetectorWorker:
                     try:
                         if not event_queue.empty():
                             event_data = event_queue.get_nowait()
-                            events_received += 1
-                            
-                            logger.info(f"[DEBUG-H5] Event RECEIVED from queue (camera={camera_id}, type={event_data.get('type')}, total_received={events_received})")
                             
                             # Handle event
                             event_type = event_data.get("type")
@@ -867,8 +819,7 @@ class MultiprocessingDetectorWorker:
                                     person_count=person_count,
                                 )
                                 
-                                events_created += 1
-                                logger.info(f"[DEBUG-H5] Event CREATED in DB: {event.id} (camera={camera_id}, person_count={person_count}, conf={confidence:.2f}, total_created={events_created})")
+                                logger.info(f"Event created: {event.id} for camera {camera_id}")
                                 
                                 # Publish to MQTT
                                 mqtt_service.publish_event({
