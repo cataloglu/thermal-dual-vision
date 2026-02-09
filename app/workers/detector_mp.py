@@ -264,50 +264,57 @@ def camera_detection_process(
         
         process_logger.info(f"Services initialized for camera {camera_id}")
         
-        # Get RTSP URL and add TCP parameters
+        # Get RTSP URL
         rtsp_url = camera_config.get("rtsp_url") or camera_config.get("rtsp_url_thermal")
         if not rtsp_url:
             process_logger.error(f"No RTSP URL for camera {camera_id}")
             return
         
-        # Add TCP and timeout parameters to URL (OpenCV compatible)
-        if '?' not in rtsp_url:
-            rtsp_url += '?tcp'
-        else:
-            rtsp_url += '&tcp'
-        
-        # Open camera with TCP transport (more reliable than UDP)
-        # Set environment variable for FFmpeg
+        # Open camera with threading detector's robust method
         import os
-        os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = 'rtsp_transport;tcp'
         
-        process_logger.info(f"[DEBUG-RTSP] Opening camera {camera_id[:8]}... URL={rtsp_url[:30]}...")
+        process_logger.info(f"[DEBUG-RTSP] Opening camera {camera_id[:8]}...")
         
-        cap = cv2.VideoCapture(rtsp_url, cv2.CAP_FFMPEG)
+        # Set FFmpeg options (same as threading detector!)
+        transport = "tcp"
+        os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = (
+            f"rtsp_transport;{transport}|stimeout;10000000|timeout;15000000|"
+            "fflags;discardcorrupt|flags;low_delay|max_delay;500000|err_detect;ignore_err"
+        )
         
-        # Check if opened
-        is_opened = cap.isOpened() if cap else False
-        process_logger.info(f"[DEBUG-RTSP] VideoCapture created, isOpened={is_opened}")
+        # Try multiple codecs (same as threading detector!)
+        codec_fallbacks = [None, "H264", "H265", "MJPG"]
+        cap = None
         
-        # Also set TCP transport via CAP_PROP
-        if cap and is_opened:
-            # Force TCP transport
-            cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 10000)  # 10s timeout
-            cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, 10000)  # 10s timeout
-            
-            # Get stream info
-            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            fps = cap.get(cv2.CAP_PROP_FPS)
-            process_logger.info(f"[DEBUG-RTSP] Stream info: {width}x{height} @ {fps} FPS")
+        for codec in codec_fallbacks:
+            try:
+                temp_cap = cv2.VideoCapture(rtsp_url, cv2.CAP_FFMPEG)
+                temp_cap.set(cv2.CAP_PROP_BUFFERSIZE, 3)  # Small buffer
+                
+                # Set timeouts
+                if hasattr(cv2, "CAP_PROP_OPEN_TIMEOUT_MSEC"):
+                    temp_cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 10000)
+                if hasattr(cv2, "CAP_PROP_READ_TIMEOUT_MSEC"):
+                    temp_cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, 10000)
+                
+                if codec:
+                    temp_cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*codec))
+                
+                if temp_cap.isOpened():
+                    # Try to read a frame to verify
+                    ret, _ = temp_cap.read()
+                    if ret:
+                        process_logger.info(f"Camera {camera_id} opened successfully with codec {codec or 'default'}")
+                        cap = temp_cap
+                        break
+                temp_cap.release()
+            except Exception as e:
+                process_logger.debug(f"Codec {codec} attempt failed: {e}")
         
-        if not cap or not is_opened:
-            process_logger.error(f"[DEBUG-RTSP] Failed to open camera {camera_id} - URL: {rtsp_url}")
-            # Sleep before exiting to avoid rapid restarts
+        if not cap or not cap.isOpened():
+            process_logger.error(f"Failed to open camera {camera_id} after all codec attempts")
             time.sleep(60)
             return
-        
-        process_logger.info(f"Camera {camera_id} opened successfully")
         
         # Detection state (process-local)
         detection_history = deque(maxlen=5)  # Keep last 5 detections for temporal consistency
