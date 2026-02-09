@@ -1002,6 +1002,7 @@ class MultiprocessingDetectorWorker:
                                             
                                             try:
                                                 # Use MediaService unified method
+                                                # Use frames for BOTH collage and MP4 (simpler!)
                                                 media_urls = media_service.generate_event_media(
                                                     db=db,
                                                     event_id=event.id,
@@ -1010,7 +1011,10 @@ class MultiprocessingDetectorWorker:
                                                     timestamps=frame_timestamps,
                                                     camera_name=camera_name,
                                                     include_gif=False,
-                                                    mp4_real_time=False,  # False = allow speedup
+                                                    mp4_frames=frames,  # Same frames for MP4
+                                                    mp4_detections=[None] * len(frames),
+                                                    mp4_timestamps=frame_timestamps,
+                                                    mp4_real_time=False,  # Allow 4x speedup!
                                                 )
                                                 
                                                 mp4_url = media_urls.get('mp4_url')
