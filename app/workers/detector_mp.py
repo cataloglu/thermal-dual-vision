@@ -681,7 +681,7 @@ class MultiprocessingDetectorWorker:
         try:
             frame_buffer = SharedFrameBuffer(
                 camera_id=camera.id,
-                buffer_size=60,  # 60 frames ~6s @ 10fps
+                buffer_size=100,  # Increased from 60 to 100 (more frames for better quality)
                 frame_shape=(720, 1280, 3)  # Resize to 720p for efficiency
             )
             self.frame_buffers[camera.id] = frame_buffer
@@ -940,32 +940,11 @@ class MultiprocessingDetectorWorker:
                                         # Sort by timestamp (ascending)
                                         frames_with_ts.sort(key=lambda x: x[0])
                                         
-                                        # Remove duplicates (more aggressive: check similarity, not just exact match)
-                                        import hashlib
-                                        import cv2
-                                        frames_unique = []
-                                        prev_frame_gray = None
+                                        # NO DEDUPLICATION! Take all frames from buffer
+                                        # MediaWorker will handle FPS conversion properly
+                                        frames = [frame for ts, idx, frame in frames_with_ts]
                                         
-                                        for ts, idx, frame in frames_with_ts:
-                                            # Convert to grayscale for comparison
-                                            frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                                            
-                                            # Check if significantly different from previous
-                                            is_different = True
-                                            if prev_frame_gray is not None:
-                                                # Calculate MSE (Mean Squared Error)
-                                                diff = cv2.absdiff(frame_gray, prev_frame_gray)
-                                                mse = (diff ** 2).mean()
-                                                
-                                                # If MSE < 5, frames are too similar (duplicate)
-                                                if mse < 5.0:
-                                                    is_different = False
-                                            
-                                            if is_different:
-                                                frames_unique.append(frame)
-                                                prev_frame_gray = frame_gray
-                                        
-                                        frames = frames_unique
+                                        logger.info(f"[DEBUG] Collected {len(frames)} frames from buffer (no dedup)")
                                         
                                         shm.close()
                                         shm_ts.close()

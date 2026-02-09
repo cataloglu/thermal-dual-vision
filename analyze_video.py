@@ -240,5 +240,5 @@ def analyze_video(video_path: str):
         print(f"  [OK] VIDEO LOOKS GOOD: No issues detected")
 
 if __name__ == "__main__":
-    video_path = r"c:\Users\Administrator\OneDrive\Desktop\event-cc0846d0-dfc0-4903-9c8d-73d1e6ebc6b5-timelapse.mp4"
+    video_path = r"c:\Users\Administrator\OneDrive\Desktop\event-36b1dd7b-652c-466f-b0b5-d71348313818-timelapse.mp4"
     analyze_video(video_path)
