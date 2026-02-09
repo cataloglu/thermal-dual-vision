@@ -329,19 +329,11 @@ def camera_detection_process(
         zones = camera_config.get("zones", [])
         
         process_logger.info(f"Detection parameters: source={detection_source}, fps={config.detection.inference_fps}, zones={len(zones)}")
-        process_logger.info(f"[DEBUG] STARTING DETECTION LOOP for {camera_id}")
         
         frames_failed = 0
-        frames_read = 0
-        loop_count = 0
         
         # Main detection loop
         while not stop_event.is_set():
-            loop_count += 1
-            
-            # Log periodically
-            if loop_count % 500 == 1:
-                process_logger.info(f"[DEBUG] Loop stats: frames_read={frames_read}, frames_failed={frames_failed}")
             # Check control queue
             try:
                 if not control_queue.empty():
@@ -362,13 +354,10 @@ def camera_detection_process(
             
             if not ret or frame is None:
                 frames_failed += 1
-                if frames_failed % 100 == 1:
-                    process_logger.warning(f"[DEBUG] Frame read FAILING! failed_count={frames_failed}")
                 
                 # Aggressive exponential backoff for failed reads (prevent CPU waste!)
                 if frames_failed > 500:
                     # After 500 failures, give up for 30s
-                    process_logger.error(f"[DEBUG] Too many failures ({frames_failed}), sleeping 30s")
                     time.sleep(30)
                     frames_failed = 0  # Reset counter
                 else:
@@ -377,7 +366,6 @@ def camera_detection_process(
                 continue
             
             frames_failed = 0  # Reset on successful read
-            frames_read += 1
             
             last_frame_time = current_time
             
@@ -966,28 +954,13 @@ class MultiprocessingDetectorWorker:
                                                 if start_time <= ts <= end_time:
                                                     frames_with_ts.append((ts, i, frames_array[i].copy()))
                                         
-                                        logger.info(f"[DEBUG-BUFFER] Event {event.id}:")
-                                        logger.info(f"  valid_timestamps={valid_timestamps}, frames_in_range={len(frames_with_ts)}")
-                                        logger.info(f"  event_time={event_time:.0f} ({datetime.fromtimestamp(event_time).strftime('%H:%M:%S')})")
-                                        logger.info(f"  time_range={start_time:.0f}-{end_time:.0f}")
-                                        
-                                        # Fix syntax error: use variables outside f-string
-                                        buffer_min_str = f"{buffer_ts_min:.0f}" if buffer_ts_min else "0"
-                                        buffer_max_str = f"{buffer_ts_max:.0f}" if buffer_ts_max else "0"
-                                        logger.info(f"  buffer_ts_range={buffer_min_str}-{buffer_max_str}")
-                                        
-                                        buffer_min_readable = datetime.fromtimestamp(buffer_ts_min).strftime('%H:%M:%S') if buffer_ts_min else 'N/A'
-                                        buffer_max_readable = datetime.fromtimestamp(buffer_ts_max).strftime('%H:%M:%S') if buffer_ts_max else 'N/A'
-                                        logger.info(f"  buffer_ts_readable={buffer_min_readable} - {buffer_max_readable}")
-                                        
                                         # Sort by timestamp (ascending)
                                         frames_with_ts.sort(key=lambda x: x[0])
                                         
-                                        # NO DEDUPLICATION! Take all frames from buffer
-                                        # MediaWorker will handle FPS conversion properly
+                                        # Take all frames from buffer
                                         frames = [frame for ts, idx, frame in frames_with_ts]
                                         
-                                        logger.info(f"[DEBUG] Collected {len(frames)} frames from buffer (no dedup)")
+                                        logger.info(f"Collected {len(frames)} frames from buffer for event {event.id}")
                                         
                                         shm.close()
                                         shm_ts.close()
@@ -1022,18 +995,10 @@ class MultiprocessingDetectorWorker:
                                                 else:
                                                     detections_list.append(None)
                                             
-                                            # Collage: Use MediaService (handles paths correctly!)
-                                            collage_url = None
-                                            try:
-                                                # MediaService handles collage generation internally
-                                                # We'll use the unified generate_event_media but only for collage
-                                                # Actually, let's skip collage for now - focus on MP4!
-                                                logger.info(f"[DEBUG-MEDIA] Skipping collage (focusing on MP4 quality)")
-                                            except Exception as e:
-                                                logger.error(f"Failed to create collage: {e}")
                                             
-                                            # For now: Use buffer frames for MP4 (continuous recording needs more work)
+                                            # Use buffer frames for MP4
                                             mp4_url = None
+                                            collage_url = None
                                             
                                             try:
                                                 # Use MediaService unified method
@@ -1049,19 +1014,13 @@ class MultiprocessingDetectorWorker:
                                                 )
                                                 
                                                 mp4_url = media_urls.get('mp4_url')
-                                                logger.info(f"[DEBUG-MEDIA] MP4 created from buffer")
+                                                collage_url = media_urls.get('collage_url')
+                                                logger.info(f"Media generated for event {event.id}")
                                             except Exception as e:
-                                                logger.error(f"Failed to create MP4: {e}")
+                                                logger.error(f"Failed to create media: {e}")
                                             
-                                            # Update event with media URLs
-                                            if collage_url or mp4_url:
-                                                event.collage_url = collage_url
-                                                event.mp4_url = mp4_url
-                                                db.commit()
-                                            
-                                            logger.info(f"[DEBUG-MEDIA] Media generation completed: event={event.id}, collage={collage_url is not None}, mp4={mp4_url is not None}")
                                         else:
-                                            logger.warning(f"[DEBUG-BUFFER] No frames available for event {event.id} (frames_with_ts was empty!)")
+                                            logger.warning(f"No frames available for event {event.id}")
                                         
                                     except Exception as e:
                                         logger.error(f"Failed to generate media for event {event.id}: {e}")
