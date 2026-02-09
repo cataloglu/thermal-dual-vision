@@ -960,11 +960,23 @@ class MultiprocessingDetectorWorker:
                                             logger.info(f"[DEBUG-MEDIA] Generating media: event={event.id}, frames={len(frames)}, timestamps={len(frame_timestamps)}")
                                             
                                             # Generate collage + MP4
+                                            # Create detection dict for each frame
+                                            bbox = event_data.get("bbox")
+                                            detections_list = []
+                                            for i in range(len(frames)):
+                                                if bbox and i == len(frames) // 2:  # Put detection in middle frame
+                                                    detections_list.append({
+                                                        "bbox": bbox,
+                                                        "confidence": event_data.get("confidence", 0.0)
+                                                    })
+                                                else:
+                                                    detections_list.append(None)
+                                            
                                             media_urls = media_service.generate_event_media(
                                                 db=db,
                                                 event_id=event.id,
                                                 frames=frames,
-                                                detections=[event_data.get("bbox")] * len(frames),  # Repeat bbox for each frame
+                                                detections=detections_list,
                                                 timestamps=frame_timestamps,
                                                 camera_name=camera_name,
                                                 include_gif=False,
