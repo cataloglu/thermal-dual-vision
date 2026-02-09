@@ -1003,12 +1003,18 @@ class MultiprocessingDetectorWorker:
                                             
                                             logger.info(f"[DEBUG-MEDIA] Generating media: event={event.id}, frames={len(frames)}, timestamps={len(frame_timestamps)}")
                                             
-                                            # Generate collage + MP4
-                                            # Create detection dict for each frame
+                                            # PHASE 3: Scrypted-style approach
+                                            # 1. Collage: Use buffer frames (fast!)
+                                            # 2. MP4: Extract from continuous recording (high quality, no duplicates!)
+                                            
+                                            # Generate collage from buffer
+                                            from app.workers.media import get_media_worker
+                                            media_worker = get_media_worker()
+                                            
                                             bbox = event_data.get("bbox")
                                             detections_list = []
-                                            for i in range(len(frames)):
-                                                if bbox and i == len(frames) // 2:  # Put detection in middle frame
+                                            for i in range(min(5, len(frames))):  # Collage needs only 5 frames
+                                                if bbox and i == 2:  # Middle frame
                                                     detections_list.append({
                                                         "bbox": bbox,
                                                         "confidence": event_data.get("confidence", 0.0)
@@ -1016,18 +1022,63 @@ class MultiprocessingDetectorWorker:
                                                 else:
                                                     detections_list.append(None)
                                             
-                                            media_urls = media_service.generate_event_media(
-                                                db=db,
-                                                event_id=event.id,
-                                                frames=frames,
-                                                detections=detections_list,
-                                                timestamps=frame_timestamps,
-                                                camera_name=camera_name,
-                                                include_gif=False,
-                                                mp4_real_time=True,  # NORMAL hızda oynat (hızlandırılmış değil!)
-                                            )
+                                            # Collage path
+                                            collage_path = media_service.get_media_path(event.id, "collage")
+                                            collage_url = None
                                             
-                                            logger.info(f"[DEBUG-MEDIA] Media generation completed: event={event.id}, collage={media_urls.get('collage_url') is not None}, mp4={media_urls.get('mp4_url') is not None}")
+                                            try:
+                                                media_worker.create_collage(
+                                                    frames=frames[:5],  # First 5 frames
+                                                    detections=detections_list,
+                                                    timestamps=frame_timestamps[:5] if len(frame_timestamps) >= 5 else frame_timestamps,
+                                                    output_path=collage_path,
+                                                    camera_name=camera_name,
+                                                    timestamp=event.timestamp,
+                                                    confidence=event.confidence,
+                                                )
+                                                collage_url = f"/api/media/{event.id}/collage.jpg"
+                                                logger.info(f"[DEBUG-MEDIA] Collage created from buffer")
+                                            except Exception as e:
+                                                logger.error(f"Failed to create collage: {e}")
+                                            
+                                            # Extract MP4 from continuous recording (Scrypted-style!)
+                                            from app.services.recorder import get_continuous_recorder
+                                            recorder = get_continuous_recorder()
+                                            
+                                            mp4_path = media_service.get_media_path(event.id, "mp4")
+                                            mp4_url = None
+                                            
+                                            try:
+                                                start_dt = datetime.fromtimestamp(start_time)
+                                                end_dt = datetime.fromtimestamp(end_time)
+                                                
+                                                if recorder.extract_clip(camera_id, start_dt, end_dt, mp4_path):
+                                                    mp4_url = f"/api/media/{event.id}/timelapse.mp4"
+                                                    logger.info(f"[DEBUG-MEDIA] MP4 extracted from continuous recording")
+                                                else:
+                                                    logger.warning(f"[DEBUG-MEDIA] MP4 extraction failed, falling back to buffer frames")
+                                                    # Fallback: Use buffer frames
+                                                    media_worker.create_timelapse_mp4(
+                                                        frames=frames,
+                                                        detections=[None] * len(frames),
+                                                        output_path=mp4_path,
+                                                        camera_name=camera_name,
+                                                        timestamp=event.timestamp,
+                                                        timestamps=frame_timestamps,
+                                                        real_time=True,
+                                                    )
+                                                    mp4_url = f"/api/media/{event.id}/timelapse.mp4"
+                                                    logger.info(f"[DEBUG-MEDIA] MP4 created from buffer (fallback)")
+                                            except Exception as e:
+                                                logger.error(f"Failed to create MP4: {e}")
+                                            
+                                            # Update event with media URLs
+                                            if collage_url or mp4_url:
+                                                event.collage_url = collage_url
+                                                event.mp4_url = mp4_url
+                                                db.commit()
+                                            
+                                            logger.info(f"[DEBUG-MEDIA] Media generation completed: event={event.id}, collage={collage_url is not None}, mp4={mp4_url is not None}")
                                         else:
                                             logger.warning(f"[DEBUG-BUFFER] No frames available for event {event.id} (frames_with_ts was empty!)")
                                         
