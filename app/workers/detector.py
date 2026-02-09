@@ -1740,7 +1740,7 @@ class DetectorWorker:
                     mp4_frames=mp4_frames,
                     mp4_detections=mp4_detections,
                     mp4_timestamps=mp4_timestamps,
-                    mp4_real_time=True,
+                    mp4_real_time=False,  # Enable 4x speedup
                 )
                 event = db.query(Event).filter(Event.id == event_id).first()
                 if event:
