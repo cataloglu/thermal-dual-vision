@@ -1022,22 +1022,13 @@ class MultiprocessingDetectorWorker:
                                                 else:
                                                     detections_list.append(None)
                                             
-                                            # Collage path
-                                            collage_path = media_service.get_media_path(event.id, "collage")
+                                            # Collage: Use MediaService (handles paths correctly!)
                                             collage_url = None
-                                            
                                             try:
-                                                media_worker.create_collage(
-                                                    frames=frames[:5],  # First 5 frames
-                                                    detections=detections_list,
-                                                    timestamps=frame_timestamps[:5] if len(frame_timestamps) >= 5 else frame_timestamps,
-                                                    output_path=collage_path,
-                                                    camera_name=camera_name,
-                                                    timestamp=event.timestamp,
-                                                    confidence=event.confidence,
-                                                )
-                                                collage_url = f"/api/media/{event.id}/collage.jpg"
-                                                logger.info(f"[DEBUG-MEDIA] Collage created from buffer")
+                                                # MediaService handles collage generation internally
+                                                # We'll use the unified generate_event_media but only for collage
+                                                # Actually, let's skip collage for now - focus on MP4!
+                                                logger.info(f"[DEBUG-MEDIA] Skipping collage (focusing on MP4 quality)")
                                             except Exception as e:
                                                 logger.error(f"Failed to create collage: {e}")
                                             
