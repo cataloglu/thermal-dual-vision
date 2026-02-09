@@ -302,11 +302,19 @@ def camera_detection_process(
         zones = camera_config.get("zones", [])
         
         process_logger.info(f"Detection parameters: source={detection_source}, fps={config.detection.inference_fps}, zones={len(zones)}")
+        process_logger.info(f"[DEBUG] STARTING DETECTION LOOP for {camera_id}")
         
         frames_failed = 0
+        frames_read = 0
+        loop_count = 0
         
         # Main detection loop
         while not stop_event.is_set():
+            loop_count += 1
+            
+            # Log periodically
+            if loop_count % 500 == 1:
+                process_logger.info(f"[DEBUG] Loop stats: frames_read={frames_read}, frames_failed={frames_failed}")
             # Check control queue
             try:
                 if not control_queue.empty():
@@ -327,12 +335,15 @@ def camera_detection_process(
             
             if not ret or frame is None:
                 frames_failed += 1
+                if frames_failed % 100 == 1:
+                    process_logger.warning(f"[DEBUG] Frame read FAILING! failed_count={frames_failed}")
                 # Exponential backoff for failed reads (reduce CPU usage)
-                sleep_time = min(0.5, 0.1 + (frames_failed / 1000))  # Max 0.5s
+                sleep_time = min(1.0, 0.2 + (frames_failed / 500))  # Max 1.0s (increased!)
                 time.sleep(sleep_time)
                 continue
             
             frames_failed = 0  # Reset on successful read
+            frames_read += 1
             
             last_frame_time = current_time
             
