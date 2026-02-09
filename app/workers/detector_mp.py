@@ -880,10 +880,15 @@ class MultiprocessingDetectorWorker:
                                         
                                         # Collect frames within time range (SORTED by timestamp!)
                                         frames_with_ts = []
+                                        valid_timestamps = 0
                                         for i in range(buffer_size):
                                             ts = timestamps_array[i]
-                                            if ts > 0 and start_time <= ts <= end_time:
-                                                frames_with_ts.append((ts, i, frames_array[i].copy()))
+                                            if ts > 0:
+                                                valid_timestamps += 1
+                                                if start_time <= ts <= end_time:
+                                                    frames_with_ts.append((ts, i, frames_array[i].copy()))
+                                        
+                                        logger.info(f"[DEBUG-BUFFER] Event {event.id}: valid_timestamps={valid_timestamps}, frames_in_range={len(frames_with_ts)}, time_range={start_time:.0f}-{end_time:.0f}, event_time={event_time:.0f}")
                                         
                                         # Sort by timestamp (ascending)
                                         frames_with_ts.sort(key=lambda x: x[0])
@@ -914,7 +919,9 @@ class MultiprocessingDetectorWorker:
                                             camera_name = camera_obj.name if camera_obj else "Camera"
                                             
                                             # Create timestamps list from frames_with_ts
-                                            frame_timestamps = [ts for ts, idx, frame in frames_with_ts]
+                                            frame_timestamps = [ts for ts, idx, frame in frames_with_ts[:len(frames)]]  # Match frames length
+                                            
+                                            logger.info(f"[DEBUG-MEDIA] Generating media: event={event.id}, frames={len(frames)}, timestamps={len(frame_timestamps)}")
                                             
                                             # Generate collage + MP4
                                             media_urls = media_service.generate_event_media(
@@ -927,9 +934,9 @@ class MultiprocessingDetectorWorker:
                                                 include_gif=False,
                                             )
                                             
-                                            logger.info(f"Media generation completed for event {event.id}: collage={media_urls.get('collage_url') is not None}, mp4={media_urls.get('mp4_url') is not None}")
+                                            logger.info(f"[DEBUG-MEDIA] Media generation completed: event={event.id}, collage={media_urls.get('collage_url') is not None}, mp4={media_urls.get('mp4_url') is not None}")
                                         else:
-                                            logger.warning(f"No frames available for event {event.id}")
+                                            logger.warning(f"[DEBUG-BUFFER] No frames available for event {event.id} (frames_with_ts was empty!)")
                                         
                                     except Exception as e:
                                         logger.error(f"Failed to generate media for event {event.id}: {e}")
