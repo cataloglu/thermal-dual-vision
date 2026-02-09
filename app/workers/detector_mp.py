@@ -770,13 +770,13 @@ class MultiprocessingDetectorWorker:
             from app.services.websocket import get_websocket_manager
             from app.services.mqtt import get_mqtt_service
             from app.services.ai import get_ai_service
-            from app.workers.media import get_media_worker
+            from app.services.media import get_media_service
             
             event_service = get_event_service()
             websocket_manager = get_websocket_manager()
             mqtt_service = get_mqtt_service()
             ai_service = get_ai_service()
-            media_worker = get_media_worker()
+            media_service = get_media_service()
             
             db = next(get_session())
             
@@ -908,14 +908,28 @@ class MultiprocessingDetectorWorker:
                                         shm_ts.close()
                                         
                                         # Generate media (collage + MP4)
-                                        media_worker.generate_collage_and_video(
-                                            event_id=event.id,
-                                            camera_id=camera_id,
-                                            frames=frames,
-                                            detections=[event_data.get("bbox")],  # Best detection bbox
-                                        )
-                                        
-                                        logger.info(f"Media generation queued for event {event.id}: {len(frames)} frames")
+                                        if len(frames) > 0:
+                                            # Get camera for name
+                                            camera_obj = db.query(Camera).filter(Camera.id == camera_id).first()
+                                            camera_name = camera_obj.name if camera_obj else "Camera"
+                                            
+                                            # Create timestamps list from frames_with_ts
+                                            frame_timestamps = [ts for ts, idx, frame in frames_with_ts]
+                                            
+                                            # Generate collage + MP4
+                                            media_urls = media_service.generate_event_media(
+                                                db=db,
+                                                event_id=event.id,
+                                                frames=frames,
+                                                detections=[event_data.get("bbox")] * len(frames),  # Repeat bbox for each frame
+                                                timestamps=frame_timestamps,
+                                                camera_name=camera_name,
+                                                include_gif=False,
+                                            )
+                                            
+                                            logger.info(f"Media generation completed for event {event.id}: collage={media_urls.get('collage_url') is not None}, mp4={media_urls.get('mp4_url') is not None}")
+                                        else:
+                                            logger.warning(f"No frames available for event {event.id}")
                                         
                                     except Exception as e:
                                         logger.error(f"Failed to generate media for event {event.id}: {e}")
