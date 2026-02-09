@@ -360,7 +360,8 @@ def camera_detection_process(
                     
                     # Write frame AND timestamp
                     frame_buffer['frames'][write_idx] = frame_resized
-                    frame_buffer['timestamps'][write_idx] = current_time
+                    # Use time.time() for consistency
+                    frame_buffer['timestamps'][write_idx] = time.time()
                     
                     setattr(camera_detection_process, f'_write_idx_{camera_id}', (write_idx + 1) % frame_buffer['buffer_size'])
                 except Exception as e:
@@ -871,12 +872,21 @@ class MultiprocessingDetectorWorker:
                                         # FIXED: Use event's ACTUAL timestamp (not current time!)
                                         event_timestamp_str = event_data.get("timestamp")
                                         if event_timestamp_str:
-                                            # Parse ISO timestamp
-                                            event_dt = datetime.fromisoformat(event_timestamp_str.replace("Z", "+00:00"))
-                                            event_time = event_dt.timestamp()
+                                            # Parse ISO timestamp as UTC, convert to epoch timestamp
+                                            # CRITICAL: Use strptime with explicit UTC to avoid timezone issues!
+                                            try:
+                                                # Remove 'Z' and parse as UTC
+                                                event_dt = datetime.strptime(event_timestamp_str.replace("Z", ""), "%Y-%m-%dT%H:%M:%S.%f")
+                                                # Convert UTC datetime to epoch timestamp
+                                                import calendar
+                                                event_time = calendar.timegm(event_dt.timetuple()) + event_dt.microsecond / 1e6
+                                            except:
+                                                # Fallback to simpler format (no microseconds)
+                                                event_dt = datetime.strptime(event_timestamp_str.replace("Z", ""), "%Y-%m-%dT%H:%M:%S")
+                                                event_time = calendar.timegm(event_dt.timetuple())
                                         else:
                                             # Fallback to current time (should not happen)
-                                            event_time = datetime.utcnow().timestamp()
+                                            event_time = time.time()
                                         
                                         # Get desired time range
                                         prebuffer_seconds = config.event.prebuffer_seconds
