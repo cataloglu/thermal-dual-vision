@@ -223,19 +223,9 @@ ai_service = get_ai_service()
 media_service = get_media_service()
 retention_worker = get_retention_worker()
 
-# Select detector worker based on config
-try:
-    config = settings_service.load_config()
-    worker_mode = getattr(config.performance, 'worker_mode', 'threading') if hasattr(config, 'performance') else 'threading'
-    if worker_mode == 'multiprocessing':
-        detector_worker = get_mp_detector_worker()
-        logger.info("Using multiprocessing detector worker")
-    else:
-        detector_worker = get_detector_worker()
-        logger.info("Using threading detector worker")
-except Exception:
-    detector_worker = get_detector_worker()
-    logger.info("Using threading detector worker (default)")
+# FORCE threading mode (multiprocessing has issues with real cameras)
+detector_worker = get_detector_worker()
+logger.info("Using threading detector worker (FORCED - stable)")
 
 websocket_manager = get_websocket_manager()
 telegram_service = get_telegram_service()
