@@ -981,6 +981,7 @@ class MultiprocessingDetectorWorker:
                                                 timestamps=frame_timestamps,
                                                 camera_name=camera_name,
                                                 include_gif=False,
+                                                mp4_real_time=True,  # NORMAL hızda oynat (hızlandırılmış değil!)
                                             )
                                             
                                             logger.info(f"[DEBUG-MEDIA] Media generation completed: event={event.id}, collage={media_urls.get('collage_url') is not None}, mp4={media_urls.get('mp4_url') is not None}")
