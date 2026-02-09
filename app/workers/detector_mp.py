@@ -275,16 +275,28 @@ def camera_detection_process(
         import os
         os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = 'rtsp_transport;tcp'
         
+        process_logger.info(f"[DEBUG-RTSP] Opening camera {camera_id[:8]}... URL={rtsp_url[:30]}...")
+        
         cap = cv2.VideoCapture(rtsp_url, cv2.CAP_FFMPEG)
         
+        # Check if opened
+        is_opened = cap.isOpened() if cap else False
+        process_logger.info(f"[DEBUG-RTSP] VideoCapture created, isOpened={is_opened}")
+        
         # Also set TCP transport via CAP_PROP
-        if cap and cap.isOpened():
+        if cap and is_opened:
             # Force TCP transport
             cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 10000)  # 10s timeout
             cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, 10000)  # 10s timeout
+            
+            # Get stream info
+            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            fps = cap.get(cv2.CAP_PROP_FPS)
+            process_logger.info(f"[DEBUG-RTSP] Stream info: {width}x{height} @ {fps} FPS")
         
-        if not cap or not cap.isOpened():
-            process_logger.error(f"Failed to open camera {camera_id} - EXITING to prevent CPU waste")
+        if not cap or not is_opened:
+            process_logger.error(f"[DEBUG-RTSP] Failed to open camera {camera_id} - URL: {rtsp_url}")
             # Sleep before exiting to avoid rapid restarts
             time.sleep(60)
             return
