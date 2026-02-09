@@ -100,6 +100,14 @@ class RetentionWorker:
                     if deleted_by_disk > 0:
                         logger.info(f"Cleaned up {deleted_by_disk} events by disk limit")
                     
+                    # Cleanup continuous recordings (Scrypted-style retention)
+                    try:
+                        from app.services.recorder import get_continuous_recorder
+                        recorder = get_continuous_recorder()
+                        recorder.cleanup_old_recordings(max_age_days=config.event.recording_retention_days)
+                    except Exception as e:
+                        logger.error(f"Failed to cleanup recordings: {e}")
+                    
                 finally:
                     db.close()
                 

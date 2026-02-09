@@ -306,6 +306,14 @@ class EventConfig(BaseModel):
         ge=1,
         description="Frame buffer size for collage generation"
     )
+    
+    # Continuous recording retention (Scrypted-style)
+    recording_retention_days: int = Field(
+        default=7,
+        ge=1,
+        le=30,
+        description="Days to keep continuous recordings before deletion"
+    )
     frame_interval: int = Field(
         default=2,
         ge=1,
