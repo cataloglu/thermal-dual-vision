@@ -295,7 +295,7 @@ def camera_detection_process(
         
         # #region agent log - H6: Loop entry
         import json
-        log_path = r"c:\Users\Administrator\OneDrive\Desktop\Thermal Kamera Projesi\thermal-dual-vision\.cursor\debug.log"
+        log_path = "/app/data/debug_multiprocessing.log"  # Docker writable path
         with open(log_path, 'a') as f:
             f.write(json.dumps({
                 "location": "detector_mp.py:detection_loop_start",
