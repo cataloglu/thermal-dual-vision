@@ -386,46 +386,28 @@ def camera_detection_process(
                 height = int(frame.shape[0] * 1280 / frame.shape[1])
                 frame = cv2.resize(frame, (1280, height))
             
-            # Write frame to shared buffer ONLY if significantly different (prevent duplicates!)
+            # Write EVERY frame to shared buffer (NO duplicate prevention!)
             if frame_buffer:
                 try:
-                    # Check if this frame is significantly different from last buffered frame
-                    if not hasattr(camera_detection_process, f'_last_buffered_frame_{camera_id}'):
-                        setattr(camera_detection_process, f'_last_buffered_frame_{camera_id}', None)
+                    # Resize to buffer shape if needed
+                    buffer_shape = frame_buffer['frame_shape']
+                    if frame.shape != buffer_shape:
+                        frame_resized = cv2.resize(frame, (buffer_shape[1], buffer_shape[0]))
+                    else:
+                        frame_resized = frame
                     
-                    last_buffered = getattr(camera_detection_process, f'_last_buffered_frame_{camera_id}')
-                    should_buffer = True
+                    # Write to circular buffer
+                    if not hasattr(camera_detection_process, f'_write_idx_{camera_id}'):
+                        setattr(camera_detection_process, f'_write_idx_{camera_id}', 0)
                     
-                    if last_buffered is not None:
-                        # Calculate difference
-                        diff = cv2.absdiff(frame, last_buffered)
-                        mean_diff = diff.mean()
-                        
-                        # Only buffer if mean difference > 2.0 (significantly different)
-                        if mean_diff < 2.0:
-                            should_buffer = False
+                    write_idx = getattr(camera_detection_process, f'_write_idx_{camera_id}')
                     
-                    if should_buffer:
-                        # Resize to buffer shape if needed
-                        buffer_shape = frame_buffer['frame_shape']
-                        if frame.shape != buffer_shape:
-                            frame_resized = cv2.resize(frame, (buffer_shape[1], buffer_shape[0]))
-                        else:
-                            frame_resized = frame
-                        
-                        # Write to circular buffer
-                        if not hasattr(camera_detection_process, f'_write_idx_{camera_id}'):
-                            setattr(camera_detection_process, f'_write_idx_{camera_id}', 0)
-                        
-                        write_idx = getattr(camera_detection_process, f'_write_idx_{camera_id}')
-                        
-                        # Write frame AND timestamp
-                        frame_buffer['frames'][write_idx] = frame_resized
-                        frame_buffer['timestamps'][write_idx] = time.time()
-                        
-                        setattr(camera_detection_process, f'_write_idx_{camera_id}', (write_idx + 1) % frame_buffer['buffer_size'])
-                        setattr(camera_detection_process, f'_last_buffered_frame_{camera_id}', frame.copy())
-                        
+                    # Write frame AND timestamp
+                    frame_buffer['frames'][write_idx] = frame_resized
+                    frame_buffer['timestamps'][write_idx] = time.time()
+                    
+                    setattr(camera_detection_process, f'_write_idx_{camera_id}', (write_idx + 1) % frame_buffer['buffer_size'])
+                    
                 except Exception as e:
                     process_logger.debug(f"Frame buffer write error: {e}")
             
