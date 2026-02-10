@@ -156,6 +156,7 @@ async def lifespan(app: FastAPI):
     logger.info("Detector worker started")
     
     # Start continuous recording for all enabled cameras (Scrypted-style)
+    continuous_recorder.start()  # Start health monitor thread
     db = next(get_session())
     try:
         cameras = camera_crud_service.get_cameras(db)
@@ -191,8 +192,7 @@ async def lifespan(app: FastAPI):
         logger.info("Detector worker stopped")
         
         # Stop continuous recording for all cameras
-        for camera_id in list(continuous_recorder.processes.keys()):
-            continuous_recorder.stop_recording(camera_id)
+        continuous_recorder.stop()
         logger.info("Continuous recording stopped")
 
         # Stop retention worker
@@ -1808,7 +1808,7 @@ async def get_recording_status(camera_id: str, db: Session = Depends(get_session
                 "message": f"Camera not found: {camera_id}",
             },
         )
-    recording = recording_state_service.get_state(db, camera_id)
+    recording = continuous_recorder.is_recording(camera_id)
     return {"camera_id": camera_id, "recording": recording}
 
 
@@ -1824,8 +1824,19 @@ async def start_recording(camera_id: str, db: Session = Depends(get_session)) ->
                 "message": f"Camera not found: {camera_id}",
             },
         )
-    recording_state_service.set_state(db, camera_id, True)
-    return {"camera_id": camera_id, "recording": True}
+    rtsp_url = camera.rtsp_url or camera.rtsp_url_thermal or camera.rtsp_url_color
+    if not rtsp_url:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": True,
+                "code": "NO_RTSP_URL",
+                "message": "Camera has no RTSP URL configured",
+            },
+        )
+    ok = continuous_recorder.start_recording(camera_id, rtsp_url)
+    recording_state_service.set_state(db, camera_id, ok)
+    return {"camera_id": camera_id, "recording": ok}
 
 
 @app.post("/api/cameras/{camera_id}/record/stop")
@@ -1840,6 +1851,7 @@ async def stop_recording(camera_id: str, db: Session = Depends(get_session)) -> 
                 "message": f"Camera not found: {camera_id}",
             },
         )
+    continuous_recorder.stop_recording(camera_id)
     recording_state_service.set_state(db, camera_id, False)
     return {"camera_id": camera_id, "recording": False}
 

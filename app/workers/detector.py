@@ -32,7 +32,6 @@ from app.services.events import get_event_service
 from app.services.ai import get_ai_service
 from app.services.inference import get_inference_service
 from app.services.media import get_media_service
-from app.services.motion import get_motion_service
 from app.services.settings import get_settings_service
 from app.services.telegram import get_telegram_service
 from app.services.time_utils import get_detection_source
@@ -65,7 +64,6 @@ class DetectorWorker:
         self.ai_service = get_ai_service()
         self.settings_service = get_settings_service()
         self.media_service = get_media_service()
-        self.motion_service = get_motion_service()
         self.websocket_manager = get_websocket_manager()
         self.telegram_service = get_telegram_service()
         self.mqtt_service = get_mqtt_service()
@@ -585,6 +583,8 @@ class DetectorWorker:
 
                 with frame_lock:
                     frame = latest_frame["frame"]
+                    if frame is not None:
+                        frame = frame.copy()
                 if frame is None:
                     self._update_camera_status(camera_id, CameraStatus.RETRYING, None)
                     time.sleep(0.2)
@@ -1573,7 +1573,7 @@ class DetectorWorker:
     def _get_camera_zones(self, camera: Camera) -> List[Dict[str, Any]]:
         cache = self.zone_cache[camera.id]
         now = time.time()
-        if cache and now - cache.get("loaded_at", 0.0) < 5.0:
+        if cache and now - cache.get("loaded_at", 0.0) < 30.0:
             return cache.get("zones", [])
 
         db = next(get_session())

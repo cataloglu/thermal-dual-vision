@@ -5,113 +5,184 @@ Records camera streams 24/7 to disk using FFmpeg.
 Event clips are extracted from continuous recordings.
 """
 import logging
+import shutil
 import subprocess
+import tempfile
+import threading
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, List, Optional, Tuple
 
 from app.utils.paths import DATA_DIR
 
 
 logger = logging.getLogger(__name__)
 
+SEGMENT_DURATION = 60  # seconds per segment
+
 
 class ContinuousRecorder:
     """
     Continuous recording service for cameras.
-    
+
     Uses FFmpeg to record camera streams directly to disk without re-encoding.
     Segments recordings into 60-second chunks for efficient storage and retrieval.
     """
-    
+
     def __init__(self):
-        """Initialize continuous recorder."""
         self.recording_dir = DATA_DIR / "recordings"
         self.recording_dir.mkdir(parents=True, exist_ok=True)
-        
+
         self.processes: Dict[str, subprocess.Popen] = {}
+        self.rtsp_urls: Dict[str, str] = {}
         self.running = False
-        
-        logger.info(f"ContinuousRecorder initialized - recordings dir: {self.recording_dir}")
-    
+        self._monitor_thread: Optional[threading.Thread] = None
+
+        logger.info("ContinuousRecorder initialized - dir: %s", self.recording_dir)
+
+    # ------------------------------------------------------------------
+    # Lifecycle
+    # ------------------------------------------------------------------
+
+    def start(self) -> None:
+        """Start the health-monitor background thread."""
+        if self.running:
+            return
+        self.running = True
+        self._monitor_thread = threading.Thread(
+            target=self._monitor_loop,
+            daemon=True,
+            name="recorder-monitor",
+        )
+        self._monitor_thread.start()
+        logger.info("Recorder health monitor started")
+
+    def stop(self) -> None:
+        """Stop all recordings and the monitor thread."""
+        self.running = False
+        for camera_id in list(self.processes.keys()):
+            self.stop_recording(camera_id)
+        if self._monitor_thread:
+            self._monitor_thread.join(timeout=5)
+        logger.info("ContinuousRecorder stopped")
+
+    # ------------------------------------------------------------------
+    # Recording control
+    # ------------------------------------------------------------------
+
     def start_recording(self, camera_id: str, rtsp_url: str) -> bool:
-        """
-        Start continuous recording for a camera.
-        
-        Args:
-            camera_id: Camera identifier
-            rtsp_url: RTSP stream URL
-            
-        Returns:
-            True if started successfully
-        """
         if camera_id in self.processes:
-            logger.warning(f"Recording already running for camera {camera_id}")
-            return False
-        
-        # Create camera recording directory
+            proc = self.processes[camera_id]
+            if proc.poll() is None:
+                logger.debug("Recording already running for camera %s", camera_id)
+                return True
+            # Process died, clean up and restart
+            self._cleanup_process(camera_id)
+
         camera_dir = self.recording_dir / camera_id
         camera_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Output pattern: YYYYMMDD_HHMMSS.mp4
+
         output_pattern = str(camera_dir / "%Y%m%d_%H%M%S.mp4")
-        
-        # FFmpeg command: continuous recording with segmentation
+
+        ffmpeg = shutil.which("ffmpeg")
+        if not ffmpeg:
+            logger.error("ffmpeg not found on PATH")
+            return False
+
         cmd = [
-            "ffmpeg",
-            "-rtsp_transport", "tcp",  # Use TCP for reliability
+            ffmpeg,
+            "-hide_banner",
+            "-loglevel", "error",
+            "-rtsp_transport", "tcp",
             "-i", rtsp_url,
-            "-c", "copy",  # NO re-encoding! Direct copy
-            "-f", "segment",  # Segment output
-            "-segment_time", "60",  # 60 second segments
+            "-c", "copy",
+            "-f", "segment",
+            "-segment_time", str(SEGMENT_DURATION),
             "-segment_format", "mp4",
-            "-reset_timestamps", "1",  # Reset timestamps per segment
-            "-strftime", "1",  # Enable strftime in output
+            "-reset_timestamps", "1",
+            "-strftime", "1",
             output_pattern,
-            "-loglevel", "error",  # Only show errors
         ]
-        
+
         try:
-            # Start FFmpeg process
             process = subprocess.Popen(
                 cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
                 stdin=subprocess.DEVNULL,
             )
-            
             self.processes[camera_id] = process
-            logger.info(f"Started continuous recording for camera {camera_id} (PID: {process.pid})")
+            self.rtsp_urls[camera_id] = rtsp_url
+            logger.info(
+                "Started continuous recording for camera %s (PID: %s)",
+                camera_id,
+                process.pid,
+            )
             return True
-            
         except Exception as e:
-            logger.error(f"Failed to start recording for camera {camera_id}: {e}")
+            logger.error("Failed to start recording for camera %s: %s", camera_id, e)
             return False
-    
+
     def stop_recording(self, camera_id: str) -> None:
-        """
-        Stop continuous recording for a camera.
-        
-        Args:
-            camera_id: Camera identifier
-        """
         process = self.processes.pop(camera_id, None)
+        self.rtsp_urls.pop(camera_id, None)
         if not process:
-            logger.warning(f"No recording process for camera {camera_id}")
             return
-        
         try:
-            process.terminate()
-            process.wait(timeout=5)
-            logger.info(f"Stopped continuous recording for camera {camera_id}")
-        except Exception as e:
-            logger.error(f"Failed to stop recording for camera {camera_id}: {e}")
+            if process.poll() is None:
+                process.terminate()
+                process.wait(timeout=5)
+        except Exception:
             try:
                 process.kill()
-            except:
+            except Exception:
                 pass
-    
+        logger.info("Stopped continuous recording for camera %s", camera_id)
+
+    def is_recording(self, camera_id: str) -> bool:
+        proc = self.processes.get(camera_id)
+        return proc is not None and proc.poll() is None
+
+    # ------------------------------------------------------------------
+    # Health monitor — restart crashed FFmpeg processes
+    # ------------------------------------------------------------------
+
+    def _monitor_loop(self) -> None:
+        while self.running:
+            try:
+                for camera_id in list(self.processes.keys()):
+                    proc = self.processes.get(camera_id)
+                    if proc is None:
+                        continue
+                    if proc.poll() is not None:
+                        url = self.rtsp_urls.get(camera_id)
+                        if url:
+                            logger.warning(
+                                "Recording process died for camera %s (rc=%s), restarting",
+                                camera_id,
+                                proc.returncode,
+                            )
+                            self._cleanup_process(camera_id)
+                            self.start_recording(camera_id, url)
+                        else:
+                            self._cleanup_process(camera_id)
+            except Exception as e:
+                logger.error("Recorder monitor error: %s", e)
+            time.sleep(10)
+
+    def _cleanup_process(self, camera_id: str) -> None:
+        proc = self.processes.pop(camera_id, None)
+        if proc and proc.poll() is None:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+
+    # ------------------------------------------------------------------
+    # Clip extraction
+    # ------------------------------------------------------------------
+
     def extract_clip(
         self,
         camera_id: str,
@@ -119,121 +190,190 @@ class ContinuousRecorder:
         end_time: datetime,
         output_path: str,
     ) -> bool:
-        """
-        Extract event clip from continuous recording.
-        
-        Args:
-            camera_id: Camera identifier
-            start_time: Clip start time
-            end_time: Clip end time
-            output_path: Output MP4 path
-            
-        Returns:
-            True if extracted successfully
-        """
         camera_dir = self.recording_dir / camera_id
-        
         if not camera_dir.exists():
-            logger.error(f"No recordings found for camera {camera_id}")
+            logger.error("No recordings found for camera %s", camera_id)
             return False
-        
-        # Find relevant recording files (by timestamp)
-        recording_files = self._find_recordings_in_range(camera_id, start_time, end_time)
-        
-        if not recording_files:
-            logger.warning(f"No recordings found for time range: {start_time} - {end_time}")
+
+        files = self._find_recordings_in_range(camera_id, start_time, end_time)
+        if not files:
+            logger.warning("No recordings for range %s - %s", start_time, end_time)
             return False
-        
-        # If multiple segments, concatenate first
-        if len(recording_files) > 1:
-            # TODO: Implement multi-file concatenation
-            logger.warning("Multi-segment extraction not yet implemented, using first file")
-            input_file = recording_files[0]
+
+        ffmpeg = shutil.which("ffmpeg")
+        if not ffmpeg:
+            logger.error("ffmpeg not found on PATH")
+            return False
+
+        if len(files) == 1:
+            return self._extract_single(
+                ffmpeg, files[0], start_time, end_time, output_path
+            )
+        return self._extract_multi(
+            ffmpeg, files, start_time, end_time, output_path
+        )
+
+    def _extract_single(
+        self,
+        ffmpeg: str,
+        recording: Path,
+        start_time: datetime,
+        end_time: datetime,
+        output_path: str,
+    ) -> bool:
+        file_start = self._parse_filename_timestamp(recording)
+        if file_start is None:
+            offset = 0.0
         else:
-            input_file = recording_files[0]
-        
-        # Calculate time offset within the recording file
-        # (Simplified: assume start_time is file start)
+            offset = max(0.0, (start_time - file_start).total_seconds())
+
         duration = (end_time - start_time).total_seconds()
-        
-        # Extract clip with FFmpeg
+
         cmd = [
-            "ffmpeg",
-            "-i", str(input_file),
-            "-t", str(duration),  # Duration
-            "-c", "copy",  # NO re-encoding!
-            "-y",  # Overwrite output
-            output_path,
-            "-loglevel", "error",
+            ffmpeg, "-hide_banner", "-loglevel", "error",
+            "-ss", f"{offset:.2f}",
+            "-i", str(recording),
+            "-t", f"{duration:.2f}",
+            "-c", "copy",
+            "-movflags", "+faststart",
+            "-y", output_path,
         ]
-        
         try:
             result = subprocess.run(cmd, capture_output=True, timeout=30)
-            
             if result.returncode == 0:
-                logger.info(f"Extracted clip: {output_path}")
+                logger.info("Extracted clip: %s", output_path)
                 return True
-            else:
-                logger.error(f"FFmpeg extraction failed: {result.stderr.decode()}")
-                return False
-                
-        except Exception as e:
-            logger.error(f"Failed to extract clip: {e}")
+            logger.error(
+                "FFmpeg extraction failed (rc=%s): %s",
+                result.returncode,
+                result.stderr.decode(errors="ignore")[:300],
+            )
             return False
-    
+        except Exception as e:
+            logger.error("Failed to extract clip: %s", e)
+            return False
+
+    def _extract_multi(
+        self,
+        ffmpeg: str,
+        files: List[Path],
+        start_time: datetime,
+        end_time: datetime,
+        output_path: str,
+    ) -> bool:
+        """Extract clip spanning multiple segment files using concat demuxer."""
+        concat_fd = None
+        concat_path = None
+        try:
+            concat_fd, concat_path = tempfile.mkstemp(suffix=".txt", prefix="concat_")
+            with open(concat_fd, "w", encoding="utf-8") as f:
+                for fp in files:
+                    escaped = str(fp).replace("'", "'\\''")
+                    f.write(f"file '{escaped}'\n")
+            concat_fd = None  # ownership transferred
+
+            # Calculate global offset from first file
+            first_start = self._parse_filename_timestamp(files[0])
+            if first_start is None:
+                offset = 0.0
+            else:
+                offset = max(0.0, (start_time - first_start).total_seconds())
+
+            duration = (end_time - start_time).total_seconds()
+
+            cmd = [
+                ffmpeg, "-hide_banner", "-loglevel", "error",
+                "-f", "concat", "-safe", "0",
+                "-i", concat_path,
+                "-ss", f"{offset:.2f}",
+                "-t", f"{duration:.2f}",
+                "-c", "copy",
+                "-movflags", "+faststart",
+                "-y", output_path,
+            ]
+            result = subprocess.run(cmd, capture_output=True, timeout=60)
+            if result.returncode == 0:
+                logger.info("Extracted multi-segment clip: %s", output_path)
+                return True
+            logger.error(
+                "FFmpeg concat extraction failed: %s",
+                result.stderr.decode(errors="ignore")[:300],
+            )
+            return False
+        except Exception as e:
+            logger.error("Multi-segment extraction error: %s", e)
+            return False
+        finally:
+            if concat_path:
+                try:
+                    Path(concat_path).unlink(missing_ok=True)
+                except Exception:
+                    pass
+
+    # ------------------------------------------------------------------
+    # File lookup helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _parse_filename_timestamp(path: Path) -> Optional[datetime]:
+        """Parse YYYYMMDD_HHMMSS from filename."""
+        try:
+            stem = path.stem  # e.g. "20260210_143022"
+            return datetime.strptime(stem, "%Y%m%d_%H%M%S")
+        except (ValueError, AttributeError):
+            return None
+
     def _find_recordings_in_range(
         self,
         camera_id: str,
         start_time: datetime,
         end_time: datetime,
-    ) -> list:
-        """
-        Find recording files that overlap with time range.
-        
-        Args:
-            camera_id: Camera identifier
-            start_time: Range start
-            end_time: Range end
-            
-        Returns:
-            List of recording file paths
-        """
+    ) -> List[Path]:
         camera_dir = self.recording_dir / camera_id
-        
         if not camera_dir.exists():
             return []
-        
-        # Get all MP4 files
-        files = sorted(camera_dir.glob("*.mp4"))
-        
-        # TODO: Parse timestamps from filenames and filter by range
-        # For now, return last 3 files (covers ~3 minutes)
-        return files[-3:] if len(files) >= 3 else files
-    
+
+        segment_len = timedelta(seconds=SEGMENT_DURATION)
+        matched: List[Path] = []
+
+        for mp4 in sorted(camera_dir.glob("*.mp4")):
+            file_start = self._parse_filename_timestamp(mp4)
+            if file_start is None:
+                continue
+            file_end = file_start + segment_len
+            # Check overlap: file range intersects query range
+            if file_start <= end_time and file_end >= start_time:
+                matched.append(mp4)
+
+        return matched
+
+    # ------------------------------------------------------------------
+    # Cleanup
+    # ------------------------------------------------------------------
+
     def cleanup_old_recordings(self, max_age_days: int = 7) -> None:
-        """
-        Delete recordings older than max_age_days.
-        
-        Args:
-            max_age_days: Maximum recording age in days
-        """
         cutoff_time = time.time() - (max_age_days * 86400)
         deleted_count = 0
-        
+
         for camera_dir in self.recording_dir.iterdir():
             if not camera_dir.is_dir():
                 continue
-            
             for recording_file in camera_dir.glob("*.mp4"):
                 if recording_file.stat().st_mtime < cutoff_time:
                     try:
                         recording_file.unlink()
                         deleted_count += 1
                     except Exception as e:
-                        logger.error(f"Failed to delete {recording_file}: {e}")
-        
+                        logger.error("Failed to delete %s: %s", recording_file, e)
+            # Remove empty camera dirs
+            try:
+                if camera_dir.exists() and not any(camera_dir.iterdir()):
+                    camera_dir.rmdir()
+            except Exception:
+                pass
+
         if deleted_count > 0:
-            logger.info(f"Deleted {deleted_count} old recording files")
+            logger.info("Deleted %d old recording files", deleted_count)
 
 
 # Global singleton
@@ -241,12 +381,6 @@ _recorder: Optional[ContinuousRecorder] = None
 
 
 def get_continuous_recorder() -> ContinuousRecorder:
-    """
-    Get or create the global continuous recorder instance.
-    
-    Returns:
-        ContinuousRecorder: Global instance
-    """
     global _recorder
     if _recorder is None:
         _recorder = ContinuousRecorder()
