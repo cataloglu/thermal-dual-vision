@@ -23,7 +23,7 @@ import type { Settings as SettingsType } from '../types/api';
 export const Settings: React.FC = () => {
   const { t } = useTranslation();
   const { settings, loading, error, saveSettings } = useSettings();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const defaultTab = (searchParams.get('tab') as TabId) || 'cameras';
   const [activeTab, setActiveTab] = useState<TabId>(defaultTab);
   const [localSettings, setLocalSettings] = useState<SettingsType | null>(null);
@@ -157,6 +157,7 @@ export const Settings: React.FC = () => {
           config={localSettings.record}
           onChange={(record) => updateLocalSettings({ ...localSettings, record })}
           onSave={handleSave}
+          onNavigateToMedia={() => setSearchParams({ tab: 'media' })}
         />
       )
     }

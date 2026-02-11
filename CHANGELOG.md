@@ -6,6 +6,19 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [2.3.0] - 2026-02-11
+
+### Değişenler
+
+- **MP4 fallback:** Kayıt yoksa frame-based MP4 üretiliyor (video her zaman oluşur).
+- **Recording tab:** Gereksiz ayarlar kaldırıldı; saklama Medya sekmesinde.
+
+### Düzeltmeler
+
+- Event video "No data" hatası düzeltildi (MP4 fallback geri eklendi).
+
+---
+
 ## [2.2.0] - 2026-02-10
 
 ### Değişenler
@@ -55,6 +68,7 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+[2.3.0]: https://github.com/cataloglu/thermal-dual-vision/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/cataloglu/thermal-dual-vision/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/cataloglu/thermal-dual-vision/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/cataloglu/thermal-dual-vision/releases/tag/v2.0.0
