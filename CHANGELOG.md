@@ -6,6 +6,20 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [2.2.0] - 2026-02-10
+
+### Değişenler
+
+- **Kayıt buffer:** Sürekli kayıt 7 gün yerine sabit 1 saatlik rolling buffer; her kamera son 1 saati tutar, en eskisi üzerine yazılır.
+- **Event retention:** Event saklama süresi seçmeli (Sınırsız, 1-365 gün); Medya sekmesinde dropdown.
+- **Event MP4:** MP4 yalnızca kaydedilen videodan oluşturulur; frame-based fallback kaldırıldı (frame tekrarı önlendi).
+
+### Düzeltmeler
+
+- `_select_indices` / `_select_indices_by_time`: frame tekrarı engellendi.
+
+---
+
 ## [2.1.0] - 2026-02-10
 
 ### Eklenenler
@@ -41,5 +55,6 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+[2.2.0]: https://github.com/cataloglu/thermal-dual-vision/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/cataloglu/thermal-dual-vision/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/cataloglu/thermal-dual-vision/releases/tag/v2.0.0

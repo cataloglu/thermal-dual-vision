@@ -28,14 +28,21 @@ export const MediaTab: React.FC<MediaTabProps> = ({ config, onChange, onSave }) 
           <label className="block text-sm font-medium text-text mb-2">
             {t('mediaRetentionLabel')}
           </label>
-          <input
-            type="number"
-            min="1"
-            max="365"
+          <select
             value={config.retention_days}
-            onChange={(e) => onChange({ ...config, retention_days: parseInt(e.target.value) || 30 })}
+            onChange={(e) => onChange({ ...config, retention_days: parseInt(e.target.value) })}
             className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
-          />
+          >
+            <option value={0}>{t('mediaRetentionUnlimited')}</option>
+            <option value={1}>{t('mediaRetention1Day')}</option>
+            <option value={3}>{t('mediaRetention3Days')}</option>
+            <option value={5}>{t('mediaRetention5Days')}</option>
+            <option value={7}>{t('mediaRetention7Days')}</option>
+            <option value={14}>{t('mediaRetention14Days')}</option>
+            <option value={30}>{t('mediaRetention30Days')}</option>
+            <option value={90}>{t('mediaRetention90Days')}</option>
+            <option value={365}>{t('mediaRetention365Days')}</option>
+          </select>
           <p className="text-xs text-muted mt-1">
             {t('mediaRetentionHint')}
           </p>

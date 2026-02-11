@@ -202,7 +202,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Smart Motion Detector API",
-    version="2.1.0",
+    version="2.2.0",
     description="Person detection with thermal/color camera support",
     lifespan=lifespan,
 )
@@ -383,7 +383,7 @@ async def health():
 
     return {
         "status": "ok" if pipeline_status == "ok" else "degraded",
-        "version": "2.1.0",
+        "version": "2.2.0",
         "uptime_s": uptime_s,
         "ai": {"enabled": ai_enabled, "reason": ai_reason},
         "cameras": {"online": online, "retrying": retrying, "down": down},

@@ -85,7 +85,7 @@ class MediaService:
         gif_path = str(event_dir / "preview.gif")
         mp4_path = str(event_dir / "timelapse.mp4")
         
-        # Try MP4 from continuous recording first (Scrypted-style)
+        # MP4 only from continuous recording (no frame-based fallback - avoids frame repetition)
         mp4_from_recording = False
         try:
             config = get_settings_service().load_config()
@@ -97,14 +97,19 @@ class MediaService:
             if recorder.extract_clip(event.camera_id, start_time, end_time, mp4_path):
                 mp4_from_recording = True
                 logger.debug("Event %s MP4 from continuous recording", event_id)
+            else:
+                logger.warning(
+                    "Event %s: no MP4 (recording unavailable for camera %s in range %s–%s)",
+                    event_id,
+                    event.camera_id,
+                    start_time,
+                    end_time,
+                )
         except Exception as e:
-            logger.debug("Clip from continuous recording failed for %s: %s", event_id, e)
-        
-        # Generate media in parallel (collage always; mp4 from frames if not from recording)
-        mp4_source_frames = mp4_frames if mp4_frames else frames
-        mp4_source_detections = mp4_detections if mp4_detections is not None else detections
-        mp4_source_timestamps = mp4_timestamps if mp4_timestamps is not None else timestamps
-        worker_count = 1 + (0 if mp4_from_recording else 1) + (1 if include_gif else 0)
+            logger.warning("Clip from continuous recording failed for %s: %s", event_id, e)
+
+        # Generate media in parallel (collage always; mp4 only from recording above)
+        worker_count = 1 + (1 if include_gif else 0)
         errors: List[Exception] = []
         with ThreadPoolExecutor(max_workers=max(1, worker_count)) as executor:
             tasks: List[tuple] = [
@@ -119,20 +124,6 @@ class MediaService:
                     event.confidence,
                 )),
             ]
-            if not mp4_from_recording:
-                tasks.append((
-                    "mp4",
-                    executor.submit(
-                        self.media_worker.create_timelapse_mp4,
-                        mp4_source_frames,
-                        mp4_source_detections,
-                        mp4_path,
-                        camera_name,
-                        event.timestamp,
-                        mp4_source_timestamps,
-                        mp4_real_time,
-                    ),
-                ))
             if include_gif:
                 tasks.append((
                     "gif",

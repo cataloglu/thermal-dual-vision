@@ -307,13 +307,6 @@ class EventConfig(BaseModel):
         description="Frame buffer size for collage generation"
     )
     
-    # Continuous recording retention (Scrypted-style)
-    recording_retention_days: int = Field(
-        default=7,
-        ge=1,
-        le=30,
-        description="Days to keep continuous recordings before deletion"
-    )
     frame_interval: int = Field(
         default=2,
         ge=1,
@@ -331,8 +324,9 @@ class MediaConfig(BaseModel):
     
     retention_days: int = Field(
         default=7,
-        ge=1,
-        description="Days to keep media files"
+        ge=0,
+        le=365,
+        description="Days to keep events (0 = unlimited)"
     )
     cleanup_interval_hours: int = Field(
         default=24,

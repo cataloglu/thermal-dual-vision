@@ -118,18 +118,14 @@ class MediaWorker:
         return canvas
 
     def _select_indices(self, frame_count: int, target_count: int) -> List[int]:
+        """Select indices evenly - never repeat frames."""
         if frame_count <= 1:
             return [0] if frame_count == 1 else []
         if target_count <= 1:
             return [0]
-        if target_count <= frame_count:
-            return [int(i * (frame_count - 1) / (target_count - 1)) for i in range(target_count)]
-        ratio = target_count / frame_count
-        indices: List[int] = []
-        for i in range(target_count):
-            idx = min(frame_count - 1, int(i / ratio))
-            indices.append(idx)
-        return indices
+        # Cap to frame_count to avoid repetition
+        target_count = min(target_count, frame_count)
+        return [int(i * (frame_count - 1) / (target_count - 1)) for i in range(target_count)]
 
     def _open_video_writer(
         self,
@@ -337,14 +333,16 @@ class MediaWorker:
         timestamps: List[float],
         target_count: int,
     ) -> List[int]:
+        """Select indices by time - never repeat frames."""
         if not timestamps:
             return []
         if target_count <= 1:
             return [0]
+        target_count = min(target_count, len(timestamps))
         start = timestamps[0]
         end = timestamps[-1]
         if end <= start:
-            return [0 for _ in range(target_count)]
+            return [0]
         step = (end - start) / (target_count - 1)
         targets = [start + (i * step) for i in range(target_count)]
         indices: List[int] = []
@@ -764,6 +762,8 @@ class MediaWorker:
             target_fps = max(self.MP4_MIN_OUTPUT_FPS, target_fps)
             target_fps_int = max(1, int(round(target_fps)))
             target_frame_count = max(1, int(round(target_duration * target_fps_int)))
+            # Never repeat frames: cap to available frame count
+            target_frame_count = min(target_frame_count, frame_count)
             if timestamps and len(timestamps) == frame_count:
                 indices = self._select_indices_by_time(timestamps, target_frame_count)
             else:

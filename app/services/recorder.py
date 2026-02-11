@@ -1,8 +1,9 @@
 """
-Continuous recorder service (Scrypted-style approach).
+Continuous recorder service (rollling buffer for event clips).
 
-Records camera streams 24/7 to disk using FFmpeg.
-Event clips are extracted from continuous recordings.
+Records camera streams to disk using FFmpeg.
+Each camera keeps only the last N hours (default 1) as a circular buffer.
+Event clips are extracted from this buffer when motion is detected.
 """
 import logging
 import shutil
@@ -149,6 +150,7 @@ class ContinuousRecorder:
     # ------------------------------------------------------------------
 
     def _monitor_loop(self) -> None:
+        last_buffer_cleanup = 0.0
         while self.running:
             try:
                 for camera_id in list(self.processes.keys()):
@@ -167,6 +169,15 @@ class ContinuousRecorder:
                             self.start_recording(camera_id, url)
                         else:
                             self._cleanup_process(camera_id)
+
+                # Circular buffer cleanup: keep only last 1 hour per camera (every 5 min)
+                now = time.time()
+                if now - last_buffer_cleanup >= 300:
+                    last_buffer_cleanup = now
+                    try:
+                        self.cleanup_old_recordings(max_age_seconds=3600)
+                    except Exception as e:
+                        logger.error("Recording buffer cleanup error: %s", e)
             except Exception as e:
                 logger.error("Recorder monitor error: %s", e)
             time.sleep(10)
@@ -351,8 +362,8 @@ class ContinuousRecorder:
     # Cleanup
     # ------------------------------------------------------------------
 
-    def cleanup_old_recordings(self, max_age_days: int = 7) -> None:
-        cutoff_time = time.time() - (max_age_days * 86400)
+    def cleanup_old_recordings(self, max_age_seconds: int) -> None:
+        cutoff_time = time.time() - max_age_seconds
         deleted_count = 0
 
         for camera_dir in self.recording_dir.iterdir():
