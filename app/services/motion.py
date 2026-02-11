@@ -94,12 +94,13 @@ class MotionDetectionService:
             Tuple of (motion_detected, foreground_mask)
         """
         try:
-            # 1. Downscale for performance (640px width max)
+            # 1. Downscale for performance (480px width = less CPU than 640)
             original_h, original_w = frame.shape[:2]
-            if original_w > 640:
-                scale = 640 / float(original_w)
+            motion_width = 480
+            if original_w > motion_width:
+                scale = motion_width / float(original_w)
                 target_h = max(1, int(original_h * scale))
-                frame = cv2.resize(frame, (640, target_h))
+                frame = cv2.resize(frame, (motion_width, target_h))
                 # Scale min_area proportionally
                 min_area = max(1, int(min_area * scale * scale))
             
@@ -109,8 +110,8 @@ class MotionDetectionService:
             else:
                 gray = frame
             
-            # 3. Gaussian blur (noise reduction)
-            gray = cv2.GaussianBlur(gray, (5, 5), 0)
+            # 3. Gaussian blur (noise reduction; 3x3 = less CPU than 5x5)
+            gray = cv2.GaussianBlur(gray, (3, 3), 0)
             
             # 4. Get background subtractor
             bg_subtractor = self.get_or_create_subtractor(camera_id)

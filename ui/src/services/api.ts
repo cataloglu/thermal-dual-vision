@@ -121,9 +121,10 @@ export const updateCamera = async (cameraId: string, payload: Record<string, unk
   return response.data;
 };
 
-export const deleteCamera = async (cameraId: string) => {
+export const deleteCamera = async (cameraId: string): Promise<{ deleted: boolean }> => {
   const response = await apiClient.delete(`cameras/${cameraId}`);
-  return response.data;
+  // Backend returns 204 No Content (no body)
+  return response.status === 204 ? { deleted: true } : (response.data ?? { deleted: true });
 };
 
 export const getRecordingStatus = async (cameraId: string) => {
@@ -208,6 +209,14 @@ export const createCameraZone = async (
   return response.data;
 };
 
+export const updateZone = async (
+  zoneId: string,
+  payload: { name?: string; enabled?: boolean; mode?: Zone['mode']; polygon?: Zone['polygon'] }
+): Promise<Zone> => {
+  const response = await apiClient.put<Zone>(`zones/${zoneId}`, payload);
+  return response.data;
+};
+
 export const deleteZone = async (zoneId: string) => {
   const response = await apiClient.delete(`zones/${zoneId}`);
   return response.data;
@@ -253,6 +262,7 @@ export const api = {
   getCameraSnapshotUrl,
   getCameraZones,
   createCameraZone,
+  updateZone,
   deleteZone,
   getMqttStatus,
 };

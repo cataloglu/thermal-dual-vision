@@ -35,14 +35,14 @@ class DetectionConfig(BaseModel):
         description="Non-Maximum Suppression IoU threshold"
     )
     inference_resolution: List[int] = Field(
-        default=[640, 640],
-        description="Inference resolution [width, height]"
+        default=[480, 480],
+        description="Inference resolution [width, height]. Lower = less CPU (e.g. 416 or 480)."
     )
     inference_fps: int = Field(
-        default=5,
+        default=3,
         ge=1,
         le=30,
-        description="Frames per second for inference (lower = less CPU, less frame drops)"
+        description="Frames per second for inference (lower = less CPU; 3 is a good balance)"
     )
     aspect_ratio_preset: Literal["person", "thermal_person", "custom"] = Field(
         default="person",

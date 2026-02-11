@@ -83,6 +83,20 @@ export const ZonesTab: React.FC = () => {
       })
   }
 
+  const handleToggleZoneEnabled = (zone: Zone) => {
+    api.updateZone(zone.id, { enabled: !zone.enabled })
+      .then((updated) => {
+        setZones((current) =>
+          current.map((z) => (z.id === zone.id ? { ...z, enabled: updated.enabled } : z))
+        )
+        toast.success(updated.enabled ? t('zoneEnabled') : t('zoneDisabled'))
+      })
+      .catch((error) => {
+        console.error('Failed to update zone:', error)
+        toast.error(t('error'))
+      })
+  }
+
   const handleDeleteZone = (zoneId: string) => {
     api.deleteZone(zoneId)
       .then(() => {
@@ -197,8 +211,9 @@ export const ZonesTab: React.FC = () => {
                       <input
                         type="checkbox"
                         checked={zone.enabled}
-                        className="w-4 h-4 accent-accent"
-                        readOnly
+                        onChange={() => handleToggleZoneEnabled(zone)}
+                        className="w-4 h-4 accent-accent cursor-pointer"
+                        title={zone.enabled ? t('disableZone') : t('enableZone')}
                       />
                       <span className="text-text">{zone.name}</span>
                       <span className="px-2 py-1 bg-surface2 text-muted text-xs rounded">

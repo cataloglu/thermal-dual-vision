@@ -11,7 +11,7 @@ from typing import Any, Dict, Optional, List
 import os
 from fastapi import FastAPI, HTTPException, Depends, Query, WebSocket, WebSocketDisconnect, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from pydantic import ValidationError, BaseModel
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
@@ -202,7 +202,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Smart Motion Detector API",
-    version="2.0.0",
+    version="2.1.0",
     description="Person detection with thermal/color camera support",
     lifespan=lifespan,
 )
@@ -383,7 +383,7 @@ async def health():
 
     return {
         "status": "ok" if pipeline_status == "ok" else "degraded",
-        "version": "2.0.0",
+        "version": "2.1.0",
         "uptime_s": uptime_s,
         "ai": {"enabled": ai_enabled, "reason": ai_reason},
         "cameras": {"online": online, "retrying": retrying, "down": down},
@@ -1133,10 +1133,14 @@ async def get_live_streams(request: Request, db: Session = Depends(get_session))
             if not camera.enabled or "live" not in (camera.stream_roles or []):
                 continue
             
-            # Add Ingress prefix to stream URL
+            # Add Ingress prefix to stream URL (null when not MJPEG so clients don't treat "" as valid)
             base_url = f"/api/live/{camera.id}.mjpeg"
-            stream_url = f"{prefix}{base_url}" if (output_mode == "mjpeg" and prefix) else base_url if output_mode == "mjpeg" else ""
-            
+            stream_url: Optional[str] = (
+                f"{prefix}{base_url}" if (output_mode == "mjpeg" and prefix)
+                else base_url if output_mode == "mjpeg"
+                else None
+            )
+
             streams.append({
                 "camera_id": camera.id,
                 "name": camera.name,
@@ -1159,7 +1163,7 @@ async def get_live_streams(request: Request, db: Session = Depends(get_session))
 
 
 @app.get("/api/live/{camera_id}.mjpeg")
-async def get_live_stream(camera_id: str, db: Session = Depends(get_session)):
+async def get_live_stream(camera_id: str, db: Session = Depends(get_session)) -> StreamingResponse:
     """
     Stream live MJPEG feed for a camera.
 
@@ -1191,7 +1195,7 @@ async def get_live_stream(camera_id: str, db: Session = Depends(get_session)):
     stream_urls = _get_live_rtsp_urls(camera)
     if not stream_urls:
         raise HTTPException(
-            status_code=400,
+            status_code=409,
             detail={
                 "error": True,
                 "code": "STREAM_URL_MISSING",
@@ -1294,7 +1298,7 @@ async def get_live_stream(camera_id: str, db: Session = Depends(get_session)):
 
 
 @app.get("/api/cameras/{camera_id}/snapshot")
-async def get_camera_snapshot(camera_id: str, db: Session = Depends(get_session)):
+async def get_camera_snapshot(camera_id: str, db: Session = Depends(get_session)) -> Response:
     """
     Get a snapshot for a camera.
     """
@@ -1329,13 +1333,13 @@ async def get_camera_snapshot(camera_id: str, db: Session = Depends(get_session)
         result = camera_service.test_rtsp_connection(candidate_url)
         if result["success"]:
             break
-    if not result or not result["success"]:
+    if not result or not result.get("success"):
         raise HTTPException(
-            status_code=500,
+            status_code=502,
             detail={
                 "error": True,
                 "code": "RTSP_CONNECTION_FAILED",
-                "message": result["error_reason"] or "Snapshot capture failed"
+                "message": (result or {}).get("error_reason", "Snapshot capture failed")
             }
         )
 
@@ -1545,7 +1549,7 @@ async def get_cameras(db: Session = Depends(get_session)) -> Dict[str, Any]:
 async def create_camera(
     request: Dict[str, Any],
     db: Session = Depends(get_session)
-) -> Dict[str, Any]:
+) -> JSONResponse:
     """
     Create a new camera.
     
@@ -1618,8 +1622,11 @@ async def create_camera(
         # Refresh MQTT discovery for this camera
         mqtt_service.publish_camera_update(camera.id)
 
-        return camera_crud_service.mask_rtsp_urls(camera)
-        
+        return JSONResponse(
+            content=camera_crud_service.mask_rtsp_urls(camera),
+            status_code=201,
+        )
+
     except ValueError as e:
         raise HTTPException(
             status_code=400,
@@ -1743,7 +1750,7 @@ async def update_camera(
 async def delete_camera(
     camera_id: str,
     db: Session = Depends(get_session)
-) -> Dict[str, Any]:
+) -> Response:
     """
     Delete camera.
     
@@ -1776,12 +1783,9 @@ async def delete_camera(
             )
 
         mqtt_service.clear_camera_discovery(camera_id)
-        
-        return {
-            "deleted": True,
-            "id": camera_id
-        }
-        
+
+        return Response(status_code=204)
+
     except HTTPException:
         raise
     except Exception as e:

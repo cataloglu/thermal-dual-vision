@@ -16,8 +16,8 @@ Bu doküman `/api/settings` endpoint'indeki tüm config alanlarını açıklar.
 | `confidence_threshold` | float | `0.25` | Minimum confidence (0.0-1.0) |
 | `thermal_confidence_threshold` | float | `0.45` | Termal algılamada minimum confidence tabanı |
 | `nms_iou_threshold` | float | `0.45` | Non-Maximum Suppression IoU threshold |
-| `inference_resolution` | [int, int] | `[640, 640]` | Inference için frame resolution |
-| `inference_fps` | int | `5` | Saniyede kaç frame işlenecek |
+| `inference_resolution` | [int, int] | `[480, 480]` | Inference için frame resolution (düşük = az CPU) |
+| `inference_fps` | int | `3` | Saniyede kaç frame işlenecek (düşük = az CPU) |
 | `enable_tracking` | bool | `false` | Object tracking (gelecek özellik) |
 
 **Not**: Bu **primary model seçimi**dir. Tüm kameralar için geçerlidir.

@@ -38,6 +38,7 @@ from app.services.time_utils import get_detection_source
 from app.services.websocket import get_websocket_manager
 from app.services.mqtt import get_mqtt_service
 from app.services.go2rtc import get_go2rtc_service
+from app.services.metrics import get_metrics_service
 from app.utils.rtsp import redact_rtsp_url
 
 
@@ -68,6 +69,7 @@ class DetectorWorker:
         self.telegram_service = get_telegram_service()
         self.mqtt_service = get_mqtt_service()
         self.go2rtc_service = get_go2rtc_service()
+        self.metrics_service = get_metrics_service()
         
         # Per-camera state
         self.frame_buffers: Dict[str, deque] = defaultdict(deque)
@@ -558,19 +560,31 @@ class DetectorWorker:
                     record_fps = max(1.0, min(record_fps, 30.0))
                     reader_delay = 1.0 / record_fps
                 
-                # Dynamic FPS based on CPU load
+                # Dynamic FPS based on CPU load (aggressive throttling to reduce CPU)
                 if current_time - last_cpu_check >= 5.0:
                     try:
                         cpu_percent = psutil.cpu_percent(interval=None)
-                        if cpu_percent > 80:
-                            target_fps = max(3, config.detection.inference_fps - 2)
+                        base_fps = config.detection.inference_fps
+                        if cpu_percent > 90:
+                            target_fps = max(1, base_fps - 3)
+                        elif cpu_percent > 80:
+                            target_fps = max(2, base_fps - 2)
+                        elif cpu_percent > 65:
+                            target_fps = max(2, base_fps - 1)
                         elif cpu_percent < 40:
-                            target_fps = min(7, config.detection.inference_fps + 2)
+                            target_fps = min(5, base_fps + 1)  # Cap at 5 to avoid CPU spike
+                        else:
+                            target_fps = base_fps
                         frame_delay = 1.0 / max(target_fps, 1)
                         record_fps = float(getattr(config.event, "record_fps", target_fps))
                         record_fps = max(1.0, min(record_fps, 30.0))
                         reader_delay = 1.0 / record_fps
                         last_cpu_check = current_time
+                        try:
+                            self.metrics_service.set_fps(camera_id, float(target_fps))
+                            self.metrics_service.set_cpu_usage(camera_id, cpu_percent)
+                        except Exception:
+                            pass
                     except Exception:
                         last_cpu_check = current_time
 
@@ -641,16 +655,25 @@ class DetectorWorker:
                 else:
                     preprocessed = self.inference_service.preprocess_color(frame)
                 
-                # Run inference
+                # Run inference (with metrics)
                 confidence_threshold = float(config.detection.confidence_threshold)
                 thermal_floor = float(getattr(config.detection, "thermal_confidence_threshold", confidence_threshold))
                 if detection_source == "thermal":
                     confidence_threshold = max(confidence_threshold, thermal_floor)
+                t0 = time.perf_counter()
                 detections = self.inference_service.infer(
                     preprocessed,
                     confidence_threshold=confidence_threshold,
                     inference_resolution=tuple(config.detection.inference_resolution),
                 )
+                inference_latency = time.perf_counter() - t0
+                model_name = getattr(config.detection, "model", "yolov8n-person") or "yolov8n-person"
+                try:
+                    self.metrics_service.record_inference_latency(
+                        camera_id, model_name.replace("-person", ""), inference_latency
+                    )
+                except Exception:
+                    pass
                 
                 # Filter by aspect ratio (preset or custom)
                 ar_min, ar_max = config.detection.get_effective_aspect_ratio_bounds()
@@ -837,6 +860,7 @@ class DetectorWorker:
                     timestamp=datetime.utcnow(),
                     confidence=best_detection["confidence"],
                     event_type="person",
+                    person_count=person_count,
                     summary=None,  # AI summary will be added later
                     ai_enabled=config.ai.enabled,
                     ai_reason="not_configured" if not config.ai.enabled else None,
@@ -848,6 +872,10 @@ class DetectorWorker:
                     event.id,
                     best_detection["confidence"],
                 )
+                try:
+                    self.metrics_service.record_event(camera.id, event.event_type or "person")
+                except Exception:
+                    pass
                 try:
                     # Don't send media URLs via WebSocket (no Ingress prefix available here)
                     # Frontend will fetch URLs from /api/events endpoint
@@ -1477,15 +1505,15 @@ class DetectorWorker:
         else:
             gray = frame.copy()
 
-        # Downscale for motion detection to reduce CPU
-        motion_width = 640
+        # Downscale for motion detection to reduce CPU (480px width = ~44% fewer pixels than 640)
+        motion_width = 480
         original_h, original_w = gray.shape[:2]
         if original_w > motion_width:
             scale = motion_width / float(original_w)
             target_h = max(1, int(original_h * scale))
             gray = cv2.resize(gray, (motion_width, target_h))
             min_area = max(1, int(min_area * scale * scale))
-        gray = cv2.GaussianBlur(gray, (5, 5), 0)
+        gray = cv2.GaussianBlur(gray, (3, 3), 0)
 
         if algorithm in ("mog2", "knn"):
             motion_area = self._motion_area_background_subtractor(

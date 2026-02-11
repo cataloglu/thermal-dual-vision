@@ -101,7 +101,13 @@ class Camera(Base):
     # Relationships
     zones = relationship("Zone", back_populates="camera", cascade="all, delete-orphan")
     events = relationship("Event", back_populates="camera", cascade="all, delete-orphan")
-    
+    recording_state = relationship(
+        "RecordingState",
+        back_populates="camera",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+
     # Indexes
     __table_args__ = (
         Index("idx_camera_enabled", "enabled"),
@@ -204,6 +210,9 @@ class RecordingState(Base):
     )
     recording = Column(Boolean, default=False, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    # Relationships
+    camera = relationship("Camera", back_populates="recording_state")
 
     __table_args__ = (
         Index("idx_recording_state_recording", "recording"),

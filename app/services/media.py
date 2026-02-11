@@ -7,6 +7,7 @@ import logging
 import os
 import re
 from concurrent.futures import ThreadPoolExecutor
+from datetime import timedelta
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -14,6 +15,8 @@ import numpy as np
 from sqlalchemy.orm import Session
 
 from app.db.models import Event
+from app.services.recorder import get_continuous_recorder
+from app.services.settings import get_settings_service
 from app.workers.media import get_media_worker
 from app.utils.paths import DATA_DIR
 
@@ -82,14 +85,29 @@ class MediaService:
         gif_path = str(event_dir / "preview.gif")
         mp4_path = str(event_dir / "timelapse.mp4")
         
-        # Generate media in parallel
-        worker_count = 2 + (1 if include_gif else 0)
-        errors: List[Exception] = []
+        # Try MP4 from continuous recording first (Scrypted-style)
+        mp4_from_recording = False
+        try:
+            config = get_settings_service().load_config()
+            prebuffer = float(getattr(config.event, "prebuffer_seconds", 2.0))
+            postbuffer = float(getattr(config.event, "postbuffer_seconds", 2.0))
+            start_time = event.timestamp - timedelta(seconds=prebuffer)
+            end_time = event.timestamp + timedelta(seconds=postbuffer)
+            recorder = get_continuous_recorder()
+            if recorder.extract_clip(event.camera_id, start_time, end_time, mp4_path):
+                mp4_from_recording = True
+                logger.debug("Event %s MP4 from continuous recording", event_id)
+        except Exception as e:
+            logger.debug("Clip from continuous recording failed for %s: %s", event_id, e)
+        
+        # Generate media in parallel (collage always; mp4 from frames if not from recording)
         mp4_source_frames = mp4_frames if mp4_frames else frames
         mp4_source_detections = mp4_detections if mp4_detections is not None else detections
         mp4_source_timestamps = mp4_timestamps if mp4_timestamps is not None else timestamps
+        worker_count = 1 + (0 if mp4_from_recording else 1) + (1 if include_gif else 0)
+        errors: List[Exception] = []
         with ThreadPoolExecutor(max_workers=max(1, worker_count)) as executor:
-            tasks = [
+            tasks: List[tuple] = [
                 ("collage", executor.submit(
                     self.media_worker.create_collage,
                     frames,
@@ -100,17 +118,21 @@ class MediaService:
                     event.timestamp,
                     event.confidence,
                 )),
-                ("mp4", executor.submit(
-                    self.media_worker.create_timelapse_mp4,
-                    mp4_source_frames,
-                    mp4_source_detections,
-                    mp4_path,
-                    camera_name,
-                    event.timestamp,
-                    mp4_source_timestamps,
-                    mp4_real_time,
-                )),
             ]
+            if not mp4_from_recording:
+                tasks.append((
+                    "mp4",
+                    executor.submit(
+                        self.media_worker.create_timelapse_mp4,
+                        mp4_source_frames,
+                        mp4_source_detections,
+                        mp4_path,
+                        camera_name,
+                        event.timestamp,
+                        mp4_source_timestamps,
+                        mp4_real_time,
+                    ),
+                ))
             if include_gif:
                 tasks.append((
                     "gif",

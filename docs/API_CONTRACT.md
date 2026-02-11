@@ -36,7 +36,7 @@ Response:
 ```json
 {
   "status": "ok",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "uptime_s": 12345,
   "ai": { "enabled": false, "reason": "no_api_key" },
   "cameras": { "online": 1, "retrying": 0, "down": 0 },
