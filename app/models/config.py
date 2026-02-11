@@ -158,8 +158,8 @@ class ThermalConfig(BaseModel):
         description="CLAHE clip limit"
     )
     clahe_tile_size: List[int] = Field(
-        default=[8, 8],
-        description="CLAHE tile grid size [width, height]"
+        default=[32, 32],
+        description="CLAHE tile grid size (larger = less blockiness, e.g. 32x32)"
     )
     gaussian_blur_kernel: List[int] = Field(
         default=[3, 3],

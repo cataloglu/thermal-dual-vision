@@ -28,7 +28,7 @@ class InferenceService:
     # Preprocessing configuration
     INFERENCE_SIZE = (640, 640)
     CLAHE_CLIP_LIMIT = 2.0
-    CLAHE_TILE_SIZE = (8, 8)
+    CLAHE_TILE_SIZE = (32, 32)
     GAUSSIAN_KERNEL = (3, 3)
     
     # Aspect ratio filtering (person shape)

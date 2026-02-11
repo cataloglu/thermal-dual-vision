@@ -254,6 +254,13 @@ class SettingsService:
         if not isinstance(data, dict):
             return data
         result = data.copy()
+        # Migrate thermal CLAHE tile size: 8x8 caused blockiness, 32x32 is smoother
+        thermal = result.get("thermal")
+        if isinstance(thermal, dict):
+            tile = thermal.get("clahe_tile_size")
+            if tile == [8, 8] or tile == (8, 8):
+                thermal["clahe_tile_size"] = [32, 32]
+                result["thermal"] = thermal
         record = result.get("record")
         if isinstance(record, dict):
             delete_order = record.get("delete_order")
