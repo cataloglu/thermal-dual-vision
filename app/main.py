@@ -381,9 +381,10 @@ async def health():
     telegram_status = "ok" if telegram_service.is_enabled() else "disabled"
     mqtt_status = "ok" if mqtt_service.connected else ("disabled" if not settings_service.load_config().mqtt.enabled else "disconnected")
 
+    version = os.getenv("ADDON_VERSION", "2.2.0")
     return {
         "status": "ok" if pipeline_status == "ok" else "degraded",
-        "version": "2.2.0",
+        "version": version,
         "uptime_s": uptime_s,
         "ai": {"enabled": ai_enabled, "reason": ai_reason},
         "cameras": {"online": online, "retrying": retrying, "down": down},

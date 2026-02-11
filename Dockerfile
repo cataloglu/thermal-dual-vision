@@ -53,6 +53,7 @@ RUN rm -f /etc/nginx/sites-enabled/default && \
     ln -s /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
 
 # Copy Scripts & Configs
+COPY config.yaml /app/config.yaml
 COPY run.sh /run.sh
 COPY sync_options.py /app/sync_options.py
 COPY add_person_count_migration.py /app/add_person_count_migration.py
