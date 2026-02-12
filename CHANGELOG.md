@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [2.5.7] - 2026-02-10
+
+### Düzeltmeler
+
+- **AI gate:** AI aktifken video/media yalnızca AI onayından sonra oluşturulur. AI reddederse event ve media silinir; MP4/GIF hiç üretilmez. AI kapalıyken normal akış devam eder (detector.py ve detector_mp.py).
+
+---
+
 ## [2.3.0] - 2026-02-11
 
 ### Değişenler
@@ -68,6 +76,7 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+[2.5.7]: https://github.com/cataloglu/thermal-dual-vision/compare/v2.5.6...v2.5.7
 [2.3.0]: https://github.com/cataloglu/thermal-dual-vision/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/cataloglu/thermal-dual-vision/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/cataloglu/thermal-dual-vision/compare/v2.0.0...v2.1.0

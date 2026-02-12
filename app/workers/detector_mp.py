@@ -6,9 +6,11 @@ to overcome Python GIL limitations and achieve true parallel processing.
 
 Performance improvement: 40% CPU usage reduction for 5+ cameras.
 """
+import asyncio
 import logging
 import multiprocessing as mp
 import os
+import shutil
 import signal
 import time
 from collections import deque
@@ -21,6 +23,38 @@ from app.db.session import get_session
 
 
 logger = logging.getLogger(__name__)
+
+
+def _ai_requires_confirmation(config) -> bool:
+    """Check if AI confirmation is required before creating media."""
+    try:
+        has_key = bool(config.ai.api_key) and config.ai.api_key != "***REDACTED***"
+        return bool(config.ai.enabled and has_key)
+    except Exception:
+        return False
+
+
+def _is_ai_confirmed(summary) -> bool:
+    """Check if AI summary indicates a confirmed person detection."""
+    if not summary:
+        return False
+    text = (summary or "").lower()
+    negative_markers = [
+        "insan tespit edilmedi",
+        "no human",
+        "muhtemel yanlış alarm",
+        "muhtemel yanlis alarm",
+        "false alarm",
+    ]
+    if any(marker in text for marker in negative_markers):
+        return False
+    positive_markers = [
+        "kişi tespit",
+        "kişi tespit",
+        "person detected",
+        "insan tespit",
+    ]
+    return any(marker in text for marker in positive_markers)
 
 
 class SharedFrameBuffer:
@@ -864,30 +898,30 @@ class MultiprocessingDetectorWorker:
                                 
                                 logger.info(f"Event created: {event.id} for camera {camera_id}")
                                 
-                                # Publish to MQTT
-                                mqtt_service.publish_event({
-                                    "id": event.id,
-                                    "camera_id": event.camera_id,
-                                    "timestamp": event.timestamp.isoformat() + "Z",
-                                    "confidence": event.confidence,
-                                    "event_type": event.event_type,
-                                    "summary": event.summary,
-                                    "person_count": person_count,
-                                    "ai_required": False,
-                                    "ai_confirmed": True,
-                                })
-                                
-                                # WebSocket broadcast
-                                try:
-                                    websocket_manager.broadcast_event_sync({
+                                ai_required = _ai_requires_confirmation(config)
+                                # When AI required: skip MQTT/WebSocket until AI confirms (publish after media)
+                                if not ai_required:
+                                    mqtt_service.publish_event({
                                         "id": event.id,
-                                        "camera_id": camera_id,
+                                        "camera_id": event.camera_id,
                                         "timestamp": event.timestamp.isoformat() + "Z",
-                                        "confidence": confidence,
+                                        "confidence": event.confidence,
+                                        "event_type": event.event_type,
+                                        "summary": event.summary,
                                         "person_count": person_count,
+                                        "ai_required": False,
+                                        "ai_confirmed": True,
                                     })
-                                except:
-                                    pass
+                                    try:
+                                        websocket_manager.broadcast_event_sync({
+                                            "id": event.id,
+                                            "camera_id": camera_id,
+                                            "timestamp": event.timestamp.isoformat() + "Z",
+                                            "confidence": confidence,
+                                            "person_count": person_count,
+                                        })
+                                    except Exception:
+                                        pass
                                 
                                 # Generate collage/MP4 from shared buffer
                                 buffer_info = event_data.get("buffer_info")
@@ -985,24 +1019,85 @@ class MultiprocessingDetectorWorker:
                                             media_worker = get_media_worker()
                                             
                                             bbox = event_data.get("bbox")
-                                            detections_list = []
-                                            for i in range(min(5, len(frames))):  # Collage needs only 5 frames
-                                                if bbox and i == 2:  # Middle frame
-                                                    detections_list.append({
-                                                        "bbox": bbox,
-                                                        "confidence": event_data.get("confidence", 0.0)
-                                                    })
-                                                else:
-                                                    detections_list.append(None)
+                                            detections_list = [None] * len(frames)
+                                            if bbox and len(frames) >= 3:
+                                                mid = len(frames) // 2
+                                                detections_list[mid] = {
+                                                    "bbox": bbox,
+                                                    "confidence": event_data.get("confidence", 0.0)
+                                                }
                                             
                                             
-                                            # Use buffer frames for MP4
                                             mp4_url = None
                                             collage_url = None
+                                            collage_path = None
+                                            
+                                            # AI gate: when ai_required, collage first → AI → only if confirmed, create MP4
+                                            if ai_required:
+                                                try:
+                                                    collage_path = media_service.generate_collage_for_ai(
+                                                        db=db,
+                                                        event_id=event.id,
+                                                        frames=frames,
+                                                        detections=detections_list,
+                                                        timestamps=frame_timestamps,
+                                                        camera_name=camera_name,
+                                                    )
+                                                    if not collage_path:
+                                                        logger.warning(f"Collage failed for event {event.id}, skipping AI")
+                                                        event_dir = media_service.MEDIA_DIR / event.id
+                                                        if event_dir.exists():
+                                                            shutil.rmtree(event_dir, ignore_errors=True)
+                                                        db.delete(event)
+                                                        db.commit()
+                                                        shm.close()
+                                                        shm_ts.close()
+                                                        continue
+                                                    from app.services.time_utils import get_detection_source
+                                                    detection_source = get_detection_source(
+                                                        camera_obj.detection_source.value if hasattr(camera_obj, "detection_source") and camera_obj.detection_source else "thermal"
+                                                    )
+                                                    summary = asyncio.run(ai_service.analyze_event(
+                                                        {
+                                                            "id": event.id,
+                                                            "camera_id": event.camera_id,
+                                                            "timestamp": event.timestamp.isoformat() + "Z",
+                                                            "confidence": event.confidence,
+                                                        },
+                                                        collage_path=collage_path,
+                                                        camera={
+                                                            "id": camera_obj.id,
+                                                            "name": camera_name,
+                                                            "type": (camera_obj.type.value if hasattr(camera_obj, "type") and camera_obj.type else None),
+                                                            "detection_source": detection_source,
+                                                        },
+                                                    ))
+                                                    if not _is_ai_confirmed(summary):
+                                                        logger.info(f"Event {event.id} rejected by AI, deleting")
+                                                        event_dir = media_service.MEDIA_DIR / event.id
+                                                        if event_dir.exists():
+                                                            shutil.rmtree(event_dir, ignore_errors=True)
+                                                        db.delete(event)
+                                                        db.commit()
+                                                        shm.close()
+                                                        shm_ts.close()
+                                                        continue  # Next event
+                                                    event.summary = summary
+                                                    event.ai_enabled = True
+                                                    event.ai_reason = None
+                                                    db.commit()
+                                                except Exception as e:
+                                                    logger.error(f"AI analysis failed for event {event.id}: {e}")
+                                                    event_dir = media_service.MEDIA_DIR / event.id
+                                                    if event_dir.exists():
+                                                        shutil.rmtree(event_dir, ignore_errors=True)
+                                                    db.delete(event)
+                                                    db.commit()
+                                                    shm.close()
+                                                    shm_ts.close()
+                                                    continue
                                             
                                             try:
-                                                # Use MediaService unified method
-                                                # Use frames for BOTH collage and MP4 (simpler!)
                                                 media_urls = media_service.generate_event_media(
                                                     db=db,
                                                     event_id=event.id,
@@ -1011,15 +1106,61 @@ class MultiprocessingDetectorWorker:
                                                     timestamps=frame_timestamps,
                                                     camera_name=camera_name,
                                                     include_gif=False,
-                                                    mp4_frames=frames,  # Same frames for MP4
+                                                    mp4_frames=frames,
                                                     mp4_detections=[None] * len(frames),
                                                     mp4_timestamps=frame_timestamps,
-                                                    mp4_real_time=False,  # Allow 4x speedup!
+                                                    mp4_real_time=False,
                                                 )
-                                                
                                                 mp4_url = media_urls.get('mp4_url')
                                                 collage_url = media_urls.get('collage_url')
                                                 logger.info(f"Media generated for event {event.id}")
+                                                # When ai_required: publish MQTT/WebSocket only after AI confirmed
+                                                if ai_required:
+                                                    db.refresh(event)
+                                                    ai_confirmed = _is_ai_confirmed(event.summary)
+                                                    mqtt_service.publish_event({
+                                                        "id": event.id,
+                                                        "camera_id": event.camera_id,
+                                                        "timestamp": event.timestamp.isoformat() + "Z",
+                                                        "confidence": event.confidence,
+                                                        "event_type": event.event_type,
+                                                        "summary": event.summary,
+                                                        "person_count": person_count,
+                                                        "ai_required": True,
+                                                        "ai_confirmed": ai_confirmed,
+                                                        "ai_enabled": bool(event.ai_enabled),
+                                                        "ai_reason": event.ai_reason,
+                                                    }, person_detected=ai_confirmed)
+                                                    try:
+                                                        websocket_manager.broadcast_event_sync({
+                                                            "id": event.id,
+                                                            "camera_id": camera_id,
+                                                            "timestamp": event.timestamp.isoformat() + "Z",
+                                                            "confidence": confidence,
+                                                            "person_count": person_count,
+                                                            "summary": event.summary,
+                                                        })
+                                                    except Exception:
+                                                        pass
+                                                    # Telegram only when AI confirmed
+                                                    if ai_confirmed:
+                                                        try:
+                                                            from app.services.telegram import get_telegram_service
+                                                            telegram = get_telegram_service()
+                                                            collage_path = media_service.get_media_path(event.id, "collage")
+                                                            asyncio.run(telegram.send_event_notification(
+                                                                event={
+                                                                    "id": event.id,
+                                                                    "camera_id": event.camera_id,
+                                                                    "timestamp": event.timestamp.isoformat() + "Z",
+                                                                    "confidence": event.confidence,
+                                                                    "summary": event.summary,
+                                                                },
+                                                                camera={"id": camera_obj.id, "name": camera_name},
+                                                                collage_path=collage_path,
+                                                            ))
+                                                        except Exception as te:
+                                                            logger.warning(f"Telegram notify failed: {te}")
                                             except Exception as e:
                                                 logger.error(f"Failed to create media: {e}")
                                             

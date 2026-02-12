@@ -33,7 +33,38 @@ class MediaService:
         """Initialize media service."""
         self.media_worker = get_media_worker()
         self.MEDIA_DIR.mkdir(parents=True, exist_ok=True)
-    
+
+    def generate_collage_for_ai(
+        self,
+        db: Session,
+        event_id: str,
+        frames: List[np.ndarray],
+        detections: List[Optional[Dict]],
+        timestamps: Optional[List[float]] = None,
+        camera_name: str = "Camera",
+    ) -> Optional[Path]:
+        """Create collage only for AI pre-check. Returns path or None."""
+        event = db.query(Event).filter(Event.id == event_id).first()
+        if not event or len(frames) == 0:
+            return None
+        event_dir = self.MEDIA_DIR / event_id
+        event_dir.mkdir(parents=True, exist_ok=True)
+        collage_path = str(event_dir / "collage.jpg")
+        try:
+            self.media_worker.create_collage(
+                frames,
+                detections,
+                timestamps,
+                collage_path,
+                camera_name,
+                event.timestamp,
+                event.confidence,
+            )
+            return Path(collage_path) if os.path.exists(collage_path) else None
+        except Exception as e:
+            logger.warning("Collage for AI failed: %s", e)
+            return None
+
     def generate_event_media(
         self,
         db: Session,

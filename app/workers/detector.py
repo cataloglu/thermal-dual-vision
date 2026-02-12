@@ -1736,6 +1736,7 @@ class DetectorWorker:
 
     def _start_media_generation(self, camera: Camera, event_id: str, config) -> None:
         postbuffer_seconds = float(getattr(config.event, "postbuffer_seconds", 0.0))
+        ai_required = self._ai_requires_confirmation(config)
 
         def _run_media() -> None:
             if postbuffer_seconds > 0:
@@ -1757,6 +1758,49 @@ class DetectorWorker:
                     if video_frames
                     else detections
                 )
+
+                if ai_required:
+                    collage_path = self.media_service.generate_collage_for_ai(
+                        db=db,
+                        event_id=event_id,
+                        frames=frames,
+                        detections=detections,
+                        timestamps=timestamps,
+                        camera_name=camera.name or "Camera",
+                    )
+                    if not collage_path:
+                        return
+                    event = db.query(Event).filter(Event.id == event_id).first()
+                    if not event:
+                        return
+                    summary = asyncio.run(self.ai_service.analyze_event(
+                        {
+                            "id": event.id,
+                            "camera_id": event.camera_id,
+                            "timestamp": event.timestamp.isoformat() + "Z",
+                            "confidence": event.confidence,
+                        },
+                        collage_path=collage_path,
+                        camera={
+                            "id": camera.id,
+                            "name": camera.name,
+                            "type": camera.type.value if camera.type else None,
+                            "detection_source": get_detection_source(camera.detection_source.value),
+                        },
+                    ))
+                    if not self._is_ai_confirmed(summary):
+                        logger.info("Event %s rejected by AI (no person), deleting", event_id)
+                        event_dir = self.media_service.MEDIA_DIR / event_id
+                        if event_dir.exists():
+                            shutil.rmtree(event_dir, ignore_errors=True)
+                        db.delete(event)
+                        db.commit()
+                        return
+                    event.summary = summary
+                    event.ai_enabled = True
+                    event.ai_reason = None
+                    db.commit()
+
                 self.media_service.generate_event_media(
                     db=db,
                     event_id=event_id,
@@ -1776,38 +1820,39 @@ class DetectorWorker:
                     mp4_path = self.media_service.get_media_path(event_id, "mp4")
                     gif_path = self.media_service.get_media_path(event_id, "gif")
 
-                    summary = None
-                    if collage_path:
-                        detection_source = get_detection_source(camera.detection_source.value)
-                        summary = asyncio.run(self.ai_service.analyze_event(
-                            {
-                                "id": event.id,
-                                "camera_id": event.camera_id,
-                                "timestamp": event.timestamp.isoformat() + "Z",
-                                "confidence": event.confidence,
-                            },
-                            collage_path=collage_path,
-                            camera={
-                                "id": camera.id,
-                                "name": camera.name,
-                                "type": camera.type.value if camera.type else None,
-                                "detection_source": detection_source,
-                            },
-                        ))
-                    has_key = bool(config.ai.api_key) and config.ai.api_key != "***REDACTED***"
-                    ai_required = self._ai_requires_confirmation(config)
-                    if summary:
-                        event.summary = summary
-                        event.ai_enabled = True
-                        event.ai_reason = None
-                    elif config.ai.enabled:
-                        event.ai_enabled = bool(has_key)
-                        event.ai_reason = "no_api_key" if not has_key else "analysis_failed"
-                    db.commit()
+                    if not ai_required:
+                        summary = None
+                        if collage_path and config.ai.enabled:
+                            detection_source = get_detection_source(camera.detection_source.value)
+                            summary = asyncio.run(self.ai_service.analyze_event(
+                                {
+                                    "id": event.id,
+                                    "camera_id": event.camera_id,
+                                    "timestamp": event.timestamp.isoformat() + "Z",
+                                    "confidence": event.confidence,
+                                },
+                                collage_path=collage_path,
+                                camera={
+                                    "id": camera.id,
+                                    "name": camera.name,
+                                    "type": camera.type.value if camera.type else None,
+                                    "detection_source": detection_source,
+                                },
+                            ))
+                        has_key = bool(config.ai.api_key) and config.ai.api_key != "***REDACTED***"
+                        if summary:
+                            event.summary = summary
+                            event.ai_enabled = True
+                            event.ai_reason = None
+                        elif config.ai.enabled:
+                            event.ai_enabled = bool(has_key)
+                            event.ai_reason = "no_api_key" if not has_key else "analysis_failed"
+                        db.commit()
+
+                    ai_confirmed = True if not ai_required else self._is_ai_confirmed(event.summary)
 
                     # Re-publish to MQTT with summary and AI confirmation gate
                     try:
-                        ai_confirmed = self._is_ai_confirmed(summary) if ai_required else True
                         self.mqtt_service.publish_event({
                             "id": event.id,
                             "camera_id": event.camera_id,
