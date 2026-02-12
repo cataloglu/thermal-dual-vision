@@ -6,6 +6,23 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.11] - 2026-02-10
+
+### Değişenler
+
+- **Versiyon:** Tek kaynak config.yaml; uygulama versiyonu otomatik oradan okunuyor.
+
+---
+
+## [3.10.10] - 2026-02-10
+
+### Düzeltmeler
+
+- **MP4 hızlandırma:** MP4_MIN_OUTPUT_DURATION 20→3, MP4_SPEED_FACTOR 3→4; 20 sn içerik ~5 sn MP4 olarak çıkıyor.
+- **Tek versiyon kaynağı:** Tüm uygulama (API health, system info, MQTT) `app/version.py` üzerinden tek parametreden versiyon alıyor.
+
+---
+
 ## [2.5.9] - 2026-02-10
 
 ### Düzeltmeler

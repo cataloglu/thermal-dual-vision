@@ -4,6 +4,7 @@ Basic health endpoint test
 import pytest
 from fastapi.testclient import TestClient
 from app.main import app
+from app.version import __version__
 
 client = TestClient(app)
 
@@ -22,4 +23,4 @@ def test_health():
     assert response.status_code == 200
     data = response.json()
     assert data["status"] in {"ok", "degraded"}
-    assert data["version"] == "2.5.9"
+    assert data["version"] == __version__

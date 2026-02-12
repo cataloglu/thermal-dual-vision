@@ -53,9 +53,9 @@ class MediaWorker:
     MP4_CRF = 15  # High quality
     MP4_PRESET = "slow"  # Better compression
     MP4_MIN_DURATION = 0.5
-    MP4_MIN_OUTPUT_DURATION = 20.0
+    MP4_MIN_OUTPUT_DURATION = 3.0  # Min 3s output (was 20.0 - blocked 4x speedup)
     MP4_MAX_DURATION = 30.0
-    MP4_SPEED_FACTOR = 3.0  # 3x speedup (smoother, better quality)
+    MP4_SPEED_FACTOR = 4.0  # 4x speedup (matches recorder extract_clip)
     MP4_MIN_OUTPUT_FPS = 3
     
     # Overlay colors (BGR format)

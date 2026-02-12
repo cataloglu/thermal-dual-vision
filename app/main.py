@@ -44,6 +44,7 @@ from telegram import Bot
 from app.workers.retention import get_retention_worker
 from app.workers.detector import get_detector_worker
 from app.workers.detector_mp import get_mp_detector_worker
+from app.version import __version__
 
 
 # Configure logging
@@ -202,7 +203,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Smart Motion Detector API",
-    version="2.5.9",
+    version=__version__,
     description="Person detection with thermal/color camera support",
     lifespan=lifespan,
 )
@@ -389,10 +390,9 @@ async def health():
     telegram_status = "ok" if telegram_service.is_enabled() else "disabled"
     mqtt_status = "ok" if mqtt_service.connected else ("disabled" if not settings_service.load_config().mqtt.enabled else "disconnected")
 
-    version = os.getenv("ADDON_VERSION", "2.5.9")
     return {
         "status": "ok" if pipeline_status == "ok" else "degraded",
-        "version": version,
+        "version": __version__,
         "uptime_s": uptime_s,
         "ai": {"enabled": ai_enabled, "reason": ai_reason},
         "cameras": {"online": online, "retrying": retrying, "down": down},
@@ -2284,19 +2284,6 @@ async def get_system_info() -> Dict[str, Any]:
         disk_total_gb = disk.total / (1024 ** 3)
         disk_percent = disk.percent
         
-        addon_version = os.getenv("ADDON_VERSION")
-        if not addon_version:
-            try:
-                config_path = Path("config.yaml")
-                if config_path.exists():
-                    import yaml
-
-                    with open(config_path, "r", encoding="utf-8") as file:
-                        config_data = yaml.safe_load(file) or {}
-                        addon_version = str(config_data.get("version") or "").strip() or None
-            except Exception:
-                addon_version = None
-
         return {
             "cpu": {
                 "percent": round(cpu_percent, 1)
@@ -2311,7 +2298,7 @@ async def get_system_info() -> Dict[str, Any]:
                 "total_gb": round(disk_total_gb, 2),
                 "percent": round(disk_percent, 1)
             },
-            "version": addon_version,
+            "version": __version__,
         }
         
     except Exception as e:
