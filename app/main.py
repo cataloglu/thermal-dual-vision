@@ -202,7 +202,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Smart Motion Detector API",
-    version="2.5.5",
+    version="2.5.6",
     description="Person detection with thermal/color camera support",
     lifespan=lifespan,
 )
@@ -381,7 +381,7 @@ async def health():
     telegram_status = "ok" if telegram_service.is_enabled() else "disabled"
     mqtt_status = "ok" if mqtt_service.connected else ("disabled" if not settings_service.load_config().mqtt.enabled else "disconnected")
 
-    version = os.getenv("ADDON_VERSION", "2.5.5")
+    version = os.getenv("ADDON_VERSION", "2.5.6")
     return {
         "status": "ok" if pipeline_status == "ok" else "degraded",
         "version": version,
