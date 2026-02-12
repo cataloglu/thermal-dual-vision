@@ -50,12 +50,12 @@ class MediaWorker:
     MP4_FPS = 30  # Fast playback
     MP4_MAX_OUTPUT_FPS = 60  # Allow faster playback
     MP4_CODECS = ("mp4v", "avc1", "H264")
-    MP4_CRF = 18  # Excellent quality
-    MP4_PRESET = "medium"  # Balanced
+    MP4_CRF = 15  # High quality
+    MP4_PRESET = "slow"  # Better compression
     MP4_MIN_DURATION = 0.5
     MP4_MIN_OUTPUT_DURATION = 10.0
     MP4_MAX_DURATION = 12.0
-    MP4_SPEED_FACTOR = 5.0  # 5x speedup
+    MP4_SPEED_FACTOR = 3.0  # 3x speedup (smoother, better quality)
     MP4_MIN_OUTPUT_FPS = 3
     
     # Overlay colors (BGR format)
