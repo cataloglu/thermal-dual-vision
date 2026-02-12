@@ -261,6 +261,22 @@ class SettingsService:
             if tile == [8, 8] or tile == (8, 8):
                 thermal["clahe_tile_size"] = [32, 32]
                 result["thermal"] = thermal
+        # Migrate detection: higher confidence = fewer false alarms
+        detection = result.get("detection")
+        if isinstance(detection, dict):
+            if detection.get("confidence_threshold") == 0.25:
+                detection["confidence_threshold"] = 0.35
+            if detection.get("thermal_confidence_threshold") == 0.25:
+                detection["thermal_confidence_threshold"] = 0.45
+            result["detection"] = detection
+        # Migrate event: longer cooldown/duration = fewer false alarms
+        event = result.get("event")
+        if isinstance(event, dict):
+            if event.get("cooldown_seconds") == 5:
+                event["cooldown_seconds"] = 10
+            if event.get("min_event_duration") == 1.0:
+                event["min_event_duration"] = 1.5
+            result["event"] = event
         record = result.get("record")
         if isinstance(record, dict):
             delete_order = record.get("delete_order")
