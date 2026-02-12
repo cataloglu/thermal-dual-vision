@@ -22,4 +22,4 @@ def test_health():
     assert response.status_code == 200
     data = response.json()
     assert data["status"] in {"ok", "degraded"}
-    assert data["version"] == "2.5.7"
+    assert data["version"] == "2.5.8"

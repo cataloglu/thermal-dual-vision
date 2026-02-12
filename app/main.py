@@ -202,7 +202,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Smart Motion Detector API",
-    version="2.5.7",
+    version="2.5.8",
     description="Person detection with thermal/color camera support",
     lifespan=lifespan,
 )
@@ -280,6 +280,14 @@ def _get_live_rtsp_urls(camera) -> List[str]:
     if primary:
         urls.append(primary)
     return urls
+
+
+def _resolve_go2rtc_stream_name(camera) -> Optional[str]:
+    """Resolve go2rtc stream name for MJPEG/WebRTC (camera_id, camera_id_thermal, camera_id_color)."""
+    source = _resolve_default_stream_source(camera)
+    if source in ("thermal", "color"):
+        return f"{camera.id}_{source}"
+    return camera.id
 
 
 def _normalize_rtsp_value(value: Optional[str]) -> Optional[str]:
@@ -381,7 +389,7 @@ async def health():
     telegram_status = "ok" if telegram_service.is_enabled() else "disabled"
     mqtt_status = "ok" if mqtt_service.connected else ("disabled" if not settings_service.load_config().mqtt.enabled else "disconnected")
 
-    version = os.getenv("ADDON_VERSION", "2.5.7")
+    version = os.getenv("ADDON_VERSION", "2.5.8")
     return {
         "status": "ok" if pipeline_status == "ok" else "degraded",
         "version": version,
@@ -1113,6 +1121,9 @@ async def get_live_streams(request: Request, db: Session = Depends(get_session))
     """
     Get live stream URLs for all cameras.
     
+    Prefers go2rtc MJPEG when available (avoids backend RTSP blocking, fixes 502/timeouts).
+    Falls back to backend /api/live/{id}.mjpeg when go2rtc unavailable.
+    
     Returns:
         Dict containing list of live streams
         
@@ -1123,24 +1134,26 @@ async def get_live_streams(request: Request, db: Session = Depends(get_session))
         settings = settings_service.load_config()
         output_mode = settings.live.output_mode
         cameras = camera_crud_service.get_cameras(db)
-        
+        go2rtc = get_go2rtc_service()
+
         # Get Ingress path from header
         ingress_path = request.headers.get("X-Ingress-Path", "")
         prefix = ingress_path.rstrip('/') if ingress_path else ""
-        logger.info(f"GET /api/live - X-Ingress-Path: '{ingress_path}', prefix: '{prefix}'")
-        
+
         streams = []
         for camera in cameras:
             if not camera.enabled or "live" not in (camera.stream_roles or []):
                 continue
-            
-            # Add Ingress prefix to stream URL (null when not MJPEG so clients don't treat "" as valid)
-            base_url = f"/api/live/{camera.id}.mjpeg"
-            stream_url: Optional[str] = (
-                f"{prefix}{base_url}" if (output_mode == "mjpeg" and prefix)
-                else base_url if output_mode == "mjpeg"
-                else None
-            )
+
+            stream_url: Optional[str] = None
+            if output_mode == "mjpeg":
+                # Prefer go2rtc MJPEG - no backend blocking, more reliable
+                stream_name = _resolve_go2rtc_stream_name(camera)
+                if go2rtc.enabled and stream_name:
+                    base_url = f"/go2rtc/api/stream.mjpeg?src={stream_name}"
+                else:
+                    base_url = f"/api/live/{camera.id}.mjpeg"
+                stream_url = f"{prefix}{base_url}" if prefix else base_url
 
             streams.append({
                 "camera_id": camera.id,

@@ -63,6 +63,24 @@ const apiClient = axios.create({
   },
 });
 
+// Dedupe 502 toasts - avoid spamming when backend/addon is starting
+let last502Toast = 0;
+const FIVE_SEC = 5000;
+apiClient.interceptors.response.use(
+  (r) => r,
+  (err) => {
+    if (err?.response?.status === 502) {
+      const now = Date.now();
+      if (now - last502Toast < FIVE_SEC) {
+        err._suppressToast = true;
+      } else {
+        last502Toast = now;
+      }
+    }
+    return Promise.reject(err);
+  }
+);
+
 // Health & System
 export const getHealth = async () => {
   const response = await apiClient.get('health');

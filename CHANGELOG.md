@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [2.5.8] - 2026-02-10
+
+### Düzeltmeler
+
+- **Live View 502/Loading:** MJPEG artık go2rtc üzerinden sunuluyor; backend RTSP blocking ve timeout kaynaklı 502 hatası giderildi. Ingress go2rtc path düzeltmesi, 502 toast spam azaltıldı.
+
+---
+
 ## [2.5.7] - 2026-02-10
 
 ### Düzeltmeler
@@ -76,6 +84,7 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+[2.5.8]: https://github.com/cataloglu/thermal-dual-vision/compare/v2.5.7...v2.5.8
 [2.5.7]: https://github.com/cataloglu/thermal-dual-vision/compare/v2.5.6...v2.5.7
 [2.3.0]: https://github.com/cataloglu/thermal-dual-vision/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/cataloglu/thermal-dual-vision/compare/v2.1.0...v2.2.0

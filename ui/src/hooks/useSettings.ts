@@ -38,10 +38,12 @@ export const useSettings = () => {
       const data = await getSettings();
       setSettings(data);
     } catch (err) {
-      const error = err as { response?: { data?: { detail?: { message?: string } } }; message?: string };
+      const error = err as { response?: { data?: { detail?: { message?: string } } }; message?: string; _suppressToast?: boolean };
       const errorMsg = error.response?.data?.detail?.message || error.message || 'Failed to load settings';
       setError(errorMsg);
-      toast.error(errorMsg);
+      if (!error._suppressToast) {
+        toast.error(errorMsg);
+      }
     } finally {
       setLoading(false);
     }
@@ -55,9 +57,11 @@ export const useSettings = () => {
       toast.success('Settings saved successfully');
       return merged;
     } catch (err) {
-      const error = err as { response?: { data?: { detail?: { message?: string } } }; message?: string };
+      const error = err as { response?: { data?: { detail?: { message?: string } } }; message?: string; _suppressToast?: boolean };
       const errorMsg = error.response?.data?.detail?.message || error.message || 'Failed to save settings';
-      toast.error(errorMsg);
+      if (!error._suppressToast) {
+        toast.error(errorMsg);
+      }
       return null;
     }
   };
