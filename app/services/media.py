@@ -90,7 +90,7 @@ class MediaService:
         try:
             config = get_settings_service().load_config()
             prebuffer = float(getattr(config.event, "prebuffer_seconds", 5.0))
-            postbuffer = float(getattr(config.event, "postbuffer_seconds", 5.0))
+            postbuffer = float(getattr(config.event, "postbuffer_seconds", 15.0))
             start_time = event.timestamp - timedelta(seconds=prebuffer)
             end_time = event.timestamp + timedelta(seconds=postbuffer)
             recorder = get_continuous_recorder()
