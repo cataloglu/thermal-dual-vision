@@ -89,8 +89,8 @@ class MediaService:
         mp4_from_recording = False
         try:
             config = get_settings_service().load_config()
-            prebuffer = float(getattr(config.event, "prebuffer_seconds", 2.0))
-            postbuffer = float(getattr(config.event, "postbuffer_seconds", 2.0))
+            prebuffer = float(getattr(config.event, "prebuffer_seconds", 5.0))
+            postbuffer = float(getattr(config.event, "postbuffer_seconds", 5.0))
             start_time = event.timestamp - timedelta(seconds=prebuffer)
             end_time = event.timestamp + timedelta(seconds=postbuffer)
             recorder = get_continuous_recorder()

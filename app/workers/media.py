@@ -55,7 +55,7 @@ class MediaWorker:
     MP4_MIN_DURATION = 0.5
     MP4_MIN_OUTPUT_DURATION = 10.0
     MP4_MAX_DURATION = 12.0
-    MP4_SPEED_FACTOR = 4.0  # 4x speedup!
+    MP4_SPEED_FACTOR = 5.0  # 5x speedup
     MP4_MIN_OUTPUT_FPS = 3
     
     # Overlay colors (BGR format)

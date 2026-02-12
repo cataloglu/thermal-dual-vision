@@ -230,7 +230,7 @@ class MqttService:
     def _get_device_info(self) -> Dict[str, str]:
         # Get version from environment (set by Dockerfile)
         import os
-        version = os.getenv("ADDON_VERSION", "2.4.0")
+        version = os.getenv("ADDON_VERSION", "2.5.0")
         return {
             "identifiers": ["thermal_dual_vision"],
             "name": "Thermal Dual Vision",
