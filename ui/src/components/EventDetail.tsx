@@ -218,6 +218,7 @@ export function EventDetail({ event, initialTab, onClose, onDelete }: EventDetai
                   controls
                   autoPlay
                   loop
+                  playsInline
                   className="w-full h-auto"
                 >
                   Tarayıcınız video oynatmayı desteklemiyor.

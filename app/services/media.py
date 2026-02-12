@@ -94,9 +94,9 @@ class MediaService:
             start_time = event.timestamp - timedelta(seconds=prebuffer)
             end_time = event.timestamp + timedelta(seconds=postbuffer)
             recorder = get_continuous_recorder()
-            if recorder.extract_clip(event.camera_id, start_time, end_time, mp4_path):
+            if recorder.extract_clip(event.camera_id, start_time, end_time, mp4_path, speed_factor=4.0):
                 mp4_from_recording = True
-                logger.info("Event %s MP4 from recording (%.1f sec, original quality)", event_id, (end_time - start_time).total_seconds())
+                logger.info("Event %s MP4 from recording (%.1f sec @ 4x)", event_id, (end_time - start_time).total_seconds() / 4)
             else:
                 logger.warning(
                     "Event %s: no recording clip found, using frame fallback (lower quality)",

@@ -200,6 +200,7 @@ class ContinuousRecorder:
         start_time: datetime,
         end_time: datetime,
         output_path: str,
+        speed_factor: float = 4.0,
     ) -> bool:
         camera_dir = self.recording_dir / camera_id
         if not camera_dir.exists():
@@ -222,10 +223,10 @@ class ContinuousRecorder:
 
         if len(files) == 1:
             return self._extract_single(
-                ffmpeg, files[0], start_time, end_time, output_path
+                ffmpeg, files[0], start_time, end_time, output_path, speed_factor
             )
         return self._extract_multi(
-            ffmpeg, files, start_time, end_time, output_path
+            ffmpeg, files, start_time, end_time, output_path, speed_factor
         )
 
     def _extract_single(
@@ -235,6 +236,7 @@ class ContinuousRecorder:
         start_time: datetime,
         end_time: datetime,
         output_path: str,
+        speed_factor: float = 4.0,
     ) -> bool:
         file_start = self._parse_filename_timestamp(recording)
         if file_start is None:
@@ -244,20 +246,36 @@ class ContinuousRecorder:
 
         duration = (end_time - start_time).total_seconds()
 
-        # -i before -ss for accurate trim; -c copy = no re-encode, original quality
-        cmd = [
-            ffmpeg, "-hide_banner", "-loglevel", "error",
-            "-i", str(recording),
-            "-ss", f"{offset:.2f}",
-            "-t", f"{duration:.2f}",
-            "-c", "copy",
-            "-movflags", "+faststart",
-            "-y", output_path,
-        ]
+        if speed_factor <= 1.0:
+            cmd = [
+                ffmpeg, "-hide_banner", "-loglevel", "error",
+                "-i", str(recording),
+                "-ss", f"{offset:.2f}",
+                "-t", f"{duration:.2f}",
+                "-c", "copy",
+                "-movflags", "+faststart",
+                "-y", output_path,
+            ]
+        else:
+            pts = 1.0 / speed_factor
+            cmd = [
+                ffmpeg, "-hide_banner", "-loglevel", "error",
+                "-i", str(recording),
+                "-ss", f"{offset:.2f}",
+                "-t", f"{duration:.2f}",
+                "-filter:v", f"setpts={pts}*PTS",
+                "-an",
+                "-c:v", "libx264",
+                "-preset", "medium",
+                "-crf", "18",
+                "-pix_fmt", "yuv420p",
+                "-movflags", "+faststart",
+                "-y", output_path,
+            ]
         try:
-            result = subprocess.run(cmd, capture_output=True, timeout=60)
+            result = subprocess.run(cmd, capture_output=True, timeout=120)
             if result.returncode == 0:
-                logger.info("Extracted clip: %s", output_path)
+                logger.info("Extracted clip: %s (%.1fx speed)", output_path, speed_factor)
                 return True
             logger.error(
                 "FFmpeg extraction failed (rc=%s): %s",
@@ -276,6 +294,7 @@ class ContinuousRecorder:
         start_time: datetime,
         end_time: datetime,
         output_path: str,
+        speed_factor: float = 4.0,
     ) -> bool:
         """Extract clip spanning multiple segment files using concat demuxer."""
         concat_fd = None
@@ -288,7 +307,6 @@ class ContinuousRecorder:
                     f.write(f"file '{escaped}'\n")
             concat_fd = None  # ownership transferred
 
-            # Calculate global offset from first file
             first_start = self._parse_filename_timestamp(files[0])
             if first_start is None:
                 offset = 0.0
@@ -297,17 +315,35 @@ class ContinuousRecorder:
 
             duration = (end_time - start_time).total_seconds()
 
-            cmd = [
-                ffmpeg, "-hide_banner", "-loglevel", "error",
-                "-f", "concat", "-safe", "0",
-                "-i", concat_path,
-                "-ss", f"{offset:.2f}",
-                "-t", f"{duration:.2f}",
-                "-c", "copy",
-                "-movflags", "+faststart",
-                "-y", output_path,
-            ]
-            result = subprocess.run(cmd, capture_output=True, timeout=60)
+            if speed_factor <= 1.0:
+                cmd = [
+                    ffmpeg, "-hide_banner", "-loglevel", "error",
+                    "-f", "concat", "-safe", "0",
+                    "-i", concat_path,
+                    "-ss", f"{offset:.2f}",
+                    "-t", f"{duration:.2f}",
+                    "-c", "copy",
+                    "-movflags", "+faststart",
+                    "-y", output_path,
+                ]
+            else:
+                pts = 1.0 / speed_factor
+                cmd = [
+                    ffmpeg, "-hide_banner", "-loglevel", "error",
+                    "-f", "concat", "-safe", "0",
+                    "-i", concat_path,
+                    "-ss", f"{offset:.2f}",
+                    "-t", f"{duration:.2f}",
+                    "-filter:v", f"setpts={pts}*PTS",
+                    "-an",
+                    "-c:v", "libx264",
+                    "-preset", "medium",
+                    "-crf", "18",
+                    "-pix_fmt", "yuv420p",
+                    "-movflags", "+faststart",
+                    "-y", output_path,
+                ]
+            result = subprocess.run(cmd, capture_output=True, timeout=120)
             if result.returncode == 0:
                 logger.info("Extracted multi-segment clip: %s", output_path)
                 return True
