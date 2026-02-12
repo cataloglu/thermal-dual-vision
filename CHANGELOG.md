@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [2.5.9] - 2026-02-10
+
+### Düzeltmeler
+
+- **Hareket tespiti:** Migration gevşetildi – confidence 0.30, thermal 0.35, cooldown 7sn, min_event_duration 1sn. Varsayılanlar ve 4 Performance preset güncellendi.
+
+---
+
 ## [2.5.8] - 2026-02-10
 
 ### Düzeltmeler
@@ -84,6 +92,7 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+[2.5.9]: https://github.com/cataloglu/thermal-dual-vision/compare/v2.5.8...v2.5.9
 [2.5.8]: https://github.com/cataloglu/thermal-dual-vision/compare/v2.5.7...v2.5.8
 [2.5.7]: https://github.com/cataloglu/thermal-dual-vision/compare/v2.5.6...v2.5.7
 [2.3.0]: https://github.com/cataloglu/thermal-dual-vision/compare/v2.2.0...v2.3.0

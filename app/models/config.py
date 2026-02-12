@@ -17,13 +17,13 @@ class DetectionConfig(BaseModel):
         description="Primary model selection: yolov8n (fast), yolov8s (accurate), yolov9t (thermal), yolov9s (best)"
     )
     confidence_threshold: float = Field(
-        default=0.35,
+        default=0.30,
         ge=0.0,
         le=1.0,
         description="Minimum confidence for detections (higher = fewer false alarms)"
     )
     thermal_confidence_threshold: float = Field(
-        default=0.45,
+        default=0.35,
         ge=0.0,
         le=1.0,
         description="Minimum confidence for thermal (higher = fewer false alarms from heat blobs)"
@@ -279,8 +279,8 @@ class EventConfig(BaseModel):
     """Event generation configuration."""
     
     cooldown_seconds: int = Field(
-        default=10,
-        ge=1,
+        default=7,
+        ge=0,
         description="Minimum time between events (higher = fewer rapid false alarms)"
     )
     prebuffer_seconds: float = Field(
@@ -313,7 +313,7 @@ class EventConfig(BaseModel):
         description="Frame capture interval"
     )
     min_event_duration: float = Field(
-        default=1.5,
+        default=1.0,
         ge=0.0,
         description="Minimum sustained detection in seconds (higher = fewer false alarms)"
     )

@@ -261,21 +261,21 @@ class SettingsService:
             if tile == [8, 8] or tile == (8, 8):
                 thermal["clahe_tile_size"] = [32, 32]
                 result["thermal"] = thermal
-        # Migrate detection: higher confidence = fewer false alarms
+        # Migrate detection: revert aggressive 0.35/0.45 (caused zero detections on thermal)
         detection = result.get("detection")
         if isinstance(detection, dict):
-            if detection.get("confidence_threshold") == 0.25:
-                detection["confidence_threshold"] = 0.35
-            if detection.get("thermal_confidence_threshold") == 0.25:
-                detection["thermal_confidence_threshold"] = 0.45
+            if detection.get("confidence_threshold") in (0.25, 0.35):
+                detection["confidence_threshold"] = 0.30
+            if detection.get("thermal_confidence_threshold") in (0.25, 0.45):
+                detection["thermal_confidence_threshold"] = 0.35  # Thermal needs lower threshold
             result["detection"] = detection
-        # Migrate event: longer cooldown/duration = fewer false alarms
+        # Migrate event: 1sn süre yeterli, cooldown 7sn
         event = result.get("event")
         if isinstance(event, dict):
-            if event.get("cooldown_seconds") == 5:
-                event["cooldown_seconds"] = 10
-            if event.get("min_event_duration") == 1.0:
-                event["min_event_duration"] = 1.5
+            if event.get("cooldown_seconds") in (5, 10):
+                event["cooldown_seconds"] = 7
+            if event.get("min_event_duration") in (1.0, 1.2, 1.5):
+                event["min_event_duration"] = 1.0
             result["event"] = event
         record = result.get("record")
         if isinstance(record, dict):
