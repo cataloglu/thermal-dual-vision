@@ -96,14 +96,14 @@ class MediaService:
             recorder = get_continuous_recorder()
             if recorder.extract_clip(event.camera_id, start_time, end_time, mp4_path):
                 mp4_from_recording = True
-                logger.debug("Event %s MP4 from continuous recording", event_id)
+                logger.info("Event %s MP4 from recording (%.1f sec, original quality)", event_id, (end_time - start_time).total_seconds())
             else:
-                logger.info(
-                    "Event %s: recording unavailable, using frame-based MP4 fallback",
+                logger.warning(
+                    "Event %s: no recording clip found, using frame fallback (lower quality)",
                     event_id,
                 )
         except Exception as e:
-            logger.info("Clip from recording failed for %s (%s), using frame fallback", event_id, e)
+            logger.warning("Clip from recording failed for %s (%s), using frame fallback", event_id, e)
 
         # Generate media in parallel (collage always; mp4 from frames if not from recording)
         mp4_source_frames = mp4_frames if mp4_frames else frames

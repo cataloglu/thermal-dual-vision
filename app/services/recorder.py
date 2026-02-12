@@ -208,7 +208,11 @@ class ContinuousRecorder:
 
         files = self._find_recordings_in_range(camera_id, start_time, end_time)
         if not files:
-            logger.warning("No recordings for range %s - %s", start_time, end_time)
+            all_files = list((self.recording_dir / camera_id).glob("*.mp4")) if (self.recording_dir / camera_id).exists() else []
+            logger.warning(
+                "No recordings for %s range %s - %s (found %d segment files)",
+                camera_id, start_time, end_time, len(all_files),
+            )
             return False
 
         ffmpeg = shutil.which("ffmpeg")
@@ -240,17 +244,18 @@ class ContinuousRecorder:
 
         duration = (end_time - start_time).total_seconds()
 
+        # -i before -ss for accurate trim; -c copy = no re-encode, original quality
         cmd = [
             ffmpeg, "-hide_banner", "-loglevel", "error",
-            "-ss", f"{offset:.2f}",
             "-i", str(recording),
+            "-ss", f"{offset:.2f}",
             "-t", f"{duration:.2f}",
             "-c", "copy",
             "-movflags", "+faststart",
             "-y", output_path,
         ]
         try:
-            result = subprocess.run(cmd, capture_output=True, timeout=30)
+            result = subprocess.run(cmd, capture_output=True, timeout=60)
             if result.returncode == 0:
                 logger.info("Extracted clip: %s", output_path)
                 return True
@@ -345,6 +350,9 @@ class ContinuousRecorder:
             return []
 
         segment_len = timedelta(seconds=SEGMENT_DURATION)
+        # Exclude segments still being written by FFmpeg (allow 3s margin)
+        now = datetime.now()
+        safe_cutoff = now - timedelta(seconds=3)
         matched: List[Path] = []
 
         for mp4 in sorted(camera_dir.glob("*.mp4")):
@@ -352,7 +360,8 @@ class ContinuousRecorder:
             if file_start is None:
                 continue
             file_end = file_start + segment_len
-            # Check overlap: file range intersects query range
+            if file_end > safe_cutoff:
+                continue  # Segment still being written
             if file_start <= end_time and file_end >= start_time:
                 matched.append(mp4)
 

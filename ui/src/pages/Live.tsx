@@ -2,9 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { StreamViewer } from '../components/StreamViewer'
-import { api } from '../services/api'
-import apiClient from '../services/api'
-import { MdGridView } from 'react-icons/md'
+import { api, getLiveStreamUrl } from '../services/api'
+import { MdGridView, MdRefresh } from 'react-icons/md'
 import { useWebSocket } from '../hooks/useWebSocket'
 import { LoadingState } from '../components/LoadingState'
 
@@ -31,24 +30,25 @@ export function Live() {
   const [loading, setLoading] = useState(true)
   const [gridMode, setGridMode] = useState<1 | 2 | 3>(2) // 1x1, 2x2, 3x3
   const [visibleCount, setVisibleCount] = useState(6)
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true)
+      const [camerasData, streamsData] = await Promise.all([
+        api.getCameras(),
+        api.getLiveStreams()
+      ])
+      setCameras(camerasData.cameras)
+      setStreams(streamsData.streams)
+    } catch (error) {
+      console.error('Failed to fetch live data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [camerasData, streamsData] = await Promise.all([
-          api.getCameras(),
-          api.getLiveStreams()
-        ])
-        
-        setCameras(camerasData.cameras)
-        setStreams(streamsData.streams)
-      } catch (error) {
-        console.error('Failed to fetch live data:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
     fetchData()
     const savedGrid = localStorage.getItem('live_grid_mode')
     if (savedGrid) {
@@ -57,9 +57,20 @@ export function Live() {
         setGridMode(mode)
       }
     }
-    
     return () => undefined
-  }, [])
+  }, [fetchData])
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (!document.hidden) {
+        fetchData()
+        setRefreshKey(k => k + 1)
+      }
+    }
+    const handler = () => document.hidden === false && onVisible()
+    document.addEventListener('visibilitychange', handler)
+    return () => document.removeEventListener('visibilitychange', handler)
+  }, [fetchData])
 
   const handleStatus = useCallback((data: any) => {
     if (!data?.camera_id) return
@@ -115,7 +126,15 @@ export function Live() {
         </div>
 
         {/* Grid Mode Toggle */}
-        <div className="flex items-center gap-2 bg-surface1 border border-border rounded-lg p-1">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => { fetchData(); setRefreshKey(k => k + 1) }}
+            className="px-4 py-2 bg-surface1 border border-border text-text rounded-lg hover:bg-surface2 transition-colors flex items-center gap-2"
+          >
+            <MdRefresh />
+            {t('refresh')}
+          </button>
+          <div className="flex items-center gap-2 bg-surface1 border border-border rounded-lg p-1">
           {[1, 2, 3].map((mode) => (
             <button
               key={mode}
@@ -130,6 +149,7 @@ export function Live() {
               <span>{mode}x{mode}</span>
             </button>
           ))}
+          </div>
         </div>
       </div>
 
@@ -151,13 +171,11 @@ export function Live() {
         <div className={`grid ${getGridClass()} gap-6`}>
           {visibleCameras.map((camera) => {
             const stream = streams.find(s => s.camera_id === camera.id)
-            // Use axios baseURL to get Ingress prefix
-            const baseURL = apiClient.defaults.baseURL || '/api'
-            const streamUrl = stream?.stream_url || `${baseURL}/live/${camera.id}.mjpeg`
+            const streamUrl = stream?.stream_url ?? getLiveStreamUrl(camera.id)
             
             return (
               <StreamViewer
-                key={camera.id}
+                key={`${camera.id}-${refreshKey}`}
                 cameraId={camera.id}
                 cameraName={camera.name}
                 streamUrl={streamUrl}

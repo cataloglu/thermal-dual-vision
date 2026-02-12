@@ -47,19 +47,20 @@ export function StreamViewer({
   const retryTimeoutRef = useRef<number | null>(null)
   const loadingTimeoutRef = useRef<number | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  const maxRetries = 10
+  const maxRetries = 15
+  const RETRY_DELAYS = [1500, 2500, 4000, 6000, 8000, 10000, 12000, 15000, 18000, 20000]
 
   useEffect(() => {
     const checkGo2rtc = async () => {
       try {
-        await fetch(`${GO2RTC_URL}/api`, { mode: 'no-cors' })
-        setGo2rtcAvailable(true)
+        const res = await fetch(`${GO2RTC_URL}/api`, { method: 'GET', credentials: 'omit' })
+        setGo2rtcAvailable(res.ok)
       } catch {
         setGo2rtcAvailable(false)
       }
     }
     checkGo2rtc()
-    const interval = setInterval(checkGo2rtc, 30000)
+    const interval = setInterval(checkGo2rtc, 15000)
     return () => clearInterval(interval)
   }, [])
 
@@ -96,12 +97,16 @@ export function StreamViewer({
   }, [])
 
   useEffect(() => {
-    if (isVisible) return
+    if (!isVisible) {
+      if (imgRef.current) imgRef.current.src = ''
+      return
+    }
     setLoading(true)
     setError(false)
     setRetryCount(0)
-    if (imgRef.current) {
-      imgRef.current.src = ''
+    if (retryTimeoutRef.current) {
+      window.clearTimeout(retryTimeoutRef.current)
+      retryTimeoutRef.current = null
     }
   }, [isVisible])
 
@@ -130,7 +135,7 @@ export function StreamViewer({
     }
     loadingTimeoutRef.current = window.setTimeout(() => {
       setLoading(false)
-    }, 500)  // Reduced from 2000ms to 500ms
+    }, 1500)
   }, [isVisible, streamUrl, outputMode])
 
   const handleLoad = () => {
@@ -215,14 +220,17 @@ export function StreamViewer({
       return
     }
 
-    // Auto-retry up to 10 times
+    // Auto-retry with exponential backoff
     if (retryCount < maxRetries) {
+      const delay = RETRY_DELAYS[Math.min(retryCount, RETRY_DELAYS.length - 1)]
       retryTimeoutRef.current = window.setTimeout(() => {
         setRetryCount(prev => prev + 1)
+        setError(false)
+        setLoading(true)
         if (imgRef.current) {
           imgRef.current.src = `${streamUrl}?t=${Date.now()}`
         }
-      }, 2000)
+      }, delay)
     }
   }
 
