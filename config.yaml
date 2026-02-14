@@ -22,11 +22,11 @@ panel_title: Thermal Vision
 ports:
   8099/tcp: 8099
   1984/tcp: 1985
-  8554/tcp: 8554
+  8554/tcp: 8555
 ports_description:
   8099/tcp: "Web UI (direct access - not needed for Ingress)"
   1985/tcp: "go2rtc API"
-  8554/tcp: "RTSP Restream"
+  8555/tcp: "RTSP Restream"
 options:
   log_level: info
 schema:
