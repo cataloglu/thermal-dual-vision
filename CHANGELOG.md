@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.18] - 2026-02-14
+
+### Düzeltmeler
+
+- **Port:** RTSP host port 19854'e alındı (8554/8555 çakışma önlendi).
+
+---
+
 ## [3.10.17] - 2026-02-14
 
 ### Düzeltmeler

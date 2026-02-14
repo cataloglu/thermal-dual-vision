@@ -1,5 +1,5 @@
 name: "Thermal Dual Vision"
-version: "3.10.17"
+version: "3.10.18"
 slug: "thermal_dual_vision"
 description: "AI supported thermal & color person detection system with MQTT Auto-Discovery."
 url: "https://github.com/cataloglu/thermal-dual-vision"
@@ -22,11 +22,11 @@ panel_title: Thermal Vision
 ports:
   8099/tcp: 8099
   1984/tcp: 1985
-  8554/tcp: 8555
+  8554/tcp: 19854
 ports_description:
   8099/tcp: "Web UI (direct access - not needed for Ingress)"
   1985/tcp: "go2rtc API"
-  8555/tcp: "RTSP Restream"
+  19854/tcp: "RTSP Restream"
 options:
   log_level: info
 schema:
