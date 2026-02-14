@@ -1605,7 +1605,7 @@ async def create_camera(
             motion_config=request.get("motion_config")
         )
 
-        roles = camera.stream_roles or []
+        roles = camera.stream_roles if isinstance(camera.stream_roles, list) else []
         has_detect = not roles or "detect" in roles
         if camera.enabled and has_detect:
             try:
@@ -1709,7 +1709,7 @@ async def update_camera(
                 }
             )
         
-        roles = camera.stream_roles or []
+        roles = camera.stream_roles if isinstance(camera.stream_roles, list) else []
         has_detect = not roles or "detect" in roles
         if camera.enabled and has_detect:
             try:

@@ -130,32 +130,11 @@ PY
 fi
 # ---------------------------------------------------------
 
-# Database migrations (removed: fix_stream_roles.py was one-time migration)
+# Database migrations (standalone scripts, no app imports)
 echo "Checking database migrations..."
-
-# Migration 1: stream_roles
-python3 -c "
-from app.db.session import init_db, get_session
-from app.db.models import Camera
-try:
-    init_db()
-    db = next(get_session())
-    cameras = db.query(Camera).all()
-    updated = 0
-    for cam in cameras:
-        if not cam.stream_roles or len(cam.stream_roles) == 0:
-            cam.stream_roles = ['detect', 'live']
-            updated += 1
-    if updated > 0:
-        db.commit()
-    db.close()
-    print(f'🎉 Updated {updated}/{len(cameras)} cameras (stream_roles)')
-except Exception as e:
-    print(f'Migration check: {e}')
-" 2>/dev/null || echo "🎉 Updated 0/0 cameras"
-
-# Migration 2: person_count column
-python3 add_person_count_migration.py 2>/dev/null || echo "Migration skipped"
+cd /app || true
+python3 fix_stream_roles_migration.py 2>/dev/null || true
+python3 add_person_count_migration.py 2>/dev/null || true
 
 echo "Starting supervisor..."
 exec supervisord -c /etc/supervisor/supervisord.conf

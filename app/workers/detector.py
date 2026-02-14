@@ -128,7 +128,7 @@ class DetectorWorker:
                 cameras = db.query(Camera).filter(Camera.enabled.is_(True)).all()
                 started = 0
                 for camera in cameras:
-                    roles = camera.stream_roles or []
+                    roles = camera.stream_roles if isinstance(camera.stream_roles, list) else []
                     if roles and "detect" not in roles:
                         continue  # Explicitly excludes detect
                     self.start_camera_detection(camera)

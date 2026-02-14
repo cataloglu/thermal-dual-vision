@@ -6,6 +6,22 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.14] - 2026-02-14
+
+### Düzeltmeler
+
+- **Port 1984:** go2rtc host port 1985'e alındı (Frigate vb. ile çakışma önlendi).
+
+---
+
+## [3.10.13] - 2026-02-10
+
+### Düzeltmeler
+
+- **Başlangıç:** run.sh migration app import kaldırıldı, standalone script kullanılıyor; addon açılışta çökmesi düzeltildi.
+
+---
+
 ## [3.10.12] - 2026-02-10
 
 ### Düzeltmeler
