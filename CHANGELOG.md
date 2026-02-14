@@ -6,6 +6,15 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.15] - 2026-02-14
+
+### Düzeltmeler
+
+- Root yapı geri yüklendi (dockerfile missing hatası giderildi).
+- Port 1985, migration fix, stream_roles tüm iyileştirmeler dahil.
+
+---
+
 ## [3.10.14] - 2026-02-14
 
 ### Düzeltmeler
