@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.16] - 2026-02-14
+
+### Düzeltmeler
+
+- **Port:** go2rtc port formatı düzeltildi (container 1984 → host 1985).
+
+---
+
 ## [3.10.15] - 2026-02-14
 
 ### Düzeltmeler
