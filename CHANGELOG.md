@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.12] - 2026-02-10
+
+### Düzeltmeler
+
+- **Algılama:** Boş `stream_roles` olan kameralar artık algılanıyor (geriye dönük uyum).
+
+---
+
 ## [3.10.11] - 2026-02-10
 
 ### Değişenler

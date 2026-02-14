@@ -654,8 +654,9 @@ class MultiprocessingDetectorWorker:
                 started = 0
                 
                 for camera in cameras:
-                    if "detect" not in (camera.stream_roles or []):
-                        continue
+                    roles = camera.stream_roles or []
+                    if roles and "detect" not in roles:
+                        continue  # Explicitly excludes detect
                     
                     self.start_camera_detection(camera)
                     started += 1

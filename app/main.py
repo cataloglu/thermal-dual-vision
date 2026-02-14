@@ -1605,7 +1605,9 @@ async def create_camera(
             motion_config=request.get("motion_config")
         )
 
-        if camera.enabled and "detect" in (camera.stream_roles or []):
+        roles = camera.stream_roles or []
+        has_detect = not roles or "detect" in roles
+        if camera.enabled and has_detect:
             try:
                 detector_worker.start_camera_detection(camera)
             except Exception as e:
@@ -1707,7 +1709,9 @@ async def update_camera(
                 }
             )
         
-        if camera.enabled and "detect" in (camera.stream_roles or []):
+        roles = camera.stream_roles or []
+        has_detect = not roles or "detect" in roles
+        if camera.enabled and has_detect:
             try:
                 detector_worker.start_camera_detection(camera)
             except Exception as e:

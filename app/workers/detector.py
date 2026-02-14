@@ -121,14 +121,16 @@ class DetectorWorker:
             self.running = True
             logger.info("DetectorWorker started")
 
-            # Start detection threads for enabled cameras with detect role
+            # Start detection threads for enabled cameras
+            # Legacy: empty/null stream_roles => run detection (backward compat)
             db = next(get_session())
             try:
                 cameras = db.query(Camera).filter(Camera.enabled.is_(True)).all()
                 started = 0
                 for camera in cameras:
-                    if "detect" not in (camera.stream_roles or []):
-                        continue
+                    roles = camera.stream_roles or []
+                    if roles and "detect" not in roles:
+                        continue  # Explicitly excludes detect
                     self.start_camera_detection(camera)
                     started += 1
                 logger.info("DetectorWorker camera threads started: %s", started)
