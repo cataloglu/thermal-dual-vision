@@ -41,6 +41,7 @@ dist/
 build/
 *.egg-info/
 ui/test-results/
+**/ui/test-results/
 
 # Media (test files)
 *.mp4
