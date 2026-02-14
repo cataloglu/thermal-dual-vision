@@ -6,14 +6,6 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
-## [3.10.15] - 2026-02-14
-
-### Değişenler
-
-- **Repo yapısı:** HA standart addon klasör yapısına geçildi (`thermal_dual_vision/` altında); güncellemelerin doğru görünmesi sağlandı.
-
----
-
 ## [3.10.14] - 2026-02-14
 
 ### Düzeltmeler
