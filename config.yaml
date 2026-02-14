@@ -25,7 +25,7 @@ ports:
   8554/tcp: 8554
 ports_description:
   8099/tcp: "Web UI (direct access - not needed for Ingress)"
-  1985/tcp: "go2rtc API (1985 avoids conflict with Frigate/etc)"
+  1985/tcp: "go2rtc API"
   8554/tcp: "RTSP Restream"
 options:
   log_level: info

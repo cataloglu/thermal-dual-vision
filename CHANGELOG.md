@@ -10,7 +10,7 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ### Düzeltmeler
 
-- **Port 1984:** go2rtc host port 1985'e alındı (Frigate vb. ile çakışma önlendi).
+- **Port 1984:** go2rtc host port 1985'e alındı (başka uygulama 1984 kullanıyorsa çakışma önlenir).
 
 ---
 
