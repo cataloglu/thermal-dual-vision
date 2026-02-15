@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.19] - 2026-02-14
+
+### Düzeltmeler
+
+- **WebSocket:** Ping 15 sn, reconnect 2 sn, sınırsız deneme – bağlantı kopması azaltıldı.
+
+---
+
 ## [3.10.18] - 2026-02-14
 
 ### Düzeltmeler

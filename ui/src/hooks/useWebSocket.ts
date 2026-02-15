@@ -20,8 +20,8 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
     onStatus,
     onConnect,
     onDisconnect,
-    reconnectInterval = 3000,
-    maxReconnectAttempts = 10,
+    reconnectInterval = 2000,
+    maxReconnectAttempts = 999,
   } = options
 
   const wsRef = useRef<WebSocket | null>(null)
@@ -75,12 +75,12 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
           onConnect()
         }
 
-        // Send ping every 30 seconds to keep connection alive
+        // Send ping every 15 seconds to keep connection alive (Ingress proxy timeout)
         const pingInterval = setInterval(() => {
           if (ws.readyState === WebSocket.OPEN) {
             ws.send('ping')
           }
-        }, 30000)
+        }, 15000)
 
         ws.addEventListener('close', () => {
           clearInterval(pingInterval)
