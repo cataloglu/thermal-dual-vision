@@ -6,6 +6,18 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.23] - 2026-02-10
+
+### Değişenler
+
+- **Event video buffer FPS:** SharedFrameBuffer artık `record_fps` (varsayılan 10) kullanıyor; önceden sabit 5 FPS vardı. Ayarlar → Events → Frame rate ile 1–30 arası ayarlanabilir; daha akıcı timelapse için 15–20 önerilir.
+
+### Eklenenler
+
+- **docs/VIDEO_QUALITY_ANALYSIS.md:** Event video kalite değişkenliği analizi ve iyileştirme önerileri.
+
+---
+
 ## [3.10.22] - 2026-02-10
 
 ### Düzeltmeler

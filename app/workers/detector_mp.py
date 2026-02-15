@@ -417,9 +417,8 @@ def camera_detection_process(
                     
                     last_buffer_time = getattr(camera_detection_process, f'_last_buffer_time_{camera_id}')
                     time_since_last_buffer = current_time - last_buffer_time
-                    
-                    # Only buffer if at least 0.2s passed (match detection FPS = 5 FPS)
-                    if time_since_last_buffer >= 0.2:  # 200ms = 5 FPS
+                    buffer_interval = 1.0 / max(1, config.event.record_fps)
+                    if time_since_last_buffer >= buffer_interval:
                         # Resize to buffer shape if needed
                         buffer_shape = frame_buffer['frame_shape']
                         if frame.shape != buffer_shape:
