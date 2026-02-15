@@ -336,7 +336,8 @@ def camera_detection_process(
         # Open camera with threading detector's robust method
         import os
         
-        process_logger.info(f"[DEBUG-RTSP] Opening camera {camera_id[:8]}...")
+        cam_name = camera_config.get("name", "?")
+        process_logger.info(f"[DEBUG-RTSP] Opening camera {cam_name} ({camera_id[:8]})...")
         
         # Set FFmpeg options (same as threading detector!)
         transport = "tcp"
@@ -367,7 +368,7 @@ def camera_detection_process(
                     # Try to read a frame to verify
                     ret, _ = temp_cap.read()
                     if ret:
-                        process_logger.info(f"Camera {camera_id} opened successfully with codec {codec or 'default'}")
+                        process_logger.info(f"Camera {cam_name} ({camera_id[:8]}) opened successfully with codec {codec or 'default'}")
                         cap = temp_cap
                         break
                 temp_cap.release()
@@ -375,7 +376,7 @@ def camera_detection_process(
                 process_logger.debug(f"Codec {codec} attempt failed: {e}")
         
         if not cap or not cap.isOpened():
-            process_logger.error(f"Failed to open camera {camera_id} after all codec attempts")
+            process_logger.error(f"Failed to open camera {cam_name} ({camera_id[:8]}) after all codec attempts")
             time.sleep(60)
             return
         
@@ -391,7 +392,7 @@ def camera_detection_process(
         motion_config = camera_config.get("motion_config", {})
         zones = camera_config.get("zones", [])
         
-        process_logger.info(f"Detection parameters: source={detection_source}, fps={config.detection.inference_fps}, zones={len(zones)}")
+        process_logger.info(f"Detection parameters [{cam_name}]: source={detection_source}, fps={config.detection.inference_fps}, zones={len(zones)}")
         
         frames_failed = 0
         
@@ -596,7 +597,7 @@ def camera_detection_process(
                 event_queue.put_nowait(event_data)
                 last_event_time = current_time
                 event_start_time = None
-                process_logger.info(f"Event created: {len(detections)} persons, conf={best_detection['confidence']:.2f}")
+                process_logger.info(f"Event created [{cam_name}]: {len(detections)} persons, conf={best_detection['confidence']:.2f}")
             except Exception as e:
                 process_logger.warning(f"Event queue error: {e}")
         
@@ -1120,14 +1121,11 @@ class MultiprocessingDetectorWorker:
                                                         },
                                                     ))
                                                     if not _is_ai_confirmed(summary):
-                                                        logger.info(f"Event {event.id} rejected by AI, deleting")
-                                                        event_dir = media_service.MEDIA_DIR / event.id
-                                                        if event_dir.exists():
-                                                            shutil.rmtree(event_dir, ignore_errors=True)
-                                                        db.delete(event)
+                                                        logger.info(f"Event {event.id} rejected by AI, keeping for review")
+                                                        event.rejected_by_ai = True
+                                                        event.summary = summary
+                                                        event.collage_url = f"/api/events/{event.id}/collage"
                                                         db.commit()
-                                                        shm.close()
-                                                        shm_ts.close()
                                                         continue  # Next event
                                                     event.summary = summary
                                                     event.ai_enabled = True

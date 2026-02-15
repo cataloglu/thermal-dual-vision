@@ -189,6 +189,7 @@ export const getEvents = async (params: {
   camera_id?: string;
   date?: string;
   confidence?: number;
+  rejected?: boolean;
 }) => {
   const response = await apiClient.get('events', { params });
   return response.data;

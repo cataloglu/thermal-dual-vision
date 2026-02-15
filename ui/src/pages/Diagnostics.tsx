@@ -19,6 +19,7 @@ export function Diagnostics() {
   const [autoRefresh, setAutoRefresh] = useState(false)
   const [appLogFilter, setAppLogFilter] = useState('')
   const [cameraLogFilter, setCameraLogFilter] = useState('')
+  const [mediaLogFilter, setMediaLogFilter] = useState('')
   const isRefreshingRef = useRef(false)
 
   const fetchSystemInfo = async () => {
@@ -104,7 +105,7 @@ export function Diagnostics() {
     setLoading(false)
   }
 
-  // Kamera, hareket algılama, event: burada görünsün (kamera hareket algıladı, değer aşağıda kaldı, vb.)
+  // Kamera, hareket algılama, event: burada görünsün
   const cameraLogPatterns = [
     'camera=',
     'detector.',
@@ -115,8 +116,6 @@ export function Diagnostics() {
     'persons, conf=',
     'Attached to shared frame',
     'Detection parameters',
-    'Collected',
-    'frames from buffer',
     'Event gate',
     'Starting detection',
     'Opened camera',
@@ -127,26 +126,43 @@ export function Diagnostics() {
     'motion',
     'MOG2',
     'rejected by AI',
-    'Media generated',
-    'Collage created',
-    'Event MP4',
-    'recording',
-    'extract',
-    'segment',
     'Live stream',
     'Opening live stream',
   ]
   const isCameraLog = (line: string) =>
     cameraLogPatterns.some((pattern) => line.toLowerCase().includes(pattern.toLowerCase()))
 
-  const cameraLogs = logs.filter((line) => isCameraLog(line))
-  const applicationLogs = logs.filter((line) => !isCameraLog(line))
+  // Medya: collage, mp4, kayıt, extract, segment
+  const mediaLogPatterns = [
+    'Media generated',
+    'Collage created',
+    'Event MP4',
+    'recording',
+    'extract',
+    'segment',
+    'Collected',
+    'frames from buffer',
+    'moov',
+    'replaced from recording',
+    'buffer MP4',
+    'delayed extract',
+    'no recording',
+  ]
+  const isMediaLog = (line: string) =>
+    mediaLogPatterns.some((pattern) => line.toLowerCase().includes(pattern.toLowerCase()))
+
+  const cameraLogs = logs.filter((line) => isCameraLog(line) && !isMediaLog(line))
+  const mediaLogs = logs.filter((line) => isMediaLog(line))
+  const applicationLogs = logs.filter((line) => !isCameraLog(line) && !isMediaLog(line))
 
   const filteredAppLogs = applicationLogs.filter((line) =>
     appLogFilter ? line.toLowerCase().includes(appLogFilter.toLowerCase()) : true
   )
   const filteredCameraLogs = cameraLogs.filter((line) =>
     cameraLogFilter ? line.toLowerCase().includes(cameraLogFilter.toLowerCase()) : true
+  )
+  const filteredMediaLogs = mediaLogs.filter((line) =>
+    mediaLogFilter ? line.toLowerCase().includes(mediaLogFilter.toLowerCase()) : true
   )
 
   const parseLogLine = (line: string) => {
@@ -295,7 +311,63 @@ export function Diagnostics() {
         )}
       </div>
 
-      {/* 2) Sistem / uygulama logları */}
+      {/* 2) Medya logları */}
+      <div className="bg-surface1 border border-border rounded-lg p-6 mb-6">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-lg font-semibold text-text">
+            {t('mediaLogs')} ({mediaLogs.length} / {logLineLimit})
+          </h2>
+        </div>
+        <p className="text-muted text-sm mb-4">
+          {t('mediaLogsDesc')}
+        </p>
+        <div className="mb-4">
+          <input
+            type="text"
+            value={mediaLogFilter}
+            onChange={(e) => setMediaLogFilter(e.target.value)}
+            placeholder={t('filter')}
+            className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent text-sm"
+          />
+        </div>
+        {logsLoading ? (
+          <div className="bg-background border border-border rounded-lg p-4 flex items-center justify-center h-80">
+            <div className="text-muted">{t('loading')}...</div>
+          </div>
+        ) : (
+          <div className="bg-background border border-border rounded-lg p-4 overflow-auto max-h-80">
+            {filteredMediaLogs.length > 0 ? (
+              <div className="space-y-2 text-xs font-mono">
+                {filteredMediaLogs.map((line, idx) => {
+                  const parsed = parseLogLine(line)
+                  return (
+                    <div key={`med-${line}-${idx}`} className="flex flex-col gap-1">
+                      <div className="flex flex-wrap gap-2">
+                        {parsed.time && (
+                          <span className="text-muted">{parsed.time}</span>
+                        )}
+                        {parsed.level && (
+                          <span className={`font-semibold ${levelClass(parsed.level)}`}>
+                            {parsed.level}
+                          </span>
+                        )}
+                        {parsed.logger && (
+                          <span className="text-muted">{parsed.logger}</span>
+                        )}
+                      </div>
+                      <div className="text-text">{parsed.message}</div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="text-muted">{t('noData')}</div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* 3) Sistem / uygulama logları */}
       <div className="bg-surface1 border border-border rounded-lg p-6 mb-6">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-lg font-semibold text-text">

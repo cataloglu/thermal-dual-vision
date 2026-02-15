@@ -268,7 +268,7 @@ class EventConfig(BaseModel):
     """Event generation configuration."""
     
     cooldown_seconds: int = Field(
-        default=7,
+        default=60,
         ge=0,
         description="Minimum time between events (higher = fewer rapid false alarms)"
     )

@@ -67,6 +67,25 @@ def get_session() -> Generator[Session, None, None]:
         db.close()
 
 
+def _migrate_add_rejected_by_ai() -> None:
+    """Add rejected_by_ai column to events if missing (SQLite)."""
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        try:
+            # SQLite: check if column exists
+            row = conn.execute(text(
+                "SELECT COUNT(*) FROM pragma_table_info('events') WHERE name='rejected_by_ai'"
+            )).scalar()
+            if row == 0:
+                conn.execute(text(
+                    "ALTER TABLE events ADD COLUMN rejected_by_ai BOOLEAN DEFAULT 0 NOT NULL"
+                ))
+                conn.commit()
+                logger.info("Migration: added rejected_by_ai to events")
+        except Exception as e:
+            logger.warning("Migration rejected_by_ai: %s", e)
+
+
 def init_db() -> None:
     """
     Initialize the database.
@@ -79,6 +98,8 @@ def init_db() -> None:
     
     # Create all tables
     Base.metadata.create_all(bind=engine)
+    
+    _migrate_add_rejected_by_ai()
     
     logger.info(f"Database initialized at {DATABASE_FILE}")
 

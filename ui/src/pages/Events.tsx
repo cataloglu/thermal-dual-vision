@@ -31,6 +31,7 @@ export function Events() {
   const [dateFilter, setDateFilter] = useState<string>('')
   const [confidenceFilter, setConfidenceFilter] = useState<number>(0)
   const [confidenceInput, setConfidenceInput] = useState<number>(0)
+  const [showRejected, setShowRejected] = useState(false)
 
   // Fetch events with filters
   const debouncedCameraFilter = useDebounce(cameraFilter, 300)
@@ -56,6 +57,7 @@ export function Events() {
     cameraId: debouncedCameraFilter || undefined,
     date: debouncedDateFilter || undefined,
     minConfidence: debouncedConfidenceFilter > 0 ? debouncedConfidenceFilter / 100 : undefined,
+    rejected: showRejected ? true : undefined,
   })
 
   const handleEvent = useCallback((data: any) => {
@@ -84,7 +86,7 @@ export function Events() {
 
   useEffect(() => {
     resetPage()
-  }, [debouncedCameraFilter, debouncedDateFilter, debouncedConfidenceFilter, resetPage])
+  }, [debouncedCameraFilter, debouncedDateFilter, debouncedConfidenceFilter, showRejected, resetPage])
 
   useEffect(() => {
     const saved = localStorage.getItem('events_filters_open')
@@ -266,10 +268,32 @@ export function Events() {
 
   return (
     <div className="p-8">
+      {/* View tabs */}
+      <div className="flex gap-2 mb-6 border-b border-border pb-2">
+        <button
+          onClick={() => setShowRejected(false)}
+          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            !showRejected ? 'bg-accent text-white' : 'bg-surface1 text-muted hover:text-text'
+          }`}
+        >
+          {t('eventsConfirmed')}
+        </button>
+        <button
+          onClick={() => setShowRejected(true)}
+          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            showRejected ? 'bg-accent text-white' : 'bg-surface1 text-muted hover:text-text'
+          }`}
+        >
+          {t('eventsRejectedByAi')}
+        </button>
+      </div>
+
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-text mb-2">{t('events')}</h1>
+          <h1 className="text-3xl font-bold text-text mb-2">
+            {showRejected ? t('eventsRejectedByAi') : t('events')}
+          </h1>
           <p className="text-muted">
             {total > 0 ? `${t('total')} ${total} ${t('events').toLowerCase()}` : t('noEvents')}
           </p>

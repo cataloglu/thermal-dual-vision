@@ -651,6 +651,7 @@ async def get_events(
     camera_id: Optional[str] = Query(None, description="Filter by camera ID"),
     date: Optional[date] = Query(None, description="Filter by date (YYYY-MM-DD)"),
     confidence: Optional[float] = Query(None, ge=0.0, le=1.0, description="Minimum confidence"),
+    rejected: Optional[bool] = Query(None, description="True=only AI-rejected events; default excludes rejected"),
     db: Session = Depends(get_session),
 ) -> Dict[str, Any]:
     """
@@ -681,6 +682,7 @@ async def get_events(
             camera_id=camera_id,
             date_filter=date,
             min_confidence=confidence,
+            rejected_only=rejected,
         )
         
         # Get Ingress path from header
@@ -702,6 +704,7 @@ async def get_events(
                 "collage_url": media_urls["collage_url"],
                 "gif_url": media_urls["gif_url"],
                 "mp4_url": media_urls["mp4_url"],
+                "rejected_by_ai": getattr(event, "rejected_by_ai", False),
             })
         
         return {

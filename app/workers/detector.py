@@ -1799,11 +1799,10 @@ class DetectorWorker:
                         },
                     ))
                     if not self._is_ai_confirmed(summary):
-                        logger.info("Event %s rejected by AI (no person), deleting", event_id)
-                        event_dir = self.media_service.MEDIA_DIR / event_id
-                        if event_dir.exists():
-                            shutil.rmtree(event_dir, ignore_errors=True)
-                        db.delete(event)
+                        logger.info("Event %s rejected by AI, keeping for review", event_id)
+                        event.rejected_by_ai = True
+                        event.summary = summary
+                        event.collage_url = f"/api/events/{event_id}/collage"
                         db.commit()
                         return
                     event.summary = summary

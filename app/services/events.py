@@ -92,6 +92,7 @@ class EventService:
         camera_id: Optional[str] = None,
         date_filter: Optional[date] = None,
         min_confidence: Optional[float] = None,
+        rejected_only: Optional[bool] = None,
     ) -> Dict:
         """
         Get events with pagination and filtering.
@@ -131,6 +132,11 @@ class EventService:
         
         if min_confidence is not None:
             filters.append(Event.confidence >= min_confidence)
+        
+        if rejected_only is True:
+            filters.append(Event.rejected_by_ai == True)
+        elif rejected_only is False or rejected_only is None:
+            filters.append(Event.rejected_by_ai == False)
         
         if filters:
             query = query.filter(and_(*filters))

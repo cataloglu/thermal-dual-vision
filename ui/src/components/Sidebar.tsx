@@ -12,7 +12,8 @@ import {
   MdChevronRight,
   MdLanguage,
   MdRefresh,
-  MdHub
+  MdHub,
+  MdDescription
 } from 'react-icons/md'
 import { useWebSocket } from '../hooks/useWebSocket'
 import { api } from '../services/api'
@@ -50,6 +51,7 @@ export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
     { path: '/live', icon: MdVideocam, label: t('live') },
     { path: '/events', icon: MdEvent, label: t('events') },
     { path: '/diagnostics', icon: MdSearch, label: t('diagnostics') },
+    { path: '/logs', icon: MdDescription, label: t('logs') },
     { path: '/video-analysis', icon: MdMovieFilter, label: t('videoAnalysis') || 'Video Analizi' },
     { path: '/mqtt', icon: MdHub, label: 'MQTT Bilgileri' },
   ]

@@ -176,6 +176,7 @@ class Event(Base):
     summary = Column(Text, nullable=True)
     ai_enabled = Column(Boolean, default=False, nullable=False)
     ai_reason = Column(String(100), nullable=True)
+    rejected_by_ai = Column(Boolean, default=False, nullable=False)  # AI rejected; kept for review
     
     # Media URLs
     collage_url = Column(String(500), nullable=True)

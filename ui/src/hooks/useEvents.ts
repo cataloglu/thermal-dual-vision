@@ -11,6 +11,7 @@ interface Event {
   collage_url: string | null
   gif_url: string | null
   mp4_url: string | null
+  rejected_by_ai?: boolean
 }
 
 interface EventsResponse {
@@ -26,6 +27,7 @@ interface UseEventsParams {
   cameraId?: string
   date?: string
   minConfidence?: number
+  rejected?: boolean
 }
 
 export function useEvents(params: UseEventsParams = {}) {
@@ -47,6 +49,7 @@ export function useEvents(params: UseEventsParams = {}) {
         camera_id: params.cameraId,
         date: params.date,
         confidence: params.minConfidence,
+        rejected: params.rejected,
       })
 
       setEvents(data.events)
@@ -64,8 +67,9 @@ export function useEvents(params: UseEventsParams = {}) {
       params.cameraId ?? '',
       params.date ?? '',
       params.minConfidence ?? '',
+      params.rejected ?? '',
     ].join('|')
-  }, [params.cameraId, params.date, params.minConfidence])
+  }, [params.cameraId, params.date, params.minConfidence, params.rejected])
 
   useEffect(() => {
     fetchEvents()

@@ -269,11 +269,11 @@ class SettingsService:
             if detection.get("thermal_confidence_threshold") in (0.25, 0.45):
                 detection["thermal_confidence_threshold"] = 0.35  # Thermal needs lower threshold
             result["detection"] = detection
-        # Migrate event: 1sn süre yeterli, cooldown 7sn
+        # Migrate event: cooldown default 60sn (was 7)
         event = result.get("event")
         if isinstance(event, dict):
-            if event.get("cooldown_seconds") in (5, 10):
-                event["cooldown_seconds"] = 7
+            if event.get("cooldown_seconds") in (5, 7, 10):
+                event["cooldown_seconds"] = 60
             if event.get("min_event_duration") in (1.0, 1.2, 1.5):
                 event["min_event_duration"] = 1.0
             # prebuffer < 5 caused ~3 sec event videos (too few frames)
