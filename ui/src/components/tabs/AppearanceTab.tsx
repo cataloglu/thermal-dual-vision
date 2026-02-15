@@ -3,9 +3,25 @@
  */
 import React from 'react'
 import { useTranslation } from 'react-i18next'
+import type { AppearanceConfig } from '../../types/api'
 
-export const AppearanceTab: React.FC = () => {
+interface AppearanceTabProps {
+  config: AppearanceConfig
+  onChange: (config: AppearanceConfig) => void
+  onSave: (updates?: { appearance: AppearanceConfig }) => void
+}
+
+export const AppearanceTab: React.FC<AppearanceTabProps> = ({ config, onChange, onSave }) => {
   const { t, i18n } = useTranslation()
+  const lang = (config.language || i18n.language || 'tr') as 'tr' | 'en'
+
+  const handleLanguageChange = (next: 'tr' | 'en') => {
+    localStorage.setItem('language', next)
+    i18n.changeLanguage(next)
+    const nextAppearance = { ...config, language: next }
+    onChange(nextAppearance)
+    onSave({ appearance: nextAppearance })
+  }
 
   return (
     <div className="space-y-6">
@@ -18,12 +34,8 @@ export const AppearanceTab: React.FC = () => {
       <div>
         <label className="block text-sm font-medium text-text mb-2">{t('languageLabel')}</label>
         <select
-          value={i18n.language || 'tr'}
-          onChange={(e) => {
-            const next = e.target.value
-            localStorage.setItem('language', next)
-            i18n.changeLanguage(next)
-          }}
+          value={lang}
+          onChange={(e) => handleLanguageChange(e.target.value as 'tr' | 'en')}
           className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
         >
           <option value="tr">{t('languageTurkish')}</option>

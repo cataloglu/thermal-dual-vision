@@ -202,7 +202,15 @@ export const Settings: React.FC = () => {
     if (normalizedTab === 'mqtt' && localSettings) {
       return <MqttTab />
     }
-    if (normalizedTab === 'appearance') return <AppearanceTab />
+    if (normalizedTab === 'appearance' && localSettings) {
+      return (
+        <AppearanceTab
+          config={localSettings.appearance}
+          onChange={(appearance) => updateLocalSettings({ ...localSettings, appearance })}
+          onSave={(updates) => handleSave(updates ?? { appearance: localSettings.appearance })}
+        />
+      )
+    }
     return null
   }, [handleSave, handleSavePartial, localSettings, normalizedTab, updateLocalSettings])
 

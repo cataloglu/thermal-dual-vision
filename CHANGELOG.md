@@ -6,6 +6,45 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.22] - 2026-02-10
+
+### Düzeltmeler
+
+- **go2rtc buffer tutarlılığı:** detector_mp artık `config.stream.buffer_size` kullanıyor; önceden sabit 3 vardı.
+- **go2rtc "reader is too slow" dokümantasyonu:** `docs/GO2RTC_SLOW_READER.md` güncellendi – buffer değerleri, performans etkisi ve tavsiyeler (substream, direct RTSP, log seviyesi, kamera FPS) eklendi.
+
+---
+
+## [3.10.21] - 2026-02-14
+
+### Düzeltmeler
+
+- **go2rtc Live View:** Ingress üzerinden /live sayfasındayken go2rtc URL'si yanlış base path kullanıyordu (…/live/go2rtc → 404). Artık Ingress base doğru çıkarılıyor.
+- **go2rtc WebRTC modu:** WebRTC seçiliyken backend stream_url döndürmüyordu; MJPEG fallback URL'si eksikti. Artık webrtc modunda da stream_url üretiliyor.
+
+---
+
+## [3.10.20] - 2026-02-14
+
+### Eklenenler
+
+- **Telegram video_speed:** Ayarlardan event video hızı (web + Telegram için tek video) artık yönetiliyor.
+- **Telegram max_messages_per_min:** Dakika başı mesaj limiti backend'de uygulanıyor.
+- **Telegram ayar açıklamaları:** Video hızı, cooldown, rate limit için TR/EN açıklamalar eklendi.
+- **Appearance:** Dil değişikliği backend config'e kaydediliyor.
+
+### Değişenler
+
+- **Kamera Ayarları:** 3 kolonlu gruplu layout, collapse "Gelişmiş" bölümler, kısa algoritma ipuçları.
+- **Ayarlar sadeleştirme:** Kullanılmayan DetectionTab, MotionTab, ThermalTab, StreamTab kaldırıldı; enable_tracking UI'dan çıkarıldı.
+- **SettingsTabs:** Tekrarlayan performance tab kaldırıldı.
+
+### Düzeltmeler
+
+- **API audit:** Tüm uçlar ve ayar tab'ları kontrol edildi; `docs/API_AUDIT.md` eklendi.
+
+---
+
 ## [3.10.19] - 2026-02-14
 
 ### Düzeltmeler

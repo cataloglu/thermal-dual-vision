@@ -118,16 +118,18 @@ class MediaService:
         
         # MP4: prefer continuous recording, fallback to frames when recording unavailable
         mp4_from_recording = False
+        speed_factor = 4.0
         try:
             config = get_settings_service().load_config()
             prebuffer = float(getattr(config.event, "prebuffer_seconds", 5.0))
             postbuffer = float(getattr(config.event, "postbuffer_seconds", 15.0))
+            speed_factor = max(1.0, min(10.0, float(getattr(config.telegram, "video_speed", 4) or 4)))
             start_time = event.timestamp - timedelta(seconds=prebuffer)
             end_time = event.timestamp + timedelta(seconds=postbuffer)
             recorder = get_continuous_recorder()
-            if recorder.extract_clip(event.camera_id, start_time, end_time, mp4_path, speed_factor=4.0):
+            if recorder.extract_clip(event.camera_id, start_time, end_time, mp4_path, speed_factor=speed_factor):
                 mp4_from_recording = True
-                logger.info("Event %s MP4 from recording (%.1f sec @ 4x)", event_id, (end_time - start_time).total_seconds() / 4)
+                logger.info("Event %s MP4 from recording (%.1f sec @ %.1fx)", event_id, (end_time - start_time).total_seconds() / speed_factor, speed_factor)
             else:
                 logger.warning(
                     "Event %s: no recording clip found, using frame fallback (lower quality)",
@@ -167,6 +169,7 @@ class MediaService:
                         event.timestamp,
                         mp4_source_timestamps,
                         mp4_real_time,
+                        speed_factor,
                     ),
                 ))
             if include_gif:

@@ -291,10 +291,10 @@ export const TelegramTab: React.FC<TelegramTabProps> = ({ config, onChange, onSa
               </p>
             </div>
 
-            {/* TASK 14: Rate Limit */}
+            {/* Rate Limit */}
             <div>
               <label className="block text-sm font-medium text-text mb-2">
-                Rate Limit (seconds)
+                {t('telegramRateLimit')}
               </label>
               <input
                 type="number"
@@ -305,14 +305,14 @@ export const TelegramTab: React.FC<TelegramTabProps> = ({ config, onChange, onSa
                 className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
               />
               <p className="text-xs text-muted mt-1">
-                Minimum wait time between same event notifications
+                {t('telegramRateLimitDesc')}
               </p>
             </div>
 
-            {/* TASK 15: Video Speed */}
+            {/* Video Speed - General event video (not Telegram-specific) */}
             <div>
               <label className="block text-sm font-medium text-text mb-2">
-                Video Speed: {config.video_speed}x
+                {t('telegramVideoSpeed')}: {config.video_speed}x
               </label>
               <input
                 type="range"
@@ -324,21 +324,21 @@ export const TelegramTab: React.FC<TelegramTabProps> = ({ config, onChange, onSa
                 className="w-full h-2 bg-surface2 rounded-lg appearance-none cursor-pointer accent-accent"
               />
               <p className="text-xs text-muted mt-1">
-                Timelapse speed multiplier
+                {t('telegramVideoSpeedDesc')}
               </p>
             </div>
 
-            {/* Event Types kaldırıldı - sadece person algılıyoruz */}
+            {/* Event Types - sadece person algılıyoruz */}
             <div className="bg-info/10 border border-info/40 rounded-lg p-4">
               <p className="text-info text-sm">
                 ℹ️ Sadece <strong>Person</strong> algılaması yapılıyor. Vehicle, Animal algılaması yok.
               </p>
             </div>
 
-            {/* TASK 17: Cooldown */}
+            {/* Cooldown */}
             <div>
               <label className="block text-sm font-medium text-text mb-2">
-                Cooldown (seconds)
+                {t('telegramCooldown')}
               </label>
               <input
                 type="number"
@@ -349,14 +349,14 @@ export const TelegramTab: React.FC<TelegramTabProps> = ({ config, onChange, onSa
                 className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
               />
               <p className="text-xs text-muted mt-1">
-                Minimum wait time between any notifications
+                {t('telegramCooldownDesc')}
               </p>
             </div>
 
-            {/* TASK 18: Max Messages Per Minute */}
+            {/* Max Messages Per Minute */}
             <div>
               <label className="block text-sm font-medium text-text mb-2">
-                Max Messages Per Minute
+                {t('telegramMaxMessagesPerMin')}
               </label>
               <input
                 type="number"
@@ -367,7 +367,7 @@ export const TelegramTab: React.FC<TelegramTabProps> = ({ config, onChange, onSa
                 className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
               />
               <p className="text-xs text-muted mt-1">
-                Rate limiting to prevent spam
+                {t('telegramMaxMessagesPerMinDesc')}
               </p>
             </div>
 

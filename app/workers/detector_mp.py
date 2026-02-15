@@ -323,7 +323,7 @@ def camera_detection_process(
         for codec in codec_fallbacks:
             try:
                 temp_cap = cv2.VideoCapture(rtsp_url, cv2.CAP_FFMPEG)
-                temp_cap.set(cv2.CAP_PROP_BUFFERSIZE, 3)  # Small buffer
+                temp_cap.set(cv2.CAP_PROP_BUFFERSIZE, config.stream.buffer_size)
                 
                 # Set timeouts
                 if hasattr(cv2, "CAP_PROP_OPEN_TIMEOUT_MSEC"):

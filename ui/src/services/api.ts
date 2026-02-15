@@ -16,6 +16,13 @@ const resolveIngressApiBase = () => {
   return '/api';
 };
 
+/** Ingress base path for go2rtc etc. (e.g. /api/hassio_ingress/TOKEN) */
+export const getIngressBase = (): string => {
+  const path = window.location.pathname || '';
+  const ingressMatch = path.match(/(\/api\/hassio_ingress\/[^/]+)/);
+  return ingressMatch ? ingressMatch[1] : '';
+};
+
 // Use injected config from Nginx sub_filter (Frigate style),
 // but fall back to ingress path detection when needed.
 const getBaseUrl = () => {

@@ -5,6 +5,7 @@ Handles Telegram bot notifications for events.
 """
 import logging
 import time
+from collections import deque
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
@@ -35,6 +36,7 @@ class TelegramService:
         self.settings_service = get_settings_service()
         self.last_message_time: Dict[str, float] = {}
         self.cooldown_until: Dict[str, float] = {}
+        self._message_timestamps: deque = deque()
         logger.info("TelegramService initialized")
     
     async def send_event_notification(
@@ -85,6 +87,12 @@ class TelegramService:
             # Check cooldown
             if not self._check_cooldown(camera_id, config.telegram.cooldown_seconds):
                 logger.debug(f"Cooldown active for camera {camera_id}")
+                return False
+            
+            # Check max messages per minute (global rate limit)
+            max_per_min = getattr(config.telegram, "max_messages_per_min", 20) or 20
+            if not self._check_max_messages_per_min(max_per_min):
+                logger.debug("Max messages per minute limit reached")
                 return False
             
             # Create bot
@@ -141,6 +149,7 @@ class TelegramService:
             if success:
                 self._update_rate_limit(camera_id)
                 self._set_cooldown(camera_id, config.telegram.cooldown_seconds)
+                self._record_message_sent()
             
             return success
             
@@ -255,6 +264,26 @@ class TelegramService:
             cooldown_seconds: Cooldown in seconds
         """
         self.cooldown_until[camera_id] = time.time() + cooldown_seconds
+
+    def _check_max_messages_per_min(self, max_per_min: int) -> bool:
+        """
+        Check if we're within the max messages per minute limit.
+        
+        Args:
+            max_per_min: Maximum messages allowed per minute
+            
+        Returns:
+            True if allowed, False if limit reached
+        """
+        now = time.time()
+        cutoff = now - 60.0
+        while self._message_timestamps and self._message_timestamps[0] < cutoff:
+            self._message_timestamps.popleft()
+        return len(self._message_timestamps) < max_per_min
+
+    def _record_message_sent(self):
+        """Record that a message was sent (for max_messages_per_min tracking)."""
+        self._message_timestamps.append(time.time())
     
     async def test_connection(
         self,

@@ -1146,9 +1146,9 @@ async def get_live_streams(request: Request, db: Session = Depends(get_session))
                 continue
 
             stream_url: Optional[str] = None
-            if output_mode == "mjpeg":
-                # Prefer go2rtc MJPEG - no backend blocking, more reliable
-                stream_name = _resolve_go2rtc_stream_name(camera)
+            stream_name = _resolve_go2rtc_stream_name(camera)
+            if output_mode == "mjpeg" or output_mode == "webrtc":
+                # Prefer go2rtc MJPEG - no backend blocking (webrtc fallback da MJPEG kullanır)
                 if go2rtc.enabled and stream_name:
                     base_url = f"/go2rtc/api/stream.mjpeg?src={stream_name}"
                 else:

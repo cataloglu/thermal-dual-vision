@@ -1,18 +1,19 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MdRefresh, MdError, MdCheckCircle, MdFullscreen, MdPhotoCamera } from 'react-icons/md'
-import { api } from '../services/api'
+import { api, getIngressBase } from '../services/api'
 import { useSettings } from '../hooks/useSettings'
 import '../go2rtc-player'
 
-// Helper to get go2rtc URL (Ingress-aware)
+// Helper to get go2rtc URL (Ingress-aware, same base for /live, /dashboard etc.)
 const getGo2rtcUrl = () => {
-  const pathname = window.location.pathname;
-  const basePath = pathname.replace(/\/+$/, '').replace(/\/index\.html$/, '');
-  return basePath && basePath !== '/' ? `${basePath}/go2rtc` : '/go2rtc';
+  const env = import.meta.env.VITE_GO2RTC_URL;
+  if (env) return env;
+  const ingress = getIngressBase();
+  return ingress ? `${ingress}/go2rtc` : '/go2rtc';
 };
 
-const GO2RTC_URL = import.meta.env.VITE_GO2RTC_URL || getGo2rtcUrl();
+const GO2RTC_URL = getGo2rtcUrl();
 const normalizeGo2rtcBase = (url: string) => url.replace(/\/+$/, '');
 const getGo2rtcWsUrl = (cameraId: string) =>
   `${normalizeGo2rtcBase(GO2RTC_URL)}/api/ws?src=${encodeURIComponent(cameraId)}`;

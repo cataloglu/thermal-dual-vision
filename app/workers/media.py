@@ -708,6 +708,7 @@ class MediaWorker:
         timestamp: Optional[datetime] = None,
         timestamps: Optional[List[float]] = None,
         real_time: bool = False,
+        speed_factor: Optional[float] = None,
     ) -> str:
         """
         Create timelapse MP4 with detection boxes.
@@ -751,9 +752,11 @@ class MediaWorker:
             indices = list(range(frame_count))
             speed_factor = 1.0
         else:
+            sf = float(speed_factor) if speed_factor is not None else self.MP4_SPEED_FACTOR
+            sf = max(1.0, min(10.0, sf))
             target_duration = max(
                 min_duration,
-                min(self.MP4_MAX_DURATION, actual_duration / self.MP4_SPEED_FACTOR),
+                min(self.MP4_MAX_DURATION, actual_duration / sf),
             )
             if self.MP4_MIN_OUTPUT_DURATION:
                 target_duration = max(target_duration, self.MP4_MIN_OUTPUT_DURATION)

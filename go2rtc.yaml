@@ -6,3 +6,4 @@ api:
 
 log:
   level: info
+  # warn/error: "reader is too slow" gibi bilgi uyarılarını azaltır (docs/GO2RTC_SLOW_READER.md)
