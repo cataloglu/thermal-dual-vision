@@ -13,7 +13,8 @@ import os
 import shutil
 import subprocess
 import sys
-from datetime import datetime, timedelta
+import tempfile
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import List, Dict, Optional
 
@@ -187,76 +188,89 @@ class MediaWorker:
             ("mpeg4", ["-q:v", "5", "-pix_fmt", "yuv420p"]),
         )
 
-        for ffmpeg in ffmpeg_candidates:
-            candidate_ok = False
-            for codec, extra_args in codec_candidates:
-                cmd = [
-                    ffmpeg,
-                    "-hide_banner",
-                    "-loglevel",
-                    "error",
-                    "-y",
-                    "-f",
-                    "rawvideo",
-                    "-pix_fmt",
-                    "bgr24",
-                    "-s",
-                    f"{width}x{height}",
-                    "-r",
-                    str(fps),
-                    "-i",
-                    "pipe:0",
-                    "-c:v",
-                    codec,
-                    *extra_args,
-                    "-movflags",
-                    "+faststart",
-                    output_path,
-                ]
+        # Resize and collect frame bytes once; feed FFmpeg from temp file to avoid pipe flush errors
+        resized: List[np.ndarray] = []
+        for frame in frames:
+            if frame is None:
+                continue
+            if frame.shape[1] != width or frame.shape[0] != height:
+                frame = cv2.resize(frame, (width, height), interpolation=cv2.INTER_AREA)
+            resized.append(frame)
+        if not resized:
+            logger.warning("FFmpeg encode skipped: no frames")
+            return False
+
+        raw_path: Optional[str] = None
+        try:
+            fd, raw_path = tempfile.mkstemp(suffix=".raw")
+            os.close(fd)
+            with open(raw_path, "wb") as f:
+                for frame in resized:
+                    f.write(frame.tobytes())
+        except Exception as exc:
+            logger.warning("FFmpeg encode: failed to write temp raw file: %s", exc)
+            if raw_path and os.path.exists(raw_path):
                 try:
-                    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                    write_error: Optional[Exception] = None
-                    written = 0
-                    stdout = b""
-                    stderr = b""
+                    os.unlink(raw_path)
+                except OSError:
+                    pass
+            return False
+
+        try:
+            for ffmpeg in ffmpeg_candidates:
+                candidate_ok = False
+                for codec, extra_args in codec_candidates:
+                    cmd = [
+                        ffmpeg,
+                        "-hide_banner",
+                        "-loglevel",
+                        "error",
+                        "-y",
+                        "-f",
+                        "rawvideo",
+                        "-pix_fmt",
+                        "bgr24",
+                        "-s",
+                        f"{width}x{height}",
+                        "-r",
+                        str(fps),
+                        "-i",
+                        raw_path,
+                        "-c:v",
+                        codec,
+                        *extra_args,
+                        "-movflags",
+                        "+faststart",
+                        output_path,
+                    ]
                     try:
-                        for frame in frames:
-                            if frame is None:
-                                continue
-                            if frame.shape[1] != width or frame.shape[0] != height:
-                                frame = cv2.resize(frame, (width, height), interpolation=cv2.INTER_AREA)
-                            try:
-                                proc.stdin.write(frame.tobytes())
-                                written += 1
-                            except (BrokenPipeError, ValueError) as exc:
-                                write_error = exc
-                                break
-                        if proc.stdin and not proc.stdin.closed:
-                            proc.stdin.close()
-                        stdout, stderr = proc.communicate()
-                    finally:
-                        if proc.stdin and not proc.stdin.closed:
-                            proc.stdin.close()
-
-                    if written == 0:
-                        logger.warning("FFmpeg encode skipped: no frames written")
-                        return False
-
-                    if write_error or proc.returncode != 0:
-                        error_text = stderr.decode(errors="ignore").strip()
-                        detail = error_text or str(write_error or "unknown error")
-                        logger.warning("FFmpeg encode failed (%s): %s", codec, detail)
+                        proc = subprocess.run(
+                            cmd,
+                            capture_output=True,
+                            timeout=120,
+                        )
+                        if proc.returncode != 0:
+                            error_text = proc.stderr.decode(errors="ignore").strip()
+                            logger.warning("FFmpeg encode failed (%s): %s", codec, error_text or "unknown")
+                            continue
+                        candidate_ok = True
+                        return True
+                    except subprocess.TimeoutExpired:
+                        logger.warning("FFmpeg encode timed out (%s)", codec)
                         continue
-
-                    candidate_ok = True
-                    return True
-                except Exception as exc:
-                    logger.warning("FFmpeg encode failed (%s): %s", codec, exc)
-                    continue
-            if not candidate_ok:
-                self._ffmpeg_blacklist.add(ffmpeg)
-                logger.warning("FFmpeg binary disabled after failures: %s", ffmpeg)
-        return False
+                    except Exception as exc:
+                        logger.warning("FFmpeg encode failed (%s): %s", codec, exc)
+                        continue
+                if not candidate_ok:
+                    self._ffmpeg_blacklist.add(ffmpeg)
+                    logger.warning("FFmpeg binary disabled after failures: %s", ffmpeg)
+            return False
+        finally:
+            if raw_path and os.path.exists(raw_path):
+                try:
+                    os.unlink(raw_path)
+                except OSError:
+                    pass
 
     def _encode_mp4_opencv(
         self,
@@ -277,56 +291,6 @@ class MediaWorker:
             logger.warning("OpenCV MP4 encode failed: %s", exc)
         finally:
             out.release()
-
-    def _encode_mp4_imageio(
-        self,
-        frames: List[np.ndarray],
-        output_path: str,
-        fps: int,
-        size: tuple[int, int],
-    ) -> bool:
-        """Encode MP4 using imageio-ffmpeg (H.264 preferred)."""
-        if not frames:
-            return False
-
-        width, height = size
-        for codec in ("libx264", "mpeg4"):
-            writer = None
-            try:
-                writer = imageio.get_writer(
-                    output_path,
-                    fps=fps,
-                    codec=codec,
-                    format="FFMPEG",
-                    macro_block_size=None,
-                    ffmpeg_params=["-pix_fmt", "yuv420p", "-movflags", "+faststart"],
-                )
-                for frame in frames:
-                    if frame is None:
-                        continue
-                    if frame.shape[1] != width or frame.shape[0] != height:
-                        frame = cv2.resize(frame, (width, height), interpolation=cv2.INTER_AREA)
-                    writer.append_data(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-                writer.close()
-                writer = None
-                if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
-                    logger.info("MP4 encoded with imageio (%s)", codec)
-                    return True
-            except Exception as exc:
-                logger.warning("imageio MP4 encode failed (%s): %s", codec, exc)
-            finally:
-                try:
-                    if writer is not None:
-                        writer.close()
-                except Exception:
-                    pass
-            try:
-                if os.path.exists(output_path):
-                    os.remove(output_path)
-            except Exception:
-                pass
-
-        return False
 
     def _blur_score(self, frame: np.ndarray) -> float:
         """Laplacian variance: higher = sharper, lower = blurrier."""
@@ -884,7 +848,8 @@ class MediaWorker:
 
             if timestamp:
                 if timestamps and len(timestamps) == frame_count:
-                    frame_time = datetime.fromtimestamp(timestamps[frame_idx])
+                    # Buffer timestamps are UTC epoch; use UTC for consistent overlay (no dual times)
+                    frame_time = datetime.fromtimestamp(timestamps[frame_idx], tz=timezone.utc).replace(tzinfo=None)
                 else:
                     frame_time = timestamp + timedelta(seconds=out_idx / target_fps_int)
                 cv2.putText(
@@ -936,7 +901,11 @@ class MediaWorker:
         legacy_marker = f"{output_path}.legacy"
         encoded = self._encode_mp4_ffmpeg(processed_frames, output_path, target_fps_int, target_size)
         if not encoded:
-            encoded = self._encode_mp4_imageio(processed_frames, output_path, target_fps_int, target_size)
+            self._encode_mp4_opencv(processed_frames, output_path, target_fps_int, target_size)
+            try:
+                Path(legacy_marker).write_text("mp4v", encoding="utf-8")
+            except Exception:
+                pass
         if encoded:
             try:
                 if os.path.exists(legacy_marker):
@@ -944,11 +913,7 @@ class MediaWorker:
             except Exception:
                 pass
         else:
-            self._encode_mp4_opencv(processed_frames, output_path, target_fps_int, target_size)
-            try:
-                Path(legacy_marker).write_text("mp4v", encoding="utf-8")
-            except Exception:
-                pass
+            pass  # OpenCV already run above when FFmpeg failed
 
         logger.info(
             "Event MP4 created: %s size=%sx%s fps=%s duration=%.2fs speed=%.1fx",

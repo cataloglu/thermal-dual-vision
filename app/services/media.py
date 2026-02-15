@@ -6,10 +6,14 @@ This service handles event media generation and management.
 import logging
 import os
 import re
+import threading
 from concurrent.futures import ThreadPoolExecutor
-from datetime import timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
+
+# Delay before trying to replace event MP4 from recording (segment must be closed: 60s + margin)
+RECORDING_MP4_DELAY_SEC = 58
 
 import numpy as np
 from sqlalchemy.orm import Session
@@ -22,6 +26,34 @@ from app.utils.paths import DATA_DIR
 
 
 logger = logging.getLogger(__name__)
+
+
+def _replace_mp4_from_recording(
+    camera_id: str,
+    start_utc: datetime,
+    end_utc: datetime,
+    mp4_path: str,
+    speed_factor: float,
+) -> None:
+    """Background callback: try to replace event MP4 with recording clip once segment is closed."""
+    try:
+        recorder = get_continuous_recorder()
+        if recorder.extract_clip(camera_id, start_utc, end_utc, mp4_path, speed_factor=speed_factor):
+            logger.info(
+                "Event MP4 replaced from recording (delayed extract) camera=%s %s–%s",
+                camera_id,
+                start_utc,
+                end_utc,
+            )
+        else:
+            logger.debug(
+                "Delayed recording extract had no segment for camera=%s %s–%s (keeping buffer MP4)",
+                camera_id,
+                start_utc,
+                end_utc,
+            )
+    except Exception as e:
+        logger.warning("Delayed recording replace failed: %s", e)
 
 
 class MediaService:
@@ -119,17 +151,17 @@ class MediaService:
         # MP4: prefer continuous recording, fallback to frames when recording unavailable
         mp4_from_recording = False
         speed_factor = 4.0
-        start_time = end_time = None
+        prebuffer = 5.0
         postbuffer = 15.0
+        utc_dt = event.timestamp.replace(tzinfo=timezone.utc)
+        event_utc = utc_dt.replace(tzinfo=None)
+        start_utc = event_utc - timedelta(seconds=prebuffer)
+        end_utc = event_utc + timedelta(seconds=postbuffer)
         try:
             config = get_settings_service().load_config()
             prebuffer = float(getattr(config.event, "prebuffer_seconds", 5.0))
             postbuffer = float(getattr(config.event, "postbuffer_seconds", 15.0))
             speed_factor = max(1.0, min(10.0, float(getattr(config.telegram, "video_speed", 2) or 2)))
-            # Event timestamp is UTC. Try UTC first (FFmpeg with TZ=UTC), then local fallback
-            # (existing segments may have been created before TZ=UTC or on systems where TZ is ignored).
-            utc_dt = event.timestamp.replace(tzinfo=timezone.utc)
-            event_utc = utc_dt.replace(tzinfo=None)
             start_utc = event_utc - timedelta(seconds=prebuffer)
             end_utc = event_utc + timedelta(seconds=postbuffer)
             recorder = get_continuous_recorder()
@@ -154,6 +186,16 @@ class MediaService:
                     )
         except Exception as e:
             logger.warning("Clip from recording failed for %s (%s), using frame fallback", event_id, e)
+
+        # When MP4 was from buffer, try to replace with recording clip once segment is closed (~60s)
+        if not mp4_from_recording:
+            timer = threading.Timer(
+                RECORDING_MP4_DELAY_SEC,
+                _replace_mp4_from_recording,
+                args=(event.camera_id, start_utc, end_utc, mp4_path, speed_factor),
+            )
+            timer.daemon = True
+            timer.start()
 
         # Generate media in parallel (collage always; mp4 from frames if not from recording)
         mp4_source_frames = mp4_frames if mp4_frames else frames
