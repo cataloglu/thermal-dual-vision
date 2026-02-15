@@ -153,7 +153,8 @@ class MediaService:
         speed_factor = 4.0
         prebuffer = 5.0
         postbuffer = 15.0
-        utc_dt = event.timestamp.replace(tzinfo=timezone.utc)
+        # event.timestamp is naive UTC from detector
+        utc_dt = event.timestamp.replace(tzinfo=timezone.utc) if event.timestamp.tzinfo is None else event.timestamp.astimezone(timezone.utc)
         event_utc = utc_dt.replace(tzinfo=None)
         start_utc = event_utc - timedelta(seconds=prebuffer)
         end_utc = event_utc + timedelta(seconds=postbuffer)
@@ -164,26 +165,20 @@ class MediaService:
             speed_factor = max(1.0, min(10.0, float(getattr(config.telegram, "video_speed", 2) or 2)))
             start_utc = event_utc - timedelta(seconds=prebuffer)
             end_utc = event_utc + timedelta(seconds=postbuffer)
+            logger.debug(
+                "Event %s extract range (UTC): %s – %s (event_ts=%s)",
+                event_id, start_utc, end_utc, event.timestamp,
+            )
             recorder = get_continuous_recorder()
             if recorder.extract_clip(event.camera_id, start_utc, end_utc, mp4_path, speed_factor=speed_factor):
                 mp4_from_recording = True
                 logger.info("Event %s MP4 from recording (%.1f sec @ %.1fx)", event_id, (end_utc - start_utc).total_seconds() / speed_factor, speed_factor)
             else:
-                # Fallback: try local time (FFmpeg may use system local timezone)
-                local_dt = utc_dt.astimezone().replace(tzinfo=None)
-                start_local = local_dt - timedelta(seconds=prebuffer)
-                end_local = local_dt + timedelta(seconds=postbuffer)
-                if recorder.extract_clip(
-                    event.camera_id, start_local, end_local, mp4_path, speed_factor=speed_factor,
-                    use_utc_for_cutoff=False,
-                ):
-                    mp4_from_recording = True
-                    logger.info("Event %s MP4 from recording (local tz fallback, %.1f sec @ %.1fx)", event_id, (end_local - start_local).total_seconds() / speed_factor, speed_factor)
-                else:
-                    logger.info(
-                        "Event %s: segment not ready yet, using buffer MP4; will replace from recording in ~58s.",
-                        event_id,
-                    )
+                # Recording segment may still be open; use buffer MP4, replace from recording in ~58s
+                logger.info(
+                    "Event %s: segment not ready yet, using buffer MP4; will replace from recording in ~58s (range %s – %s UTC)",
+                    event_id, start_utc, end_utc,
+                )
         except Exception as e:
             logger.warning("Clip from recording failed for %s (%s), using frame fallback", event_id, e)
 

@@ -6,6 +6,22 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.39] - 2026-02-16
+
+### Değişenler
+
+- **Event timestamp:** Frame zamanı (`current_time`) kullanılıyor – `datetime.utcnow()` yerine buffer ile tam uyum.
+- **Medya sırası:** Video/collage önce üretiliyor, AI sonra – AI beklemeden zaman tutarlılığı.
+- **AI onayı son kapı:** MQTT/WebSocket/Telegram sadece AI onayladığında gönderiliyor; reddederse event UI'da kalıyor.
+- **Recorder log:** Segment bulunamadığında search range vs mevcut segment aralığı loglanıyor.
+
+### Düzeltmeler
+
+- **Media UTC:** Local timezone fallback kaldırıldı (FFmpeg TZ=UTC ile tutarsızlık).
+- **Event timestamp:** DB'den okunan `event.timestamp` için naive/aware UTC işleme düzeltildi.
+
+---
+
 ## [3.10.38] - 2026-02-16
 
 ### Düzeltmeler

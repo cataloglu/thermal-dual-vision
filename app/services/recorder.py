@@ -237,8 +237,10 @@ class ContinuousRecorder:
                     min_ts = ts if min_ts is None else min(min_ts, ts)
                     max_ts = ts if max_ts is None else max(max_ts, ts)
             logger.info(
-                "Recording segment not ready for %s (range %s–%s); using buffer MP4, will replace from recording in ~58s.",
+                "Recording segment not ready for %s (search %s–%s UTC, segments %s–%s); using buffer MP4, will replace in ~58s.",
                 camera_id, start_time, end_time,
+                min_ts.isoformat() if min_ts else "none",
+                max_ts.isoformat() if max_ts else "none",
             )
             return False
 

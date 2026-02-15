@@ -14,7 +14,7 @@ import shutil
 import signal
 import time
 from collections import deque
-from datetime import datetime
+from datetime import datetime, timezone as tz
 from typing import Dict, List, Optional, Tuple
 import numpy as np
 
@@ -594,6 +594,9 @@ def camera_detection_process(
                     'frame_shape': frame_buffer['frame_shape'],
                 }
             
+            # CRITICAL: Use frame timestamp (current_time), NOT datetime.utcnow()
+            # Frame time matches buffer timestamps exactly - avoids "person in collage but not in video"
+            event_ts_utc = datetime.fromtimestamp(current_time, tz=tz.utc).replace(tzinfo=None)
             event_data = {
                 "type": "detection",
                 "camera_id": camera_id,
@@ -601,7 +604,7 @@ def camera_detection_process(
                 "confidence": best_detection["confidence"],
                 "bbox": best_detection["bbox"],
                 "buffer_info": buffer_info,  # Share buffer info (not frames)
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": event_ts_utc.isoformat()
             }
             
             try:
@@ -1108,93 +1111,14 @@ class MultiprocessingDetectorWorker:
                                             
                                             mp4_url = None
                                             collage_url = None
-                                            collage_path = None
                                             
-                                            # AI gate: when ai_required, collage first → AI → only if confirmed, create MP4
-                                            if ai_required:
-                                                try:
-                                                    collage_path = media_service.generate_collage_for_ai(
-                                                        db=db,
-                                                        event_id=event.id,
-                                                        frames=frames,
-                                                        detections=detections_list,
-                                                        timestamps=frame_timestamps,
-                                                        camera_name=camera_name,
-                                                    )
-                                                    if not collage_path:
-                                                        logger.warning(f"Collage failed for event {event.id}, skipping AI")
-                                                        event_dir = media_service.MEDIA_DIR / event.id
-                                                        if event_dir.exists():
-                                                            shutil.rmtree(event_dir, ignore_errors=True)
-                                                        db.delete(event)
-                                                        db.commit()
-                                                        shm.close()
-                                                        shm_ts.close()
-                                                        continue
-                                                    from app.services.time_utils import get_detection_source
-                                                    detection_source = get_detection_source(
-                                                        camera_obj.detection_source.value if hasattr(camera_obj, "detection_source") and camera_obj.detection_source else "thermal"
-                                                    )
-                                                    summary = asyncio.run(ai_service.analyze_event(
-                                                        {
-                                                            "id": event.id,
-                                                            "camera_id": event.camera_id,
-                                                            "timestamp": event.timestamp.isoformat() + "Z",
-                                                            "confidence": event.confidence,
-                                                        },
-                                                        collage_path=collage_path,
-                                                        camera={
-                                                            "id": camera_obj.id,
-                                                            "name": camera_name,
-                                                            "type": (camera_obj.type.value if hasattr(camera_obj, "type") and camera_obj.type else None),
-                                                            "detection_source": detection_source,
-                                                        },
-                                                    ))
-                                                    if not _is_ai_confirmed(summary):
-                                                        logger.info(f"Event {event.id} rejected by AI, keeping for review (with MP4)")
-                                                        event.rejected_by_ai = True
-                                                        event.summary = summary
-                                                        event.collage_url = f"/api/events/{event.id}/collage"
-                                                        # Still generate MP4 (and refresh collage) for review
-                                                        try:
-                                                            media_service.generate_event_media(
-                                                                db=db,
-                                                                event_id=event.id,
-                                                                frames=frames,
-                                                                detections=detections_list,
-                                                                timestamps=frame_timestamps,
-                                                                camera_name=camera_name,
-                                                                include_gif=False,
-                                                                mp4_frames=frames,
-                                                                mp4_detections=[None] * len(frames),
-                                                                mp4_timestamps=frame_timestamps,
-                                                                mp4_real_time=False,
-                                                            )
-                                                        except Exception as mp4_err:
-                                                            logger.warning(f"MP4 for rejected event {event.id} failed: {mp4_err}")
-                                                        db.commit()
-                                                        continue  # Next event
-                                                    event.summary = summary
-                                                    event.ai_enabled = True
-                                                    event.ai_reason = None
-                                                    db.commit()
-                                                except Exception as e:
-                                                    logger.error(f"AI analysis failed for event {event.id}: {e}")
-                                                    event_dir = media_service.MEDIA_DIR / event.id
-                                                    if event_dir.exists():
-                                                        shutil.rmtree(event_dir, ignore_errors=True)
-                                                    db.delete(event)
-                                                    db.commit()
-                                                    shm.close()
-                                                    shm_ts.close()
-                                                    continue
-                                            
+                                            # Video/collage first, AI after - no waiting for AI (timing stays correct)
                                             try:
                                                 media_urls = media_service.generate_event_media(
                                                     db=db,
                                                     event_id=event.id,
                                                     frames=frames,
-                                                    detections=[None] * len(frames),
+                                                    detections=detections_list,
                                                     timestamps=frame_timestamps,
                                                     camera_name=camera_name,
                                                     include_gif=False,
@@ -1206,35 +1130,70 @@ class MultiprocessingDetectorWorker:
                                                 mp4_url = media_urls.get('mp4_url')
                                                 collage_url = media_urls.get('collage_url')
                                                 logger.info(f"Media generated for event {event.id}")
-                                                # Publish MQTT/WebSocket and Telegram ONLY after media is ready
+                                                
+                                                # AI after media (no blocking)
+                                                if ai_required:
+                                                    try:
+                                                        collage_path = media_service.get_media_path(event.id, "collage")
+                                                        if collage_path and collage_path.exists():
+                                                            from app.services.time_utils import get_detection_source
+                                                            detection_source = get_detection_source(
+                                                                camera_obj.detection_source.value if hasattr(camera_obj, "detection_source") and camera_obj.detection_source else "thermal"
+                                                            )
+                                                            summary = asyncio.run(ai_service.analyze_event(
+                                                                {
+                                                                    "id": event.id,
+                                                                    "camera_id": event.camera_id,
+                                                                    "timestamp": event.timestamp.isoformat() + "Z",
+                                                                    "confidence": event.confidence,
+                                                                },
+                                                                collage_path=str(collage_path),
+                                                                camera={
+                                                                    "id": camera_obj.id,
+                                                                    "name": camera_name,
+                                                                    "type": (camera_obj.type.value if hasattr(camera_obj, "type") and camera_obj.type else None),
+                                                                    "detection_source": detection_source,
+                                                                },
+                                                            ))
+                                                            event.summary = summary
+                                                            event.ai_enabled = True
+                                                            event.ai_reason = None
+                                                            if not _is_ai_confirmed(summary):
+                                                                logger.info(f"Event {event.id} rejected by AI, keeping for review (media already created)")
+                                                                event.rejected_by_ai = True
+                                                            db.commit()
+                                                        else:
+                                                            logger.warning(f"Event {event.id}: no collage for AI analysis")
+                                                    except Exception as e:
+                                                        logger.error(f"AI analysis failed for event {event.id}: {e}")
+                                                # AI onayı = son onay; MQTT/WebSocket/Telegram sadece onaylarsa
                                                 db.refresh(event)
                                                 ai_confirmed = _is_ai_confirmed(event.summary) if ai_required else True
-                                                mqtt_service.publish_event({
-                                                    "id": event.id,
-                                                    "camera_id": event.camera_id,
-                                                    "timestamp": event.timestamp.isoformat() + "Z",
-                                                    "confidence": event.confidence,
-                                                    "event_type": event.event_type,
-                                                    "summary": event.summary,
-                                                    "person_count": person_count,
-                                                    "ai_required": ai_required,
-                                                    "ai_confirmed": ai_confirmed,
-                                                    "ai_enabled": bool(event.ai_enabled),
-                                                    "ai_reason": event.ai_reason,
-                                                }, person_detected=ai_confirmed)
-                                                try:
-                                                    websocket_manager.broadcast_event_sync({
-                                                        "id": event.id,
-                                                        "camera_id": camera_id,
-                                                        "timestamp": event.timestamp.isoformat() + "Z",
-                                                        "confidence": confidence,
-                                                        "person_count": person_count,
-                                                        "summary": event.summary,
-                                                    })
-                                                except Exception:
-                                                    pass
-                                                # Telegram only when confirmed (AI case) or always (non-AI)
                                                 if ai_confirmed:
+                                                    mqtt_service.publish_event({
+                                                        "id": event.id,
+                                                        "camera_id": event.camera_id,
+                                                        "timestamp": event.timestamp.isoformat() + "Z",
+                                                        "confidence": event.confidence,
+                                                        "event_type": event.event_type,
+                                                        "summary": event.summary,
+                                                        "person_count": person_count,
+                                                        "ai_required": ai_required,
+                                                        "ai_confirmed": ai_confirmed,
+                                                        "ai_enabled": bool(event.ai_enabled),
+                                                        "ai_reason": event.ai_reason,
+                                                    }, person_detected=True)
+                                                    try:
+                                                        websocket_manager.broadcast_event_sync({
+                                                            "id": event.id,
+                                                            "camera_id": camera_id,
+                                                            "timestamp": event.timestamp.isoformat() + "Z",
+                                                            "confidence": confidence,
+                                                            "person_count": person_count,
+                                                            "summary": event.summary,
+                                                        })
+                                                    except Exception:
+                                                        pass
                                                     try:
                                                         from app.services.telegram import get_telegram_service
                                                         telegram = get_telegram_service()
