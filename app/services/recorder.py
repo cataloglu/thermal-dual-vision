@@ -236,11 +236,9 @@ class ContinuousRecorder:
                 if ts:
                     min_ts = ts if min_ts is None else min(min_ts, ts)
                     max_ts = ts if max_ts is None else max(max_ts, ts)
-            logger.warning(
-                "No recordings for %s range %s - %s (have %d segments, sample: %s). "
-                "Segment span: %s to %s | now(utc)=%s safe_cutoff=%s | frame fallback used.",
-                camera_id, start_time, end_time, len(all_files), sample,
-                min_ts, max_ts, now_utc, safe,
+            logger.info(
+                "Recording segment not ready for %s (range %s–%s); using buffer MP4, will replace from recording in ~58s.",
+                camera_id, start_time, end_time,
             )
             return False
 
@@ -354,14 +352,16 @@ class ContinuousRecorder:
             if result.returncode == 0:
                 logger.info("Extracted clip: %s (%.1fx speed)", output_path, speed_factor)
                 return True
-            logger.error(
-                "FFmpeg extraction failed (rc=%s): %s",
-                result.returncode,
-                result.stderr.decode(errors="ignore")[:300],
-            )
+            stderr = result.stderr.decode(errors="ignore")
+            if "moov atom not found" in stderr or "Invalid data" in stderr:
+                logger.info(
+                    "Segment still being written (moov not ready); using buffer MP4, delayed replace in ~58s."
+                )
+            else:
+                logger.warning("FFmpeg extraction failed (rc=%s): %s", result.returncode, stderr[:200])
             return False
         except Exception as e:
-            logger.error("Failed to extract clip: %s", e)
+            logger.warning("Extract clip failed: %s", e)
             return False
 
     def _extract_multi(

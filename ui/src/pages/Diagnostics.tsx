@@ -104,27 +104,40 @@ export function Diagnostics() {
     setLoading(false)
   }
 
+  // Kamera, hareket algılama, event: burada görünsün (kamera hareket algıladı, değer aşağıda kaldı, vb.)
   const cameraLogPatterns = [
     'camera=',
-    'Detections',
+    'detector.',
+    'Camera detection',
+    'Camera opened',
+    'Camera opened successfully',
+    'Event created',
+    'persons, conf=',
+    'Attached to shared frame',
+    'Detection parameters',
+    'Collected',
+    'frames from buffer',
     'Event gate',
     'Starting detection',
     'Opened camera',
     'Released camera',
     'Frame read',
     'codec',
-    // detector_mp (multiprocessing) messages
-    'Camera detection',
-    'Camera opened',
-    'Event created',
-    'detector.',
-    'Attached to shared frame',
-    'Detection parameters',
-    'Collected',
-    'frames from buffer',
+    'Detections',
+    'motion',
+    'MOG2',
+    'rejected by AI',
+    'Media generated',
+    'Collage created',
+    'Event MP4',
+    'recording',
+    'extract',
+    'segment',
+    'Live stream',
+    'Opening live stream',
   ]
   const isCameraLog = (line: string) =>
-    cameraLogPatterns.some((pattern) => line.includes(pattern))
+    cameraLogPatterns.some((pattern) => line.toLowerCase().includes(pattern.toLowerCase()))
 
   const cameraLogs = logs.filter((line) => isCameraLog(line))
   const applicationLogs = logs.filter((line) => !isCameraLog(line))
@@ -226,9 +239,65 @@ export function Diagnostics() {
         </div>
       </div>
 
-      {/* Logs */}
+      {/* 1) Kamera & hareket algılama logları – önce bu ekran */}
       <div className="bg-surface1 border border-border rounded-lg p-6 mb-6">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-lg font-semibold text-text">
+            {t('cameraLogs')} ({cameraLogs.length} / {logLineLimit})
+          </h2>
+        </div>
+        <p className="text-muted text-sm mb-4">
+          {t('cameraLogsDesc')}
+        </p>
+        <div className="mb-4">
+          <input
+            type="text"
+            value={cameraLogFilter}
+            onChange={(e) => setCameraLogFilter(e.target.value)}
+            placeholder={t('filter')}
+            className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent text-sm"
+          />
+        </div>
+        {logsLoading ? (
+          <div className="bg-background border border-border rounded-lg p-4 flex items-center justify-center h-80">
+            <div className="text-muted">{t('loading')}...</div>
+          </div>
+        ) : (
+          <div className="bg-background border border-border rounded-lg p-4 overflow-auto max-h-80">
+            {filteredCameraLogs.length > 0 ? (
+              <div className="space-y-2 text-xs font-mono">
+                {filteredCameraLogs.map((line, idx) => {
+                  const parsed = parseLogLine(line)
+                  return (
+                    <div key={`cam-${line}-${idx}`} className="flex flex-col gap-1">
+                      <div className="flex flex-wrap gap-2">
+                        {parsed.time && (
+                          <span className="text-muted">{parsed.time}</span>
+                        )}
+                        {parsed.level && (
+                          <span className={`font-semibold ${levelClass(parsed.level)}`}>
+                            {parsed.level}
+                          </span>
+                        )}
+                        {parsed.logger && (
+                          <span className="text-muted">{parsed.logger}</span>
+                        )}
+                      </div>
+                      <div className="text-text">{parsed.message}</div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="text-muted">{t('noData')}</div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* 2) Sistem / uygulama logları */}
+      <div className="bg-surface1 border border-border rounded-lg p-6 mb-6">
+        <div className="flex items-center justify-between mb-2">
           <h2 className="text-lg font-semibold text-text">
             {t('applicationLogs')} ({applicationLogs.length} / {logLineLimit})
           </h2>
@@ -288,7 +357,9 @@ export function Diagnostics() {
             </button>
           </div>
         </div>
-
+        <p className="text-muted text-sm mb-4">
+          {t('applicationLogsDesc')}
+        </p>
         <div className="mb-4">
           <input
             type="text"
@@ -298,7 +369,6 @@ export function Diagnostics() {
             className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent text-sm"
           />
         </div>
-        
         {logsLoading ? (
           <div className="bg-background border border-border rounded-lg p-4 flex items-center justify-center h-96">
             <div className="text-muted">{t('loading')}...</div>
@@ -308,60 +378,6 @@ export function Diagnostics() {
             {filteredAppLogs.length > 0 ? (
               <div className="space-y-2 text-xs font-mono">
                 {filteredAppLogs.map((line, idx) => {
-                  const parsed = parseLogLine(line)
-                  return (
-                    <div key={`${line}-${idx}`} className="flex flex-col gap-1">
-                      <div className="flex flex-wrap gap-2">
-                        {parsed.time && (
-                          <span className="text-muted">{parsed.time}</span>
-                        )}
-                        {parsed.level && (
-                          <span className={`font-semibold ${levelClass(parsed.level)}`}>
-                            {parsed.level}
-                          </span>
-                        )}
-                        {parsed.logger && (
-                          <span className="text-muted">{parsed.logger}</span>
-                        )}
-                      </div>
-                      <div className="text-text">{parsed.message}</div>
-                    </div>
-                  )
-                })}
-              </div>
-            ) : (
-              <div className="text-muted">{t('noData')}</div>
-            )}
-          </div>
-        )}
-      </div>
-
-      <div className="bg-surface1 border border-border rounded-lg p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-text">
-            {t('cameraLogs')} ({cameraLogs.length} / {logLineLimit})
-          </h2>
-        </div>
-
-        <div className="mb-4">
-          <input
-            type="text"
-            value={cameraLogFilter}
-            onChange={(e) => setCameraLogFilter(e.target.value)}
-            placeholder={t('filter')}
-            className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent text-sm"
-          />
-        </div>
-
-        {logsLoading ? (
-          <div className="bg-background border border-border rounded-lg p-4 flex items-center justify-center h-96">
-            <div className="text-muted">{t('loading')}...</div>
-          </div>
-        ) : (
-          <div className="bg-background border border-border rounded-lg p-4 overflow-auto max-h-96">
-            {filteredCameraLogs.length > 0 ? (
-              <div className="space-y-2 text-xs font-mono">
-                {filteredCameraLogs.map((line, idx) => {
                   const parsed = parseLogLine(line)
                   return (
                     <div key={`${line}-${idx}`} className="flex flex-col gap-1">

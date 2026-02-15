@@ -9,6 +9,7 @@ from datetime import date, datetime
 from typing import Any, Dict, Optional, List
 
 import os
+import threading
 from fastapi import FastAPI, HTTPException, Depends, Query, WebSocket, WebSocketDisconnect, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
@@ -16,6 +17,7 @@ from pydantic import ValidationError, BaseModel
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 import cv2
+import httpx
 import time
 import base64
 
@@ -252,6 +254,9 @@ mqtt_service = get_mqtt_service()
 recording_state_service = get_recording_state_service()
 metrics_service = get_metrics_service()
 continuous_recorder = get_continuous_recorder()
+
+# Limit concurrent live MJPEG streams to avoid CPU spike (each stream = full RTSP decode + encode)
+_live_stream_semaphore = threading.Semaphore(2)
 
 
 def _resolve_default_rtsp_url(camera) -> Optional[str]:
@@ -1235,14 +1240,7 @@ async def get_live_streams(request: Request, db: Session = Depends(get_session))
 @app.get("/api/live/{camera_id}.mjpeg")
 async def get_live_stream(camera_id: str, db: Session = Depends(get_session)) -> StreamingResponse:
     """
-    Stream live MJPEG feed for a camera.
-
-    Args:
-        camera_id: Camera ID
-        db: Database session
-
-    Returns:
-        StreamingResponse of MJPEG frames
+    Stream live MJPEG: prefer go2rtc (decode once, like Frigate); fallback = our decode (limited to 2).
     """
     camera = camera_crud_service.get_camera(db, camera_id)
     if not camera:
@@ -1267,10 +1265,42 @@ async def get_live_stream(camera_id: str, db: Session = Depends(get_session)) ->
             }
         )
 
+    # Prefer go2rtc: one decode per camera, many viewers = no extra CPU (like Frigate).
+    if go2rtc_service and go2rtc_service.enabled:
+        stream_name = _resolve_go2rtc_stream_name(camera)
+        if stream_name:
+            go2rtc_mjpeg = f"{go2rtc_service.api_url}/api/stream.mjpeg?src={stream_name}"
+            try:
+                async with httpx.AsyncClient(timeout=5.0) as client:
+                    async with client.stream("GET", go2rtc_mjpeg) as check_resp:
+                        if check_resp.status_code == 200:
+                            async def proxy_go2rtc():
+                                async with httpx.AsyncClient(timeout=60.0) as c2:
+                                    async with c2.stream("GET", go2rtc_mjpeg) as r:
+                                        async for chunk in r.aiter_bytes():
+                                            yield chunk
+                            logger.info("Live stream from go2rtc for %s (no extra CPU)", camera_id)
+                            return StreamingResponse(
+                                proxy_go2rtc(),
+                                media_type="multipart/x-mixed-replace; boundary=frame",
+                            )
+            except Exception as e:
+                logger.debug("go2rtc live for %s failed, using fallback: %s", camera_id, e)
+
+    # Fallback: decode in our process (limit 2 to protect CPU).
+    if not _live_stream_semaphore.acquire(blocking=True, timeout=3):
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": True,
+                "code": "TOO_MANY_LIVE_STREAMS",
+                "message": "Too many live streams open. Close some tiles or try again in a moment.",
+            },
+        )
+
     if settings.stream.protocol == "tcp":
         stream_urls = [camera_service.force_tcp_protocol(url) for url in stream_urls]
 
-    # Live view = direct RTSP → MJPEG only (no detector). Same as go2rtc/Frigate etc.
     cap = None
     selected_url = None
     for candidate_url in stream_urls:
@@ -1292,6 +1322,7 @@ async def get_live_stream(camera_id: str, db: Session = Depends(get_session)) ->
         break
 
     if cap is None or not cap.isOpened():
+        _live_stream_semaphore.release()
         logger.warning("Live stream could not open RTSP for %s (tried %d URL(s))", camera_id, len(stream_urls))
         raise HTTPException(
             status_code=503,
@@ -1335,6 +1366,7 @@ async def get_live_stream(camera_id: str, db: Session = Depends(get_session)) ->
                 )
         finally:
             cap.release()
+            _live_stream_semaphore.release()
 
     return StreamingResponse(
         stream_generator(),

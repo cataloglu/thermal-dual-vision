@@ -180,8 +180,8 @@ class MediaService:
                     mp4_from_recording = True
                     logger.info("Event %s MP4 from recording (local tz fallback, %.1f sec @ %.1fx)", event_id, (end_local - start_local).total_seconds() / speed_factor, speed_factor)
                 else:
-                    logger.warning(
-                        "Event %s: no recording clip found (tried UTC and local), using frame fallback (lower quality)",
+                    logger.info(
+                        "Event %s: segment not ready yet, using buffer MP4; will replace from recording in ~58s.",
                         event_id,
                     )
         except Exception as e:
