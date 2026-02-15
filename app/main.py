@@ -319,7 +319,7 @@ def _normalize_rtsp_value(value: Optional[str]) -> Optional[str]:
 
 def _sanitize_rtsp_updates(payload: Dict[str, Any]) -> Dict[str, Optional[str]]:
     sanitized: Dict[str, Optional[str]] = {}
-    for key in ("rtsp_url", "rtsp_url_color", "rtsp_url_thermal"):
+    for key in ("rtsp_url", "rtsp_url_color", "rtsp_url_thermal", "rtsp_url_detection"):
         if key not in payload:
             continue
         value = payload.get(key)
@@ -1120,6 +1120,7 @@ async def get_event_mp4(event_id: str) -> FileResponse:
             media_type="video/mp4",
             filename=f"event-{event_id}-timelapse.mp4",
             content_disposition_type="inline",
+            headers={"Accept-Ranges": "bytes"},
         )
         
     except HTTPException:
@@ -1663,6 +1664,7 @@ async def create_camera(
             camera_type=request.get("type"),
             rtsp_url_thermal=rtsp_updates.get("rtsp_url_thermal"),
             rtsp_url_color=rtsp_updates.get("rtsp_url_color"),
+            rtsp_url_detection=rtsp_updates.get("rtsp_url_detection"),
             channel_color=request.get("channel_color"),
             channel_thermal=request.get("channel_thermal"),
             detection_source=request.get("detection_source", "auto"),
@@ -1699,6 +1701,7 @@ async def create_camera(
             rtsp_url=camera.rtsp_url,
             rtsp_url_color=camera.rtsp_url_color,
             rtsp_url_thermal=camera.rtsp_url_thermal,
+            rtsp_url_detection=camera.rtsp_url_detection,
             default_url=_resolve_default_rtsp_url(camera),
         )
 
@@ -1802,6 +1805,7 @@ async def update_camera(
             rtsp_url=camera.rtsp_url,
             rtsp_url_color=camera.rtsp_url_color,
             rtsp_url_thermal=camera.rtsp_url_thermal,
+            rtsp_url_detection=camera.rtsp_url_detection,
             default_url=_resolve_default_rtsp_url(camera),
         )
 

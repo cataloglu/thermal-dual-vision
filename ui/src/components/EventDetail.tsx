@@ -243,11 +243,13 @@ export function EventDetail({ event, cameraName, initialTab, onClose, onDelete }
               displayEvent.mp4_url ? (
                 <div>
                   <video
+                    key={displayEvent.mp4_url}
                     src={resolveApiPath(displayEvent.mp4_url)}
                     controls
                     autoPlay
                     loop
                     playsInline
+                    muted
                     preload="auto"
                     className="w-full h-auto"
                   >

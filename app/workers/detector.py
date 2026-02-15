@@ -1276,6 +1276,9 @@ class DetectorWorker:
         camera: Camera,
         detection_source: str,
     ) -> Tuple[str, Optional[str], Optional[str]]:
+        # Substream for detection when set (low CPU)
+        if getattr(camera, "rtsp_url_detection", None):
+            return "detect", "detect", camera.rtsp_url_detection
         if detection_source == "thermal":
             if camera.rtsp_url_thermal:
                 return "thermal", "thermal", camera.rtsp_url_thermal
@@ -1315,7 +1318,7 @@ class DetectorWorker:
         if not self.go2rtc_service or not self.go2rtc_service.enabled:
             return None
         rtsp_base = os.getenv("GO2RTC_RTSP_URL", "rtsp://127.0.0.1:8554")
-        normalized_source = source if source in ("color", "thermal") else None
+        normalized_source = source if source in ("color", "thermal", "detect") else None
         stream_name = f"{camera_id}_{normalized_source}" if normalized_source else camera_id
         return f"{rtsp_base}/{stream_name}"
 

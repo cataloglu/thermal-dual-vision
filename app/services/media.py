@@ -255,6 +255,24 @@ class MediaService:
                     logger.warning("Failed to generate %s for event %s: %s", label, event_id, exc)
                     if label == "collage":
                         errors.append(exc)
+                    elif label == "mp4" and not mp4_from_recording:
+                        # Fallback: create minimal MP4 from first frame (ensure video always exists)
+                        try:
+                            first = mp4_source_frames[0]
+                            if first is not None and hasattr(first, "shape") and len(first.shape) >= 2:
+                                dup_count = 30  # ~3s at 10fps
+                                if mp4_source_timestamps and len(mp4_source_timestamps) > 1:
+                                    span = mp4_source_timestamps[-1] - mp4_source_timestamps[0]
+                                    dup_count = max(15, min(120, int(10 * span)))
+                                self.media_worker.create_minimal_mp4(
+                                    [first] * dup_count,
+                                    mp4_path,
+                                    camera_name,
+                                    event.timestamp,
+                                )
+                                logger.info("Event %s: MP4 fallback (minimal) created", event_id)
+                        except Exception as fallback_exc:
+                            logger.warning("MP4 fallback also failed for %s: %s", event_id, fallback_exc)
         if errors:
             raise errors[0]
         

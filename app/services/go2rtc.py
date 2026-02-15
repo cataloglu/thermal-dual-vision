@@ -73,6 +73,7 @@ class Go2RTCService:
         rtsp_url: Optional[str],
         rtsp_url_color: Optional[str],
         rtsp_url_thermal: Optional[str],
+        rtsp_url_detection: Optional[str] = None,
         default_url: Optional[str] = None,
     ) -> Dict[str, str]:
         streams: Dict[str, str] = {}
@@ -88,6 +89,9 @@ class Go2RTCService:
             streams[f"{camera_id}_color"] = rtsp_url_color
         if rtsp_url_thermal:
             streams[f"{camera_id}_thermal"] = rtsp_url_thermal
+        # Substream for detection (low CPU - 10 cameras @ ~5%)
+        if rtsp_url_detection:
+            streams[f"{camera_id}_detect"] = rtsp_url_detection
         return streams
 
     def _resolve_default_url_from_camera(self, camera: Any) -> Optional[str]:
@@ -109,6 +113,7 @@ class Go2RTCService:
         rtsp_url: Optional[str] = None,
         rtsp_url_color: Optional[str] = None,
         rtsp_url_thermal: Optional[str] = None,
+        rtsp_url_detection: Optional[str] = None,
         reload: bool = True,
         default_url: Optional[str] = None,
     ) -> bool:
@@ -128,9 +133,10 @@ class Go2RTCService:
                 rtsp_url,
                 rtsp_url_color,
                 rtsp_url_thermal,
+                rtsp_url_detection=rtsp_url_detection,
                 default_url=default_url,
             )
-            managed_keys = {camera_id, f"{camera_id}_color", f"{camera_id}_thermal"}
+            managed_keys = {camera_id, f"{camera_id}_color", f"{camera_id}_thermal", f"{camera_id}_detect"}
             changed = False
 
             for key in list(streams.keys()):
@@ -208,6 +214,7 @@ class Go2RTCService:
                     rtsp_url=camera.rtsp_url,
                     rtsp_url_color=camera.rtsp_url_color,
                     rtsp_url_thermal=camera.rtsp_url_thermal,
+                    rtsp_url_detection=getattr(camera, "rtsp_url_detection", None),
                     reload=False,
                     default_url=default_url,
                 )

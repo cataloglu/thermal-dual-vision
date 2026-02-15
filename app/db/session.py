@@ -67,6 +67,22 @@ def get_session() -> Generator[Session, None, None]:
         db.close()
 
 
+def _migrate_add_rtsp_url_detection() -> None:
+    """Add rtsp_url_detection (substream) column to cameras if missing."""
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        try:
+            row = conn.execute(text(
+                "SELECT COUNT(*) FROM pragma_table_info('cameras') WHERE name='rtsp_url_detection'"
+            )).scalar()
+            if row == 0:
+                conn.execute(text("ALTER TABLE cameras ADD COLUMN rtsp_url_detection VARCHAR(500)"))
+                conn.commit()
+                logger.info("Migration: added rtsp_url_detection to cameras")
+        except Exception as e:
+            logger.warning("Migration rtsp_url_detection: %s", e)
+
+
 def _migrate_add_rejected_by_ai() -> None:
     """Add rejected_by_ai column to events if missing (SQLite)."""
     from sqlalchemy import text
@@ -100,7 +116,8 @@ def init_db() -> None:
     Base.metadata.create_all(bind=engine)
     
     _migrate_add_rejected_by_ai()
-    
+    _migrate_add_rtsp_url_detection()
+
     logger.info(f"Database initialized at {DATABASE_FILE}")
 
 

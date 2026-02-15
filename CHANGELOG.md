@@ -6,6 +6,21 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.37] - 2026-02-16
+
+### Eklenenler
+
+- **Substream (Detection):** `rtsp_url_detection` ile detection için düşük çözünürlüklü substream kullanımı. Kamera formunda "Substream (Detection)" alanı – tanımlanırsa detection bu URL üzerinden yapılır, recording/live main stream'de kalır (~%5 CPU / 10 kamera hedefi).
+- **Video fallback:** MP4 oluşturma başarısız olursa ilk frame ile minimal video üretiliyor.
+- **extract_frames:** Recording'den frame kurtarma için `max_frames` 5 → 60.
+
+### Düzeltmeler
+
+- **Buffer zaman aralığı:** Tam aralıkta frame yoksa 2x prebuffer/postbuffer ile tekrar deneniyor.
+- **Event MP4:** `Accept-Ranges: bytes` header, H.264 baseline profile (tarayıcı uyumluluğu).
+
+---
+
 ## [3.10.36] - 2026-02-16
 
 ### Değişenler

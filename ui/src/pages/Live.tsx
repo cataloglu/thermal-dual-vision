@@ -91,9 +91,9 @@ export function Live() {
     localStorage.setItem('live_grid_mode', String(gridMode))
   }, [gridMode])
 
-  // Filter cameras that have 'live' in stream_roles
+  // Filter cameras that have 'live' in stream_roles (default: detect+live)
   const liveCameras = cameras.filter(cam => 
-    cam.enabled && cam.stream_roles.includes('live')
+    cam.enabled && (cam.stream_roles ?? ['detect', 'live']).includes('live')
   )
   const visibleCameras = useMemo(() => liveCameras.slice(0, visibleCount), [liveCameras, visibleCount])
 

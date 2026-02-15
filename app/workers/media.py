@@ -184,7 +184,7 @@ class MediaWorker:
 
         width, height = size
         codec_candidates = (
-            ("libx264", ["-preset", self.MP4_PRESET, "-crf", str(self.MP4_CRF), "-pix_fmt", "yuv420p"]),
+            ("libx264", ["-preset", self.MP4_PRESET, "-crf", str(self.MP4_CRF), "-profile:v", "baseline", "-level", "3.0", "-pix_fmt", "yuv420p"]),
             ("mpeg4", ["-q:v", "5", "-pix_fmt", "yuv420p"]),
         )
 
@@ -328,6 +328,34 @@ class MediaWorker:
             logger.warning("OpenCV MP4 encode failed: %s", exc)
         finally:
             out.release()
+
+    def create_minimal_mp4(
+        self,
+        frames: List[np.ndarray],
+        output_path: str,
+        camera_name: str = "Camera",
+        timestamp: Optional[datetime] = None,
+    ) -> str:
+        """Create minimal MP4 from frames when main encode fails (fallback)."""
+        if not frames or frames[0] is None:
+            raise ValueError("No frames for minimal MP4")
+        target_size = self._get_mp4_target_size(frames[0])
+        scale, resized_w, resized_h, x_offset, y_offset = self._get_mp4_layout(frames[0], target_size)
+        size = (target_size[0], target_size[1])
+        fps = min(15, max(5, len(frames) // 2))
+        processed: List[np.ndarray] = []
+        for frame in frames:
+            img = self._resize_with_padding(frame, resized_w, resized_h, x_offset, y_offset, scale, target_size)
+            if timestamp:
+                margin = 8
+                tstr = (timestamp + timedelta(seconds=len(processed) / max(1, fps))).strftime("%H:%M:%S")
+                cv2.putText(img, tstr, (margin, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.7, self.COLOR_WHITE, 1)
+            processed.append(img)
+        encoded = self._encode_mp4_ffmpeg(processed, output_path, fps, size)
+        if not encoded:
+            self._encode_mp4_opencv(processed, output_path, fps, size)
+        self._remux_mp4_faststart(output_path)
+        return output_path
 
     def _blur_score(self, frame: np.ndarray) -> float:
         """Laplacian variance: higher = sharper, lower = blurrier."""

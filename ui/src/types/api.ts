@@ -145,6 +145,7 @@ export interface CameraTestRequest {
   type: 'color' | 'thermal' | 'dual';
   rtsp_url_thermal?: string;
   rtsp_url_color?: string;
+  rtsp_url_detection?: string;
   channel_thermal?: number;
   channel_color?: number;
 }

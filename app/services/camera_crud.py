@@ -35,6 +35,7 @@ class CameraCRUDService:
         camera_type: str,
         rtsp_url_thermal: Optional[str] = None,
         rtsp_url_color: Optional[str] = None,
+        rtsp_url_detection: Optional[str] = None,
         channel_color: Optional[int] = None,
         channel_thermal: Optional[int] = None,
         detection_source: str = "auto",
@@ -71,6 +72,7 @@ class CameraCRUDService:
                 enabled=enabled,
                 rtsp_url_thermal=rtsp_url_thermal,
                 rtsp_url_color=rtsp_url_color,
+                rtsp_url_detection=rtsp_url_detection,
                 channel_color=channel_color,
                 channel_thermal=channel_thermal,
                 detection_source=DetectionSource(detection_source),
@@ -160,7 +162,7 @@ class CameraCRUDService:
             camera = self.get_camera(db, camera_id)
             if not camera:
                 return None
-            
+
             # Update fields
             for key, value in data.items():
                 if hasattr(camera, key):
@@ -230,6 +232,7 @@ class CameraCRUDService:
             "rtsp_url": camera.rtsp_url,
             "rtsp_url_color": camera.rtsp_url_color,
             "rtsp_url_thermal": camera.rtsp_url_thermal,
+            "rtsp_url_detection": getattr(camera, "rtsp_url_detection", None),
             "channel_color": camera.channel_color,
             "channel_thermal": camera.channel_thermal,
             "detection_source": camera.detection_source.value,

@@ -78,6 +78,7 @@ class Camera(Base):
     rtsp_url = Column(String(500), nullable=True)  # Legacy field
     rtsp_url_color = Column(String(500), nullable=True)
     rtsp_url_thermal = Column(String(500), nullable=True)
+    rtsp_url_detection = Column(String(500), nullable=True)  # Substream for detection (low CPU)
     
     # Channel numbers
     channel_color = Column(Integer, nullable=True)

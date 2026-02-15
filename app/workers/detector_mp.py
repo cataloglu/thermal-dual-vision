@@ -327,14 +327,18 @@ def camera_detection_process(
         
         process_logger.info(f"Services initialized for camera {camera_id}")
         
-        # Scrypted-style: only go2rtc. No fallback.
+        # Scrypted-style: only go2rtc. Prefer substream (detect) when set - ~5% CPU for 10 cams.
         rtsp_urls: List[str] = []
         try:
             from app.services.go2rtc import get_go2rtc_service
             go2rtc = get_go2rtc_service()
             if go2rtc and go2rtc.enabled:
-                source = "thermal" if (camera_config.get("type") == "thermal" or camera_config.get("rtsp_url_thermal")) else "color"
-                stream_name = f"{camera_id}_{source}" if source in ("thermal", "color") else camera_id
+                # Substream for detection when rtsp_url_detection is set (low CPU)
+                if camera_config.get("rtsp_url_detection"):
+                    stream_name = f"{camera_id}_detect"
+                else:
+                    source = "thermal" if (camera_config.get("type") == "thermal" or camera_config.get("rtsp_url_thermal")) else "color"
+                    stream_name = f"{camera_id}_{source}" if source in ("thermal", "color") else camera_id
                 rtsp_base = os.getenv("GO2RTC_RTSP_URL", "rtsp://127.0.0.1:8554")
                 restream_url = f"{rtsp_base}/{stream_name}"
                 rtsp_urls.append(restream_url)
@@ -801,6 +805,7 @@ class MultiprocessingDetectorWorker:
             "rtsp_url": camera.rtsp_url,
             "rtsp_url_thermal": camera.rtsp_url_thermal,
             "rtsp_url_color": camera.rtsp_url_color,
+            "rtsp_url_detection": getattr(camera, "rtsp_url_detection", None),
             "detection_source": camera.detection_source.value if camera.detection_source else None,
             "stream_roles": camera.stream_roles,
             "motion_config": camera.motion_config,
@@ -1000,29 +1005,33 @@ class MultiprocessingDetectorWorker:
                                             # Fallback to current time (should not happen)
                                             event_time = time.time()
                                         
-                                        # Get desired time range
-                                        prebuffer_seconds = config.event.prebuffer_seconds
-                                        postbuffer_seconds = config.event.postbuffer_seconds
+                                        # Get desired time range (Scrypted-style: capture event window)
+                                        prebuffer_seconds = float(getattr(config.event, "prebuffer_seconds", 5.0))
+                                        postbuffer_seconds = float(getattr(config.event, "postbuffer_seconds", 15.0))
                                         
                                         start_time = event_time - prebuffer_seconds
                                         end_time = event_time + postbuffer_seconds
                                         
-                                        # Collect frames within time range (SORTED by timestamp!)
-                                        frames_with_ts = []
-                                        valid_timestamps = 0
-                                        buffer_ts_min = None
-                                        buffer_ts_max = None
+                                        def _collect_frames(st: float, et: float):
+                                            out = []
+                                            for i in range(buffer_size):
+                                                ts = timestamps_array[i]
+                                                if ts > 0 and st <= ts <= et:
+                                                    out.append((ts, i, frames_array[i].copy()))
+                                            out.sort(key=lambda x: x[0])
+                                            return out
                                         
-                                        for i in range(buffer_size):
-                                            ts = timestamps_array[i]
-                                            if ts > 0:
-                                                valid_timestamps += 1
-                                                if buffer_ts_min is None or ts < buffer_ts_min:
-                                                    buffer_ts_min = ts
-                                                if buffer_ts_max is None or ts > buffer_ts_max:
-                                                    buffer_ts_max = ts
-                                                if start_time <= ts <= end_time:
-                                                    frames_with_ts.append((ts, i, frames_array[i].copy()))
+                                        # Collect frames within time range (SORTED by timestamp!)
+                                        frames_with_ts = _collect_frames(start_time, end_time)
+                                        valid_timestamps = int(np.sum(timestamps_array > 0))
+                                        
+                                        # Fallback: if no frames in exact range, try wider window (timestamp sync tolerance)
+                                        if len(frames_with_ts) == 0 and valid_timestamps > 0:
+                                            wider_pre = prebuffer_seconds * 2
+                                            wider_post = postbuffer_seconds * 2
+                                            frames_with_ts = _collect_frames(event_time - wider_pre, event_time + wider_post)
+                                            if frames_with_ts:
+                                                logger.info("Event %s: no frames in exact range, used wider window (%d frames)", event.id, len(frames_with_ts))
                                         
                                         # Sort by timestamp (ascending)
                                         frames_with_ts.sort(key=lambda x: x[0])
@@ -1035,7 +1044,7 @@ class MultiprocessingDetectorWorker:
                                         shm.close()
                                         shm_ts.close()
                                         
-                                        # When buffer has no frames: try extracting from recording
+                                        # When buffer has no frames: try recording extract (Scrypted-style primary source)
                                         if len(frames) == 0:
                                             try:
                                                 from app.services.recorder import get_continuous_recorder
@@ -1043,7 +1052,8 @@ class MultiprocessingDetectorWorker:
                                                 recorder = get_continuous_recorder()
                                                 start_dt = datetime.fromtimestamp(start_time, tz=tz.utc).replace(tzinfo=None)
                                                 end_dt = datetime.fromtimestamp(end_time, tz=tz.utc).replace(tzinfo=None)
-                                                frames = recorder.extract_frames(event.camera_id, start_dt, end_dt, max_frames=5)
+                                                # Extract more frames for usable MP4 (Scrypted: recording is primary)
+                                                frames = recorder.extract_frames(event.camera_id, start_dt, end_dt, max_frames=60)
                                                 if frames:
                                                     logger.info(f"Recovered {len(frames)} frames from recording for event {event.id}")
                                             except Exception as e:
