@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { StreamViewer } from '../components/StreamViewer'
-import { api, getLiveStreamUrl } from '../services/api'
+import { api } from '../services/api'
 import { MdGridView, MdRefresh } from 'react-icons/md'
 import { useWebSocket } from '../hooks/useWebSocket'
 import { LoadingState } from '../components/LoadingState'
@@ -16,17 +16,10 @@ interface Camera {
   stream_roles: string[]
 }
 
-interface LiveStream {
-  camera_id: string
-  name: string
-  stream_url: string
-  output_mode: string
-}
 
 export function Live() {
   const { t } = useTranslation()
   const [cameras, setCameras] = useState<Camera[]>([])
-  const [streams, setStreams] = useState<LiveStream[]>([])
   const [loading, setLoading] = useState(true)
   const [gridMode, setGridMode] = useState<1 | 2 | 3>(2) // 1x1, 2x2, 3x3
   const [visibleCount, setVisibleCount] = useState(6)
@@ -35,12 +28,8 @@ export function Live() {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true)
-      const [camerasData, streamsData] = await Promise.all([
-        api.getCameras(),
-        api.getLiveStreams()
-      ])
+      const camerasData = await api.getCameras()
       setCameras(camerasData.cameras)
-      setStreams(streamsData.streams)
     } catch (error) {
       console.error('Failed to fetch live data:', error)
     } finally {
@@ -101,8 +90,6 @@ export function Live() {
   useEffect(() => {
     localStorage.setItem('live_grid_mode', String(gridMode))
   }, [gridMode])
-
-  const outputMode = useMemo(() => streams[0]?.output_mode || 'mjpeg', [streams])
 
   // Filter cameras that have 'live' in stream_roles
   const liveCameras = cameras.filter(cam => 
@@ -169,20 +156,14 @@ export function Live() {
       {/* Camera Grid */}
       {liveCameras.length > 0 && (
         <div className={`grid ${getGridClass()} gap-6`}>
-          {visibleCameras.map((camera) => {
-            const stream = streams.find(s => s.camera_id === camera.id)
-            const streamUrl = stream?.stream_url ?? getLiveStreamUrl(camera.id)
-            
-            return (
-              <StreamViewer
-                key={`${camera.id}-${refreshKey}`}
-                cameraId={camera.id}
-                cameraName={camera.name}
-                streamUrl={streamUrl}
-                status={camera.status}
-              />
-            )
-          })}
+          {visibleCameras.map((camera) => (
+            <StreamViewer
+              key={`${camera.id}-${refreshKey}`}
+              cameraId={camera.id}
+              cameraName={camera.name}
+              status={camera.status}
+            />
+          ))}
         </div>
       )}
 
@@ -196,18 +177,6 @@ export function Live() {
           </button>
         </div>
       )}
-
-      {/* Stream Mode Info */}
-      <div className="mt-8 bg-surface1 border border-border rounded-lg p-4">
-        <p className="text-muted text-sm">
-          <span className="font-semibold text-text">Stream Modu:</span> {outputMode.toUpperCase()}
-          {outputMode === 'webrtc' && (
-            <span className="ml-2 text-yellow-500">
-              (WebRTC aktif - go2rtc gerekli)
-            </span>
-          )}
-        </p>
-      </div>
     </div>
   )
 }

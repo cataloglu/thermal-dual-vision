@@ -1192,10 +1192,7 @@ async def analyze_video_endpoint(
 @app.get("/api/live")
 async def get_live_streams(request: Request, db: Session = Depends(get_session)) -> Dict[str, Any]:
     """
-    Get live stream URLs for all cameras.
-    
-    Prefers go2rtc MJPEG when available (avoids backend RTSP blocking, fixes 502/timeouts).
-    Falls back to backend /api/live/{id}.mjpeg when go2rtc unavailable.
+    Get live stream URLs for all cameras (backend MJPEG).
     
     Returns:
         Dict containing list of live streams
@@ -1204,12 +1201,7 @@ async def get_live_streams(request: Request, db: Session = Depends(get_session))
         HTTPException: 500 if error occurs
     """
     try:
-        settings = settings_service.load_config()
-        output_mode = settings.live.output_mode
         cameras = camera_crud_service.get_cameras(db)
-        go2rtc = get_go2rtc_service()
-
-        # Get Ingress path from header
         ingress_path = request.headers.get("X-Ingress-Path", "")
         prefix = ingress_path.rstrip('/') if ingress_path else ""
 
@@ -1218,21 +1210,12 @@ async def get_live_streams(request: Request, db: Session = Depends(get_session))
             if not camera.enabled or "live" not in (camera.stream_roles or []):
                 continue
 
-            stream_url: Optional[str] = None
-            stream_name = _resolve_go2rtc_stream_name(camera)
-            if output_mode == "mjpeg" or output_mode == "webrtc":
-                # Prefer go2rtc MJPEG - no backend blocking (webrtc fallback da MJPEG kullanır)
-                if go2rtc.enabled and stream_name:
-                    base_url = f"/go2rtc/api/stream.mjpeg?src={stream_name}"
-                else:
-                    base_url = f"/api/live/{camera.id}.mjpeg"
-                stream_url = f"{prefix}{base_url}" if prefix else base_url
-
+            base_url = f"/api/live/{camera.id}.mjpeg"
+            stream_url = f"{prefix}{base_url}" if prefix else base_url
             streams.append({
                 "camera_id": camera.id,
                 "name": camera.name,
                 "stream_url": stream_url,
-                "output_mode": output_mode
             })
 
         return {"streams": streams}
@@ -1273,12 +1256,6 @@ async def get_live_stream(camera_id: str, db: Session = Depends(get_session)) ->
         )
 
     settings = settings_service.load_config()
-    if settings.live.output_mode == "webrtc":
-        logger.info(
-            "Live output mode is WebRTC; serving MJPEG fallback for camera %s",
-            camera_id,
-        )
-
     stream_urls = _get_live_rtsp_urls(camera)
     if not stream_urls:
         raise HTTPException(

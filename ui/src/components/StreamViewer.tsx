@@ -1,67 +1,34 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MdRefresh, MdError, MdCheckCircle } from 'react-icons/md'
-import { getIngressBase } from '../services/api'
-import { useSettings } from '../hooks/useSettings'
-import '../go2rtc-player'
-
-// Helper to get go2rtc URL (Ingress-aware, same base for /live, /dashboard etc.)
-const getGo2rtcUrl = () => {
-  const env = import.meta.env.VITE_GO2RTC_URL;
-  if (env) return env;
-  const ingress = getIngressBase();
-  return ingress ? `${ingress}/go2rtc` : '/go2rtc';
-};
-
-const GO2RTC_URL = getGo2rtcUrl();
-const normalizeGo2rtcBase = (url: string) => url.replace(/\/+$/, '');
-const getGo2rtcWsUrl = (cameraId: string) =>
-  `${normalizeGo2rtcBase(GO2RTC_URL)}/api/ws?src=${encodeURIComponent(cameraId)}`;
+import { getLiveStreamUrl } from '../services/api'
 
 interface StreamViewerProps {
   cameraId: string
   cameraName: string
-  streamUrl: string
+  streamUrl?: string
   status?: 'connected' | 'retrying' | 'down' | 'initializing'
 }
 
-export function StreamViewer({ 
+export function StreamViewer({
   cameraId,
-  cameraName, 
-  streamUrl,
-  status 
+  cameraName,
+  status,
 }: StreamViewerProps) {
   const { t } = useTranslation()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
   const [isVisible, setIsVisible] = useState(true)
-  const [go2rtcAvailable, setGo2rtcAvailable] = useState(false)
-  
-  const { settings } = useSettings()
-  const outputMode = settings?.live?.output_mode || 'mjpeg'
 
   const imgRef = useRef<HTMLImageElement>(null)
-  const playerRef = useRef<HTMLElement>(null)
   const retryTimeoutRef = useRef<number | null>(null)
   const loadingTimeoutRef = useRef<number | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const maxRetries = 15
   const RETRY_DELAYS = [1500, 2500, 4000, 6000, 8000, 10000, 12000, 15000, 18000, 20000]
 
-  useEffect(() => {
-    const checkGo2rtc = async () => {
-      try {
-        const res = await fetch(`${GO2RTC_URL}/api`, { method: 'GET', credentials: 'omit' })
-        setGo2rtcAvailable(res.ok)
-      } catch {
-        setGo2rtcAvailable(false)
-      }
-    }
-    checkGo2rtc()
-    const interval = setInterval(checkGo2rtc, 15000)
-    return () => clearInterval(interval)
-  }, [])
+  const effectiveUrl = getLiveStreamUrl(cameraId)
 
   useEffect(() => {
     setLoading(true)
@@ -74,7 +41,7 @@ export function StreamViewer({
       window.clearTimeout(loadingTimeoutRef.current)
       loadingTimeoutRef.current = null
     }
-  }, [streamUrl, cameraId, outputMode])
+  }, [cameraId])
 
   useEffect(() => {
     if (!containerRef.current) {
@@ -128,99 +95,27 @@ export function StreamViewer({
     loadingTimeoutRef.current = window.setTimeout(() => {
       setLoading(false)
     }, 1500)
-  }, [isVisible, streamUrl, outputMode])
+  }, [isVisible, cameraId])
 
   const handleLoad = () => {
     if (!isVisible) return
     setLoading(false)
     setError(false)
     setRetryCount(0)
-
   }
-
-  const shouldShowWebrtc = outputMode === 'webrtc' && go2rtcAvailable
-  const webrtcActive = shouldShowWebrtc && isVisible
-
-  useEffect(() => {
-    const player = playerRef.current as any
-    if (!player) return
-
-    if (!webrtcActive) {
-      if (typeof player.ondisconnect === 'function') {
-        player.ondisconnect()
-      }
-      return
-    }
-
-    player.mode = 'webrtc'
-    player.media = 'video,audio'
-    player.src = getGo2rtcWsUrl(cameraId)
-  }, [webrtcActive, cameraId])
-
-  useEffect(() => {
-    if (!webrtcActive) return
-    let cancelled = false
-    let cleanup: (() => void) | null = null
-    let attempts = 0
-
-    const attach = () => {
-      if (cancelled) return
-      const player = playerRef.current as any
-      const video = player?.video as HTMLVideoElement | undefined
-      if (video) {
-        const onReady = () => {
-          if (!isVisible) return
-          handleLoad()
-        }
-        const onVideoError = () => {
-          if (!isVisible) return
-          setLoading(false)
-          setError(true)
-        }
-        video.addEventListener('playing', onReady)
-        video.addEventListener('loadeddata', onReady)
-        video.addEventListener('error', onVideoError)
-        cleanup = () => {
-          video.removeEventListener('playing', onReady)
-          video.removeEventListener('loadeddata', onReady)
-          video.removeEventListener('error', onVideoError)
-        }
-        return
-      }
-
-      attempts += 1
-      if (attempts < 20) {
-        window.setTimeout(attach, 200)
-      }
-    }
-
-    attach()
-
-    return () => {
-      cancelled = true
-      if (cleanup) {
-        cleanup()
-      }
-    }
-  }, [webrtcActive, cameraId, isVisible])
 
   const handleError = () => {
     if (!isVisible) return
     setLoading(false)
     setError(true)
-    if (outputMode === 'webrtc') {
-      return
-    }
-
-    // Auto-retry with exponential backoff
     if (retryCount < maxRetries) {
       const delay = RETRY_DELAYS[Math.min(retryCount, RETRY_DELAYS.length - 1)]
       retryTimeoutRef.current = window.setTimeout(() => {
-        setRetryCount(prev => prev + 1)
+        setRetryCount((prev) => prev + 1)
         setError(false)
         setLoading(true)
         if (imgRef.current) {
-          imgRef.current.src = `${streamUrl}?t=${Date.now()}`
+          imgRef.current.src = `${effectiveUrl}?t=${Date.now()}`
         }
       }, delay)
     }
@@ -234,22 +129,8 @@ export function StreamViewer({
       window.clearTimeout(retryTimeoutRef.current)
       retryTimeoutRef.current = null
     }
-    if (outputMode === 'webrtc') {
-      const player = playerRef.current as any
-      if (player) {
-        if (typeof player.ondisconnect === 'function') {
-          player.ondisconnect()
-        }
-        if (webrtcActive) {
-          player.mode = 'webrtc'
-          player.media = 'video,audio'
-          player.src = getGo2rtcWsUrl(cameraId)
-        }
-      }
-      return
-    }
     if (imgRef.current) {
-      imgRef.current.src = `${streamUrl}?t=${Date.now()}`
+      imgRef.current.src = `${effectiveUrl}?t=${Date.now()}`
     }
   }
 
@@ -268,7 +149,6 @@ export function StreamViewer({
   }
 
   const resolvedStatus = status || 'retrying'
-  const effectiveStreamUrl = isVisible ? streamUrl : ''
 
   return (
     <div ref={containerRef} className="relative bg-surface2 rounded-lg overflow-hidden aspect-video border border-border">
@@ -313,30 +193,17 @@ export function StreamViewer({
         </div>
       )}
 
-      {/* MJPEG Stream / WebRTC Player */}
-      {shouldShowWebrtc ? (
-        <video-stream
-          ref={playerRef}
-          className="w-full h-full"
-          title="WebRTC Stream"
-        />
-      ) : (
+      {/* MJPEG Stream */}
+      {isVisible && (
         <img
           ref={imgRef}
-          src={effectiveStreamUrl}
+          src={effectiveUrl}
           alt={cameraName}
           loading="lazy"
           className={`w-full h-full object-contain ${error ? 'hidden' : 'block'}`}
           onLoad={handleLoad}
           onError={handleError}
         />
-      )}
-
-      {/* Status indicator for fallback */}
-      {outputMode === 'webrtc' && !go2rtcAvailable && (
-        <div className="absolute top-4 left-4 bg-red-500/90 text-white px-3 py-2 rounded-lg text-sm z-20">
-          go2rtc unavailable, using MJPEG fallback
-        </div>
       )}
 
       {/* Success Indicator (brief) */}

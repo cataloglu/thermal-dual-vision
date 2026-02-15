@@ -196,6 +196,7 @@
   "mediaSaveSettings": "Medya ayarlarını kaydet",
   "liveOutputModeLabel": "Çıkış Modu",
   "liveOutputMjpeg": "MJPEG (basit, her zaman çalışır)",
+  "liveMjpegOnly": "Live View kamera akışlarını backend MJPEG ile gösterir.",
   "liveOutputWebrtc": "WebRTC (hızlı, go2rtc gerekli)",
   "liveOutputWebrtcUnavailable": "Kullanılamıyor",
   "liveGo2rtcStatus": "go2rtc: {{status}}",

@@ -1,41 +1,19 @@
 /**
- * Live tab - Live stream output settings
+ * Live tab - Live stream (MJPEG backend)
  */
-import React, { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
-import type { LiveConfig } from '../../types/api';
-import apiClient from '../../services/api';
+import React from 'react'
+import { useTranslation } from 'react-i18next'
+import type { LiveConfig } from '../../types/api'
 
 interface LiveTabProps {
-  config: LiveConfig;
-  onChange: (config: LiveConfig) => void;
-  onSave: () => void;
+  config: LiveConfig
+  onChange: (config: LiveConfig) => void
+  onSave: () => void
 }
 
 export const LiveTab: React.FC<LiveTabProps> = ({ config, onChange, onSave }) => {
-  const { t } = useTranslation();
-  const [go2rtcAvailable, setGo2rtcAvailable] = useState(false);
+  const { t } = useTranslation()
 
-  useEffect(() => {
-    const checkGo2rtc = async () => {
-      try {
-        // Get Ingress base path from window.location
-        const pathname = window.location.pathname;
-        const basePath = pathname.replace(/\/+$/, '').replace(/\/index\.html$/, '');
-        
-        // Ingress: /hassio/ingress/TOKEN/go2rtc/api
-        // Direct: /go2rtc/api
-        const go2rtcUrl = basePath && basePath !== '/' ? `${basePath}/go2rtc/api` : '/go2rtc/api';
-        
-        const response = await fetch(go2rtcUrl);
-        setGo2rtcAvailable(response.ok);
-      } catch {
-        setGo2rtcAvailable(false);
-      }
-    };
-    checkGo2rtc();
-  }, []);
-  
   return (
     <div className="space-y-6">
       <div>
@@ -45,39 +23,9 @@ export const LiveTab: React.FC<LiveTabProps> = ({ config, onChange, onSave }) =>
         </p>
       </div>
 
-      <div className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-text mb-2">
-            {t('liveOutputModeLabel')}
-          </label>
-          <select
-            value={config.output_mode}
-            onChange={(e) => onChange({ ...config, output_mode: e.target.value as 'mjpeg' | 'webrtc' })}
-            className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
-          >
-            <option value="mjpeg">{t('liveOutputMjpeg')}</option>
-            <option value="webrtc" disabled={!go2rtcAvailable}>
-              {t('liveOutputWebrtc')} {!go2rtcAvailable && `- ${t('liveOutputWebrtcUnavailable')}`}
-            </option>
-          </select>
-          
-          {/* Status indicator */}
-          <div className="mt-2 flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${go2rtcAvailable ? 'bg-green-500' : 'bg-red-500'}`} />
-            <span className="text-xs text-muted">
-              {t('liveGo2rtcStatus', { status: go2rtcAvailable ? t('liveGo2rtcAvailable') : t('liveGo2rtcNotRunning') })}
-            </span>
-          </div>
-          
-          <p className="text-xs text-muted mt-2">
-            {t('liveLatencyMjpeg')}
-            <br />
-            {t('liveLatencyWebrtc')}
-          </p>
-        </div>
-
-        {/* WebRTC automatically configured - no user input needed */}
-      </div>
+      <p className="text-sm text-muted">
+        {t('liveMjpegOnly') || 'Live View kamera akışlarını backend MJPEG ile gösterir.'}
+      </p>
 
       <button
         onClick={onSave}
@@ -86,5 +34,5 @@ export const LiveTab: React.FC<LiveTabProps> = ({ config, onChange, onSave }) =>
         {t('saveLiveSettings')}
       </button>
     </div>
-  );
-};
+  )
+}

@@ -196,6 +196,7 @@
   "mediaSaveSettings": "Save media settings",
   "liveOutputModeLabel": "Output Mode",
   "liveOutputMjpeg": "MJPEG (simple, always works)",
+  "liveMjpegOnly": "Live View displays camera streams via backend MJPEG.",
   "liveOutputWebrtc": "WebRTC (fast, requires go2rtc)",
   "liveOutputWebrtcUnavailable": "Unavailable",
   "liveGo2rtcStatus": "go2rtc: {{status}}",
