@@ -53,7 +53,7 @@ class MediaWorker:
     MP4_CRF = 15  # High quality
     MP4_PRESET = "slow"  # Better compression
     MP4_MIN_DURATION = 0.5
-    MP4_MIN_OUTPUT_DURATION = 15.0  # Min 15s output (was 3.0 - too short for event videos)
+    MP4_MIN_OUTPUT_DURATION = 20.0  # Min 20s output
     MP4_MAX_DURATION = 30.0
     MP4_SPEED_FACTOR = 4.0  # 4x speedup (matches recorder extract_clip)
     MP4_MIN_OUTPUT_FPS = 3

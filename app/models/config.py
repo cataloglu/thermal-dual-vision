@@ -410,9 +410,9 @@ class TelegramConfig(BaseModel):
         description="Send collage images with notifications"
     )
     video_speed: int = Field(
-        default=4,
+        default=2,
         ge=1,
-        description="Video acceleration factor"
+        description="Video acceleration factor (2 = 10s from 20s clip)"
     )
     cooldown_seconds: int = Field(
         default=5,
