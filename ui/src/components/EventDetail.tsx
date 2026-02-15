@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { MdClose, MdDownload, MdDelete, MdMovieFilter } from 'react-icons/md'
+import { api, resolveApiPath } from '../services/api'
 
 interface EventDetailProps {
   event: {
@@ -24,11 +25,35 @@ export function EventDetail({ event, cameraName, initialTab, onClose, onDelete }
   const { t } = useTranslation()
   const navigate = useNavigate()
   const modalRef = useRef<HTMLDivElement>(null)
-  const isRecent = (value: string) => Date.now() - new Date(value).getTime() < 30000
-  const collagePending = !event.collage_url && isRecent(event.timestamp)
-  const mp4Pending = !event.mp4_url && isRecent(event.timestamp)
+  const [displayEvent, setDisplayEvent] = useState(event)
+  const isRecent = (value: string) => Date.now() - new Date(value).getTime() < 60000
+  const collagePending = !displayEvent.collage_url && isRecent(displayEvent.timestamp)
+  const mp4Pending = !displayEvent.mp4_url && isRecent(displayEvent.timestamp)
+
+  useEffect(() => { setDisplayEvent(event) }, [event])
+
+  useEffect(() => {
+    if (!mp4Pending || !displayEvent.id) return
+    const poll = async () => {
+      try {
+        const res = await api.getEvent(displayEvent.id)
+        const mp4 = (res as { media?: { mp4_url?: string }; mp4_url?: string }).media?.mp4_url
+          ?? (res as { mp4_url?: string }).mp4_url
+        const collage = (res as { media?: { collage_url?: string }; collage_url?: string }).media?.collage_url
+          ?? (res as { collage_url?: string }).collage_url
+        if (mp4 || collage) {
+          setDisplayEvent((prev) => ({ ...prev, mp4_url: mp4 ?? prev.mp4_url, collage_url: collage ?? prev.collage_url }))
+        }
+      } catch {
+        // ignore
+      }
+    }
+    poll()
+    const id = setInterval(poll, 3000)
+    return () => clearInterval(id)
+  }, [mp4Pending, displayEvent.id])
   const [activeTab, setActiveTab] = useState<'collage' | 'video'>(
-    initialTab ?? (event.mp4_url ? 'video' : 'collage')
+    initialTab ?? (displayEvent.mp4_url ? 'video' : 'collage')
   )
   const [tagInput, setTagInput] = useState('')
   const [tags, setTags] = useState<string[]>([])
@@ -63,15 +88,15 @@ export function EventDetail({ event, cameraName, initialTab, onClose, onDelete }
       setActiveTab(initialTab)
       return
     }
-    setActiveTab(event.mp4_url ? 'video' : 'collage')
-  }, [event.id, event.mp4_url, initialTab])
+    setActiveTab(displayEvent.mp4_url ? 'video' : 'collage')
+  }, [displayEvent.id, displayEvent.mp4_url, initialTab])
 
   useEffect(() => {
     const raw = localStorage.getItem('event_meta')
     if (!raw) return
     try {
       const meta = JSON.parse(raw) as Record<string, { tags: string[]; note: string }>
-      const entry = meta[event.id]
+      const entry = meta[displayEvent.id]
       if (entry) {
         setTags(entry.tags || [])
         setNote(entry.note || '')
@@ -79,12 +104,12 @@ export function EventDetail({ event, cameraName, initialTab, onClose, onDelete }
     } catch {
       // ignore malformed storage
     }
-  }, [event.id])
+  }, [displayEvent.id])
 
   const persistMeta = (nextTags: string[], nextNote: string) => {
     const raw = localStorage.getItem('event_meta')
     const meta = raw ? JSON.parse(raw) : {}
-    meta[event.id] = { tags: nextTags, note: nextNote }
+    meta[displayEvent.id] = { tags: nextTags, note: nextNote }
     localStorage.setItem('event_meta', JSON.stringify(meta))
   }
 
@@ -101,12 +126,12 @@ export function EventDetail({ event, cameraName, initialTab, onClose, onDelete }
   }
 
   const getConfidenceBadge = () => {
-    const percentage = Math.round(event.confidence * 100)
+    const percentage = Math.round(displayEvent.confidence * 100)
     let colorClass = 'bg-gray-500/20 text-gray-500'
     
-    if (event.confidence >= 0.7) {
+    if (displayEvent.confidence >= 0.7) {
       colorClass = 'bg-success/20 text-success'
-    } else if (event.confidence >= 0.4) {
+    } else if (displayEvent.confidence >= 0.4) {
       colorClass = 'bg-warning/20 text-warning'
     } else {
       colorClass = 'bg-error/20 text-error'
@@ -123,7 +148,7 @@ export function EventDetail({ event, cameraName, initialTab, onClose, onDelete }
     if (!onDelete) return
     if (!window.confirm(`${t('delete')}?`)) return
     if (onDelete) {
-      onDelete(event.id)
+      onDelete(displayEvent.id)
       onClose()
     }
   }
@@ -162,7 +187,7 @@ export function EventDetail({ event, cameraName, initialTab, onClose, onDelete }
               {t('events')} {t('view')}
             </h2>
             <p className="text-muted text-sm">
-              {formatDate(event.timestamp)}
+              {formatDate(displayEvent.timestamp)}
             </p>
           </div>
           <button
@@ -202,9 +227,9 @@ export function EventDetail({ event, cameraName, initialTab, onClose, onDelete }
           {/* Media Preview */}
           <div className="bg-surface2 rounded-lg overflow-hidden">
             {activeTab === 'collage' && (
-              event.collage_url ? (
+              displayEvent.collage_url ? (
                 <img
-                  src={event.collage_url}
+                  src={resolveApiPath(displayEvent.collage_url)}
                   alt="Event collage"
                   className="w-full h-auto"
                 />
@@ -215,14 +240,15 @@ export function EventDetail({ event, cameraName, initialTab, onClose, onDelete }
               )
             )}
             {activeTab === 'video' && (
-              event.mp4_url ? (
+              displayEvent.mp4_url ? (
                 <div>
                   <video
-                    src={event.mp4_url}
+                    src={resolveApiPath(displayEvent.mp4_url)}
                     controls
                     autoPlay
                     loop
                     playsInline
+                    preload="auto"
                     className="w-full h-auto"
                   >
                     Tarayıcınız video oynatmayı desteklemiyor.
@@ -230,7 +256,7 @@ export function EventDetail({ event, cameraName, initialTab, onClose, onDelete }
                   <div className="p-2 flex justify-end">
                     <button
                       type="button"
-                      onClick={() => { onClose(); navigate('/video-analysis', { state: { eventId: event.id } }); }}
+                      onClick={() => { onClose(); navigate('/video-analysis', { state: { eventId: displayEvent.id } }); }}
                       className="flex items-center gap-2 px-3 py-1.5 text-sm bg-surface1 border border-border rounded-lg hover:bg-surface2 transition-colors"
                     >
                       <MdMovieFilter />
@@ -250,7 +276,7 @@ export function EventDetail({ event, cameraName, initialTab, onClose, onDelete }
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-surface2 border border-border rounded-lg p-4">
               <h3 className="text-sm font-semibold text-muted mb-2">{t('camera')}</h3>
-              <p className="text-text font-medium">{cameraName ?? event.camera_id}</p>
+              <p className="text-text font-medium">{cameraName ?? displayEvent.camera_id}</p>
             </div>
 
             <div className="bg-surface2 border border-border rounded-lg p-4">
@@ -260,20 +286,20 @@ export function EventDetail({ event, cameraName, initialTab, onClose, onDelete }
 
             <div className="bg-surface2 border border-border rounded-lg p-4">
               <h3 className="text-sm font-semibold text-muted mb-2">{t('events')}</h3>
-              <p className="text-text font-medium capitalize">{event.event_type}</p>
+              <p className="text-text font-medium capitalize">{displayEvent.event_type}</p>
             </div>
 
             <div className="bg-surface2 border border-border rounded-lg p-4">
               <h3 className="text-sm font-semibold text-muted mb-2">ID</h3>
-              <p className="text-text font-mono text-sm">{event.id}</p>
+              <p className="text-text font-mono text-sm">{displayEvent.id}</p>
             </div>
           </div>
 
           {/* AI Summary */}
-          {event.summary && (
+          {displayEvent.summary && (
             <div className="bg-surface2 border border-border rounded-lg p-4">
               <h3 className="text-sm font-semibold text-muted mb-2">AI</h3>
-              <p className="text-text">{event.summary}</p>
+              <p className="text-text">{displayEvent.summary}</p>
             </div>
           )}
 
@@ -329,9 +355,9 @@ export function EventDetail({ event, cameraName, initialTab, onClose, onDelete }
 
           {/* Actions */}
           <div className="flex gap-3 pt-4 border-t border-border">
-            {event.collage_url ? (
+            {displayEvent.collage_url ? (
               <a
-                href={event.collage_url}
+                href={resolveApiPath(displayEvent.collage_url)}
                 download
                 className="flex items-center gap-2 px-6 py-3 bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors font-medium"
               >
@@ -344,9 +370,9 @@ export function EventDetail({ event, cameraName, initialTab, onClose, onDelete }
                 Collage
               </span>
             )}
-            {event.mp4_url ? (
+            {displayEvent.mp4_url ? (
               <a
-                href={event.mp4_url}
+                href={resolveApiPath(displayEvent.mp4_url)}
                 download
                 className="flex items-center gap-2 px-6 py-3 bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors"
               >

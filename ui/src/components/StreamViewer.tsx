@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MdRefresh, MdError, MdCheckCircle } from 'react-icons/md'
-import { getLiveStreamUrl } from '../services/api'
+import { getLiveStreamUrl, resolveApiPath } from '../services/api'
 
 interface StreamViewerProps {
   cameraId: string
@@ -28,7 +28,7 @@ export function StreamViewer({
   const maxRetries = 15
   const RETRY_DELAYS = [1500, 2500, 4000, 6000, 8000, 10000, 12000, 15000, 18000, 20000]
 
-  const effectiveUrl = getLiveStreamUrl(cameraId)
+  const effectiveUrl = resolveApiPath(getLiveStreamUrl(cameraId))
 
   useEffect(() => {
     setLoading(true)

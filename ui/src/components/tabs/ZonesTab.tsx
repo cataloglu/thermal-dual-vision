@@ -43,7 +43,7 @@ export const ZonesTab: React.FC = () => {
 
   useEffect(() => {
     if (selectedCamera) {
-      setSnapshotUrl(`${api.getCameraSnapshotUrl(selectedCamera)}?t=${Date.now()}`)
+      setSnapshotUrl(`${api.resolveApiPath(api.getCameraSnapshotUrl(selectedCamera))}?t=${Date.now()}`)
       api.getCameraZones(selectedCamera)
         .then((data) => setZones(data.zones || []))
         .catch((error) => {
@@ -55,7 +55,7 @@ export const ZonesTab: React.FC = () => {
 
   const refreshSnapshot = () => {
     if (!selectedCamera) return
-    setSnapshotUrl(`${api.getCameraSnapshotUrl(selectedCamera)}?t=${Date.now()}`)
+    setSnapshotUrl(`${api.resolveApiPath(api.getCameraSnapshotUrl(selectedCamera))}?t=${Date.now()}`)
   }
 
   const handleSaveZone = (points: Array<{ x: number; y: number }>) => {

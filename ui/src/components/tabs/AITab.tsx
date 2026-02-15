@@ -381,7 +381,7 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
               <p className="text-xs text-muted mb-2">{t('aiEventImage')}</p>
               {selectedEventImage ? (
                 <img
-                  src={selectedEventImage}
+                  src={api.resolveApiPath(selectedEventImage)}
                   alt={t('aiEventImage')}
                   className="w-full rounded-lg border border-border object-contain bg-surface1"
                 />

@@ -4,49 +4,38 @@
 import axios from 'axios';
 import type { Settings, CameraTestRequest, CameraTestResponse, Zone } from '../types/api';
 
-const resolveIngressApiBase = () => {
-  const path = window.location.pathname || '';
-  const cleanPath = path.replace(/\/index\.html$/, '').replace(/\/+$/, '');
-
-  const ingressMatch = cleanPath.match(/(\/api\/hassio_ingress\/[^/]+)/);
-  if (ingressMatch) {
-    return `${ingressMatch[1]}/api`;
-  }
-
-  return '/api';
-};
-
-/** Ingress base path for go2rtc etc. (e.g. /api/hassio_ingress/TOKEN) */
+/** Ingress base path (e.g. /api/hassio_ingress/TOKEN). HA addon Ingress full destek. */
 export const getIngressBase = (): string => {
   const path = window.location.pathname || '';
-  const ingressMatch = path.match(/(\/api\/hassio_ingress\/[^/]+)/);
-  return ingressMatch ? ingressMatch[1] : '';
+  const m = path.match(/(\/api\/hassio_ingress\/[^/]+)/);
+  return m ? m[1] : '';
 };
 
-// Use injected config from Nginx sub_filter (Frigate style),
-// but fall back to ingress path detection when needed.
-const getBaseUrl = () => {
+const resolveIngressApiBase = (): string => {
+  const base = getIngressBase();
+  return base ? `${base}/api` : '/api';
+};
+
+// Nginx sub_filter injects API_URL; pathname fallback for Ingress
+const getBaseUrl = (): string => {
   // @ts-ignore
-  if (window.env && window.env.API_URL) {
-    // @ts-ignore
-    const envUrl = window.env.API_URL as string;
-
-    if (envUrl.startsWith('http')) {
-      return envUrl;
-    }
-
-    if (envUrl !== '/api') {
-      return envUrl;
-    }
-
-    return resolveIngressApiBase();
-  }
-
-  if (import.meta.env.DEV) {
-    return import.meta.env.VITE_API_URL ?? '/api';
-  }
-
+  const envUrl = window.env?.API_URL as string | undefined;
+  if (envUrl?.startsWith('http')) return envUrl;
+  if (envUrl && envUrl !== '/api') return envUrl;
+  if (import.meta.env.DEV) return import.meta.env.VITE_API_URL ?? '/api';
   return resolveIngressApiBase();
+};
+
+/**
+ * Her API/media URL icin Ingress prefix saglar. Tum img src, video src, href'ler icin kullan.
+ * Backend /api/... dondurse bile Ingress modda /api/hassio_ingress/TOKEN/api/... olur.
+ */
+export const resolveApiPath = (path: string | null | undefined): string => {
+  if (!path || typeof path !== 'string') return '';
+  const base = getIngressBase();
+  if (!base) return path;
+  if (path.startsWith(base)) return path;
+  return base + (path.startsWith('/') ? path : '/' + path);
 };
 
 const API_BASE_URL = getBaseUrl();
@@ -269,6 +258,8 @@ export const getMqttStatus = async () => {
 };
 
 export const api = {
+  resolveApiPath,
+  getIngressBase,
   getHealth,
   getSystemInfo,
   getLogs,

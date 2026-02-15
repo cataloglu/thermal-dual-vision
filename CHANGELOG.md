@@ -6,6 +6,21 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.35] - 2026-02-16
+
+### Düzeltmeler
+
+- **Ingress tam destek:** Merkezi `resolveApiPath()` ile tüm API/media URL’leri (collage, MP4, live stream, snapshot) Ingress prefix ile güncelleniyor. EventCard, EventDetail, Dashboard, AITab, EventCompare, StreamViewer, ZonesTab tek kaynaktan güncellendi.
+- **AI reddeden eventler:** MP4 artık AI reddetse bile üretiliyor; collage + video "AI Reddedilenler" sekmesinde görüntülenebilir.
+- **Event video oynatma:** OpenCV fallback MP4’ler için faststart remux eklendi; tarayıcıda siyah ekran azaltıldı.
+- **EventDetail MP4 polling:** MP4 henüz hazır değilse (son 60 sn) 3 sn aralıkla API’den güncelleme alınıyor.
+
+### Değişenler
+
+- **Nginx:** API location için `proxy_request_buffering off` eklendi (video streaming için).
+
+---
+
 ## [3.10.23] - 2026-02-10
 
 ### Değişenler

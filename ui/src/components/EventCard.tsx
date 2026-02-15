@@ -1,6 +1,7 @@
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MdPlayArrow, MdVisibility } from 'react-icons/md'
+import { resolveApiPath } from '../services/api'
 
 interface EventCardProps {
   id: string
@@ -73,7 +74,7 @@ export const EventCard = memo(function EventCard({
         >
           {collageUrl ? (
             <img
-              src={collageUrl}
+              src={resolveApiPath(collageUrl)}
               alt="Event collage"
               loading="lazy"
               decoding="async"

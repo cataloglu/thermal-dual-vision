@@ -1121,10 +1121,27 @@ class MultiprocessingDetectorWorker:
                                                         },
                                                     ))
                                                     if not _is_ai_confirmed(summary):
-                                                        logger.info(f"Event {event.id} rejected by AI, keeping for review")
+                                                        logger.info(f"Event {event.id} rejected by AI, keeping for review (with MP4)")
                                                         event.rejected_by_ai = True
                                                         event.summary = summary
                                                         event.collage_url = f"/api/events/{event.id}/collage"
+                                                        # Still generate MP4 (and refresh collage) for review
+                                                        try:
+                                                            media_service.generate_event_media(
+                                                                db=db,
+                                                                event_id=event.id,
+                                                                frames=frames,
+                                                                detections=detections_list,
+                                                                timestamps=frame_timestamps,
+                                                                camera_name=camera_name,
+                                                                include_gif=False,
+                                                                mp4_frames=frames,
+                                                                mp4_detections=[None] * len(frames),
+                                                                mp4_timestamps=frame_timestamps,
+                                                                mp4_real_time=False,
+                                                            )
+                                                        except Exception as mp4_err:
+                                                            logger.warning(f"MP4 for rejected event {event.id} failed: {mp4_err}")
                                                         db.commit()
                                                         continue  # Next event
                                                     event.summary = summary

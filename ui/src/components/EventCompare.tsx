@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MdClose } from 'react-icons/md'
+import { resolveApiPath } from '../services/api'
 
 interface EventCompareProps {
   left: {
@@ -59,7 +60,7 @@ export function EventCompare({ left, right, cameraNameById, onClose }: EventComp
             <div key={event.id} className="space-y-3">
               <div className="bg-surface2 rounded-lg overflow-hidden">
                 {event.collage_url ? (
-                  <img src={event.collage_url} alt="Event collage" className="w-full h-auto" />
+                  <img src={resolveApiPath(event.collage_url)} alt="Event collage" className="w-full h-auto" />
                 ) : (
                   <div className="p-6 text-center text-muted">
                     {isRecent(event.timestamp) ? t('processing') : t('noData')}

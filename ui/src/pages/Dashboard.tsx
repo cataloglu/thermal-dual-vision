@@ -333,7 +333,7 @@ export function Dashboard() {
                 <div className="aspect-video bg-surface2 rounded-lg overflow-hidden">
                   {lastEvent.collage_url ? (
                     <img 
-                      src={lastEvent.collage_url} 
+                      src={api.resolveApiPath(lastEvent.collage_url)} 
                       alt="Event collage"
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                     />

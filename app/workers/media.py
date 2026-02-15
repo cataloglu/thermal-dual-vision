@@ -272,6 +272,43 @@ class MediaWorker:
                 except OSError:
                     pass
 
+    def _remux_mp4_faststart(self, mp4_path: str) -> None:
+        """Remux MP4 with moov atom at start for web streaming (Range requests)."""
+        ffmpeg_candidates = self._resolve_ffmpeg_candidates()
+        if not ffmpeg_candidates or not os.path.exists(mp4_path):
+            return
+        tmp_path = f"{mp4_path}.faststart.tmp"
+        try:
+            for ffmpeg in ffmpeg_candidates:
+                cmd = [
+                    ffmpeg,
+                    "-hide_banner",
+                    "-loglevel",
+                    "error",
+                    "-y",
+                    "-i",
+                    mp4_path,
+                    "-c",
+                    "copy",
+                    "-movflags",
+                    "+faststart",
+                    tmp_path,
+                ]
+                try:
+                    proc = subprocess.run(cmd, capture_output=True, timeout=60)
+                    if proc.returncode == 0 and os.path.exists(tmp_path):
+                        os.replace(tmp_path, mp4_path)
+                        logger.debug("MP4 remuxed with faststart: %s", mp4_path)
+                        return
+                except (subprocess.TimeoutExpired, OSError):
+                    continue
+        finally:
+            if os.path.exists(tmp_path):
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+
     def _encode_mp4_opencv(
         self,
         frames: List[np.ndarray],
@@ -907,6 +944,7 @@ class MediaWorker:
         encoded = self._encode_mp4_ffmpeg(processed_frames, output_path, target_fps_int, target_size)
         if not encoded:
             self._encode_mp4_opencv(processed_frames, output_path, target_fps_int, target_size)
+            self._remux_mp4_faststart(output_path)
             try:
                 Path(legacy_marker).write_text("mp4v", encoding="utf-8")
             except Exception:
