@@ -6,6 +6,16 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.38] - 2026-02-16
+
+### Düzeltmeler
+
+- **Video oluşturma:** Event timestamp artık detection zamanını kullanıyor (recording extract için doğru aralık).
+- **Buffer:** Child process 250 frame kullanıyor (main ile uyumlu).
+- **Loglama:** buffer_info eksik, "No frames" ve MP4 hata durumları için diagnostik loglar.
+
+---
+
 ## [3.10.37] - 2026-02-16
 
 ### Eklenenler
