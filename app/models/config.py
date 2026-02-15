@@ -6,7 +6,7 @@ All models include validation rules and default values.
 """
 import re
 from typing import List, Literal, Optional, Tuple
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class DetectionConfig(BaseModel):
@@ -243,36 +243,15 @@ class LiveConfig(BaseModel):
 
 
 class RecordConfig(BaseModel):
-    """Recording and retention configuration."""
-    
-    enabled: bool = Field(
-        default=False,
-        description="Enable event-based recording"
-    )
-    retention_days: int = Field(
-        default=7,
-        ge=1,
-        description="Days to keep recordings"
-    )
-    record_segments_seconds: int = Field(
-        default=10,
-        ge=1,
-        description="Recording segment length in seconds"
-    )
-    disk_limit_percent: int = Field(
-        default=80,
-        ge=50,
-        le=95,
-        description="Maximum disk usage percentage"
-    )
-    cleanup_policy: Literal["oldest_first", "lowest_confidence"] = Field(
-        default="oldest_first",
-        description="Cleanup strategy"
-    )
-    delete_order: List[str] = Field(
-        default=["mp4", "collage"],
-        description="Media deletion priority order"
-    )
+    """
+    Recording config (minimal, no UI). Recording buffer sabit:
+    - 1 saat kayıt (RECORDING_BUFFER_HOURS)
+    - 5 dakikada bir temizlik (CLEANUP_INTERVAL_SEC)
+    - 60 sn segment
+    """
+    model_config = ConfigDict(extra="ignore")
+
+    enabled: bool = Field(default=True, description="Always on")
 
 
 class EventConfig(BaseModel):

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { MdClose, MdDownload, MdDelete } from 'react-icons/md'
+import { MdClose, MdDownload, MdDelete, MdMovieFilter } from 'react-icons/md'
 
 interface EventDetailProps {
   event: {
@@ -20,6 +21,7 @@ interface EventDetailProps {
 
 export function EventDetail({ event, initialTab, onClose, onDelete }: EventDetailProps) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const modalRef = useRef<HTMLDivElement>(null)
   const isRecent = (value: string) => Date.now() - new Date(value).getTime() < 30000
   const collagePending = !event.collage_url && isRecent(event.timestamp)
@@ -213,16 +215,28 @@ export function EventDetail({ event, initialTab, onClose, onDelete }: EventDetai
             )}
             {activeTab === 'video' && (
               event.mp4_url ? (
-                <video
-                  src={event.mp4_url}
-                  controls
-                  autoPlay
-                  loop
-                  playsInline
-                  className="w-full h-auto"
-                >
-                  Tarayıcınız video oynatmayı desteklemiyor.
-                </video>
+                <div>
+                  <video
+                    src={event.mp4_url}
+                    controls
+                    autoPlay
+                    loop
+                    playsInline
+                    className="w-full h-auto"
+                  >
+                    Tarayıcınız video oynatmayı desteklemiyor.
+                  </video>
+                  <div className="p-2 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => { onClose(); navigate('/video-analysis', { state: { eventId: event.id } }); }}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm bg-surface1 border border-border rounded-lg hover:bg-surface2 transition-colors"
+                    >
+                      <MdMovieFilter />
+                      {t('analyze') || 'Analiz Et'}
+                    </button>
+                  </div>
+                </div>
               ) : (
                 <div className="p-8 text-center text-muted">
                   {mp4Pending ? t('processing') : t('noData')}

@@ -1,8 +1,7 @@
 """
-Continuous recorder service (rollling buffer for event clips).
+Continuous recorder service (rolling buffer for event clips).
 
 Records camera streams to disk using FFmpeg.
-Each camera keeps only the last N hours (default 1) as a circular buffer.
 Event clips are extracted from this buffer when motion is detected.
 """
 import logging
@@ -20,7 +19,10 @@ from app.utils.paths import DATA_DIR
 
 logger = logging.getLogger(__name__)
 
+# Fixed recording buffer (no user config - full performance)
+RECORDING_BUFFER_HOURS = 1  # Her kamera son 1 saat
 SEGMENT_DURATION = 60  # seconds per segment
+CLEANUP_INTERVAL_SEC = 300  # 5 dakikada bir temizlik
 
 
 class ContinuousRecorder:
@@ -170,12 +172,12 @@ class ContinuousRecorder:
                         else:
                             self._cleanup_process(camera_id)
 
-                # Circular buffer cleanup: keep only last 1 hour per camera (every 5 min)
+                # Circular buffer: keep only last RECORDING_BUFFER_HOURS, every CLEANUP_INTERVAL_SEC
                 now = time.time()
-                if now - last_buffer_cleanup >= 300:
+                if now - last_buffer_cleanup >= CLEANUP_INTERVAL_SEC:
                     last_buffer_cleanup = now
                     try:
-                        self.cleanup_old_recordings(max_age_seconds=3600)
+                        self.cleanup_old_recordings(max_age_seconds=RECORDING_BUFFER_HOURS * 3600)
                     except Exception as e:
                         logger.error("Recording buffer cleanup error: %s", e)
             except Exception as e:
@@ -209,10 +211,13 @@ class ContinuousRecorder:
 
         files = self._find_recordings_in_range(camera_id, start_time, end_time)
         if not files:
-            all_files = list((self.recording_dir / camera_id).glob("*.mp4")) if (self.recording_dir / camera_id).exists() else []
+            camera_dir = self.recording_dir / camera_id
+            all_files = sorted(camera_dir.glob("*.mp4")) if camera_dir.exists() else []
+            sample = [f.stem for f in all_files[:5]] if all_files else []
             logger.warning(
-                "No recordings for %s range %s - %s (found %d segment files)",
-                camera_id, start_time, end_time, len(all_files),
+                "No recordings for %s range %s - %s (have %d segments, sample: %s). "
+                "Segments are excluded until closed (~60s); frame fallback used.",
+                camera_id, start_time, end_time, len(all_files), sample,
             )
             return False
 

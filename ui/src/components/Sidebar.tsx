@@ -7,6 +7,7 @@ import {
   MdEvent, 
   MdSettings, 
   MdSearch,
+  MdMovieFilter,
   MdExpandMore,
   MdChevronRight,
   MdLanguage,
@@ -43,6 +44,7 @@ export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
     { path: '/live', icon: MdVideocam, label: t('live') },
     { path: '/events', icon: MdEvent, label: t('events') },
     { path: '/diagnostics', icon: MdSearch, label: t('diagnostics') },
+    { path: '/video-analysis', icon: MdMovieFilter, label: t('videoAnalysis') || 'Video Analizi' },
     { path: '/mqtt', icon: MdHub, label: 'MQTT Bilgileri' },
   ]
 
@@ -51,7 +53,6 @@ export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
     { tab: 'camera_settings', label: t('cameraSettings') },
     { tab: 'zones', label: t('zones') },
     { tab: 'live', label: t('live') },
-    { tab: 'recording', label: t('recording') },
     { tab: 'events', label: t('events') },
     { tab: 'media', label: t('media') },
     { tab: 'ai', label: t('ai') },

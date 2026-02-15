@@ -53,7 +53,7 @@ class MediaWorker:
     MP4_CRF = 15  # High quality
     MP4_PRESET = "slow"  # Better compression
     MP4_MIN_DURATION = 0.5
-    MP4_MIN_OUTPUT_DURATION = 3.0  # Min 3s output (was 20.0 - blocked 4x speedup)
+    MP4_MIN_OUTPUT_DURATION = 15.0  # Min 15s output (was 3.0 - too short for event videos)
     MP4_MAX_DURATION = 30.0
     MP4_SPEED_FACTOR = 4.0  # 4x speedup (matches recorder extract_clip)
     MP4_MIN_OUTPUT_FPS = 3
@@ -328,6 +328,15 @@ class MediaWorker:
 
         return False
 
+    def _blur_score(self, frame: np.ndarray) -> float:
+        """Laplacian variance: higher = sharper, lower = blurrier."""
+        try:
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            laplacian = cv2.Laplacian(gray, cv2.CV_64F)
+            return float(laplacian.var())
+        except Exception:
+            return 0.0
+
     def _select_indices_by_time(
         self,
         timestamps: List[float],
@@ -351,6 +360,58 @@ class MediaWorker:
             while idx + 1 < len(timestamps) and abs(timestamps[idx + 1] - target) <= abs(timestamps[idx] - target):
                 idx += 1
             indices.append(idx)
+        return indices
+
+    def _select_indices_by_time_and_sharpness(
+        self,
+        frames: List[np.ndarray],
+        timestamps: List[float],
+        target_count: int,
+    ) -> List[int]:
+        """Select indices by time, preferring sharper frames when multiple candidates exist."""
+        if not timestamps or not frames or len(frames) != len(timestamps):
+            return self._select_indices_by_time(timestamps, target_count) if timestamps else []
+
+        n = len(timestamps)
+        if target_count <= 1:
+            return [0]
+        target_count = min(target_count, n)
+        start = timestamps[0]
+        end = timestamps[-1]
+        if end <= start:
+            return [0]
+
+        indices: List[int] = []
+        used: set[int] = set()
+        step = (end - start) / (target_count - 1)
+        for i in range(target_count):
+            target = start + (i * step)
+            window = max(0.15, step * 0.8)
+            best_idx = -1
+            best_score = -1.0
+            for j in range(n):
+                if j in used:
+                    continue
+                if abs(timestamps[j] - target) <= window:
+                    score = self._blur_score(frames[j])
+                    if best_idx < 0 or score > best_score:
+                        best_idx = j
+                        best_score = score
+            if best_idx >= 0:
+                indices.append(best_idx)
+                used.add(best_idx)
+            else:
+                best_dist = float("inf")
+                fallback = 0
+                for j in range(n):
+                    if j in used:
+                        continue
+                    d = abs(timestamps[j] - target)
+                    if d < best_dist:
+                        best_dist = d
+                        fallback = j
+                indices.append(fallback)
+                used.add(fallback)
         return indices
     
     def create_collage(
@@ -768,7 +829,7 @@ class MediaWorker:
             # Never repeat frames: cap to available frame count
             target_frame_count = min(target_frame_count, frame_count)
             if timestamps and len(timestamps) == frame_count:
-                indices = self._select_indices_by_time(timestamps, target_frame_count)
+                indices = self._select_indices_by_time_and_sharpness(frames, timestamps, target_frame_count)
             else:
                 indices = self._select_indices(frame_count, target_frame_count)
             speed_factor = max(actual_duration / max(target_duration, 0.1), 1.0)

@@ -205,6 +205,22 @@ class SharedFrameBuffer:
             # Latest frame is at (write_index - 1)
             idx = (self.write_index.value - 1) % self.buffer_size
             return self.frames[idx].copy()
+
+    def get_latest_frame_by_timestamp(self) -> Optional[np.ndarray]:
+        """
+        Get most recent frame by finding max timestamp (for multiprocessing,
+        where child process writes frames/timestamps but not write_index).
+        
+        Returns:
+            Latest frame or None if empty
+        """
+        with self.lock:
+            ts = self.timestamps
+            valid = ts > 0
+            if not np.any(valid):
+                return None
+            idx = int(np.argmax(ts))
+            return self.frames[idx].copy()
     
     def cleanup(self):
         """Cleanup shared memory."""
@@ -831,6 +847,22 @@ class MultiprocessingDetectorWorker:
         self.control_queues.pop(camera_id, None)
         
         logger.info(f"Stopped detection process for camera {camera_id}")
+
+    def get_latest_frame(self, camera_id: str) -> Optional[np.ndarray]:
+        """
+        Get most recent frame from camera's shared buffer (for live stream).
+        Uses timestamp-based lookup since child process writes frames directly.
+        
+        Args:
+            camera_id: Camera identifier
+            
+        Returns:
+            Latest frame or None if not available
+        """
+        buf = self.frame_buffers.get(camera_id)
+        if not buf:
+            return None
+        return buf.get_latest_frame_by_timestamp()
     
     def _event_handler_loop(self) -> None:
         """

@@ -31,7 +31,7 @@ Buffer **record_fps** ile çalışıyor (varsayılan 10 FPS, config'ten 1–30 a
 
 Olay hızlı hareket sırasında tetiklenirse, penceredeki frame’lerin çoğu bulanık olabilir.
 
-### 3. Frame seçimi – blur filtresi yok
+### 3. Frame seçimi – sharpness tercihi (3.10.24+)
 
 `_select_indices_by_time` frame’leri **zamana göre** eşit dağıtarak seçiyor. Blur’lu frame’leri elemek için ek bir filtre yok. Bu yüzden:
 
@@ -64,7 +64,7 @@ FFmpeg kullanılamazsa (PATH, hata vb.) ikinci/üçüncü seçenek devreye giriy
 |-------|------|
 | **record_fps buffer** | Saniyede record_fps frame (varsayılan 10); düşükse ara anlar kaçar |
 | **Hareket blur** | Yürüyüş/koşuda frame’ler bulanık olabilir |
-| **Blur filtresi yok** | Kötü frame’ler elenmiyor |
+| **Sharpness tercihi** | Kötü frame’ler elenmiyor |
 | **Recording yoksa** | Buffer fallback daha düşük kalite |
 | **Olay zamanlaması** | Hareketsiz an = iyi, hareket anı = kötü |
 

@@ -38,14 +38,7 @@ type Settings = {
     output_mode: 'mjpeg' | 'webrtc'
     webrtc: { enabled: boolean; go2rtc_url: string }
   }
-  record: {
-    enabled: boolean
-    retention_days: number
-    record_segments_seconds: number
-    disk_limit_percent: number
-    cleanup_policy: string
-    delete_order: string[]
-  }
+  record: { enabled?: boolean }
   event: {
     cooldown_seconds: number
     frame_buffer_size: number
@@ -120,14 +113,7 @@ const baseSettings: Settings = {
     output_mode: 'mjpeg',
     webrtc: { enabled: false, go2rtc_url: '' },
   },
-  record: {
-    enabled: false,
-    retention_days: 7,
-    record_segments_seconds: 10,
-    disk_limit_percent: 80,
-    cleanup_policy: 'oldest_first',
-    delete_order: ['mp4', 'collage'],
-  },
+  record: { enabled: true },
   event: {
     cooldown_seconds: 5,
     frame_buffer_size: 10,
@@ -286,13 +272,6 @@ const runSaveTests = (language: 'tr' | 'en') => {
       await page.goto('/settings?tab=live')
       await selectByLabel(page, /Çıkış Modu|Output Mode/i).selectOption('webrtc')
       await clickSaveAndWait(page, /Canlı Görüntü Ayarlarını Kaydet|Save Live Settings/i)
-    })
-
-    test('Recording settings save', async ({ page }) => {
-      await page.goto('/settings?tab=recording')
-      await page.locator('#recording-enabled').check()
-      await inputByLabel(page, /Saklama Süresi/i).fill('14')
-      await clickSaveAndWait(page, /Kayıt Ayarlarını Kaydet|Save Recording Settings/i)
     })
 
     test('Events settings save', async ({ page }) => {

@@ -13,6 +13,7 @@ const Live = lazy(() => import('./pages/Live').then(m => ({ default: m.Live })))
 const Events = lazy(() => import('./pages/Events').then(m => ({ default: m.Events })))
 const Settings = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })))
 const Diagnostics = lazy(() => import('./pages/Diagnostics').then(m => ({ default: m.Diagnostics })))
+const VideoAnalysis = lazy(() => import('./pages/VideoAnalysis').then(m => ({ default: m.VideoAnalysis })))
 const MqttMonitoring = lazy(() => import('./pages/MqttMonitoring').then(m => ({ default: m.MqttMonitoring })))
 
 function App() {
@@ -29,6 +30,7 @@ function App() {
               <Route path="/live" element={<Live />} />
               <Route path="/events" element={<Events />} />
               <Route path="/diagnostics" element={<Diagnostics />} />
+              <Route path="/video-analysis" element={<VideoAnalysis />} />
               <Route path="/mqtt" element={<MqttMonitoring />} />
               <Route path="/settings" element={<Settings />} />
             </Routes>

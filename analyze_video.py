@@ -1,15 +1,30 @@
 """
-Video frame-by-frame analyzer.
+Video frame-by-frame analyzer CLI.
 Detects duplicate frames, dropped frames, timing issues.
+Uses app.services.video_analyzer when run from project root.
 """
-import cv2
-import numpy as np
+import sys
 from pathlib import Path
-import json
 
 def analyze_video(video_path: str):
     """Analyze video frame by frame."""
-    
+    # Use service when available
+    try:
+        from app.services.video_analyzer import analyze_video as run_analysis
+        result = run_analysis(video_path)
+        if result is None:
+            print("ERROR: Could not open video")
+            return
+        _print_results(result)
+        return
+    except ImportError:
+        pass
+
+    # Fallback: inline simple analysis
+    import cv2
+    import numpy as np
+    import json
+
     print(f"Analyzing video: {video_path}")
     
     cap = cv2.VideoCapture(video_path)
@@ -239,6 +254,27 @@ def analyze_video(video_path: str):
     else:
         print(f"  [OK] VIDEO LOOKS GOOD: No issues detected")
 
+def _print_results(result: dict):
+    """Print analysis results from video_analyzer service."""
+    print(f"\n=== VIDEO PROPERTIES ===")
+    vp = result["video_properties"]
+    print(f"  Resolution: {vp['width']}x{vp['height']}")
+    print(f"  FPS: {vp['fps']}")
+    print(f"  Frames: {vp['frame_count']}")
+    print(f"  Duration: {vp['duration']}s")
+    print(f"\n=== ANALYSIS ===")
+    a = result["analysis"]
+    print(f"  Duplicate frames: {a['duplicate_frames']} ({a['duplicate_percentage']}%)")
+    print(f"  Timestamp jumps: {a['timestamp_jumps']}")
+    print(f"  Est. missing frames: ~{a['estimated_missing_frames']}")
+    print(f"\n=== SUMMARY ===")
+    if result["ok"]:
+        print("  [OK] Video looks good")
+    else:
+        for issue in result["issues"]:
+            print(f"  [X] {issue}")
+
+
 if __name__ == "__main__":
-    video_path = r"c:\Users\Administrator\OneDrive\Desktop\event-b0d5820d-7861-4c5a-939d-f0f8c525ffe0-timelapse.mp4"
+    video_path = sys.argv[1] if len(sys.argv) > 1 else r"c:\Users\Administrator\OneDrive\Desktop\event-9083995b-34d9-4e64-a792-d61f3ee6b89a-timelapse.mp4"
     analyze_video(video_path)

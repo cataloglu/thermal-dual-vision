@@ -39,6 +39,7 @@ from app.services.mqtt import get_mqtt_service
 from app.services.recording_state import get_recording_state_service
 from app.services.metrics import get_metrics_service
 from app.services.recorder import get_continuous_recorder
+from app.services.video_analyzer import analyze_video as run_video_analysis
 from app.utils.rtsp import redact_rtsp_url, validate_rtsp_url
 from telegram import Bot
 from app.workers.retention import get_retention_worker
@@ -141,23 +142,34 @@ async def lifespan(app: FastAPI):
     # Give go2rtc a moment to reload config
     await asyncio.sleep(2)
 
-    # Start metrics server (if enabled)
+    # Load config and start metrics server / detector worker
     try:
         config = settings_service.load_config()
         if hasattr(config, 'performance') and config.performance.enable_metrics:
             metrics_service.start_server(config.performance.metrics_port)
             logger.info(f"Metrics server started on port {config.performance.metrics_port}")
-    except Exception as e:
-        logger.warning(f"Failed to start metrics server: {e}")
 
-    # Start detector worker
-    # NOTE: Multiprocessing mode is experimental (detector_mp.py)
-    # Production uses threading mode (detector.py)
+        # Select detector worker based on performance.worker_mode
+        worker_mode = getattr(
+            getattr(config, 'performance', None), 'worker_mode', 'threading'
+        ) or 'threading'
+        global detector_worker
+        if worker_mode == 'multiprocessing':
+            detector_worker = get_mp_detector_worker()
+            logger.info("Using multiprocessing detector worker (experimental)")
+        else:
+            detector_worker = get_detector_worker()
+            logger.info("Using threading detector worker")
+    except Exception as e:
+        logger.warning(f"Failed to load config / start metrics: {e}")
+        detector_worker = get_detector_worker()
+        logger.info("Using threading detector worker (fallback)")
+
     detector_worker.start()
     logger.info("Detector worker started")
     
-    # Start continuous recording for all enabled cameras (Scrypted-style)
-    continuous_recorder.start()  # Start health monitor thread
+    # Start continuous recording for all enabled cameras (always on for full event video quality)
+    continuous_recorder.start()
     db = next(get_session())
     try:
         cameras = camera_crud_service.get_cameras(db)
@@ -229,9 +241,8 @@ ai_service = get_ai_service()
 media_service = get_media_service()
 retention_worker = get_retention_worker()
 
-# FORCE threading mode (multiprocessing has issues with real cameras)
+# Default: threading. Overridden in lifespan based on performance.worker_mode
 detector_worker = get_detector_worker()
-logger.info("Using threading detector worker (FORCED - stable)")
 
 websocket_manager = get_websocket_manager()
 telegram_service = get_telegram_service()
@@ -1114,6 +1125,68 @@ async def get_event_mp4(event_id: str) -> FileResponse:
                 "message": f"Failed to retrieve MP4: {str(e)}"
             }
         )
+
+
+class VideoAnalyzeRequest(BaseModel):
+    """Request body for video analysis API."""
+    event_id: Optional[str] = None
+    path: Optional[str] = None
+
+
+@app.post("/api/video/analyze")
+async def analyze_video_endpoint(
+    request: VideoAnalyzeRequest,
+) -> Dict[str, Any]:
+    """
+    Analyze a video for duplicate frames, timestamp jumps, and quality issues.
+    Provide either event_id (to analyze event timelapse.mp4) or path (absolute path to video file).
+    """
+    video_path = None
+    if request.event_id:
+        media_path = media_service.get_media_path(request.event_id, "mp4")
+        if not media_path or not media_path.exists():
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "error": True,
+                    "code": "VIDEO_NOT_FOUND",
+                    "message": f"MP4 not found for event {request.event_id}",
+                },
+            )
+        video_path = str(media_path)
+    elif request.path:
+        p = Path(request.path)
+        if not p.exists() or not p.is_file():
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": True,
+                    "code": "INVALID_PATH",
+                    "message": f"File not found: {request.path}",
+                },
+            )
+        video_path = str(p)
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": True,
+                "code": "MISSING_PARAMS",
+                "message": "Provide event_id or path",
+            },
+        )
+
+    result = run_video_analysis(video_path)
+    if result is None:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": True,
+                "code": "ANALYSIS_FAILED",
+                "message": "Could not open or analyze video",
+            },
+        )
+    return result
 
 
 @app.get("/api/live")

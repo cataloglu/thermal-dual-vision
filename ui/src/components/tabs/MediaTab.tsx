@@ -18,7 +18,7 @@ export const MediaTab: React.FC<MediaTabProps> = ({ config, onChange, onSave }) 
     <div className="space-y-6">
       <div>
         <h3 className="text-lg font-medium text-text mb-4">{t('mediaCleanupTitle')}</h3>
-        <p className="text-sm text-muted mb-6">
+        <p className="text-sm text-muted mb-4">
           {t('mediaCleanupDesc')}
         </p>
       </div>

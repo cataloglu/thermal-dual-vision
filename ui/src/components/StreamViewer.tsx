@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { MdRefresh, MdError, MdCheckCircle, MdFullscreen, MdPhotoCamera } from 'react-icons/md'
-import { api, getIngressBase } from '../services/api'
+import { MdRefresh, MdError, MdCheckCircle } from 'react-icons/md'
+import { getIngressBase } from '../services/api'
 import { useSettings } from '../hooks/useSettings'
 import '../go2rtc-player'
 
@@ -35,8 +35,6 @@ export function StreamViewer({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
-  const [recording, setRecording] = useState(false)
-  const [recordingLoading, setRecordingLoading] = useState(false)
   const [isVisible, setIsVisible] = useState(true)
   const [go2rtcAvailable, setGo2rtcAvailable] = useState(false)
   
@@ -110,13 +108,6 @@ export function StreamViewer({
       retryTimeoutRef.current = null
     }
   }, [isVisible])
-
-  // Recording status removed from individual components
-  // Will be loaded at page level if needed
-  useEffect(() => {
-    // Disabled: Recording status check moved to parent for batch loading
-    setRecording(false)
-  }, [cameraId])
 
   useEffect(() => {
     return () => {
@@ -262,35 +253,6 @@ export function StreamViewer({
     }
   }
 
-  const handleSnapshot = () => {
-    const url = api.getCameraSnapshotUrl(cameraId)
-    window.open(url, '_blank')
-  }
-
-  const handleFullscreen = () => {
-    if (!containerRef.current) return
-    if (document.fullscreenElement) {
-      document.exitFullscreen().catch(() => undefined)
-    } else {
-      containerRef.current.requestFullscreen().catch(() => undefined)
-    }
-  }
-
-  const handleRecordingToggle = async () => {
-    setRecordingLoading(true)
-    try {
-      if (recording) {
-        const data = await api.stopRecording(cameraId)
-        setRecording(Boolean(data.recording))
-      } else {
-        const data = await api.startRecording(cameraId)
-        setRecording(Boolean(data.recording))
-      }
-    } finally {
-      setRecordingLoading(false)
-    }
-  }
-
   const statusColors = {
     connected: 'bg-green-500',
     retrying: 'bg-yellow-500',
@@ -374,33 +336,6 @@ export function StreamViewer({
       {outputMode === 'webrtc' && !go2rtcAvailable && (
         <div className="absolute top-4 left-4 bg-red-500/90 text-white px-3 py-2 rounded-lg text-sm z-20">
           go2rtc unavailable, using MJPEG fallback
-        </div>
-      )}
-
-      {!error && (
-        <div className="absolute bottom-4 left-4 flex items-center gap-2">
-          <button
-            onClick={handleSnapshot}
-            className="px-3 py-2 bg-surface1/80 text-white rounded-lg hover:bg-surface1 transition-colors"
-            title={t('snapshot')}
-          >
-            <MdPhotoCamera />
-          </button>
-          <button
-            onClick={handleRecordingToggle}
-            disabled={recordingLoading}
-            className={`px-3 py-2 rounded-lg transition-colors ${recording ? 'bg-error text-white' : 'bg-surface1/80 text-white hover:bg-surface1'}`}
-            title={recording ? t('stopRecording') : t('startRecording')}
-          >
-            {recording ? '●' : '○'}
-          </button>
-          <button
-            onClick={handleFullscreen}
-            className="px-3 py-2 bg-surface1/80 text-white rounded-lg hover:bg-surface1 transition-colors"
-            title={t('fullscreen')}
-          >
-            <MdFullscreen />
-          </button>
         </div>
       )}
 

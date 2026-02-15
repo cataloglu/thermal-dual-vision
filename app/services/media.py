@@ -6,8 +6,9 @@ This service handles event media generation and management.
 import logging
 import os
 import re
+import threading
 from concurrent.futures import ThreadPoolExecutor
-from datetime import timedelta
+from datetime import timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -15,13 +16,30 @@ import numpy as np
 from sqlalchemy.orm import Session
 
 from app.db.models import Event
-from app.services.recorder import get_continuous_recorder
+from app.services.recorder import SEGMENT_DURATION, get_continuous_recorder
 from app.services.settings import get_settings_service
 from app.workers.media import get_media_worker
 from app.utils.paths import DATA_DIR
 
 
 logger = logging.getLogger(__name__)
+
+
+def _try_recording_extract(
+    event_id: str,
+    camera_id: str,
+    start_time,
+    end_time,
+    mp4_path: str,
+    speed_factor: float,
+) -> None:
+    """Background: try to replace frame-fallback MP4 with recording-based clip."""
+    try:
+        recorder = get_continuous_recorder()
+        if recorder.extract_clip(camera_id, start_time, end_time, mp4_path, speed_factor=speed_factor):
+            logger.info("Event %s: replaced MP4 with recording-based version", event_id)
+    except Exception as e:
+        logger.debug("Delayed recording extract failed for %s: %s", event_id, e)
 
 
 class MediaService:
@@ -119,13 +137,19 @@ class MediaService:
         # MP4: prefer continuous recording, fallback to frames when recording unavailable
         mp4_from_recording = False
         speed_factor = 4.0
+        start_time = end_time = None
+        postbuffer = 15.0
         try:
             config = get_settings_service().load_config()
             prebuffer = float(getattr(config.event, "prebuffer_seconds", 5.0))
             postbuffer = float(getattr(config.event, "postbuffer_seconds", 15.0))
             speed_factor = max(1.0, min(10.0, float(getattr(config.telegram, "video_speed", 4) or 4)))
-            start_time = event.timestamp - timedelta(seconds=prebuffer)
-            end_time = event.timestamp + timedelta(seconds=postbuffer)
+            # Event timestamp is UTC (from utcnow). FFmpeg recording filenames use local time.
+            # Convert to local for recording lookup.
+            utc_dt = event.timestamp.replace(tzinfo=timezone.utc)
+            local_dt = utc_dt.astimezone().replace(tzinfo=None)
+            start_time = local_dt - timedelta(seconds=prebuffer)
+            end_time = local_dt + timedelta(seconds=postbuffer)
             recorder = get_continuous_recorder()
             if recorder.extract_clip(event.camera_id, start_time, end_time, mp4_path, speed_factor=speed_factor):
                 mp4_from_recording = True
@@ -172,6 +196,24 @@ class MediaService:
                         speed_factor,
                     ),
                 ))
+                # Phase 2: Delayed recording extraction (segment closes ~60s after event)
+                # After segment closes, replace frame-fallback MP4 with recording-based one
+                if start_time is not None and end_time is not None:
+                    def _schedule_delayed() -> None:
+                        delay_sec = max(10, SEGMENT_DURATION - int(postbuffer) + 5)
+                        t = threading.Timer(
+                            delay_sec,
+                            lambda: _try_recording_extract(
+                                event_id, event.camera_id, start_time, end_time, mp4_path, speed_factor
+                            ),
+                        )
+                        t.daemon = True
+                        t.start()
+
+                    try:
+                        _schedule_delayed()
+                    except Exception as e:
+                        logger.debug("Could not schedule delayed recording extract for %s: %s", event_id, e)
             if include_gif:
                 tasks.append((
                     "gif",

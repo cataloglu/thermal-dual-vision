@@ -61,12 +61,7 @@ export interface LiveConfig {
 }
 
 export interface RecordConfig {
-  enabled: boolean;
-  retention_days: number;
-  record_segments_seconds: number;
-  disk_limit_percent: number;
-  cleanup_policy: string;
-  delete_order: string[];
+  enabled?: boolean;
 }
 
 export interface EventConfig {

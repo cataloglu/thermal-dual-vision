@@ -11,7 +11,6 @@ import { CamerasTab } from '../components/tabs/CamerasTab';
 import { CameraSettingsTab } from '../components/tabs/PerformanceTab';
 import { ZonesTab } from '../components/tabs/ZonesTab';
 import { LiveTab } from '../components/tabs/LiveTab';
-import { RecordingTab } from '../components/tabs/RecordingTab';
 import { EventsTab } from '../components/tabs/EventsTab';
 import { MediaTab } from '../components/tabs/MediaTab';
 import { AITab } from '../components/tabs/AITab';
@@ -74,9 +73,6 @@ export const Settings: React.FC = () => {
           break;
         case 'live':
           updates.live = localSettings.live;
-          break;
-        case 'recording':
-          updates.record = localSettings.record;
           break;
         case 'events':
           updates.event = localSettings.event;
@@ -148,16 +144,6 @@ export const Settings: React.FC = () => {
           config={localSettings.live}
           onChange={(live) => updateLocalSettings({ ...localSettings, live })}
           onSave={handleSave}
-        />
-      )
-    }
-    if (normalizedTab === 'recording' && localSettings) {
-      return (
-        <RecordingTab
-          config={localSettings.record}
-          onChange={(record) => updateLocalSettings({ ...localSettings, record })}
-          onSave={handleSave}
-          onNavigateToMedia={() => setSearchParams({ tab: 'media' })}
         />
       )
     }

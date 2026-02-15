@@ -194,6 +194,11 @@ export const getEvents = async (params: {
   return response.data;
 };
 
+export const analyzeVideo = async (params: { event_id?: string; path?: string }) => {
+  const response = await apiClient.post('video/analyze', params);
+  return response.data;
+};
+
 export const getEvent = async (eventId: string) => {
   const response = await apiClient.get(`events/${eventId}`);
   return response.data;
@@ -283,6 +288,7 @@ export const api = {
   testAiEvent,
   getEvents,
   getEvent,
+  analyzeVideo,
   deleteEvent,
   bulkDeleteEvents,
   deleteEventsFiltered,

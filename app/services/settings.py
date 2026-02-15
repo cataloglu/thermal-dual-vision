@@ -279,18 +279,7 @@ class SettingsService:
             result["event"] = event
         record = result.get("record")
         if isinstance(record, dict):
-            delete_order = record.get("delete_order")
-            allowed = ["mp4", "collage"]
-            if isinstance(delete_order, list):
-                filtered: list[str] = []
-                for item in delete_order:
-                    item_str = str(item).lower()
-                    if item_str in allowed and item_str not in filtered:
-                        filtered.append(item_str)
-                record["delete_order"] = filtered or allowed.copy()
-            else:
-                record["delete_order"] = allowed.copy()
-            result["record"] = record
+            result["record"] = {"enabled": True}  # Sabit, parametre yok
         return result
 
     def _restore_masked_secrets(self, current: Any, merged: Any) -> Any:

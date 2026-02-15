@@ -153,9 +153,9 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
               onChange={(e) => onChange({ ...settings, detection: { ...settings.detection, aspect_ratio_preset: e.target.value as 'person' | 'thermal_person' | 'custom' } })}
               className="w-full px-3 py-1.5 bg-surface1 border border-border rounded text-text text-sm"
             >
-              <option value="person">Person shape</option>
-              <option value="thermal_person">Thermal person</option>
-              <option value="custom">Custom aspect</option>
+              <option value="person">{t('aspectRatioPresetPerson')}</option>
+              <option value="thermal_person">{t('aspectRatioPresetThermalPerson')}</option>
+              <option value="custom">{t('aspectRatioPresetCustom')}</option>
             </select>
             {isCustomAspect && (
               <>
@@ -217,7 +217,7 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
                   </div>
                 )}
                 <button type="button" onClick={() => setShowAdvancedThermal(!showAdvancedThermal)} className="flex items-center gap-1 text-xs text-muted hover:text-text">
-                  {showAdvancedThermal ? <MdExpandLess /> : <MdExpandMore />} Gelişmiş
+                  {showAdvancedThermal ? <MdExpandLess /> : <MdExpandMore />} {t('perfAdvanced')}
                 </button>
                 {showAdvancedThermal && settings.thermal.enhancement_method === 'clahe' && (
                   <div className="grid grid-cols-2 gap-2 mt-2">
@@ -252,7 +252,7 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
               <input type="number" min={1} value={settings.stream.buffer_size} onChange={(e) => onChange({ ...settings, stream: { ...settings.stream, buffer_size: parseInt(e.target.value) || 1 } })} className="w-full px-3 py-1.5 bg-surface1 border border-border rounded text-text text-sm" />
             </div>
             <button type="button" onClick={() => setShowAdvancedStream(!showAdvancedStream)} className="flex items-center gap-1 text-xs text-muted hover:text-text">
-              {showAdvancedStream ? <MdExpandLess /> : <MdExpandMore />} Bağlantı (reconnect)
+              {showAdvancedStream ? <MdExpandLess /> : <MdExpandMore />} {t('perfConnectionReconnect')}
             </button>
             {showAdvancedStream && (
               <div className="space-y-2 mt-2">
@@ -300,15 +300,15 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
                 onChange={(e) => onChange({ ...settings, performance: { ...(settings.performance || { enable_metrics: false, metrics_port: 9090 }), worker_mode: e.target.value as 'threading' | 'multiprocessing' } })}
                 className="w-full px-3 py-2 bg-surface1 border border-border rounded text-text text-sm"
               >
-                <option value="threading">Threading (önerilen)</option>
-                <option value="multiprocessing">Multiprocessing (deneysel)</option>
+                <option value="threading">{t('workerModeThreading')}</option>
+                <option value="multiprocessing">{t('workerModeMultiprocessing')}</option>
               </select>
               {settings.performance?.worker_mode === 'multiprocessing' && (
-                <p className="text-xs text-warning mt-1">⚠️ Deneysel. Test edin.</p>
+                <p className="text-xs text-warning mt-1">⚠️ {t('perfMultiprocessingWarning')}</p>
               )}
             </div>
             <div className="p-3 bg-surface1 rounded text-xs text-muted">
-              YOLO: ONNX/TensorRT otomatik. İlk çalıştırma ~1-2 dk.
+              {t('perfYoloHint')}
             </div>
             <label className="flex items-center gap-2 text-sm text-text">
               <input type="checkbox" checked={settings.performance?.enable_metrics || false} onChange={(e) => onChange({ ...settings, performance: { ...(settings.performance || { worker_mode: 'threading', metrics_port: 9090 }), enable_metrics: e.target.checked } })} />

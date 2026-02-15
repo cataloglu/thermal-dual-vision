@@ -381,13 +381,14 @@ class DetectorWorker:
                         )
                     return cap is not None and cap.isOpened()
 
-                def _open_capture_backend() -> bool:
+                def _open_capture_backend(is_reconnect: bool = False) -> bool:
                     nonlocal cap, active_url, ffmpeg_proc, ffmpeg_frame_shape, ffmpeg_frame_size, active_backend
                     if active_backend == "ffmpeg":
                         ffmpeg_proc, active_url, ffmpeg_frame_shape = self._open_ffmpeg_with_fallbacks(
                             rtsp_urls,
                             config,
                             camera_id,
+                            is_reconnect=is_reconnect,
                         )
                         if ffmpeg_proc and ffmpeg_frame_shape:
                             ffmpeg_frame_size = ffmpeg_frame_shape[0] * ffmpeg_frame_shape[1] * 3
@@ -408,7 +409,7 @@ class DetectorWorker:
                             protocol=protocol,
                         )
                         if not _capture_ready():
-                            if not _open_capture_backend():
+                            if not _open_capture_backend(is_reconnect=True):
                                 open_failures += 1
                                 if open_failures >= max(config.stream.max_reconnect_attempts, 1):
                                     logger.warning(
@@ -698,9 +699,10 @@ class DetectorWorker:
                 detections = self._filter_detections_by_zones(camera, detections, frame.shape)
                 self.detection_history[camera_id].append(detections)
 
-                # Detection log: always log when person found, empty results only every 60s
+                # Detection log: when person found throttle to 10s; empty every 60s (reduces log noise)
                 last_log = self.last_detection_log.get(camera_id, 0.0)
-                if len(detections) > 0 or current_time - last_log >= 60:
+                interval = 10.0 if len(detections) > 0 else 60.0
+                if current_time - last_log >= interval:
                     best_conf = max((d.get("confidence", 0.0) for d in detections), default=0.0)
                     logger.debug(
                         "DETECT camera=%s count=%s best_conf=%.2f",
@@ -1071,6 +1073,7 @@ class DetectorWorker:
         camera_id: Optional[str],
         output_size: Tuple[int, int],
         scale_output: bool,
+        is_reconnect: bool = False,
     ) -> Optional[subprocess.Popen]:
         ffmpeg = shutil.which("ffmpeg")
         if not ffmpeg:
@@ -1148,7 +1151,10 @@ class DetectorWorker:
                 return None
 
             self._start_ffmpeg_stderr_reader(process, camera_id)
-            logger.info("Opened camera %s with ffmpeg backend", camera_id)
+            if is_reconnect:
+                logger.warning("Reconnected camera %s (ffmpeg backend)", camera_id)
+            else:
+                logger.info("Opened camera %s with ffmpeg backend", camera_id)
             return process
 
         return None
@@ -1202,6 +1208,7 @@ class DetectorWorker:
         rtsp_urls: List[str],
         config,
         camera_id: Optional[str] = None,
+        is_reconnect: bool = False,
     ) -> Tuple[Optional[subprocess.Popen], Optional[str], Optional[Tuple[int, int]]]:
         if not shutil.which("ffmpeg"):
             return None, None, None
@@ -1239,6 +1246,7 @@ class DetectorWorker:
                 camera_id,
                 (width, height),
                 scale_output,
+                is_reconnect=is_reconnect,
             )
             if process:
                 if len(rtsp_urls) > 1 and url != rtsp_urls[0]:

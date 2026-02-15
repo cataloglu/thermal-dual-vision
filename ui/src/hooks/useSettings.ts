@@ -3,6 +3,7 @@
  */
 import { useState, useEffect } from 'react';
 import { getSettings, updateSettings } from '../services/api';
+import i18n from '../i18n';
 import type { Settings } from '../types/api';
 import toast from 'react-hot-toast';
 
@@ -37,6 +38,10 @@ export const useSettings = () => {
       setError(null);
       const data = await getSettings();
       setSettings(data);
+      if (data?.appearance?.language && data.appearance.language !== i18n.language) {
+        i18n.changeLanguage(data.appearance.language);
+        localStorage.setItem('language', data.appearance.language);
+      }
     } catch (err) {
       const error = err as { response?: { data?: { detail?: { message?: string } } }; message?: string; _suppressToast?: boolean };
       const errorMsg = error.response?.data?.detail?.message || error.message || 'Failed to load settings';

@@ -227,7 +227,7 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
                 onChange={(e) => onChange({ ...config, model: e.target.value })}
                 className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
               >
-                <option value="gpt-4o">gpt-4o (önerilen)</option>
+                <option value="gpt-4o">gpt-4o ({t('recommended')})</option>
                 <option value="gpt-4o-mini">gpt-4o-mini (ucuz)</option>
                 <option value="gpt-4-vision-preview">gpt-4-vision-preview (eski)</option>
               </select>

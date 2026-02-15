@@ -127,6 +127,20 @@ def create_timelapse_mp4(event_frames: list, detections: list, output_path: str)
     out.release()
 ```
 
+### Kayıttan Kesim vs Frame Fallback
+
+Event MP4 iki yoldan üretilir:
+
+1. **Kayıttan kesim (tercih)**: FFmpeg ile sürekli kayıttan `prebuffer + postbuffer` aralığı kesilir. Yüksek kalite, gerçek kayıt.
+2. **Frame fallback**: Kayıt kesimi başarısız olursa detector buffer'daki karelerden timelapse oluşturulur.
+
+**Kayıt kesimi ne zaman başarısız olur?**
+- Kayıt segmentleri henüz kapatılmamış (her segment 60 sn; yazma bitene kadar exclude edilir)
+- Event zamanı ile kayıt zamanı uyuşmazlığı (timezone düzeltildi)
+- Kamera için sürekli kayıt başlamamış
+
+**İki aşamalı çözüm**: İlk media üretiminde segment henüz kapatılmamışsa frame fallback kullanılır. ~50 sn sonra arka planda kayıttan kesim tekrar denenir; başarılı olursa MP4 dosyası kayıt tabanlı versiyonla güncellenir. Sonradan eventi açan kullanıcı yüksek kaliteli videoyu görür.
+
 ### Özellikler (Scrypted'den Daha İyi!)
 - ✅ **720p resolution** (Scrypted: 480p) → Daha net!
 - ✅ **Detection boxes** (person bounding box) → Nerede olduğu görünür!

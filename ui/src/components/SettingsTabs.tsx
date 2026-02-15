@@ -14,7 +14,6 @@ export type TabId =
   | 'stream'
   | 'zones'
   | 'live'
-  | 'recording'
   | 'events'
   | 'media'
   | 'ai'
@@ -39,7 +38,6 @@ export const SettingsTabs: React.FC<SettingsTabsProps> = ({ activeTab, onTabChan
     { id: 'camera_settings', label: t('cameraSettings') },
     { id: 'zones', label: t('zones') },
     { id: 'live', label: t('live') },
-    { id: 'recording', label: t('recording') },
     { id: 'events', label: t('events') },
     { id: 'media', label: t('media') },
     { id: 'ai', label: t('ai') },
