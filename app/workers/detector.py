@@ -95,8 +95,6 @@ class DetectorWorker:
         self.last_gate_log: Dict[str, float] = {}
         self.stream_stats: Dict[str, Dict[str, Any]] = defaultdict(dict)
         self.stream_stats_lock = threading.Lock()
-        self.restream_failures: Dict[str, int] = defaultdict(int)
-        self.restream_backoff_until: Dict[str, float] = {}
         
         logger.info("DetectorWorker initialized")
     
@@ -208,8 +206,6 @@ class DetectorWorker:
         self.latest_frame_locks.pop(camera_id, None)
         self.last_detection_log.pop(camera_id, None)
         self.last_gate_log.pop(camera_id, None)
-        self.restream_failures.pop(camera_id, None)
-        self.restream_backoff_until.pop(camera_id, None)
         with self.stream_stats_lock:
             self.stream_stats.pop(camera_id, None)
 
@@ -301,16 +297,10 @@ class DetectorWorker:
             )
             
             restream_url = self._get_go2rtc_restream_url(camera_id, restream_source)
-            # Prefer direct RTSP for detection; restream stays as fallback.
-            prefer_direct = True
-            rtsp_urls = self._get_detection_rtsp_urls(
-                camera_id,
-                restream_source,
-                rtsp_url,
-                prefer_direct=prefer_direct,
-            )
+            # Scrypted-style: only go2rtc. Ya var ya yok.
+            rtsp_urls = self._get_detection_rtsp_urls(camera_id, restream_source, rtsp_url)
             if not rtsp_urls:
-                logger.error(f"No RTSP URL for camera {camera_id}")
+                logger.error(f"Camera {camera_id}: go2rtc required but not available. Enable go2rtc.")
                 return
             
             logger.info(
@@ -451,28 +441,6 @@ class DetectorWorker:
                                     is_stale = last_frame_age is None or last_frame_age >= failure_timeout
                                     if is_stale:
                                         logger.warning("Reconnecting camera %s after read failures", camera_id)
-                                        if (
-                                            restream_url
-                                            and rtsp_url
-                                            and restream_url != rtsp_url
-                                            and active_url == restream_url
-                                        ):
-                                            self.restream_failures[camera_id] += 1
-                                            if self.restream_failures[camera_id] >= 2:
-                                                self.restream_failures[camera_id] = 0
-                                                self.restream_backoff_until[camera_id] = time.time() + 300
-                                                rtsp_urls = self._get_detection_rtsp_urls(
-                                                    camera_id,
-                                                    restream_source,
-                                                    rtsp_url,
-                                                    prefer_direct=True,
-                                                )
-                                                logger.warning(
-                                                    "Restream unstable for camera %s; preferring direct RTSP for 5m",
-                                                    camera_id,
-                                                )
-                                        elif active_url == rtsp_url:
-                                            self.restream_failures[camera_id] = 0
                                         if active_backend == "ffmpeg":
                                             self._stop_ffmpeg_capture(ffmpeg_proc)
                                             ffmpeg_proc = None
@@ -1334,19 +1302,10 @@ class DetectorWorker:
         camera_id: str,
         restream_source: Optional[str],
         primary_url: Optional[str],
-        prefer_direct: bool = False,
     ) -> List[str]:
-        urls: List[str] = []
+        """Scrypted-style: only go2rtc. Ya var ya yok."""
         restream_url = self._get_go2rtc_restream_url(camera_id, restream_source)
-        if primary_url and restream_url and restream_url != primary_url:
-            if prefer_direct:
-                urls.append(primary_url)
-                urls.append(restream_url)
-                return urls
-            urls.append(restream_url)
-        if primary_url:
-            urls.append(primary_url)
-        return urls
+        return [restream_url] if restream_url else []
 
     def _get_go2rtc_restream_url(
         self,

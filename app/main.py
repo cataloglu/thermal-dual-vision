@@ -178,7 +178,7 @@ async def lifespan(app: FastAPI):
         started = 0
         for camera in cameras:
             if camera.enabled:
-                rtsp_url = camera.rtsp_url or camera.rtsp_url_thermal or camera.rtsp_url_color
+                rtsp_url = _get_recording_rtsp_url(camera)
                 if rtsp_url:
                     if continuous_recorder.start_recording(camera.id, rtsp_url):
                         started += 1
@@ -288,15 +288,16 @@ def _get_go2rtc_restream_url(camera_id: str, source: Optional[str] = None) -> Op
     return f"{rtsp_base}/{stream_name}"
 
 
-def _get_live_rtsp_urls(camera) -> List[str]:
-    primary = _resolve_default_rtsp_url(camera)
-    urls: List[str] = []
+def _get_recording_rtsp_url(camera) -> str:
+    """Scrypted-style: only go2rtc. Ya var ya yok."""
     restream = _get_go2rtc_restream_url(camera.id, source=_resolve_default_stream_source(camera))
-    if restream and restream != primary:
-        urls.append(restream)
-    if primary:
-        urls.append(primary)
-    return urls
+    return restream or ""
+
+
+def _get_live_rtsp_urls(camera) -> List[str]:
+    """Scrypted-style: only go2rtc. Ya var ya yok."""
+    restream = _get_go2rtc_restream_url(camera.id, source=_resolve_default_stream_source(camera))
+    return [restream] if restream else []
 
 
 def _resolve_go2rtc_stream_name(camera) -> Optional[str]:
@@ -1681,10 +1682,10 @@ async def create_camera(
         else:
             detector_worker.stop_camera_detection(camera.id)
         
-        # Start/stop continuous recording (Scrypted-style)
+        # Start/stop continuous recording (Scrypted-style: go2rtc restream first)
         if camera.enabled:
             try:
-                rtsp_url = camera.rtsp_url or camera.rtsp_url_thermal or camera.rtsp_url_color
+                rtsp_url = _get_recording_rtsp_url(camera)
                 if rtsp_url:
                     continuous_recorder.start_recording(camera.id, rtsp_url)
             except Exception as e:
@@ -1785,10 +1786,10 @@ async def update_camera(
         else:
             detector_worker.stop_camera_detection(camera.id)
         
-        # Start/stop continuous recording (Scrypted-style)
+        # Start/stop continuous recording (Scrypted-style: go2rtc restream first)
         if camera.enabled:
             try:
-                rtsp_url = camera.rtsp_url or camera.rtsp_url_thermal or camera.rtsp_url_color
+                rtsp_url = _get_recording_rtsp_url(camera)
                 if rtsp_url:
                     continuous_recorder.start_recording(camera.id, rtsp_url)
             except Exception as e:
@@ -1912,7 +1913,7 @@ async def start_recording(camera_id: str, db: Session = Depends(get_session)) ->
                 "message": f"Camera not found: {camera_id}",
             },
         )
-    rtsp_url = camera.rtsp_url or camera.rtsp_url_thermal or camera.rtsp_url_color
+    rtsp_url = _get_recording_rtsp_url(camera)
     if not rtsp_url:
         raise HTTPException(
             status_code=400,

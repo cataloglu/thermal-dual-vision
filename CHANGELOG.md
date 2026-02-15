@@ -6,6 +6,18 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.36] - 2026-02-16
+
+### Değişenler
+
+- **Scrypted-style tek kaynak:** Tüm stream akışı (Live, Detection, Recording) artık sadece go2rtc üzerinden. Fallback yok – go2rtc aktif olmalı.
+- **detector_mp:** Sadece go2rtc restream kullanıyor.
+- **detector (threading):** Sadece go2rtc restream, direct RTSP kaldırıldı.
+- **recorder:** go2rtc restream üzerinden kayıt.
+- **Live / Snapshot:** go2rtc restream kullanılıyor.
+
+---
+
 ## [3.10.35] - 2026-02-16
 
 ### Düzeltmeler

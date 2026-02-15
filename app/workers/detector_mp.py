@@ -327,15 +327,25 @@ def camera_detection_process(
         
         process_logger.info(f"Services initialized for camera {camera_id}")
         
-        # Get RTSP URL
-        rtsp_url = camera_config.get("rtsp_url") or camera_config.get("rtsp_url_thermal")
-        if not rtsp_url:
-            process_logger.error(f"No RTSP URL for camera {camera_id}")
+        # Scrypted-style: only go2rtc. No fallback.
+        rtsp_urls: List[str] = []
+        try:
+            from app.services.go2rtc import get_go2rtc_service
+            go2rtc = get_go2rtc_service()
+            if go2rtc and go2rtc.enabled:
+                source = "thermal" if (camera_config.get("type") == "thermal" or camera_config.get("rtsp_url_thermal")) else "color"
+                stream_name = f"{camera_id}_{source}" if source in ("thermal", "color") else camera_id
+                rtsp_base = os.getenv("GO2RTC_RTSP_URL", "rtsp://127.0.0.1:8554")
+                restream_url = f"{rtsp_base}/{stream_name}"
+                rtsp_urls.append(restream_url)
+        except Exception as e:
+            process_logger.debug(f"go2rtc not available: {e}")
+        if not rtsp_urls:
+            process_logger.error(f"Camera {camera_id}: go2rtc required but not available. Enable go2rtc.")
+            time.sleep(60)
             return
         
-        # Open camera with threading detector's robust method
-        import os
-        
+        # Open camera from go2rtc only
         cam_name = camera_config.get("name", "?")
         process_logger.info(f"[DEBUG-RTSP] Opening camera {cam_name} ({camera_id[:8]})...")
         
@@ -346,34 +356,31 @@ def camera_detection_process(
             "fflags;discardcorrupt|flags;low_delay|max_delay;500000|err_detect;ignore_err"
         )
         
-        # Try multiple codecs (same as threading detector!)
         codec_fallbacks = [None, "H264", "H265", "MJPG"]
         cap = None
         
-        for codec in codec_fallbacks:
-            try:
-                temp_cap = cv2.VideoCapture(rtsp_url, cv2.CAP_FFMPEG)
-                temp_cap.set(cv2.CAP_PROP_BUFFERSIZE, config.stream.buffer_size)
-                
-                # Set timeouts
-                if hasattr(cv2, "CAP_PROP_OPEN_TIMEOUT_MSEC"):
-                    temp_cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 10000)
-                if hasattr(cv2, "CAP_PROP_READ_TIMEOUT_MSEC"):
-                    temp_cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, 10000)
-                
-                if codec:
-                    temp_cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*codec))
-                
-                if temp_cap.isOpened():
-                    # Try to read a frame to verify
-                    ret, _ = temp_cap.read()
-                    if ret:
-                        process_logger.info(f"Camera {cam_name} ({camera_id[:8]}) opened successfully with codec {codec or 'default'}")
-                        cap = temp_cap
-                        break
-                temp_cap.release()
-            except Exception as e:
-                process_logger.debug(f"Codec {codec} attempt failed: {e}")
+        for rtsp_url in rtsp_urls:
+            for codec in codec_fallbacks:
+                try:
+                    temp_cap = cv2.VideoCapture(rtsp_url, cv2.CAP_FFMPEG)
+                    temp_cap.set(cv2.CAP_PROP_BUFFERSIZE, config.stream.buffer_size)
+                    if hasattr(cv2, "CAP_PROP_OPEN_TIMEOUT_MSEC"):
+                        temp_cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 10000)
+                    if hasattr(cv2, "CAP_PROP_READ_TIMEOUT_MSEC"):
+                        temp_cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, 10000)
+                    if codec:
+                        temp_cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*codec))
+                    if temp_cap.isOpened():
+                        ret, _ = temp_cap.read()
+                        if ret:
+                            process_logger.info(f"Camera {cam_name} ({camera_id[:8]}) opened via go2rtc with codec {codec or 'default'}")
+                            cap = temp_cap
+                            break
+                    temp_cap.release()
+                except Exception as e:
+                    process_logger.debug(f"Codec {codec} attempt failed: {e}")
+            if cap is not None:
+                break
         
         if not cap or not cap.isOpened():
             process_logger.error(f"Failed to open camera {cam_name} ({camera_id[:8]}) after all codec attempts")
