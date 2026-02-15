@@ -1270,32 +1270,7 @@ async def get_live_stream(camera_id: str, db: Session = Depends(get_session)) ->
     if settings.stream.protocol == "tcp":
         stream_urls = [camera_service.force_tcp_protocol(url) for url in stream_urls]
 
-    def detector_stream_generator():
-        while True:
-            frame = detector_worker.get_latest_frame(camera_id)
-            if frame is None:
-                time.sleep(0.1)
-                continue
-            jpeg_quality = int(getattr(settings.live, "mjpeg_quality", 92))
-            encode_params = [int(cv2.IMWRITE_JPEG_QUALITY), jpeg_quality]
-            success, buffer = cv2.imencode(".jpg", frame, encode_params)
-            if not success:
-                time.sleep(0.05)
-                continue
-            frame_bytes = buffer.tobytes()
-            yield (
-                b"--frame\r\n"
-                b"Content-Type: image/jpeg\r\n\r\n" + frame_bytes + b"\r\n"
-            )
-
-    stream_roles = camera.stream_roles or []
-    if "detect" in stream_roles:
-        logger.info("Live stream using detector frames for %s", camera_id)
-        return StreamingResponse(
-            detector_stream_generator(),
-            media_type="multipart/x-mixed-replace; boundary=frame"
-        )
-
+    # Live view = direct RTSP → MJPEG only (no detector). Same as go2rtc/Frigate etc.
     cap = None
     selected_url = None
     for candidate_url in stream_urls:
@@ -1317,10 +1292,14 @@ async def get_live_stream(camera_id: str, db: Session = Depends(get_session)) ->
         break
 
     if cap is None or not cap.isOpened():
-        logger.warning("Live stream fallback to detector frames for %s", camera_id)
-        return StreamingResponse(
-            detector_stream_generator(),
-            media_type="multipart/x-mixed-replace; boundary=frame"
+        logger.warning("Live stream could not open RTSP for %s (tried %d URL(s))", camera_id, len(stream_urls))
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": True,
+                "code": "STREAM_UNAVAILABLE",
+                "message": "Could not connect to camera RTSP stream. Check URL and network.",
+            },
         )
 
     logger.info(
