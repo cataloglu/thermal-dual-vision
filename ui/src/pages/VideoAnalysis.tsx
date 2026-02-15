@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import api, { apiClient } from '../services/api'
+import { getEvents, analyzeVideo } from '../services/api'
 import { LoadingState } from '../components/LoadingState'
 import { MdPlayArrow, MdCheckCircle, MdError, MdRefresh } from 'react-icons/md'
 
@@ -47,7 +47,7 @@ export function VideoAnalysis() {
   useEffect(() => {
     const fetchEvents = async () => {
       try {
-        const data = await api.getEvents({ page: 1, page_size: 50 })
+        const data = await getEvents({ page: 1, page_size: 50 })
         const list = (data.events || []).filter((e: EventItem) => e.mp4_url || e.media?.mp4_url)
         setEvents(list)
         if (list.length > 0) {
@@ -74,7 +74,7 @@ export function VideoAnalysis() {
         setError(t('videoAnalysisSelectEvent') || 'Select an event or enter a file path')
         return
       }
-      const data = await apiClient.post('video/analyze', params)
+      const data = await analyzeVideo(params)
       setResult(data)
     } catch (e: unknown) {
       const err = e as { response?: { data?: { detail?: { message?: string } } } }

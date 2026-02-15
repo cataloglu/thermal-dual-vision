@@ -759,10 +759,11 @@ class MultiprocessingDetectorWorker:
         control_queue = mp.Queue(maxsize=10)
         
         # Create shared frame buffer for collage/MP4
+        # Buffer must hold prebuffer+postbuffer at record_fps (e.g. 5+15=20s @ 10fps = 200 frames)
         try:
             frame_buffer = SharedFrameBuffer(
                 camera_id=camera.id,
-                buffer_size=100,  # Increased from 60 to 100 (more frames for better quality)
+                buffer_size=250,  # ~25s at 10fps - covers full event window
                 frame_shape=(720, 1280, 3)  # Resize to 720p for efficiency
             )
             self.frame_buffers[camera.id] = frame_buffer
@@ -959,6 +960,11 @@ class MultiprocessingDetectorWorker:
                                 buffer_info = event_data.get("buffer_info")
                                 if buffer_info and buffer_info['name']:
                                     try:
+                                        # CRITICAL: Wait for postbuffer so we capture frames AFTER event
+                                        # (buffer only contains past frames until we wait)
+                                        postbuffer_seconds = float(getattr(config.event, "postbuffer_seconds", 15.0))
+                                        if postbuffer_seconds > 0:
+                                            time.sleep(postbuffer_seconds)
                                         # Attach to shared buffer WITH timestamps
                                         shm = shared_memory.SharedMemory(name=buffer_info['name'])
                                         shm_ts = shared_memory.SharedMemory(name=f"tdv_timestamps_{camera_id}")

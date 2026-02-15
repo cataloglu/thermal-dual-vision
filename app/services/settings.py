@@ -276,6 +276,10 @@ class SettingsService:
                 event["cooldown_seconds"] = 7
             if event.get("min_event_duration") in (1.0, 1.2, 1.5):
                 event["min_event_duration"] = 1.0
+            # prebuffer < 5 caused ~3 sec event videos (too few frames)
+            pb = event.get("prebuffer_seconds")
+            if pb is not None and float(pb) < 5.0:
+                event["prebuffer_seconds"] = 5.0
             result["event"] = event
         record = result.get("record")
         if isinstance(record, dict):
