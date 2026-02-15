@@ -299,9 +299,9 @@ def camera_detection_process(
                 shm = shared_memory.SharedMemory(name=frame_buffer_name)
                 shm_ts = shared_memory.SharedMemory(name=f"tdv_timestamps_{camera_id}")
                 
-                # Reconstruct buffer metadata (assume 720p)
-                buffer_size = 60
-                frame_shape = (720, 1280, 3)
+                # Match main process SharedFrameBuffer (250 frames = ~25s @ 10fps)
+                buffer_size = camera_config.get("buffer_size", 250)
+                frame_shape = tuple(camera_config.get("frame_shape", (720, 1280, 3)))
                 frames_array = np.ndarray(
                     (buffer_size, *frame_shape),
                     dtype=np.uint8,
@@ -806,6 +806,8 @@ class MultiprocessingDetectorWorker:
             "rtsp_url_thermal": camera.rtsp_url_thermal,
             "rtsp_url_color": camera.rtsp_url_color,
             "rtsp_url_detection": getattr(camera, "rtsp_url_detection", None),
+            "buffer_size": 250,
+            "frame_shape": (720, 1280, 3),
             "detection_source": camera.detection_source.value if camera.detection_source else None,
             "stream_roles": camera.stream_roles,
             "motion_config": camera.motion_config,
@@ -939,14 +941,23 @@ class MultiprocessingDetectorWorker:
                                 settings_service = get_settings_service()
                                 config = settings_service.load_config()
                                 
-                                # Create event in DB
+                                # Create event in DB - use detection timestamp (critical for recording extract)
                                 person_count = event_data.get("person_count", 1)
                                 confidence = event_data.get("confidence", 0.0)
-                                
+                                event_ts_str = event_data.get("timestamp")
+                                event_ts = datetime.utcnow()
+                                if event_ts_str:
+                                    try:
+                                        event_ts = datetime.strptime(event_ts_str.replace("Z", ""), "%Y-%m-%dT%H:%M:%S.%f")
+                                    except ValueError:
+                                        try:
+                                            event_ts = datetime.strptime(event_ts_str.replace("Z", ""), "%Y-%m-%dT%H:%M:%S")
+                                        except ValueError:
+                                            pass
                                 event = event_service.create_event(
                                     db=db,
                                     camera_id=camera.id,
-                                    timestamp=datetime.utcnow(),
+                                    timestamp=event_ts,
                                     confidence=confidence,
                                     event_type="person",
                                     summary=None,  # AI summary added later
@@ -961,7 +972,9 @@ class MultiprocessingDetectorWorker:
                                 # Don't publish MQTT/WebSocket until media is ready - prevents "message before video" notifications
                                 # Generate collage/MP4 from shared buffer
                                 buffer_info = event_data.get("buffer_info")
-                                if buffer_info and buffer_info['name']:
+                                if not (buffer_info and buffer_info.get("name")):
+                                    logger.warning("Event %s: no buffer_info, cannot generate media (event created but no video)", event.id)
+                                elif buffer_info and buffer_info['name']:
                                     try:
                                         # CRITICAL: Wait for postbuffer so we capture frames AFTER event
                                         # (buffer only contains past frames until we wait)
@@ -1242,10 +1255,15 @@ class MultiprocessingDetectorWorker:
                                                     except Exception as te:
                                                         logger.warning(f"Telegram notify failed: {te}")
                                             except Exception as e:
-                                                logger.error(f"Failed to create media: {e}")
+                                                logger.error(f"Failed to create media for event {event.id}: {e}")
+                                                import traceback
+                                                logger.error(traceback.format_exc())
                                             
                                         else:
-                                            logger.warning(f"No frames available for event {event.id}, deleting orphan event")
+                                            logger.warning(
+                                                "No frames available for event %s (buffer_range=%.1f-%.1f, valid_ts=%d), deleting orphan event",
+                                                event.id, start_time, end_time, valid_timestamps
+                                            )
                                             try:
                                                 event_dir = media_service.MEDIA_DIR / event.id
                                                 if event_dir.exists():

@@ -252,7 +252,7 @@ class MediaService:
                 try:
                     future.result()
                 except Exception as exc:
-                    logger.warning("Failed to generate %s for event %s: %s", label, event_id, exc)
+                    logger.warning("Failed to generate %s for event %s: %s", label, event_id, exc, exc_info=True)
                     if label == "collage":
                         errors.append(exc)
                     elif label == "mp4" and not mp4_from_recording:
