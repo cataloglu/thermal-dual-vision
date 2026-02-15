@@ -1027,6 +1027,20 @@ class MultiprocessingDetectorWorker:
                                         shm.close()
                                         shm_ts.close()
                                         
+                                        # When buffer has no frames: try extracting from recording
+                                        if len(frames) == 0:
+                                            try:
+                                                from app.services.recorder import get_continuous_recorder
+                                                from datetime import timezone as tz
+                                                recorder = get_continuous_recorder()
+                                                start_dt = datetime.fromtimestamp(start_time, tz=tz.utc).replace(tzinfo=None)
+                                                end_dt = datetime.fromtimestamp(end_time, tz=tz.utc).replace(tzinfo=None)
+                                                frames = recorder.extract_frames(event.camera_id, start_dt, end_dt, max_frames=5)
+                                                if frames:
+                                                    logger.info(f"Recovered {len(frames)} frames from recording for event {event.id}")
+                                            except Exception as e:
+                                                logger.warning(f"extract_frames fallback failed: {e}")
+                                        
                                         # Generate media (collage + MP4)
                                         if len(frames) > 0:
                                             # Get camera for name
@@ -1034,7 +1048,12 @@ class MultiprocessingDetectorWorker:
                                             camera_name = camera_obj.name if camera_obj else "Camera"
                                             
                                             # Create timestamps list from frames_with_ts
-                                            frame_timestamps = [ts for ts, idx, frame in frames_with_ts[:len(frames)]]  # Match frames length
+                                            # frame_timestamps: from buffer or spread for recording-extracted frames
+                                            if frames_with_ts and len(frames_with_ts) >= len(frames):
+                                                frame_timestamps = [ts for ts, idx, frame in frames_with_ts[:len(frames)]]
+                                            else:
+                                                span = end_time - start_time
+                                                frame_timestamps = [start_time + span * i / max(1, len(frames) - 1) for i in range(len(frames))]
                                             
                                             logger.info(f"[DEBUG-MEDIA] Generating media: event={event.id}, frames={len(frames)}, timestamps={len(frame_timestamps)}")
                                             
@@ -1194,7 +1213,15 @@ class MultiprocessingDetectorWorker:
                                                 logger.error(f"Failed to create media: {e}")
                                             
                                         else:
-                                            logger.warning(f"No frames available for event {event.id}")
+                                            logger.warning(f"No frames available for event {event.id}, deleting orphan event")
+                                            try:
+                                                event_dir = media_service.MEDIA_DIR / event.id
+                                                if event_dir.exists():
+                                                    shutil.rmtree(event_dir, ignore_errors=True)
+                                                db.delete(event)
+                                                db.commit()
+                                            except Exception as e:
+                                                logger.error(f"Failed to delete orphan event {event.id}: {e}")
                                         
                                     except Exception as e:
                                         logger.error(f"Failed to generate media for event {event.id}: {e}")

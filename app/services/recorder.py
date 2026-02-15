@@ -19,6 +19,11 @@ from typing import Dict, List, Optional, Tuple
 
 from app.utils.paths import DATA_DIR
 
+try:
+    import cv2
+    _CV2_AVAILABLE = True
+except ImportError:
+    _CV2_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -251,6 +256,55 @@ class ContinuousRecorder:
         return self._extract_multi(
             ffmpeg, files, start_time, end_time, output_path, speed_factor
         )
+
+    def extract_frames(
+        self,
+        camera_id: str,
+        start_time: "datetime",
+        end_time: "datetime",
+        max_frames: int = 5,
+    ) -> List:
+        """
+        Extract frames from recording for event collage when buffer has no frames.
+        Returns list of numpy arrays (BGR) or empty list on failure.
+        """
+        if not _CV2_AVAILABLE:
+            return []
+        tmp = None
+        try:
+            fd, tmp = tempfile.mkstemp(suffix=".mp4", prefix="event_frames_")
+            os.close(fd)
+            if not self.extract_clip(camera_id, start_time, end_time, tmp, speed_factor=1.0):
+                # Fallback: try local timezone
+                start_utc = start_time.replace(tzinfo=timezone.utc)
+                end_utc = end_time.replace(tzinfo=timezone.utc)
+                start_local = start_utc.astimezone().replace(tzinfo=None)
+                end_local = end_utc.astimezone().replace(tzinfo=None)
+                if not self.extract_clip(
+                    camera_id, start_local, end_local, tmp,
+                    speed_factor=1.0, use_utc_for_cutoff=False,
+                ):
+                    return []
+            cap = cv2.VideoCapture(tmp)
+            frames = []
+            try:
+                while len(frames) < max_frames:
+                    ret, fr = cap.read()
+                    if not ret or fr is None:
+                        break
+                    frames.append(fr.copy())
+            finally:
+                cap.release()
+            return frames
+        except Exception as e:
+            logger.warning("extract_frames failed: %s", e)
+            return []
+        finally:
+            if tmp and os.path.exists(tmp):
+                try:
+                    os.unlink(tmp)
+                except Exception:
+                    pass
 
     def _extract_single(
         self,

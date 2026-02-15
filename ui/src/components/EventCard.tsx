@@ -31,7 +31,7 @@ export const EventCard = memo(function EventCard({
 }: EventCardProps) {
   const { t } = useTranslation()
   const cameraLabel = cameraName || cameraId
-  const isRecent = (value: string) => Date.now() - new Date(value).getTime() < 30000
+  const isRecent = (value: string) => Date.now() - new Date(value).getTime() < 60000
   const collagePending = !collageUrl && isRecent(timestamp)
   const getConfidenceBadge = () => {
     const percentage = Math.round(confidence * 100)
