@@ -734,11 +734,12 @@ class MediaWorker:
         timestamps: Optional[List[float]] = None,
         real_time: bool = False,
         speed_factor: Optional[float] = None,
+        overlay_use_utc: bool = False,
     ) -> str:
         """
         Create timelapse MP4 with detection boxes.
         
-        Balanced MP4 quality with detection overlays.
+        Overlay time = server time (UTC or local per settings). Never camera OSD.
         
         Args:
             frames: List of frames
@@ -746,6 +747,7 @@ class MediaWorker:
             output_path: Output MP4 path
             camera_name: Camera name for overlay
             timestamp: Event start timestamp
+            overlay_use_utc: If True show UTC, else local (server time only)
             
         Returns:
             Output path
@@ -848,8 +850,11 @@ class MediaWorker:
 
             if timestamp:
                 if timestamps and len(timestamps) == frame_count:
-                    # Buffer timestamps are UTC epoch; use UTC for consistent overlay (no dual times)
-                    frame_time = datetime.fromtimestamp(timestamps[frame_idx], tz=timezone.utc).replace(tzinfo=None)
+                    # Server time when frame was captured. UTC or local per settings.
+                    if overlay_use_utc:
+                        frame_time = datetime.fromtimestamp(timestamps[frame_idx], tz=timezone.utc).replace(tzinfo=None)
+                    else:
+                        frame_time = datetime.fromtimestamp(timestamps[frame_idx]).replace(tzinfo=None)
                 else:
                     frame_time = timestamp + timedelta(seconds=out_idx / target_fps_int)
                 cv2.putText(

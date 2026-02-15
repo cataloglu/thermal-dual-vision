@@ -242,6 +242,10 @@ class LiveConfig(BaseModel):
         le=100,
         description="JPEG quality for MJPEG stream (higher = better, more bandwidth)"
     )
+    overlay_timezone: Literal["utc", "local"] = Field(
+        default="local",
+        description="Video overlay time: server local time or UTC (always server time, never camera OSD)"
+    )
     webrtc: WebRTCConfig = Field(
         default_factory=WebRTCConfig,
         description="WebRTC configuration"

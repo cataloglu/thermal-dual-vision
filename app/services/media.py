@@ -201,6 +201,11 @@ class MediaService:
         mp4_source_frames = mp4_frames if mp4_frames else frames
         mp4_source_detections = mp4_detections if mp4_detections is not None else detections
         mp4_source_timestamps = mp4_timestamps if mp4_timestamps is not None else timestamps
+        try:
+            _config = get_settings_service().load_config()
+            overlay_use_utc = getattr(_config.live, "overlay_timezone", "local") == "utc"
+        except Exception:
+            overlay_use_utc = False
         worker_count = 1 + (0 if mp4_from_recording else 1) + (1 if include_gif else 0)
         errors: List[Exception] = []
         with ThreadPoolExecutor(max_workers=max(1, worker_count)) as executor:
@@ -229,6 +234,7 @@ class MediaService:
                         mp4_source_timestamps,
                         mp4_real_time,
                         speed_factor,
+                        overlay_use_utc,
                     ),
                 ))
             if include_gif:
