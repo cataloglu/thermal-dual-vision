@@ -255,7 +255,20 @@ def camera_detection_process(
         control_queue: Queue for receiving control commands
         stop_event: Multiprocessing event for graceful shutdown
     """
-    # Setup process-specific logging
+    # Setup process-specific logging (child processes don't inherit parent's FileHandler)
+    from pathlib import Path
+    log_dir = Path("logs")
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / "app.log"
+    root = logging.getLogger()
+    has_file = any(isinstance(h, logging.FileHandler) for h in root.handlers)
+    if not has_file:
+        try:
+            fh = logging.FileHandler(str(log_file), encoding="utf-8")
+            fh.setFormatter(logging.Formatter("%(asctime)s | %(levelname)-8s | %(name)s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S"))
+            root.addHandler(fh)
+        except Exception:
+            pass
     process_logger = logging.getLogger(f"detector.{camera_id}")
     process_logger.info(f"Camera detection process started: {camera_id}")
     
@@ -932,30 +945,7 @@ class MultiprocessingDetectorWorker:
                                 logger.info(f"Event created: {event.id} for camera {camera_id}")
                                 
                                 ai_required = _ai_requires_confirmation(config)
-                                # When AI required: skip MQTT/WebSocket until AI confirms (publish after media)
-                                if not ai_required:
-                                    mqtt_service.publish_event({
-                                        "id": event.id,
-                                        "camera_id": event.camera_id,
-                                        "timestamp": event.timestamp.isoformat() + "Z",
-                                        "confidence": event.confidence,
-                                        "event_type": event.event_type,
-                                        "summary": event.summary,
-                                        "person_count": person_count,
-                                        "ai_required": False,
-                                        "ai_confirmed": True,
-                                    })
-                                    try:
-                                        websocket_manager.broadcast_event_sync({
-                                            "id": event.id,
-                                            "camera_id": camera_id,
-                                            "timestamp": event.timestamp.isoformat() + "Z",
-                                            "confidence": confidence,
-                                            "person_count": person_count,
-                                        })
-                                    except Exception:
-                                        pass
-                                
+                                # Don't publish MQTT/WebSocket until media is ready - prevents "message before video" notifications
                                 # Generate collage/MP4 from shared buffer
                                 buffer_info = event_data.get("buffer_info")
                                 if buffer_info and buffer_info['name']:
@@ -1152,53 +1142,54 @@ class MultiprocessingDetectorWorker:
                                                 mp4_url = media_urls.get('mp4_url')
                                                 collage_url = media_urls.get('collage_url')
                                                 logger.info(f"Media generated for event {event.id}")
-                                                # When ai_required: publish MQTT/WebSocket only after AI confirmed
-                                                if ai_required:
-                                                    db.refresh(event)
-                                                    ai_confirmed = _is_ai_confirmed(event.summary)
-                                                    mqtt_service.publish_event({
+                                                # Publish MQTT/WebSocket and Telegram ONLY after media is ready
+                                                db.refresh(event)
+                                                ai_confirmed = _is_ai_confirmed(event.summary) if ai_required else True
+                                                mqtt_service.publish_event({
+                                                    "id": event.id,
+                                                    "camera_id": event.camera_id,
+                                                    "timestamp": event.timestamp.isoformat() + "Z",
+                                                    "confidence": event.confidence,
+                                                    "event_type": event.event_type,
+                                                    "summary": event.summary,
+                                                    "person_count": person_count,
+                                                    "ai_required": ai_required,
+                                                    "ai_confirmed": ai_confirmed,
+                                                    "ai_enabled": bool(event.ai_enabled),
+                                                    "ai_reason": event.ai_reason,
+                                                }, person_detected=ai_confirmed)
+                                                try:
+                                                    websocket_manager.broadcast_event_sync({
                                                         "id": event.id,
-                                                        "camera_id": event.camera_id,
+                                                        "camera_id": camera_id,
                                                         "timestamp": event.timestamp.isoformat() + "Z",
-                                                        "confidence": event.confidence,
-                                                        "event_type": event.event_type,
-                                                        "summary": event.summary,
+                                                        "confidence": confidence,
                                                         "person_count": person_count,
-                                                        "ai_required": True,
-                                                        "ai_confirmed": ai_confirmed,
-                                                        "ai_enabled": bool(event.ai_enabled),
-                                                        "ai_reason": event.ai_reason,
-                                                    }, person_detected=ai_confirmed)
+                                                        "summary": event.summary,
+                                                    })
+                                                except Exception:
+                                                    pass
+                                                # Telegram only when confirmed (AI case) or always (non-AI)
+                                                if ai_confirmed:
                                                     try:
-                                                        websocket_manager.broadcast_event_sync({
-                                                            "id": event.id,
-                                                            "camera_id": camera_id,
-                                                            "timestamp": event.timestamp.isoformat() + "Z",
-                                                            "confidence": confidence,
-                                                            "person_count": person_count,
-                                                            "summary": event.summary,
-                                                        })
-                                                    except Exception:
-                                                        pass
-                                                    # Telegram only when AI confirmed
-                                                    if ai_confirmed:
-                                                        try:
-                                                            from app.services.telegram import get_telegram_service
-                                                            telegram = get_telegram_service()
-                                                            collage_path = media_service.get_media_path(event.id, "collage")
-                                                            asyncio.run(telegram.send_event_notification(
-                                                                event={
-                                                                    "id": event.id,
-                                                                    "camera_id": event.camera_id,
-                                                                    "timestamp": event.timestamp.isoformat() + "Z",
-                                                                    "confidence": event.confidence,
-                                                                    "summary": event.summary,
-                                                                },
-                                                                camera={"id": camera_obj.id, "name": camera_name},
-                                                                collage_path=collage_path,
-                                                            ))
-                                                        except Exception as te:
-                                                            logger.warning(f"Telegram notify failed: {te}")
+                                                        from app.services.telegram import get_telegram_service
+                                                        telegram = get_telegram_service()
+                                                        collage_path_obj = media_service.get_media_path(event.id, "collage")
+                                                        mp4_path_obj = media_service.get_media_path(event.id, "mp4")
+                                                        asyncio.run(telegram.send_event_notification(
+                                                            event={
+                                                                "id": event.id,
+                                                                "camera_id": event.camera_id,
+                                                                "timestamp": event.timestamp.isoformat() + "Z",
+                                                                "confidence": event.confidence,
+                                                                "summary": event.summary,
+                                                            },
+                                                            camera={"id": camera_obj.id, "name": camera_name},
+                                                            collage_path=collage_path_obj,
+                                                            mp4_path=mp4_path_obj,
+                                                        ))
+                                                    except Exception as te:
+                                                        logger.warning(f"Telegram notify failed: {te}")
                                             except Exception as e:
                                                 logger.error(f"Failed to create media: {e}")
                                             

@@ -236,6 +236,12 @@ class LiveConfig(BaseModel):
         default="mjpeg",
         description="Live stream output mode"
     )
+    mjpeg_quality: int = Field(
+        default=92,
+        ge=50,
+        le=100,
+        description="JPEG quality for MJPEG stream (higher = better, more bandwidth)"
+    )
     webrtc: WebRTCConfig = Field(
         default_factory=WebRTCConfig,
         description="WebRTC configuration"

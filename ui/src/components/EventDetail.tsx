@@ -14,12 +14,13 @@ interface EventDetailProps {
     collage_url: string | null
     mp4_url: string | null
   }
+  cameraName?: string
   initialTab?: 'collage' | 'video'
   onClose: () => void
   onDelete?: (eventId: string) => void
 }
 
-export function EventDetail({ event, initialTab, onClose, onDelete }: EventDetailProps) {
+export function EventDetail({ event, cameraName, initialTab, onClose, onDelete }: EventDetailProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const modalRef = useRef<HTMLDivElement>(null)
@@ -249,7 +250,7 @@ export function EventDetail({ event, initialTab, onClose, onDelete }: EventDetai
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-surface2 border border-border rounded-lg p-4">
               <h3 className="text-sm font-semibold text-muted mb-2">{t('camera')}</h3>
-              <p className="text-text font-medium">{event.camera_id}</p>
+              <p className="text-text font-medium">{cameraName ?? event.camera_id}</p>
             </div>
 
             <div className="bg-surface2 border border-border rounded-lg p-4">

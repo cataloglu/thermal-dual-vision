@@ -54,6 +54,7 @@ export interface StreamConfig {
 
 export interface LiveConfig {
   output_mode: 'mjpeg' | 'webrtc';
+  mjpeg_quality?: number;
   webrtc: {
     enabled: boolean;
     go2rtc_url: string;

@@ -34,6 +34,7 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
   const [eventsLoading, setEventsLoading] = useState(false);
   const [eventsError, setEventsError] = useState<string | null>(null);
   const [events, setEvents] = useState<any[]>([]);
+  const [cameras, setCameras] = useState<{ id: string; name: string }[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string>('');
   const [aiTestLoading, setAiTestLoading] = useState(false);
   const [aiTestResult, setAiTestResult] = useState<any | null>(null);
@@ -69,9 +70,13 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
     setEventsLoading(true);
     setEventsError(null);
     try {
-      const data = await api.getEvents({ page: 1, page_size: 20 });
-      const eventList = Array.isArray(data?.events) ? data.events : [];
+      const [eventsRes, camerasRes] = await Promise.all([
+        api.getEvents({ page: 1, page_size: 20 }),
+        api.getCameras(),
+      ]);
+      const eventList = Array.isArray(eventsRes?.events) ? eventsRes.events : [];
       setEvents(eventList);
+      setCameras(camerasRes.cameras || []);
       if (!selectedEventId && eventList.length > 0) {
         setSelectedEventId(eventList[0].id);
       }
@@ -349,11 +354,14 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
                 {events.length === 0 && (
                   <option value="">{t('aiEventNoEvents')}</option>
                 )}
-                {events.map((event) => (
-                  <option key={event.id} value={event.id}>
-                    {new Date(event.timestamp).toLocaleString()} • {event.camera_id}
-                  </option>
-                ))}
+                {events.map((event) => {
+                  const cameraName = cameras.find((c: { id: string }) => c.id === event.camera_id)?.name || event.camera_id;
+                  return (
+                    <option key={event.id} value={event.id}>
+                      {new Date(event.timestamp).toLocaleString()} • {cameraName}
+                    </option>
+                  );
+                })}
               </select>
 
               <button

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { getEvents, analyzeVideo } from '../services/api'
+import { getEvents, getCameras, analyzeVideo } from '../services/api'
 import { LoadingState } from '../components/LoadingState'
 import { MdPlayArrow, MdCheckCircle, MdError, MdRefresh } from 'react-icons/md'
 
@@ -38,6 +38,7 @@ export function VideoAnalysis() {
   const location = useLocation()
   const stateEventId = (location.state as { eventId?: string })?.eventId
   const [events, setEvents] = useState<EventItem[]>([])
+  const [cameras, setCameras] = useState<{ id: string; name: string }[]>([])
   const [selectedEventId, setSelectedEventId] = useState<string>(stateEventId || '')
   const [customPath, setCustomPath] = useState('')
   const [analyzing, setAnalyzing] = useState(false)
@@ -45,11 +46,15 @@ export function VideoAnalysis() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const fetchEvents = async () => {
+    const fetch = async () => {
       try {
-        const data = await getEvents({ page: 1, page_size: 50 })
-        const list = (data.events || []).filter((e: EventItem) => e.mp4_url || e.media?.mp4_url)
+        const [eventsRes, camerasRes] = await Promise.all([
+          getEvents({ page: 1, page_size: 50 }),
+          getCameras(),
+        ])
+        const list = (eventsRes.events || []).filter((e: EventItem) => e.mp4_url || e.media?.mp4_url)
         setEvents(list)
+        setCameras(camerasRes.cameras || [])
         if (list.length > 0) {
           const toSelect = (stateEventId && list.some((e: EventItem) => e.id === stateEventId))
             ? stateEventId
@@ -57,11 +62,11 @@ export function VideoAnalysis() {
           setSelectedEventId(toSelect)
         }
       } catch (e) {
-        console.error('Failed to fetch events:', e)
-        setError(t('loadFailed') || 'Failed to load events')
+        console.error('Failed to fetch:', e)
+        setError(t('loadFailed') || 'Failed to load')
       }
     }
-    fetchEvents()
+    fetch()
   }, [])
 
   const handleAnalyze = async () => {
@@ -108,11 +113,14 @@ export function VideoAnalysis() {
               className="w-full px-4 py-2 bg-surface2 border border-border rounded-lg text-text"
             >
               <option value="">-- {t('selectEvent') || 'Event seçin'} --</option>
-              {events.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.id.slice(0, 8)}... · {e.camera_id} · {e.timestamp?.slice(0, 19)}
-                </option>
-              ))}
+              {events.map((e) => {
+                const cameraName = cameras.find((c) => c.id === e.camera_id)?.name || e.camera_id
+                return (
+                  <option key={e.id} value={e.id}>
+                    {cameraName} · {e.timestamp?.slice(0, 19)}
+                  </option>
+                )
+              })}
             </select>
           </div>
           <div>

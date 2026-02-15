@@ -612,6 +612,7 @@ export function Events() {
       {selectedEvent && (
         <EventDetail
           event={selectedEvent}
+          cameraName={cameraNameById.get(selectedEvent.camera_id)}
           initialTab={selectedEventTab ?? undefined}
           onClose={() => {
             setSelectedEventId(null)
@@ -625,6 +626,7 @@ export function Events() {
         <EventCompare
           left={compareEvents.left}
           right={compareEvents.right}
+          cameraNameById={cameraNameById}
           onClose={() => setCompareOpen(false)}
         />
       )}

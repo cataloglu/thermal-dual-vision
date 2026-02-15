@@ -19,10 +19,11 @@ interface EventCompareProps {
     event_type: string
     collage_url: string | null
   }
+  cameraNameById?: Map<string, string>
   onClose: () => void
 }
 
-export function EventCompare({ left, right, onClose }: EventCompareProps) {
+export function EventCompare({ left, right, cameraNameById, onClose }: EventCompareProps) {
   const { t } = useTranslation()
   const isRecent = (value: string) => Date.now() - new Date(value).getTime() < 30000
   useEffect(() => {
@@ -68,7 +69,7 @@ export function EventCompare({ left, right, onClose }: EventCompareProps) {
               <div className="bg-surface2 border border-border rounded-lg p-4 space-y-2">
                 <div className="flex justify-between text-sm text-muted">
                   <span>{t('camera')}</span>
-                  <span className="text-text">{event.camera_id}</span>
+                  <span className="text-text">{cameraNameById?.get(event.camera_id) ?? event.camera_id}</span>
                 </div>
                 <div className="flex justify-between text-sm text-muted">
                   <span>{t('timestamp')}</span>

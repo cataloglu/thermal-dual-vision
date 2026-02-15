@@ -48,6 +48,7 @@ export function Dashboard() {
   const { t } = useTranslation()
   const [health, setHealth] = useState<HealthData | null>(null)
   const [lastEvent, setLastEvent] = useState<Event | null>(null)
+  const [cameras, setCameras] = useState<{ id: string; name: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [healthHistory, setHealthHistory] = useState<HealthSnapshot[]>([])
 
@@ -115,10 +116,14 @@ export function Dashboard() {
       }
 
       try {
-        const eventsData = await api.getEvents({ page: 1, page_size: 1 })
+        const [eventsData, camerasRes] = await Promise.all([
+          api.getEvents({ page: 1, page_size: 1 }),
+          api.getCameras(),
+        ])
         if (eventsData.events.length > 0) {
           setLastEvent(eventsData.events[0])
         }
+        setCameras(camerasRes.cameras || [])
       } catch (error) {
         console.error('Failed to fetch events:', error)
       } finally {
@@ -344,7 +349,7 @@ export function Dashboard() {
                 {/* Event Info */}
                 <div className="space-y-1">
                   <p className="text-text font-medium truncate">
-                    {t('camera')}: {lastEvent.camera_id}
+                    {t('camera')}: {cameras.find((c) => c.id === lastEvent.camera_id)?.name ?? lastEvent.camera_id}
                   </p>
                   <p className="text-muted text-sm">
                     {new Date(lastEvent.timestamp).toLocaleString('tr-TR')}

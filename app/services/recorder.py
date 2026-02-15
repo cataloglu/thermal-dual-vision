@@ -3,14 +3,17 @@ Continuous recorder service (rolling buffer for event clips).
 
 Records camera streams to disk using FFmpeg.
 Event clips are extracted from this buffer when motion is detected.
+
+Recording segment filenames use UTC (TZ=UTC) for consistency with event timestamps.
 """
 import logging
+import os
 import shutil
 import subprocess
 import tempfile
 import threading
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -109,11 +112,14 @@ class ContinuousRecorder:
         ]
 
         try:
+            env = os.environ.copy()
+            env["TZ"] = "UTC"  # Segment filenames (strftime) use UTC for consistency with event timestamps
             process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 stdin=subprocess.DEVNULL,
+                env=env,
             )
             self.processes[camera_id] = process
             self.rtsp_urls[camera_id] = rtsp_url
@@ -203,21 +209,33 @@ class ContinuousRecorder:
         end_time: datetime,
         output_path: str,
         speed_factor: float = 4.0,
+        *,
+        use_utc_for_cutoff: bool = True,
     ) -> bool:
         camera_dir = self.recording_dir / camera_id
         if not camera_dir.exists():
             logger.error("No recordings found for camera %s", camera_id)
             return False
 
-        files = self._find_recordings_in_range(camera_id, start_time, end_time)
+        files = self._find_recordings_in_range(camera_id, start_time, end_time, use_utc_for_cutoff=use_utc_for_cutoff)
         if not files:
             camera_dir = self.recording_dir / camera_id
             all_files = sorted(camera_dir.glob("*.mp4")) if camera_dir.exists() else []
             sample = [f.stem for f in all_files[:5]] if all_files else []
+            # Diagnostic: show segment time range vs search range
+            now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+            safe = now_utc - timedelta(seconds=3)
+            min_ts = max_ts = None
+            for f in all_files:
+                ts = self._parse_filename_timestamp(f)
+                if ts:
+                    min_ts = ts if min_ts is None else min(min_ts, ts)
+                    max_ts = ts if max_ts is None else max(max_ts, ts)
             logger.warning(
                 "No recordings for %s range %s - %s (have %d segments, sample: %s). "
-                "Segments are excluded until closed (~60s); frame fallback used.",
+                "Segment span: %s to %s | now(utc)=%s safe_cutoff=%s | frame fallback used.",
                 camera_id, start_time, end_time, len(all_files), sample,
+                min_ts, max_ts, now_utc, safe,
             )
             return False
 
@@ -385,6 +403,8 @@ class ContinuousRecorder:
         camera_id: str,
         start_time: datetime,
         end_time: datetime,
+        *,
+        use_utc_for_cutoff: bool = True,
     ) -> List[Path]:
         camera_dir = self.recording_dir / camera_id
         if not camera_dir.exists():
@@ -392,7 +412,11 @@ class ContinuousRecorder:
 
         segment_len = timedelta(seconds=SEGMENT_DURATION)
         # Exclude segments still being written by FFmpeg (allow 3s margin)
-        now = datetime.now()
+        # now/safe_cutoff must match timezone of segment filenames and start/end_time
+        if use_utc_for_cutoff:
+            now = datetime.now(timezone.utc).replace(tzinfo=None)
+        else:
+            now = datetime.now()  # local (matches FFmpeg strftime when TZ not set)
         safe_cutoff = now - timedelta(seconds=3)
         matched: List[Path] = []
 

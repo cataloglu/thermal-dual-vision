@@ -1276,7 +1276,8 @@ async def get_live_stream(camera_id: str, db: Session = Depends(get_session)) ->
             if frame is None:
                 time.sleep(0.1)
                 continue
-            encode_params = [int(cv2.IMWRITE_JPEG_QUALITY), 80]
+            jpeg_quality = int(getattr(settings.live, "mjpeg_quality", 92))
+            encode_params = [int(cv2.IMWRITE_JPEG_QUALITY), jpeg_quality]
             success, buffer = cv2.imencode(".jpg", frame, encode_params)
             if not success:
                 time.sleep(0.05)
@@ -1342,7 +1343,8 @@ async def get_live_stream(camera_id: str, db: Session = Depends(get_session)) ->
                     continue
                 consecutive_failures = 0
 
-                encode_params = [int(cv2.IMWRITE_JPEG_QUALITY), 80]
+                jpeg_quality = int(getattr(settings.live, "mjpeg_quality", 92))
+                encode_params = [int(cv2.IMWRITE_JPEG_QUALITY), jpeg_quality]
                 success, buffer = cv2.imencode(".jpg", frame, encode_params)
                 if not success:
                     continue

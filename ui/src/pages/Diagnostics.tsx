@@ -113,6 +113,15 @@ export function Diagnostics() {
     'Released camera',
     'Frame read',
     'codec',
+    // detector_mp (multiprocessing) messages
+    'Camera detection',
+    'Camera opened',
+    'Event created',
+    'detector.',
+    'Attached to shared frame',
+    'Detection parameters',
+    'Collected',
+    'frames from buffer',
   ]
   const isCameraLog = (line: string) =>
     cameraLogPatterns.some((pattern) => line.includes(pattern))
