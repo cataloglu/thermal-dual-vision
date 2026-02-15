@@ -15,6 +15,7 @@ import {
   MdHub
 } from 'react-icons/md'
 import { useWebSocket } from '../hooks/useWebSocket'
+import { api } from '../services/api'
 
 interface SidebarProps {
   systemStatus?: 'ok' | 'degraded' | 'down'
@@ -22,8 +23,13 @@ interface SidebarProps {
 
 export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
   const { t, i18n } = useTranslation()
+  const [version, setVersion] = useState<string>('')
   // WebSocket for real-time status (use relative path for proxy)
   const [eventBadge, setEventBadge] = useState(0)
+
+  useEffect(() => {
+    api.getSystemInfo().then((info) => setVersion(info?.version ?? '')).catch(() => {})
+  }, [])
   const handleEvent = useCallback(() => {
     setEventBadge((prev) => prev + 1)
   }, [])
@@ -80,7 +86,7 @@ export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
           <img src="./logo.svg" alt="Logo" className="w-10 h-10" />
           <div className="flex-1">
             <h1 className="text-lg font-bold text-text">Motion Detector</h1>
-            <p className="text-xs text-muted">v2.0.0</p>
+            <p className="text-xs text-muted">{version ? `v${version}` : '...'}</p>
           </div>
           {/* System Status Dot */}
           <div className="relative">
