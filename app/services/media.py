@@ -274,9 +274,11 @@ class MediaService:
         # Save URLs to database WITHOUT prefix (prefix added at runtime in main.py)
         event.collage_url = f"/api/events/{event_id}/collage" if os.path.exists(collage_path) else None
         event.gif_url = f"/api/events/{event_id}/preview.gif" if os.path.exists(gif_path) else None
-        mp4_legacy_marker = f"{mp4_path}.legacy"
-        mp4_ok = os.path.exists(mp4_path) and not os.path.exists(mp4_legacy_marker)
+        # MP4: dosya varsa URL ver (.legacy = OpenCV fallback kullanıldı, yine de oynatılabilir)
+        mp4_ok = os.path.exists(mp4_path)
         event.mp4_url = f"/api/events/{event_id}/timelapse.mp4" if mp4_ok else None
+        if not mp4_ok and event.collage_url:
+            logger.warning("Event %s: collage exists but MP4 missing (create_timelapse_mp4 or fallback failed)", event_id)
         db.commit()
         
         logger.info(f"Event media generated: {event_id}")

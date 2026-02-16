@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.42] - 2026-02-16
+
+### Düzeltmeler
+
+- **MP4 .legacy:** OpenCV fallback ile oluşturulan MP4 artık gösteriliyor; .legacy marker mp4_url'yi engellemiyordu (collage var video yok).
+
+---
+
 ## [3.10.41] - 2026-02-16
 
 ### Düzeltmeler
