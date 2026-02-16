@@ -271,6 +271,17 @@ def camera_detection_process(
             pass
     process_logger = logging.getLogger(f"detector.{camera_id}")
     process_logger.info(f"Camera detection process started: {camera_id}")
+
+    def _send_status(status: str) -> None:
+        try:
+            event_queue.put_nowait({
+                "type": "status",
+                "camera_id": camera_id,
+                "status": status,
+                "timestamp": datetime.utcnow().isoformat()
+            })
+        except Exception:
+            pass
     
     try:
         # Import heavy dependencies only in worker process (not in main)
@@ -346,6 +357,7 @@ def camera_detection_process(
             process_logger.debug(f"go2rtc not available: {e}")
         if not rtsp_urls:
             process_logger.error(f"Camera {camera_id}: go2rtc required but not available. Enable go2rtc.")
+            _send_status("down")
             time.sleep(60)
             return
         
@@ -388,8 +400,11 @@ def camera_detection_process(
         
         if not cap or not cap.isOpened():
             process_logger.error(f"Failed to open camera {cam_name} ({camera_id[:8]}) after all codec attempts")
+            _send_status("down")
             time.sleep(60)
             return
+
+        _send_status("connected")
         
         # Detection state (process-local)
         detection_history = deque(maxlen=5)  # Keep last 5 detections for temporal consistency
@@ -666,11 +681,58 @@ class MultiprocessingDetectorWorker:
         self.event_queues: Dict[str, mp.Queue] = {}
         self.control_queues: Dict[str, mp.Queue] = {}
         self.frame_buffers: Dict[str, SharedFrameBuffer] = {}
+        self.last_status_update: Dict[str, float] = {}
         
         # Event handler thread (in main process)
         self.event_handler_thread = None
         
         logger.info("MultiprocessingDetectorWorker initialized")
+
+    def _update_camera_status(
+        self,
+        camera_id: str,
+        status: CameraStatus,
+        last_frame_ts: Optional[datetime] = None,
+        min_interval_seconds: float = 5.0,
+    ) -> None:
+        now = time.time()
+        last_update = self.last_status_update.get(camera_id, 0.0)
+        if now - last_update < min_interval_seconds:
+            return
+
+        db = next(get_session())
+        try:
+            camera = db.query(Camera).filter(Camera.id == camera_id).first()
+            if not camera:
+                return
+
+            camera.status = status
+            if last_frame_ts is not None:
+                camera.last_frame_ts = last_frame_ts
+            db.commit()
+            self.last_status_update[camera_id] = now
+
+            try:
+                online = db.query(Camera).filter(Camera.status == CameraStatus.CONNECTED).count()
+                retrying = db.query(Camera).filter(Camera.status == CameraStatus.RETRYING).count()
+                down = db.query(Camera).filter(Camera.status == CameraStatus.DOWN).count()
+                from app.services.websocket import get_websocket_manager
+                websocket_manager = get_websocket_manager()
+                websocket_manager.broadcast_status_sync({
+                    "camera_id": camera_id,
+                    "status": status.value,
+                    "counts": {
+                        "online": online,
+                        "retrying": retrying,
+                        "down": down,
+                    },
+                })
+            except Exception as e:
+                logger.debug("Status broadcast skipped: %s", e)
+        except Exception as e:
+            logger.error("Failed to update camera status for %s: %s", camera_id, e)
+        finally:
+            db.close()
     
     def start(self) -> None:
         """
@@ -1244,7 +1306,13 @@ class MultiprocessingDetectorWorker:
                                 
                             elif event_type == "status":
                                 # Handle status update
-                                pass
+                                try:
+                                    status_raw = event_data.get("status")
+                                    if status_raw:
+                                        status_enum = CameraStatus(status_raw)
+                                        self._update_camera_status(camera_id, status_enum, None)
+                                except Exception as e:
+                                    logger.debug("Status event ignored for %s: %s", camera_id, e)
                     
                     except Exception as e:
                         logger.error(f"Event handler error for {camera_id}: {e}")

@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.48] - 2026-02-17
+
+### Düzeltmeler
+
+- **MP kamera durumu:** Multiprocessing modunda kamera status güncellemeleri ve UI göstergeleri düzeltildi.
+
+---
+
 ## [3.10.47] - 2026-02-17
 
 ### Değişenler
