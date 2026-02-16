@@ -1161,6 +1161,8 @@ class MultiprocessingDetectorWorker:
                                                             if not _is_ai_confirmed(summary):
                                                                 logger.info(f"Event {event.id} rejected by AI, keeping for review (media already created)")
                                                                 event.rejected_by_ai = True
+                                                            else:
+                                                                event.rejected_by_ai = False  # AI onayı = onaylı, UI doğru göstersin
                                                             db.commit()
                                                         else:
                                                             logger.warning(f"Event {event.id}: no collage for AI analysis")
