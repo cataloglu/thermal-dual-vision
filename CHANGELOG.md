@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.47] - 2026-02-17
+
+### Değişenler
+
+- **Kamera ekleme:** Kullanılmayan ikinci stream (substream) alanı kaldırıldı.
+
+---
+
 ## [3.10.46] - 2026-02-17
 
 ### Düzeltmeler

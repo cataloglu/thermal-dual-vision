@@ -12,7 +12,6 @@ interface Camera {
   enabled: boolean
   rtsp_url_thermal?: string
   rtsp_url_color?: string
-  rtsp_url_detection?: string
   channel_color?: number
   channel_thermal?: number
   detection_source: string
@@ -33,7 +32,6 @@ export function CameraFormModal({ camera, onClose, onSave }: CameraFormModalProp
     enabled: true,
     rtsp_url_thermal: '',
     rtsp_url_color: '',
-    rtsp_url_detection: '',
     channel_color: 102,
     channel_thermal: 202,
     detection_source: 'thermal',
@@ -53,7 +51,6 @@ export function CameraFormModal({ camera, onClose, onSave }: CameraFormModalProp
         enabled: camera.enabled,
         rtsp_url_thermal: camera.rtsp_url_thermal || '',
         rtsp_url_color: camera.rtsp_url_color || '',
-        rtsp_url_detection: camera.rtsp_url_detection || '',
         // Fix: Use default values to prevent undefined type errors
         channel_color: camera.channel_color ?? 102,
         channel_thermal: camera.channel_thermal ?? 202,
@@ -229,23 +226,6 @@ export function CameraFormModal({ camera, onClose, onSave }: CameraFormModalProp
               />
             </div>
           )}
-
-          {/* Substream (Detection) - optional, low CPU */}
-          <div>
-            <label className="block text-sm font-medium text-text mb-2">
-              {t('substreamDetectionLabel', 'Substream (Detection)')} <span className="text-muted text-xs">({t('optional', 'optional')})</span>
-            </label>
-            <input
-              type="text"
-              value={formData.rtsp_url_detection}
-              onChange={(e) => setFormData({ ...formData, rtsp_url_detection: e.target.value })}
-              placeholder="rtsp://.../102 veya substream path (düşük CPU)"
-              className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent font-mono text-sm"
-            />
-            <p className="text-xs text-muted mt-1">
-              {t('substreamDetectionHint', 'Boş bırakılırsa thermal/color kullanılır. Tanımlanırsa detection bu substream ile yapılır (~%5 CPU/10 kamera).')}
-            </p>
-          </div>
 
           {/* Detection Source */}
           <div>
