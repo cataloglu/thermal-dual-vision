@@ -6,6 +6,15 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.46] - 2026-02-17
+
+### Düzeltmeler
+
+- **go2rtc durumu:** Live/detection için erişilebilirlik dinamik kontrol ediliyor; geç açılan go2rtc artık sistemi kilitlemiyor.
+- **go2rtc sync:** go2rtc kapalı olsa bile kamera stream config'i yazılıyor; online olduğunda restart ile yükleniyor.
+
+---
+
 ## [3.10.45] - 2026-02-16
 
 ### Eklenenler

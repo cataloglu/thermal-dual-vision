@@ -282,7 +282,7 @@ def _resolve_default_stream_source(camera) -> Optional[str]:
 
 
 def _get_go2rtc_restream_url(camera_id: str, source: Optional[str] = None) -> Optional[str]:
-    if not go2rtc_service or not go2rtc_service.enabled:
+    if not go2rtc_service or not go2rtc_service.ensure_enabled():
         return None
     rtsp_base = os.getenv("GO2RTC_RTSP_URL", "rtsp://127.0.0.1:8554")
     normalized_source = source if source in ("color", "thermal") else None
@@ -1275,7 +1275,7 @@ async def get_live_stream(camera_id: str, db: Session = Depends(get_session)) ->
             }
         )
 
-    if not go2rtc_service or not go2rtc_service.enabled:
+    if not go2rtc_service or not go2rtc_service.ensure_enabled():
         raise HTTPException(
             status_code=503,
             detail={

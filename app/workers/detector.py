@@ -1315,7 +1315,7 @@ class DetectorWorker:
         camera_id: str,
         source: Optional[str] = None,
     ) -> Optional[str]:
-        if not self.go2rtc_service or not self.go2rtc_service.enabled:
+        if not self.go2rtc_service or not self.go2rtc_service.ensure_enabled():
             return None
         rtsp_base = os.getenv("GO2RTC_RTSP_URL", "rtsp://127.0.0.1:8554")
         normalized_source = source if source in ("color", "thermal", "detect") else None

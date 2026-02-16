@@ -332,7 +332,7 @@ def camera_detection_process(
         try:
             from app.services.go2rtc import get_go2rtc_service
             go2rtc = get_go2rtc_service()
-            if go2rtc and go2rtc.enabled:
+            if go2rtc and go2rtc.ensure_enabled():
                 # Substream for detection when rtsp_url_detection is set (low CPU)
                 if camera_config.get("rtsp_url_detection"):
                     stream_name = f"{camera_id}_detect"
