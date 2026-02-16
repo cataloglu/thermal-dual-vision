@@ -306,6 +306,7 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
               {settings.performance?.worker_mode === 'multiprocessing' && (
                 <p className="text-xs text-warning mt-1">⚠️ {t('perfMultiprocessingWarning')}</p>
               )}
+              <p className="text-xs text-muted mt-1">{t('perfWorkerModeRestart')}</p>
             </div>
             <div className="p-3 bg-surface1 rounded text-xs text-muted">
               {t('perfYoloHint')}

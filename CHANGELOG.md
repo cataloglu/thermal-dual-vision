@@ -6,6 +6,29 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.44] - 2026-02-16
+
+### Eklenenler
+
+- **Diagnostics – Worker:** Sistem Tanılama sayfasında Worker kartı (mod: threading/multiprocessing, process sayısı, PIDs). Multiprocessing açık mı kontrol edilebilir.
+- **System info:** `/api/system/info` yanıtına `worker` alanı eklendi.
+
+---
+
+## [3.10.43] - 2026-02-16
+
+### Değişenler
+
+- **Live View – tek kamera:** Grid kaldırıldı; tek kamera seçimi + tek yayın. Açılır listeden kamera seçilir, yayın go2rtc üzerinden.
+- **Live stream – sadece go2rtc:** Canlı yayın fallback’siz yalnızca go2rtc; go2rtc yoksa net 503 mesajı.
+
+### Düzeltmeler
+
+- **Live View ayarları:** MJPEG kalitesi kaldırıldı; sabit 92 ile kararlı yayın, arayüz sadeleştirildi.
+- **Worker modu:** Health ve system info’da worker bilgisi; Ayarlar’da “addon yeniden başlatıldıktan sonra geçerli” notu.
+
+---
+
 ## [3.10.42] - 2026-02-16
 
 ### Düzeltmeler

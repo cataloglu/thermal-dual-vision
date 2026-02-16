@@ -505,10 +505,10 @@ export function Diagnostics() {
       )}
 
       {/* Additional Info */}
-      <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-surface1 border border-border rounded-lg p-6">
           <h3 className="text-sm font-semibold text-muted mb-2">API Base URL</h3>
-          <p className="text-text font-mono text-sm">
+          <p className="text-text font-mono text-sm break-all">
             {(() => {
               const base = apiClient.defaults.baseURL || '/api'
               return base.startsWith('http') ? base : new URL(base, window.location.origin).toString()
@@ -524,6 +524,32 @@ export function Diagnostics() {
         <div className="bg-surface1 border border-border rounded-lg p-6">
           <h3 className="text-sm font-semibold text-muted mb-2">{t('logLines')}</h3>
           <p className="text-text font-mono text-sm">{logs.length} / {logLineLimit}</p>
+        </div>
+
+        {/* Worker mode (threading vs multiprocessing) - confirms multiprocessing is active */}
+        <div className="bg-surface1 border border-border rounded-lg p-6">
+          <h3 className="text-sm font-semibold text-muted mb-2">{t('diagnosticsWorker')}</h3>
+          {systemInfo?.worker ? (
+            <div className="text-text text-sm space-y-1">
+              <p>
+                <span className="text-muted">{t('diagnosticsWorkerMode')}:</span>{' '}
+                <span className="font-mono">{systemInfo.worker.mode ?? '-'}</span>
+              </p>
+              {systemInfo.worker.process_count != null && (
+                <p>
+                  <span className="text-muted">{t('diagnosticsWorkerProcesses')}:</span>{' '}
+                  <span className="font-mono">{systemInfo.worker.process_count}</span>
+                </p>
+              )}
+              {Array.isArray(systemInfo.worker.pids) && systemInfo.worker.pids.length > 0 && (
+                <p className="text-muted text-xs font-mono mt-1">
+                  PIDs: {systemInfo.worker.pids.join(', ')}
+                </p>
+              )}
+            </div>
+          ) : (
+            <p className="text-muted text-sm">-</p>
+          )}
         </div>
       </div>
     </div>

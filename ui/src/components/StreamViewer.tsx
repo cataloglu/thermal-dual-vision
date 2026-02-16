@@ -3,17 +3,23 @@ import { useTranslation } from 'react-i18next'
 import { MdRefresh, MdError, MdCheckCircle } from 'react-icons/md'
 import { getLiveStreamUrl, resolveApiPath } from '../services/api'
 
+/** Max concurrent live streams (backend limit); only this many tiles load MJPEG. */
+export const MAX_LIVE_STREAMS = 2
+
 interface StreamViewerProps {
   cameraId: string
   cameraName: string
   streamUrl?: string
   status?: 'connected' | 'retrying' | 'down' | 'initializing'
+  /** If false, show placeholder instead of loading stream (to respect backend limit). */
+  loadStream?: boolean
 }
 
 export function StreamViewer({
   cameraId,
   cameraName,
   status,
+  loadStream = true,
 }: StreamViewerProps) {
   const { t } = useTranslation()
   const [loading, setLoading] = useState(true)
@@ -63,7 +69,7 @@ export function StreamViewer({
   }, [])
 
   useEffect(() => {
-    if (!isVisible) {
+    if (!isVisible || !loadStream) {
       if (imgRef.current) imgRef.current.src = ''
       return
     }
@@ -74,7 +80,7 @@ export function StreamViewer({
       window.clearTimeout(retryTimeoutRef.current)
       retryTimeoutRef.current = null
     }
-  }, [isVisible])
+  }, [isVisible, loadStream])
 
   useEffect(() => {
     return () => {
@@ -88,14 +94,14 @@ export function StreamViewer({
   }, [])
 
   useEffect(() => {
-    if (!isVisible) return
+    if (!loadStream || !isVisible) return
     if (loadingTimeoutRef.current) {
       window.clearTimeout(loadingTimeoutRef.current)
     }
     loadingTimeoutRef.current = window.setTimeout(() => {
       setLoading(false)
     }, 1500)
-  }, [isVisible, cameraId])
+  }, [isVisible, cameraId, loadStream])
 
   const handleLoad = () => {
     if (!isVisible) return
@@ -163,8 +169,17 @@ export function StreamViewer({
         </div>
       </div>
 
+      {/* Placeholder when stream slot limit reached (e.g. only 2 streams on Pi) */}
+      {!loadStream && (
+        <div className="absolute inset-0 flex items-center justify-center bg-surface2">
+          <p className="text-muted text-center px-4 text-sm">
+            {t('liveStreamLimit')}
+          </p>
+        </div>
+      )}
+
       {/* Loading State */}
-      {loading && !error && (
+      {loadStream && loading && !error && (
         <div className="absolute inset-0 flex items-center justify-center bg-surface2">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-4 border-accent border-t-transparent mx-auto mb-4" />
@@ -174,7 +189,7 @@ export function StreamViewer({
       )}
 
       {/* Error State */}
-      {error && (
+      {loadStream && error && (
         <div className="absolute inset-0 flex items-center justify-center bg-surface2">
           <div className="text-center p-6">
             <MdError className="text-red-500 text-5xl mx-auto mb-4" />
@@ -194,7 +209,7 @@ export function StreamViewer({
       )}
 
       {/* MJPEG Stream */}
-      {isVisible && (
+      {loadStream && isVisible && (
         <img
           ref={imgRef}
           src={effectiveUrl}
@@ -207,7 +222,7 @@ export function StreamViewer({
       )}
 
       {/* Success Indicator (brief) */}
-      {!loading && !error && retryCount > 0 && (
+      {loadStream && !loading && !error && retryCount > 0 && (
         <div className="absolute bottom-4 right-4 bg-green-500 text-white px-3 py-1 rounded-lg flex items-center gap-2 animate-fade-in">
           <MdCheckCircle />
           <span className="text-sm">{t('connected')}</span>

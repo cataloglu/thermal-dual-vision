@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { StreamViewer } from '../components/StreamViewer'
 import { api } from '../services/api'
-import { MdGridView, MdRefresh } from 'react-icons/md'
+import { MdRefresh, MdVideocam } from 'react-icons/md'
 import { useWebSocket } from '../hooks/useWebSocket'
 import { LoadingState } from '../components/LoadingState'
 
@@ -16,13 +16,15 @@ interface Camera {
   stream_roles: string[]
 }
 
+const LIVE_SELECTED_KEY = 'live_selected_camera_id'
 
 export function Live() {
   const { t } = useTranslation()
   const [cameras, setCameras] = useState<Camera[]>([])
   const [loading, setLoading] = useState(true)
-  const [gridMode, setGridMode] = useState<1 | 2 | 3>(2) // 1x1, 2x2, 3x3
-  const [visibleCount, setVisibleCount] = useState(6)
+  const [selectedId, setSelectedId] = useState<string | null>(() =>
+    typeof localStorage !== 'undefined' ? localStorage.getItem(LIVE_SELECTED_KEY) : null
+  )
   const [refreshKey, setRefreshKey] = useState(0)
 
   const fetchData = useCallback(async () => {
@@ -39,14 +41,6 @@ export function Live() {
 
   useEffect(() => {
     fetchData()
-    const savedGrid = localStorage.getItem('live_grid_mode')
-    if (savedGrid) {
-      const mode = Number(savedGrid)
-      if (mode === 1 || mode === 2 || mode === 3) {
-        setGridMode(mode)
-      }
-    }
-    return () => undefined
   }, [fetchData])
 
   useEffect(() => {
@@ -56,9 +50,8 @@ export function Live() {
         setRefreshKey(k => k + 1)
       }
     }
-    const handler = () => document.hidden === false && onVisible()
-    document.addEventListener('visibilitychange', handler)
-    return () => document.removeEventListener('visibilitychange', handler)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
   }, [fetchData])
 
   const handleStatus = useCallback((data: any) => {
@@ -70,32 +63,23 @@ export function Live() {
     )
   }, [])
 
-  const wsOptions = useMemo(() => ({ onStatus: handleStatus }), [handleStatus])
+  useWebSocket('/api/ws/events', { onStatus: handleStatus })
 
-  useWebSocket('/api/ws/events', wsOptions)
-
-  const getGridClass = () => {
-    switch (gridMode) {
-      case 1:
-        return 'grid-cols-1'
-      case 2:
-        return 'grid-cols-1 md:grid-cols-2'
-      case 3:
-        return 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
-      default:
-        return 'grid-cols-1 md:grid-cols-2'
-    }
-  }
-
-  useEffect(() => {
-    localStorage.setItem('live_grid_mode', String(gridMode))
-  }, [gridMode])
-
-  // Filter cameras that have 'live' in stream_roles (default: detect+live)
-  const liveCameras = cameras.filter(cam => 
-    cam.enabled && (cam.stream_roles ?? ['detect', 'live']).includes('live')
+  const liveCameras = cameras.filter(
+    (cam) => cam.enabled && (cam.stream_roles ?? ['detect', 'live']).includes('live')
   )
-  const visibleCameras = useMemo(() => liveCameras.slice(0, visibleCount), [liveCameras, visibleCount])
+
+  const selectedCamera = selectedId
+    ? liveCameras.find((c) => c.id === selectedId)
+    : liveCameras[0] ?? null
+
+  const handleSelect = (cameraId: string) => {
+    setSelectedId(cameraId)
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(LIVE_SELECTED_KEY, cameraId)
+    }
+    setRefreshKey((k) => k + 1)
+  }
 
   if (loading) {
     return <LoadingState variant="list" listCount={2} />
@@ -103,80 +87,70 @@ export function Live() {
 
   return (
     <div className="p-8">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-text mb-2">{t('live')}</h1>
-          <p className="text-muted">
-            {liveCameras.length} {t('camera').toLowerCase()} {t('enabled').toLowerCase()}
-          </p>
-        </div>
-
-        {/* Grid Mode Toggle */}
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col gap-6 max-w-4xl mx-auto">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-text mb-2">{t('live')}</h1>
+            <p className="text-muted">
+              {t('liveSingleCameraDesc')}
+            </p>
+          </div>
           <button
-            onClick={() => { fetchData(); setRefreshKey(k => k + 1) }}
+            onClick={() => {
+              fetchData()
+              setRefreshKey((k) => k + 1)
+            }}
             className="px-4 py-2 bg-surface1 border border-border text-text rounded-lg hover:bg-surface2 transition-colors flex items-center gap-2"
           >
             <MdRefresh />
             {t('refresh')}
           </button>
-          <div className="flex items-center gap-2 bg-surface1 border border-border rounded-lg p-1">
-          {[1, 2, 3].map((mode) => (
-            <button
-              key={mode}
-              onClick={() => setGridMode(mode as 1 | 2 | 3)}
-              className={`px-4 py-2 rounded-md transition-colors flex items-center gap-2 ${
-                gridMode === mode
-                  ? 'bg-accent text-white'
-                  : 'text-muted hover:text-text'
-              }`}
+        </div>
+
+        {liveCameras.length === 0 ? (
+          <div className="bg-surface1 border border-border rounded-lg p-12 text-center">
+            <p className="text-muted mb-4">{t('noCameras')}</p>
+            <Link
+              to="/settings"
+              className="inline-block px-6 py-3 bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors"
             >
-              <MdGridView />
-              <span>{mode}x{mode}</span>
-            </button>
-          ))}
+              {t('add')} {t('camera')}
+            </Link>
           </div>
-        </div>
+        ) : (
+          <>
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="text-sm text-muted flex items-center gap-2">
+                <MdVideocam />
+                {t('selectCamera')}
+              </label>
+              <select
+                value={selectedCamera?.id ?? ''}
+                onChange={(e) => handleSelect(e.target.value)}
+                className="px-4 py-2 bg-surface1 border border-border rounded-lg text-text min-w-[200px]"
+              >
+                {liveCameras.map((cam) => (
+                  <option key={cam.id} value={cam.id}>
+                    {cam.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="rounded-lg overflow-hidden border border-border bg-surface2">
+              {selectedCamera && (
+                <StreamViewer
+                  key={`${selectedCamera.id}-${refreshKey}`}
+                  cameraId={selectedCamera.id}
+                  cameraName={selectedCamera.name}
+                  status={selectedCamera.status}
+                  loadStream={true}
+                />
+              )}
+            </div>
+          </>
+        )}
       </div>
-
-      {/* No Cameras */}
-      {liveCameras.length === 0 && (
-        <div className="bg-surface1 border border-border rounded-lg p-12 text-center">
-          <p className="text-muted mb-4">{t('noCameras')}</p>
-          <Link
-            to="/settings"
-            className="inline-block px-6 py-3 bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors"
-          >
-            {t('add')} {t('camera')}
-          </Link>
-        </div>
-      )}
-
-      {/* Camera Grid */}
-      {liveCameras.length > 0 && (
-        <div className={`grid ${getGridClass()} gap-6`}>
-          {visibleCameras.map((camera) => (
-            <StreamViewer
-              key={`${camera.id}-${refreshKey}`}
-              cameraId={camera.id}
-              cameraName={camera.name}
-              status={camera.status}
-            />
-          ))}
-        </div>
-      )}
-
-      {liveCameras.length > visibleCount && (
-        <div className="mt-6 flex justify-center">
-          <button
-            onClick={() => setVisibleCount((prev) => prev + 6)}
-            className="px-4 py-2 bg-surface1 border border-border text-text rounded-lg hover:bg-surface2 transition-colors"
-          >
-            {t('loadMore')}
-          </button>
-        </div>
-      )}
     </div>
   )
 }
