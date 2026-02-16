@@ -323,7 +323,7 @@ class MediaConfig(BaseModel):
         description="Cleanup job interval in hours"
     )
     disk_limit_percent: int = Field(
-        default=80,
+        default=85,
         ge=50,
         le=95,
         description="Maximum disk usage percentage"

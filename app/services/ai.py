@@ -231,22 +231,23 @@ class AIService:
         return base_prompt
 
     
-    def _encode_image(self, image_path: Path) -> Optional[str]:
+    def _encode_image(self, image_path) -> Optional[str]:
         """
         Encode image to base64.
         
         Args:
-            image_path: Path to image file
+            image_path: Path or str to image file
             
         Returns:
             Base64 encoded image or None if failed
         """
         try:
-            if not image_path.exists():
-                logger.error(f"Image not found: {image_path}")
+            path = Path(image_path) if not isinstance(image_path, Path) else image_path
+            if not path.exists():
+                logger.error(f"Image not found: {path}")
                 return None
             
-            with open(image_path, "rb") as image_file:
+            with open(path, "rb") as image_file:
                 return base64.b64encode(image_file.read()).decode('utf-8')
                 
         except Exception as e:

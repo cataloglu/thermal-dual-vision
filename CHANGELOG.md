@@ -6,6 +6,15 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.41] - 2026-02-16
+
+### Düzeltmeler
+
+- **AI collage path:** `str` veya `Path` kabul ediyor; `'str' object has no attribute 'exists'` hatası giderildi.
+- **Disk limit varsayılan:** %80 → %85 (HA ortamında daha uygun).
+
+---
+
 ## [3.10.40] - 2026-02-16
 
 ### Düzeltmeler
