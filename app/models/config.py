@@ -35,14 +35,14 @@ class DetectionConfig(BaseModel):
         description="Non-Maximum Suppression IoU threshold"
     )
     inference_resolution: List[int] = Field(
-        default=[480, 480],
-        description="Inference resolution [width, height]. Lower = less CPU (e.g. 416 or 480)."
+        default=[416, 416],
+        description="Inference resolution [width, height]. Lower = less CPU (416 = düşük CPU)."
     )
     inference_fps: int = Field(
-        default=3,
+        default=2,
         ge=1,
         le=30,
-        description="Frames per second for inference (lower = less CPU; 3 is a good balance)"
+        description="Frames per second for inference (1–2 = acil düşük CPU, 3+ = daha akıcı)"
     )
     aspect_ratio_preset: Literal["person", "thermal_person", "custom"] = Field(
         default="person",
@@ -63,6 +63,10 @@ class DetectionConfig(BaseModel):
     enable_tracking: bool = Field(
         default=False,
         description="Enable object tracking (future feature)"
+    )
+    inference_backend: Literal["auto", "cpu", "onnx", "openvino", "tensorrt"] = Field(
+        default="auto",
+        description="Inference backend: auto (TensorRT>ONNX>PT), onnx, openvino (Intel iGPU/NPU/CPU), tensorrt (NVIDIA GPU), cpu (PyTorch)"
     )
 
     @field_validator("inference_resolution")

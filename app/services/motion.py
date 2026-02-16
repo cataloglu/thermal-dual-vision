@@ -94,9 +94,9 @@ class MotionDetectionService:
             Tuple of (motion_detected, foreground_mask)
         """
         try:
-            # 1. Downscale for performance (480px width = less CPU than 640)
+            # 1. Downscale for performance (320px = düşük CPU, motion sadece ön filtre)
             original_h, original_w = frame.shape[:2]
-            motion_width = 480
+            motion_width = 320
             if original_w > motion_width:
                 scale = motion_width / float(original_w)
                 target_h = max(1, int(original_h * scale))

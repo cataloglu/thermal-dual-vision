@@ -44,6 +44,7 @@ from app.services.metrics import get_metrics_service
 from app.services.recorder import get_continuous_recorder
 from app.services.video_analyzer import analyze_video as run_video_analysis
 from app.utils.rtsp import redact_rtsp_url, validate_rtsp_url
+from app.utils.paths import DATA_DIR
 from telegram import Bot
 from app.workers.retention import get_retention_worker
 from app.workers.detector import get_detector_worker
@@ -2329,7 +2330,21 @@ async def get_system_info() -> Dict[str, Any]:
         disk_used_gb = disk.used / (1024 ** 3)
         disk_total_gb = disk.total / (1024 ** 3)
         disk_percent = disk.percent
-        
+
+        # Addon veri klasörü boyutu (sadece bizim addon – 1484 GB sistemin tamamı)
+        addon_data_gb = 0.0
+        try:
+            total_bytes = 0
+            for p in DATA_DIR.rglob("*"):
+                if p.is_file():
+                    try:
+                        total_bytes += p.stat().st_size
+                    except OSError:
+                        pass
+            addon_data_gb = round(total_bytes / (1024 ** 3), 2)
+        except Exception:
+            pass
+
         return {
             "cpu": {
                 "percent": round(cpu_percent, 1)
@@ -2344,6 +2359,7 @@ async def get_system_info() -> Dict[str, Any]:
                 "total_gb": round(disk_total_gb, 2),
                 "percent": round(disk_percent, 1)
             },
+            "addon_data_gb": addon_data_gb,
             "version": __version__,
             "worker": _get_worker_info(),
         }

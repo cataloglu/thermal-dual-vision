@@ -480,7 +480,7 @@ export function Diagnostics() {
 
       {/* System Info */}
       {systemInfo && (
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="bg-surface1 border border-border rounded-lg p-6">
             <h3 className="text-sm font-semibold text-muted mb-2">CPU Kullanımı</h3>
             <p className="text-text text-2xl font-bold">{systemInfo.cpu?.percent ?? '-' }%</p>
@@ -495,11 +495,18 @@ export function Diagnostics() {
           </div>
 
           <div className="bg-surface1 border border-border rounded-lg p-6">
-            <h3 className="text-sm font-semibold text-muted mb-2">Disk Kullanımı</h3>
+            <h3 className="text-sm font-semibold text-muted mb-2">Disk (tüm sistem)</h3>
             <p className="text-text text-2xl font-bold">
               {systemInfo.disk?.used_gb ?? '-'} / {systemInfo.disk?.total_gb ?? '-'} GB
             </p>
             <p className="text-muted text-sm mt-1">{systemInfo.disk?.percent ?? '-'}%</p>
+            <p className="text-muted text-xs mt-2">{t('diagnosticsDiskNote')}</p>
+          </div>
+
+          <div className="bg-surface1 border border-border rounded-lg p-6">
+            <h3 className="text-sm font-semibold text-muted mb-2">{t('diagnosticsAddonData')}</h3>
+            <p className="text-text text-2xl font-bold">{systemInfo.addon_data_gb ?? '-'} GB</p>
+            <p className="text-muted text-xs mt-2">{t('diagnosticsAddonDataDesc')}</p>
           </div>
         </div>
       )}

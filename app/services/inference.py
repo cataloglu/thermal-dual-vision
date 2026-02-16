@@ -39,53 +39,75 @@ class InferenceService:
         """Initialize inference service."""
         self.model: Optional[YOLO] = None
         self.model_name: Optional[str] = None
-        
+        self._inference_device: Optional[str] = None  # e.g. "intel:gpu" for OpenVINO iGPU
+
         # Ensure models directory exists
         self.MODELS_DIR.mkdir(parents=True, exist_ok=True)
-    
+
+    def _get_backend(self) -> str:
+        """Read inference_backend from settings (parametrik backend seçimi)."""
+        try:
+            from app.services.settings import get_settings_service
+            config = get_settings_service().load_config()
+            return getattr(config.detection, "inference_backend", "auto") or "auto"
+        except Exception:
+            return "auto"
+
     def load_model(self, model_name: str = "yolov8n") -> None:
         """
-        Load YOLOv8 model with optimization support.
-        
-        Priority: TensorRT (.engine) > ONNX (.onnx) > PyTorch (.pt)
-        - TensorRT: 2-3x faster (NVIDIA GPU)
-        - ONNX: 1.5x faster (CPU/cross-platform)
-        - PyTorch: Baseline (fallback)
-        
-        Auto-exports to optimized format if not exists.
-        Performs warmup inference.
-        
-        Args:
-            model_name: Model name (yolov8n or yolov8s)
-            
-        Raises:
-            Exception: If model loading fails
+        Load YOLO model. Backend from config: auto | cpu | onnx | openvino | tensorrt.
+        - auto: TensorRT > ONNX > PyTorch
+        - openvino: Intel iGPU/NPU/CPU (i7 dahili ekran kartı)
+        - tensorrt: NVIDIA GPU
+        - onnx: ONNX CPU
+        - cpu: PyTorch CPU
         """
         try:
-            logger.info("Loading YOLO model: %s", model_name)
-            
-            # Check for optimized models (priority: TensorRT > ONNX > PyTorch)
+            backend = self._get_backend()
+            self._inference_device = None
+            logger.info("Loading YOLO model: %s (backend=%s)", model_name, backend)
+
             tensorrt_path = self.MODELS_DIR / f"{model_name}.engine"
             onnx_path = self.MODELS_DIR / f"{model_name}.onnx"
             pytorch_path = self.MODELS_DIR / f"{model_name}.pt"
             root_pytorch_path = Path.cwd() / f"{model_name}.pt"
-            
-            # Priority 1: TensorRT (NVIDIA GPU)
-            if tensorrt_path.exists():
-                logger.info(f"Loading TensorRT optimized model: {tensorrt_path}")
-                self.model = YOLO(str(tensorrt_path), task='detect')
-                self.model_name = model_name
-                logger.info("TensorRT model loaded (2-3x faster than PyTorch)")
-            
-            # Priority 2: ONNX (CPU/cross-platform)
-            elif onnx_path.exists():
-                logger.info(f"Loading ONNX optimized model: {onnx_path}")
-                self.model = YOLO(str(onnx_path), task='detect')
-                self.model_name = model_name
-                logger.info("ONNX model loaded (1.5x faster than PyTorch)")
-            
-            # Priority 3: PyTorch (fallback, will auto-export)
-            else:
+            openvino_dir = self.MODELS_DIR / f"{model_name}_openvino_model"
+
+            # OpenVINO (Intel iGPU / NPU / CPU) - Scrypted tarzı parametrik
+            if backend == "openvino":
+                if openvino_dir.exists():
+                    logger.info("Loading OpenVINO model: %s (Intel iGPU/NPU/CPU)", openvino_dir)
+                    self.model = YOLO(str(openvino_dir), task='detect')
+                    self.model_name = model_name
+                    self._inference_device = "intel:gpu"  # i7 dahili ekran kartı; yoksa intel:cpu düşer
+                    logger.info("OpenVINO model loaded (device=intel:gpu)")
+                else:
+                    self._load_pt_then_export_openvino(model_name, pytorch_path, root_pytorch_path, openvino_dir)
+                # warmup below
+            # TensorRT (NVIDIA GPU)
+            elif backend == "tensorrt" or (backend == "auto" and tensorrt_path.exists()):
+                if tensorrt_path.exists():
+                    logger.info("Loading TensorRT model: %s", tensorrt_path)
+                    self.model = YOLO(str(tensorrt_path), task='detect')
+                    self.model_name = model_name
+                    logger.info("TensorRT model loaded")
+                elif backend == "tensorrt":
+                    raise FileNotFoundError(f"TensorRT model not found: {tensorrt_path}. Export first (auto or NVIDIA env).")
+                else:
+                    pass  # fall through
+            # ONNX (CPU)
+            elif backend == "onnx" or (backend == "auto" and onnx_path.exists()):
+                if onnx_path.exists():
+                    logger.info("Loading ONNX model: %s", onnx_path)
+                    self.model = YOLO(str(onnx_path), task='detect')
+                    self.model_name = model_name
+                    logger.info("ONNX model loaded")
+                elif backend == "onnx":
+                    self._load_pt_then_export_onnx(model_name, pytorch_path, root_pytorch_path, onnx_path)
+                else:
+                    pass
+            # CPU (PyTorch) or auto fallback
+            if self.model is None:
                 # Load PyTorch model from local paths or auto-download
                 if pytorch_path.exists():
                     source = str(pytorch_path)
@@ -118,8 +140,11 @@ class InferenceService:
             # Warmup inference
             logger.info("Performing warmup inference...")
             dummy_frame = np.zeros((640, 640, 3), dtype=np.uint8)
-            self.model(dummy_frame, verbose=False)
-            
+            warmup_kw = {"verbose": False}
+            if self._inference_device:
+                warmup_kw["device"] = self._inference_device
+            self.model(dummy_frame, **warmup_kw)
+
             logger.info(f"Model loaded successfully: {model_name}")
             
         except Exception as e:
@@ -212,6 +237,47 @@ class InferenceService:
         except Exception as e:
             logger.warning(f"Failed to export optimized model: {e}")
             logger.info("Continuing with PyTorch model (no optimization)")
+
+    def _load_pt_then_export_onnx(
+        self,
+        model_name: str,
+        pytorch_path: Path,
+        root_pytorch_path: Path,
+        onnx_path: Path,
+    ) -> None:
+        """Load PyTorch model then export and load ONNX (sync)."""
+        source = str(pytorch_path) if pytorch_path.exists() else (str(root_pytorch_path) if root_pytorch_path.exists() else f"{model_name}.pt")
+        pt = YOLO(source, task='detect')
+        pt.export(format="onnx", simplify=True, dynamic=False)
+        exported = Path.cwd() / f"{model_name}.onnx"
+        if exported.exists():
+            shutil.move(str(exported), str(onnx_path))
+        self.model = YOLO(str(onnx_path), task='detect')
+        self.model_name = model_name
+        logger.info("ONNX model exported and loaded")
+
+    def _load_pt_then_export_openvino(
+        self,
+        model_name: str,
+        pytorch_path: Path,
+        root_pytorch_path: Path,
+        openvino_dir: Path,
+    ) -> None:
+        """Load PyTorch model, export to OpenVINO (Intel iGPU), then load. İlk çalıştırma 1-2 dk sürebilir."""
+        source = str(pytorch_path) if pytorch_path.exists() else (str(root_pytorch_path) if root_pytorch_path.exists() else f"{model_name}.pt")
+        logger.info("Exporting to OpenVINO (Intel iGPU/NPU/CPU)...")
+        pt = YOLO(source, task='detect')
+        pt.export(format="openvino")
+        # Ultralytics creates ./{model_name}_openvino_model/
+        cwd_ov = Path.cwd() / f"{model_name}_openvino_model"
+        if cwd_ov.exists():
+            if openvino_dir.exists():
+                shutil.rmtree(openvino_dir, ignore_errors=True)
+            shutil.move(str(cwd_ov), str(openvino_dir))
+        self.model = YOLO(str(openvino_dir), task='detect')
+        self.model_name = model_name
+        self._inference_device = "intel:gpu"
+        logger.info("OpenVINO model exported and loaded (device=intel:gpu)")
     
     def get_kurtosis_based_clahe_params(self, frame: np.ndarray) -> Dict[str, any]:
         """
@@ -359,10 +425,12 @@ class InferenceService:
         if self.model is None:
             raise RuntimeError("Model not loaded. Call load_model() first.")
         
-        # Run inference
+        # Run inference (OpenVINO: device=intel:gpu)
         inference_args = {"conf": confidence_threshold, "verbose": False}
         if inference_resolution and len(inference_resolution) == 2:
             inference_args["imgsz"] = list(inference_resolution)
+        if self._inference_device:
+            inference_args["device"] = self._inference_device
 
         results = self.model(frame, **inference_args)
         

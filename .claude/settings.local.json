@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ffprobe:*)",
+      "Bash(ffmpeg:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nperf: reduce log noise and config I/O for better performance\n\n- Suppress noisy 3rd-party loggers \\(httpcore, httpx, openai, telegram, hpack\\) to WARNING\n- Increase config cache refresh interval from 5s to 30s\n- Log empty detections \\(count=0\\) every 60s instead of 5s\n- Reduce EVENT_GATE log frequency from 5s to 30s\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git commit:*)",
+      "Bash(git config:*)",
+      "Bash(git merge:*)",
+      "Bash(git push:*)"
+    ]
+  }
+}

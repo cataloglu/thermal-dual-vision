@@ -33,7 +33,7 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
     const base = { detection: settings.detection, motion: settings.motion, thermal: settings.thermal, stream: settings.stream, event: settings.event }
     const presets: Record<string, Partial<Settings>> = {
       eco: {
-        detection: { ...base.detection, model: 'yolov8n-person', inference_fps: 3, inference_resolution: [512, 512], confidence_threshold: 0.30, thermal_confidence_threshold: 0.35 },
+        detection: { ...base.detection, model: 'yolov8n-person', inference_fps: 2, inference_resolution: [416, 416], confidence_threshold: 0.30, thermal_confidence_threshold: 0.35 },
         motion: { ...base.motion, algorithm: 'frame_diff', sensitivity: 6, min_area: 700, cooldown_seconds: 7 },
         thermal: { ...base.thermal, enable_enhancement: false },
         event: { ...base.event, min_event_duration: 1.0, cooldown_seconds: 7 },
@@ -100,7 +100,7 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
                 {id === 'quality' && '🎯 Hassas'}
               </span>
               <p className="text-xs text-muted mt-0.5">
-                {id === 'eco' && 'Düşük CPU'}
+                {id === 'eco' && (t('perfEcoHint') || '2 fps, 416px – düşük CPU')}
                 {id === 'balanced' && 'Genel kullanım'}
                 {id === 'frigate' && 'MOG2 + FFmpeg'}
                 {id === 'quality' && 'YOLOv9t'}
@@ -127,9 +127,23 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
               <option value="yolov9t">YOLOv9t</option>
               <option value="yolov9s">YOLOv9s</option>
             </select>
+            <div>
+              <label className="text-xs text-muted block mb-1">{t('perfInferenceBackend')}</label>
+              <select
+                value={settings.detection.inference_backend || 'auto'}
+                onChange={(e) => onChange({ ...settings, detection: { ...settings.detection, inference_backend: e.target.value as Settings['detection']['inference_backend'] } })}
+                className="w-full px-3 py-2 bg-surface1 border border-border rounded-lg text-text text-sm"
+              >
+                <option value="auto">{t('perfBackendAuto')}</option>
+                <option value="openvino">{t('perfBackendOpenVINO')}</option>
+                <option value="tensorrt">{t('perfBackendTensorRT')}</option>
+                <option value="onnx">{t('perfBackendONNX')}</option>
+                <option value="cpu">{t('perfBackendCPU')}</option>
+              </select>
+            </div>
             <div className="flex gap-2 items-center">
               <input type="number" min={1} max={30} value={settings.detection.inference_fps} onChange={(e) => onChange({ ...settings, detection: { ...settings.detection, inference_fps: parseInt(e.target.value) || 1 } })} className="w-16 px-2 py-1.5 bg-surface1 border border-border rounded text-text text-sm" />
-              <span className="text-xs text-muted">FPS</span>
+              <span className="text-xs text-muted">FPS (1 = en düşük CPU)</span>
             </div>
             <div className="flex gap-2">
               <input type="number" min={320} max={1920} value={settings.detection.inference_resolution[0]} onChange={(e) => onChange({ ...settings, detection: { ...settings.detection, inference_resolution: [parseInt(e.target.value) || 640, settings.detection.inference_resolution[1]] } })} className="flex-1 px-2 py-1.5 bg-surface1 border border-border rounded text-text text-sm" />

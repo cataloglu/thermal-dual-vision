@@ -2,6 +2,8 @@
  * API types for Smart Motion Detector v2
  */
 
+export type InferenceBackend = 'auto' | 'cpu' | 'onnx' | 'openvino' | 'tensorrt';
+
 export interface DetectionConfig {
   model: 'yolov8n-person' | 'yolov8s-person' | 'yolov9t' | 'yolov9s';
   confidence_threshold: number;
@@ -9,6 +11,8 @@ export interface DetectionConfig {
   nms_iou_threshold: number;
   inference_resolution: [number, number];
   inference_fps: number;
+  /** Inference backend: auto, openvino (Intel iGPU), tensorrt (NVIDIA), onnx, cpu */
+  inference_backend?: InferenceBackend;
   aspect_ratio_preset?: 'person' | 'thermal_person' | 'custom';
   aspect_ratio_min: number;
   aspect_ratio_max: number;

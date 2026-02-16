@@ -1,0 +1,10 @@
+---
+description: Kullanıcı kısıtları – tekrarlama yasak
+alwaysApply: true
+---
+
+# Proje kısıtları
+
+- **Substream:** Kullanıcı kameralarda zaten substream (detection) kullanıyor. "Substream ekle", "Substream (Detection) URL’si tanımla", "ayrı substream URL kullan" gibi önerilerde bulunma. Bu konuda tekrar etme.
+- **Ayrı URL istemiyoruz:** Ekstra detection URL’si veya ayrı stream URL’si önerme; mevcut kurulum kabul edilmiş.
+- CPU/düşük kullanım konuşulurken substream’i çözüm olarak sayma; fps, resolution, thermal, kamera sayısı, worker modu gibi diğer ayarlara odaklan.
