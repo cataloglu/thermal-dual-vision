@@ -307,6 +307,11 @@ def _resolve_go2rtc_stream_name(camera) -> Optional[str]:
     source = _resolve_default_stream_source(camera)
     if source in ("thermal", "color"):
         return f"{camera.id}_{source}"
+    # If no default stream is configured but detection substream exists, use it for live.
+    if _resolve_default_rtsp_url(camera):
+        return camera.id
+    if getattr(camera, "rtsp_url_detection", None):
+        return f"{camera.id}_detect"
     return camera.id
 
 

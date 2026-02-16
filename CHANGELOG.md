@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.49] - 2026-02-17
+
+### Düzeltmeler
+
+- **Live View:** Ana stream yoksa go2rtc `*_detect` substream ile canlı görüntü verilir.
+
+---
+
 ## [3.10.48] - 2026-02-17
 
 ### Düzeltmeler
