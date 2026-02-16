@@ -14,10 +14,6 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 - **Backend rehberi:** Inference backend seçimi geniş panel + kısa açıklamalarla daha anlaşılır.
 - **Preset açıklamaları:** Dengeli ve Güvenilir farkı (stream/event stabilite) netleştirildi.
 
-### Dokümantasyon
-
-- **HA güncelleme:** `docs/HA_UPDATE_BLOCKED.md` – "audio" hatası açıklaması; güncelleme görünmüyorsa repo yenileme adımları.
-
 ---
 
 ## [3.10.44] - 2026-02-16
