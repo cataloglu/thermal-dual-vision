@@ -94,16 +94,16 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
               className="p-3 rounded-lg border border-border bg-surface1 text-left hover:bg-surface1/80 transition-colors text-sm"
             >
               <span className="font-medium text-text">
-                {id === 'eco' && '⚡ Ekonomik'}
-                {id === 'balanced' && '⚖️ Dengeli'}
-                {id === 'frigate' && '🛡️ Güvenilir'}
-                {id === 'quality' && '🎯 Hassas'}
+                {id === 'eco' && `⚡ ${t('perfPresetEcoTitle')}`}
+                {id === 'balanced' && `⚖️ ${t('perfPresetBalancedTitle')}`}
+                {id === 'frigate' && `🛡️ ${t('perfPresetFrigateTitle')}`}
+                {id === 'quality' && `🎯 ${t('perfPresetQualityTitle')}`}
               </span>
               <p className="text-xs text-muted mt-0.5">
-                {id === 'eco' && (t('perfEcoHint') || '2 fps, 416px – düşük CPU')}
-                {id === 'balanced' && 'Genel kullanım'}
-                {id === 'frigate' && 'MOG2 + FFmpeg'}
-                {id === 'quality' && 'YOLOv9t'}
+                {id === 'eco' && t('perfPresetEcoDesc')}
+                {id === 'balanced' && t('perfPresetBalancedDesc')}
+                {id === 'frigate' && t('perfPresetFrigateDesc')}
+                {id === 'quality' && t('perfPresetQualityDesc')}
               </p>
             </button>
           ))}
@@ -111,8 +111,33 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
       </div>
 
       {/* Manual - 3 columns */}
-      <div className="bg-surface2 border border-border rounded-lg p-6">
-        <h4 className="text-base font-semibold text-text mb-4">{t('perfManualTitle')}</h4>
+      <div className="bg-surface2 border border-border rounded-lg p-6 space-y-4">
+        <h4 className="text-base font-semibold text-text">{t('perfManualTitle')}</h4>
+        <div className="p-4 rounded-lg bg-surface1/50 border border-border">
+          <label className="text-sm font-semibold text-text block mb-2">{t('perfInferenceBackend')}</label>
+          <select
+            value={settings.detection.inference_backend || 'auto'}
+            onChange={(e) => onChange({ ...settings, detection: { ...settings.detection, inference_backend: e.target.value as Settings['detection']['inference_backend'] } })}
+            className="w-full px-3 py-2.5 bg-surface1 border border-border rounded-lg text-text text-sm"
+          >
+            <option value="auto">{t('perfBackendAuto')}</option>
+            <option value="openvino">{t('perfBackendOpenVINO')}</option>
+            <option value="tensorrt">{t('perfBackendTensorRT')}</option>
+            <option value="onnx">{t('perfBackendONNX')}</option>
+            <option value="cpu">{t('perfBackendCPU')}</option>
+          </select>
+          <div className="mt-2 rounded-lg bg-surface1/70 border border-border p-3 text-xs text-muted space-y-1">
+            <div className="text-text font-medium">{t('perfBackendHelpTitle')}</div>
+            <ul className="list-disc pl-4 space-y-0.5">
+              <li>{t('perfBackendHelpAuto')}</li>
+              <li>{t('perfBackendHelpOpenVINO')}</li>
+              <li>{t('perfBackendHelpTensorRT')}</li>
+              <li>{t('perfBackendHelpONNX')}</li>
+              <li>{t('perfBackendHelpVerify')}</li>
+              <li>{t('perfBackendHelpRestart')}</li>
+            </ul>
+          </div>
+        </div>
         <div className="grid gap-6 md:grid-cols-3">
           {/* Detection */}
           <div className="space-y-3 p-4 rounded-lg bg-surface1/50">
@@ -127,20 +152,6 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
               <option value="yolov9t">YOLOv9t</option>
               <option value="yolov9s">YOLOv9s</option>
             </select>
-            <div>
-              <label className="text-xs text-muted block mb-1">{t('perfInferenceBackend')}</label>
-              <select
-                value={settings.detection.inference_backend || 'auto'}
-                onChange={(e) => onChange({ ...settings, detection: { ...settings.detection, inference_backend: e.target.value as Settings['detection']['inference_backend'] } })}
-                className="w-full px-3 py-2 bg-surface1 border border-border rounded-lg text-text text-sm"
-              >
-                <option value="auto">{t('perfBackendAuto')}</option>
-                <option value="openvino">{t('perfBackendOpenVINO')}</option>
-                <option value="tensorrt">{t('perfBackendTensorRT')}</option>
-                <option value="onnx">{t('perfBackendONNX')}</option>
-                <option value="cpu">{t('perfBackendCPU')}</option>
-              </select>
-            </div>
             <div className="flex gap-2 items-center">
               <input type="number" min={1} max={30} value={settings.detection.inference_fps} onChange={(e) => onChange({ ...settings, detection: { ...settings.detection, inference_fps: parseInt(e.target.value) || 1 } })} className="w-16 px-2 py-1.5 bg-surface1 border border-border rounded text-text text-sm" />
               <span className="text-xs text-muted">FPS (1 = en düşük CPU)</span>

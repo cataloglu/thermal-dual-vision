@@ -6,6 +6,20 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.45] - 2026-02-16
+
+### Eklenenler
+
+- **Auto backend seçimi:** `auto` artık TensorRT → OpenVINO(GPU) → ONNX → PT sırasıyla dener; seçilen backend loga yazılır.
+- **Backend rehberi:** Inference backend seçimi geniş panel + kısa açıklamalarla daha anlaşılır.
+- **Preset açıklamaları:** Dengeli ve Güvenilir farkı (stream/event stabilite) netleştirildi.
+
+### Dokümantasyon
+
+- **HA güncelleme:** `docs/HA_UPDATE_BLOCKED.md` – "audio" hatası açıklaması; güncelleme görünmüyorsa repo yenileme adımları.
+
+---
+
 ## [3.10.44] - 2026-02-16
 
 ### Eklenenler

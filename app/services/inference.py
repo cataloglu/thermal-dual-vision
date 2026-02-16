@@ -53,10 +53,48 @@ class InferenceService:
         except Exception:
             return "auto"
 
+    def _get_openvino_devices(self) -> List[str]:
+        """Return OpenVINO available devices (empty if unavailable)."""
+        try:
+            from openvino.runtime import Core  # type: ignore
+        except Exception:
+            return []
+        try:
+            core = Core()
+            devices = core.available_devices or []
+            return [str(d) for d in devices]
+        except Exception:
+            return []
+
+    def _resolve_auto_backend(
+        self,
+        tensorrt_path: Path,
+        onnx_path: Path,
+    ) -> str:
+        """
+        Auto-select best backend based on available assets and hardware.
+        Priority: TensorRT > OpenVINO (GPU) > ONNX > PyTorch.
+        """
+        if tensorrt_path.exists():
+            return "tensorrt"
+
+        openvino_devices = self._get_openvino_devices()
+        if openvino_devices:
+            has_gpu = any("GPU" in d.upper() for d in openvino_devices)
+            if has_gpu:
+                return "openvino"
+            # If only CPU is available, prefer ONNX for stability
+
+        if onnx_path.exists():
+            return "onnx"
+
+        # Fallback to PyTorch CPU
+        return "cpu"
+
     def load_model(self, model_name: str = "yolov8n") -> None:
         """
         Load YOLO model. Backend from config: auto | cpu | onnx | openvino | tensorrt.
-        - auto: TensorRT > ONNX > PyTorch
+        - auto: TensorRT > OpenVINO (GPU) > ONNX > PyTorch (when available)
         - openvino: Intel iGPU/NPU/CPU (i7 dahili ekran kartı)
         - tensorrt: NVIDIA GPU
         - onnx: ONNX CPU
@@ -72,6 +110,10 @@ class InferenceService:
             pytorch_path = self.MODELS_DIR / f"{model_name}.pt"
             root_pytorch_path = Path.cwd() / f"{model_name}.pt"
             openvino_dir = self.MODELS_DIR / f"{model_name}_openvino_model"
+
+            if backend == "auto":
+                backend = self._resolve_auto_backend(tensorrt_path, onnx_path)
+                logger.info("Auto-selected inference backend: %s", backend)
 
             # OpenVINO (Intel iGPU / NPU / CPU) - Scrypted tarzı parametrik
             if backend == "openvino":

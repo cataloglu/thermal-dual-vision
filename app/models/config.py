@@ -66,7 +66,7 @@ class DetectionConfig(BaseModel):
     )
     inference_backend: Literal["auto", "cpu", "onnx", "openvino", "tensorrt"] = Field(
         default="auto",
-        description="Inference backend: auto (TensorRT>ONNX>PT), onnx, openvino (Intel iGPU/NPU/CPU), tensorrt (NVIDIA GPU), cpu (PyTorch)"
+        description="Inference backend: auto (TensorRT>OpenVINO>ONNX>PT, if available), onnx, openvino (Intel iGPU/NPU/CPU), tensorrt (NVIDIA GPU), cpu (PyTorch)"
     )
 
     @field_validator("inference_resolution")
