@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.51] - 2026-02-17
+
+### Düzeltmeler
+
+- **Live View:** go2rtc MJPEG başlamazsa go2rtc RTSP restream ile MJPEG üretimi (tek stream desteği).
+
+---
+
 ## [3.10.50] - 2026-02-17
 
 ### Düzeltmeler

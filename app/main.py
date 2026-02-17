@@ -1302,30 +1302,18 @@ async def get_live_stream(camera_id: str, db: Session = Depends(get_session)) ->
         )
 
     go2rtc_mjpeg = f"{go2rtc_service.api_url}/api/stream.mjpeg?src={stream_name}"
+    media_type = "multipart/x-mixed-replace; boundary=frame"
+    use_go2rtc_mjpeg = True
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
+        async with httpx.AsyncClient(timeout=10.0) as client:
             async with client.stream("GET", go2rtc_mjpeg) as check_resp:
                 if check_resp.status_code != 200:
-                    raise HTTPException(
-                        status_code=503,
-                        detail={
-                            "error": True,
-                            "code": "GO2RTC_UNAVAILABLE",
-                            "message": "go2rtc stream unavailable. Ensure go2rtc is running and camera is connected.",
-                        },
-                    )
-    except HTTPException:
-        raise
+                    use_go2rtc_mjpeg = False
+                else:
+                    media_type = check_resp.headers.get("content-type", media_type)
     except Exception as e:
         logger.debug("go2rtc live check for %s failed: %s", camera_id, e)
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "error": True,
-                "code": "GO2RTC_UNAVAILABLE",
-                "message": "go2rtc stream unavailable. Ensure go2rtc is running and camera is connected.",
-            },
-        )
+        use_go2rtc_mjpeg = False
 
     def _acquire():
         return _live_stream_semaphore.acquire(blocking=True, timeout=3)
@@ -1340,6 +1328,29 @@ async def get_live_stream(camera_id: str, db: Session = Depends(get_session)) ->
             },
         )
 
+    def _proxy_rtsp_mjpeg(rtsp_url: str, quality: int):
+        try:
+            cap = cv2.VideoCapture(rtsp_url, cv2.CAP_FFMPEG)
+            cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+            if hasattr(cv2, "CAP_PROP_OPEN_TIMEOUT_MSEC"):
+                cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 10000)
+            if hasattr(cv2, "CAP_PROP_READ_TIMEOUT_MSEC"):
+                cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, 10000)
+            while True:
+                ok, frame = cap.read()
+                if not ok or frame is None:
+                    break
+                ok, buffer = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), quality])
+                if not ok:
+                    continue
+                yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + buffer.tobytes() + b"\r\n"
+        finally:
+            try:
+                cap.release()
+            except Exception:
+                pass
+            _live_stream_semaphore.release()
+
     async def proxy_go2rtc():
         try:
             async with httpx.AsyncClient(timeout=60.0) as c2:
@@ -1349,9 +1360,30 @@ async def get_live_stream(camera_id: str, db: Session = Depends(get_session)) ->
         finally:
             _live_stream_semaphore.release()
 
-    logger.info("Live stream from go2rtc for %s", camera_id)
+    if use_go2rtc_mjpeg:
+        logger.info("Live stream from go2rtc for %s", camera_id)
+        return StreamingResponse(
+            proxy_go2rtc(),
+            media_type=media_type,
+        )
+
+    # Fallback: generate MJPEG from go2rtc RTSP restream (still go2rtc source)
+    stream_urls = _get_live_rtsp_urls(camera)
+    if not stream_urls:
+        _live_stream_semaphore.release()
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": True,
+                "code": "GO2RTC_UNAVAILABLE",
+                "message": "go2rtc stream unavailable. Ensure go2rtc is running and camera is connected.",
+            },
+        )
+    config = settings_service.load_config()
+    quality = int(getattr(getattr(config, "live", None), "mjpeg_quality", 92))
+    logger.info("Live stream fallback via RTSP for %s", camera_id)
     return StreamingResponse(
-        proxy_go2rtc(),
+        _proxy_rtsp_mjpeg(stream_urls[0], quality),
         media_type="multipart/x-mixed-replace; boundary=frame",
     )
 
