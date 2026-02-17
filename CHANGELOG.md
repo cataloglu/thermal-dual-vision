@@ -6,6 +6,12 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.58] - 2026-02-18
+
+### Düzeltmeler
+
+- **Live View:** go2rtc MJPEG ilk frame gelmezse fallback kullanılır.
+
 ## [3.10.57] - 2026-02-18
 
 ### Düzeltmeler

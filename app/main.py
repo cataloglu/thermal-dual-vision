@@ -1333,11 +1333,23 @@ async def get_live_stream(camera_id: str, db: Session = Depends(get_session)) ->
         if stream_name:
             go2rtc_mjpeg = f"{go2rtc_service.api_url}/api/stream.mjpeg?src={stream_name}"
             try:
-                async with httpx.AsyncClient(timeout=10.0) as client:
+                probe_timeout = 3.0
+                timeout = httpx.Timeout(5.0, read=probe_timeout)
+                async with httpx.AsyncClient(timeout=timeout) as client:
                     async with client.stream("GET", go2rtc_mjpeg) as check_resp:
                         if check_resp.status_code == 200:
-                            use_go2rtc_mjpeg = True
                             media_type = check_resp.headers.get("content-type", media_type)
+                            aiter = check_resp.aiter_bytes()
+                            try:
+                                first_chunk = await asyncio.wait_for(aiter.__anext__(), timeout=probe_timeout)
+                                if first_chunk:
+                                    use_go2rtc_mjpeg = True
+                                else:
+                                    logger.warning("go2rtc live check returned empty for %s", camera_id)
+                            except asyncio.TimeoutError:
+                                logger.warning("go2rtc live check timed out for %s", camera_id)
+                            except StopAsyncIteration:
+                                logger.warning("go2rtc live check ended early for %s", camera_id)
                         else:
                             logger.warning(
                                 "go2rtc live check failed for %s (status=%s)",
