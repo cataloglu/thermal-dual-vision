@@ -21,6 +21,7 @@ import cv2
 import httpx
 import time
 import base64
+import numpy as np
 
 from app.db.session import get_session, init_db
 from app.db.models import Zone, ZoneMode, Camera, CameraStatus, Event

@@ -6,6 +6,12 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.57] - 2026-02-18
+
+### Düzeltmeler
+
+- **Backend crash:** Live View fallback type hint için eksik `numpy` import eklendi.
+
 ## [3.10.56] - 2026-02-18
 
 ### Düzeltmeler
