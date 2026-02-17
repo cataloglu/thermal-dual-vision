@@ -1458,20 +1458,19 @@ async def get_live_stream(
             headers=stream_headers,
         )
 
-    # Fallback: generate MJPEG from go2rtc RTSP restream (still go2rtc source)
-    stream_urls = _get_live_rtsp_urls(camera)
-    if stream_urls:
-        quality = int(getattr(getattr(config, "live", None), "mjpeg_quality", 92))
-        logger.info("Live stream fallback via RTSP for %s", camera_id)
-        return StreamingResponse(
-            _proxy_rtsp_mjpeg(stream_urls[0], quality),
-            media_type="multipart/x-mixed-replace; boundary=frame",
-            headers=stream_headers,
-        )
-
-    # Final fallback: stream latest frames from detector worker
-    first_frame = _wait_for_live_frame(camera_id, timeout=3.0)
+    # Fallback: stream latest frames from detector worker (fastest)
+    first_frame = _wait_for_live_frame(camera_id, timeout=1.0)
     if first_frame is None:
+        # Fallback: generate MJPEG from go2rtc RTSP restream (still go2rtc source)
+        stream_urls = _get_live_rtsp_urls(camera)
+        if stream_urls:
+            quality = int(getattr(getattr(config, "live", None), "mjpeg_quality", 92))
+            logger.info("Live stream fallback via RTSP for %s", camera_id)
+            return StreamingResponse(
+                _proxy_rtsp_mjpeg(stream_urls[0], quality),
+                media_type="multipart/x-mixed-replace; boundary=frame",
+                headers=stream_headers,
+            )
         _live_stream_semaphore.release()
         raise HTTPException(
             status_code=503,
