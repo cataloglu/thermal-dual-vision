@@ -6,6 +6,21 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.52] - 2026-02-17
+
+### Eklenenler
+
+- **Motion filtresi logları:** Motion aktif/idle geçişleri ve alan/eşik bilgisi loglanır (MP + threading).
+
+### Değişenler
+
+- **Yeni kamera akışı:** go2rtc config güncellemesi detection/recording öncesine alındı; update sonrası detection yeniden başlatılır.
+- **RTSP açılışı retry:** go2rtc reload gecikmesine karşı MP detector açılış denemeleri backoff ile sürer.
+
+### Düzeltmeler
+
+- **Gürültülü loglar:** Bazı RTSP ve kamera durumu logları debug seviyesine çekildi.
+
 ## [3.10.51] - 2026-02-17
 
 ### Düzeltmeler
