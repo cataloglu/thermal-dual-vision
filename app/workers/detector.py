@@ -1449,9 +1449,17 @@ class DetectorWorker:
         motion_settings = dict(config.motion.model_dump())
         if camera.motion_config:
             motion_settings.update(camera.motion_config)
-
+        
+        state = self.motion_state[camera.id]
         if motion_settings.get("enabled", True) is False:
+            if not state.get("motion_disabled_logged"):
+                logger.info(
+                    "Motion filter disabled for camera %s; running inference on all frames",
+                    camera.id,
+                )
+                state["motion_disabled_logged"] = True
             return True
+        state.pop("motion_disabled_logged", None)
 
         algorithm = motion_settings.get("algorithm", "mog2")
         sensitivity = int(motion_settings.get("sensitivity", config.motion.sensitivity))
@@ -1465,7 +1473,6 @@ class DetectorWorker:
             )
         )
 
-        state = self.motion_state[camera.id]
         if state.get("algorithm") != algorithm:
             state.clear()
             state["algorithm"] = algorithm
@@ -1495,20 +1502,45 @@ class DetectorWorker:
             motion_area = self._motion_area_frame_diff(gray, sensitivity, state)
 
         prebuffer_seconds = float(getattr(config.event, "prebuffer_seconds", 0.0))
-
-        if motion_area >= min_area:
+        motion_detected = motion_area >= min_area
+        if motion_detected:
             if not motion_active:
                 self._reset_motion_buffers(camera.id, prebuffer_seconds)
             state["last_motion"] = now
-            state["motion_active"] = True
-            return True
+            motion_active = True
+        elif not (cooldown_seconds and now - last_motion < cooldown_seconds):
+            motion_active = False
 
-        if cooldown_seconds and now - last_motion < cooldown_seconds:
-            state["motion_active"] = motion_active
-            return motion_active
+        state["motion_active"] = motion_active
 
-        state["motion_active"] = False
-        return False
+        last_logged_state = state.get("last_motion_logged_state")
+        last_motion_log = state.get("last_motion_log", 0.0)
+        log_interval = float(motion_settings.get("log_interval", 30.0))
+        if last_logged_state is None or motion_active != last_logged_state:
+            logger.info(
+                "Motion filter [%s]: %s (area=%d, min=%d, sensitivity=%d, algo=%s)",
+                camera.id,
+                "active" if motion_active else "idle",
+                motion_area,
+                min_area,
+                sensitivity,
+                algorithm,
+            )
+            state["last_motion_logged_state"] = motion_active
+            state["last_motion_log"] = now
+        elif now - last_motion_log >= log_interval:
+            logger.debug(
+                "Motion filter [%s]: %s (area=%d, min=%d, sensitivity=%d, algo=%s)",
+                camera.id,
+                "active" if motion_active else "idle",
+                motion_area,
+                min_area,
+                sensitivity,
+                algorithm,
+            )
+            state["last_motion_log"] = now
+
+        return motion_active
 
     def _motion_area_frame_diff(self, gray: np.ndarray, sensitivity: int, state: Dict[str, Any]) -> int:
         """Frame-diff motion area (original method)."""

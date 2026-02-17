@@ -1683,6 +1683,16 @@ async def create_camera(
             motion_config=request.get("motion_config")
         )
 
+        # Add to go2rtc before starting detection/recording
+        go2rtc_service.update_camera_streams(
+            camera_id=camera.id,
+            rtsp_url=camera.rtsp_url,
+            rtsp_url_color=camera.rtsp_url_color,
+            rtsp_url_thermal=camera.rtsp_url_thermal,
+            rtsp_url_detection=camera.rtsp_url_detection,
+            default_url=_resolve_default_rtsp_url(camera),
+        )
+        
         roles = camera.stream_roles if isinstance(camera.stream_roles, list) else []
         has_detect = not roles or "detect" in roles
         if camera.enabled and has_detect:
@@ -1703,16 +1713,6 @@ async def create_camera(
                 logger.error("Failed to start continuous recording for camera %s: %s", camera.id, e)
         else:
             continuous_recorder.stop_recording(camera.id)
-
-        # Add to go2rtc
-        go2rtc_service.update_camera_streams(
-            camera_id=camera.id,
-            rtsp_url=camera.rtsp_url,
-            rtsp_url_color=camera.rtsp_url_color,
-            rtsp_url_thermal=camera.rtsp_url_thermal,
-            rtsp_url_detection=camera.rtsp_url_detection,
-            default_url=_resolve_default_rtsp_url(camera),
-        )
 
         # Refresh MQTT discovery for this camera
         mqtt_service.publish_camera_update(camera.id)
@@ -1788,6 +1788,19 @@ async def update_camera(
                 }
             )
         
+        # Restart detection to apply config changes
+        detector_worker.stop_camera_detection(camera.id)
+
+        # Update go2rtc before restarting detection/recording
+        go2rtc_service.update_camera_streams(
+            camera_id=camera.id,
+            rtsp_url=camera.rtsp_url,
+            rtsp_url_color=camera.rtsp_url_color,
+            rtsp_url_thermal=camera.rtsp_url_thermal,
+            rtsp_url_detection=camera.rtsp_url_detection,
+            default_url=_resolve_default_rtsp_url(camera),
+        )
+        
         roles = camera.stream_roles if isinstance(camera.stream_roles, list) else []
         has_detect = not roles or "detect" in roles
         if camera.enabled and has_detect:
@@ -1795,8 +1808,6 @@ async def update_camera(
                 detector_worker.start_camera_detection(camera)
             except Exception as e:
                 logger.error("Failed to start detection for camera %s: %s", camera.id, e)
-        else:
-            detector_worker.stop_camera_detection(camera.id)
         
         # Start/stop continuous recording (Scrypted-style: go2rtc restream first)
         if camera.enabled:
@@ -1808,15 +1819,6 @@ async def update_camera(
                 logger.error("Failed to start continuous recording for camera %s: %s", camera.id, e)
         else:
             continuous_recorder.stop_recording(camera.id)
-
-        go2rtc_service.update_camera_streams(
-            camera_id=camera.id,
-            rtsp_url=camera.rtsp_url,
-            rtsp_url_color=camera.rtsp_url_color,
-            rtsp_url_thermal=camera.rtsp_url_thermal,
-            rtsp_url_detection=camera.rtsp_url_detection,
-            default_url=_resolve_default_rtsp_url(camera),
-        )
 
         mqtt_service.publish_camera_update(camera.id)
         return camera_crud_service.mask_rtsp_urls(camera)

@@ -363,7 +363,7 @@ def camera_detection_process(
         
         # Open camera from go2rtc only
         cam_name = camera_config.get("name", "?")
-        process_logger.info(f"[DEBUG-RTSP] Opening camera {cam_name} ({camera_id[:8]})...")
+        process_logger.debug(f"[DEBUG-RTSP] Opening camera {cam_name} ({camera_id[:8]})...")
         
         # Set FFmpeg options (same as threading detector!)
         transport = "tcp"
@@ -373,35 +373,62 @@ def camera_detection_process(
         )
         
         codec_fallbacks = [None, "H264", "H265", "MJPG"]
-        cap = None
         
-        for rtsp_url in rtsp_urls:
-            for codec in codec_fallbacks:
-                try:
-                    temp_cap = cv2.VideoCapture(rtsp_url, cv2.CAP_FFMPEG)
-                    temp_cap.set(cv2.CAP_PROP_BUFFERSIZE, config.stream.buffer_size)
-                    if hasattr(cv2, "CAP_PROP_OPEN_TIMEOUT_MSEC"):
-                        temp_cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 10000)
-                    if hasattr(cv2, "CAP_PROP_READ_TIMEOUT_MSEC"):
-                        temp_cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, 10000)
-                    if codec:
-                        temp_cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*codec))
-                    if temp_cap.isOpened():
-                        ret, _ = temp_cap.read()
-                        if ret:
-                            process_logger.info(f"Camera {cam_name} ({camera_id[:8]}) opened via go2rtc with codec {codec or 'default'}")
-                            cap = temp_cap
-                            break
-                    temp_cap.release()
-                except Exception as e:
-                    process_logger.debug(f"Codec {codec} attempt failed: {e}")
-            if cap is not None:
+        def _open_capture() -> Optional["cv2.VideoCapture"]:
+            for rtsp_url in rtsp_urls:
+                for codec in codec_fallbacks:
+                    try:
+                        temp_cap = cv2.VideoCapture(rtsp_url, cv2.CAP_FFMPEG)
+                        temp_cap.set(cv2.CAP_PROP_BUFFERSIZE, config.stream.buffer_size)
+                        if hasattr(cv2, "CAP_PROP_OPEN_TIMEOUT_MSEC"):
+                            temp_cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 10000)
+                        if hasattr(cv2, "CAP_PROP_READ_TIMEOUT_MSEC"):
+                            temp_cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, 10000)
+                        if codec:
+                            temp_cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*codec))
+                        if temp_cap.isOpened():
+                            ret, _ = temp_cap.read()
+                            if ret:
+                                process_logger.info(
+                                    "Camera %s (%s) opened via go2rtc with codec %s",
+                                    cam_name,
+                                    camera_id[:8],
+                                    codec or "default",
+                                )
+                                return temp_cap
+                        temp_cap.release()
+                    except Exception as e:
+                        process_logger.debug(f"Codec {codec} attempt failed: {e}")
+            return None
+        
+        cap = None
+        open_attempts = 0
+        last_open_log = 0.0
+        
+        while not stop_event.is_set():
+            cap = _open_capture()
+            if cap and cap.isOpened():
                 break
+            
+            open_attempts += 1
+            _send_status("down")
+            
+            retry_delay = min(30.0, 5.0 + open_attempts * 2.0)
+            now = time.time()
+            if open_attempts == 1 or now - last_open_log >= 30.0:
+                process_logger.warning(
+                    "Failed to open camera %s (%s). Retrying in %.1fs",
+                    cam_name,
+                    camera_id[:8],
+                    retry_delay,
+                )
+                last_open_log = now
+            
+            end_sleep = time.time() + retry_delay
+            while time.time() < end_sleep and not stop_event.is_set():
+                time.sleep(0.2)
         
         if not cap or not cap.isOpened():
-            process_logger.error(f"Failed to open camera {cam_name} ({camera_id[:8]}) after all codec attempts")
-            _send_status("down")
-            time.sleep(60)
             return
 
         _send_status("connected")
@@ -415,10 +442,24 @@ def camera_detection_process(
         # Get detection parameters
         detection_source = camera_config.get("detection_source") or camera_config.get("type", "thermal")
         frame_delay = 1.0 / config.detection.inference_fps
-        motion_config = camera_config.get("motion_config", {})
+        motion_config = camera_config.get("motion_config") or {}
         zones = camera_config.get("zones", [])
         
+        motion_enabled = motion_config.get("enabled", True) is not False
+        motion_sensitivity = int(motion_config.get("sensitivity", 7))
+        motion_min_area = int(motion_config.get("min_area", motion_config.get("threshold", 500)))
+        motion_log_interval = 30.0
+        last_motion_log = 0.0
+        last_motion_state = None
+        
         process_logger.info(f"Detection parameters [{cam_name}]: source={detection_source}, fps={config.detection.inference_fps}, zones={len(zones)}")
+        process_logger.info(
+            "Motion filter [%s]: enabled=%s, sensitivity=%d, min_area=%d",
+            cam_name,
+            motion_enabled,
+            motion_sensitivity,
+            motion_min_area,
+        )
         
         frames_failed = 0
         
@@ -499,12 +540,35 @@ def camera_detection_process(
                     process_logger.debug(f"Frame buffer write error: {e}")
             
             # Motion detection (pre-filter)
-            motion_active, fg_mask = motion_service.detect_motion(
-                camera_id=camera_id,
-                frame=frame,
-                min_area=motion_config.get("min_area", 500),
-                sensitivity=motion_config.get("sensitivity", 7)
-            )
+            motion_active = True
+            if motion_enabled:
+                motion_active, _, motion_area, motion_min_area_eff = motion_service.detect_motion(
+                    camera_id=camera_id,
+                    frame=frame,
+                    min_area=motion_min_area,
+                    sensitivity=motion_sensitivity,
+                )
+                if last_motion_state is None or motion_active != last_motion_state:
+                    process_logger.info(
+                        "Motion filter [%s]: %s (area=%d, min=%d, sensitivity=%d)",
+                        cam_name,
+                        "active" if motion_active else "idle",
+                        motion_area,
+                        motion_min_area_eff,
+                        motion_sensitivity,
+                    )
+                    last_motion_state = motion_active
+                    last_motion_log = current_time
+                elif current_time - last_motion_log >= motion_log_interval:
+                    process_logger.debug(
+                        "Motion filter [%s]: %s (area=%d, min=%d, sensitivity=%d)",
+                        cam_name,
+                        "active" if motion_active else "idle",
+                        motion_area,
+                        motion_min_area_eff,
+                        motion_sensitivity,
+                    )
+                    last_motion_log = current_time
             
             if not motion_active:
                 continue
@@ -905,7 +969,7 @@ class MultiprocessingDetectorWorker:
             camera_id: Camera identifier
         """
         if camera_id not in self.processes:
-            logger.warning(f"No detection process running for camera {camera_id}")
+            logger.debug("No detection process running for camera %s", camera_id)
             return
         
         # Signal stop
