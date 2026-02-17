@@ -490,9 +490,11 @@ def camera_detection_process(
         motion_enabled = motion_config.get("enabled", True) is not False
         motion_sensitivity = int(motion_config.get("sensitivity", 7))
         motion_min_area = int(motion_config.get("min_area", motion_config.get("threshold", 500)))
+        motion_cooldown = int(motion_config.get("cooldown_seconds", motion_config.get("cooldown", 0) or 0))
         motion_log_interval = 30.0
         last_motion_log = 0.0
         last_motion_state = None
+        last_motion_time = 0.0
         
         process_logger.info(f"Detection parameters [{cam_name}]: source={detection_source}, fps={config.detection.inference_fps}, zones={len(zones)}")
         process_logger.info(
@@ -601,12 +603,19 @@ def camera_detection_process(
             # Motion detection (pre-filter)
             motion_active = True
             if motion_enabled:
-                motion_active, _, motion_area, motion_min_area_eff = motion_service.detect_motion(
+                motion_detected, _, motion_area, motion_min_area_eff = motion_service.detect_motion(
                     camera_id=camera_id,
                     frame=frame,
                     min_area=motion_min_area,
                     sensitivity=motion_sensitivity,
                 )
+                if motion_detected:
+                    last_motion_time = current_time
+                    motion_active = True
+                elif motion_cooldown and last_motion_time and (current_time - last_motion_time) < motion_cooldown:
+                    motion_active = True
+                else:
+                    motion_active = False
                 if last_motion_state is None or motion_active != last_motion_state:
                     process_logger.info(
                         "Motion filter [%s]: %s (area=%d, min=%d, sensitivity=%d)",
