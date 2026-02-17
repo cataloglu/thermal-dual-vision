@@ -468,7 +468,14 @@ def camera_detection_process(
         # Get detection parameters
         detection_source = camera_config.get("detection_source") or camera_config.get("type", "thermal")
         frame_delay = 1.0 / config.detection.inference_fps
-        motion_config = camera_config.get("motion_config") or {}
+        base_motion = {}
+        try:
+            base_motion_cfg = getattr(config, "motion", None)
+            if base_motion_cfg:
+                base_motion = base_motion_cfg.model_dump()
+        except Exception:
+            base_motion = {}
+        motion_config = {**base_motion, **(camera_config.get("motion_config") or {})}
         zones_raw = camera_config.get("zones") or []
         zones: List[List[List[float]]] = []
         for zone in zones_raw:

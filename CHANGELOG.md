@@ -6,6 +6,13 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.54] - 2026-02-17
+
+### Değişenler
+
+- **Preset ayarları:** Eco/Balanced/Frigate/Quality stream + event + motion + detection değerleri netleştirildi.
+- **MP motion:** Global motion ayarları MP modda kamera ayarlarına merge edilir.
+
 ## [3.10.53] - 2026-02-17
 
 ### Eklenenler
