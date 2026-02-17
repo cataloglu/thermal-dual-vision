@@ -57,6 +57,34 @@ def _is_ai_confirmed(summary) -> bool:
     return any(marker in text for marker in positive_markers)
 
 
+def _point_in_polygon(x: float, y: float, polygon: List[List[float]]) -> bool:
+    inside = False
+    n = len(polygon)
+    if n < 3:
+        return False
+    j = n - 1
+    for i in range(n):
+        xi, yi = polygon[i]
+        xj, yj = polygon[j]
+        intersects = ((yi > y) != (yj > y)) and (
+            x < (xj - xi) * (y - yi) / ((yj - yi) or 1e-9) + xi
+        )
+        if intersects:
+            inside = not inside
+        j = i
+    return inside
+
+
+def _is_point_in_any_zone(x: float, y: float, zones: List[Dict]) -> bool:
+    for zone in zones:
+        polygon = zone.get("polygon", [])
+        if len(polygon) < 3:
+            continue
+        if _point_in_polygon(x, y, polygon):
+            return True
+    return False
+
+
 class SharedFrameBuffer:
     """
     Shared memory circular buffer for frame storage WITH TIMESTAMPS.
@@ -495,14 +523,17 @@ def camera_detection_process(
         last_motion_log = 0.0
         last_motion_state = None
         last_motion_time = 0.0
+        gate_log_interval = 30.0
+        last_gate_log = 0.0
         
         process_logger.info(f"Detection parameters [{cam_name}]: source={detection_source}, fps={config.detection.inference_fps}, zones={len(zones)}")
         process_logger.info(
-            "Motion filter [%s]: enabled=%s, sensitivity=%d, min_area=%d",
+            "Motion filter [%s]: enabled=%s, sensitivity=%d, min_area=%d, cooldown=%ds",
             cam_name,
             motion_enabled,
             motion_sensitivity,
             motion_min_area,
+            motion_cooldown,
         )
         
         frames_failed = 0
@@ -560,6 +591,12 @@ def camera_detection_process(
             frames_failed = 0  # Reset on successful read
             
             last_frame_time = current_time
+
+            def _log_gate(reason: str) -> None:
+                nonlocal last_gate_log
+                if current_time - last_gate_log >= gate_log_interval:
+                    process_logger.debug("EVENT_GATE [%s]: %s", cam_name, reason)
+                    last_gate_log = current_time
             
             # Resize large frames immediately (optimization)
             if frame.shape[1] > 1280:
@@ -602,6 +639,8 @@ def camera_detection_process(
             
             # Motion detection (pre-filter)
             motion_active = True
+            motion_area = 0
+            motion_min_area_eff = 0
             if motion_enabled:
                 motion_detected, _, motion_area, motion_min_area_eff = motion_service.detect_motion(
                     camera_id=camera_id,
@@ -691,6 +730,7 @@ def camera_detection_process(
             # Check if person detected
             if len(detections) == 0:
                 event_start_time = None
+                _log_gate("no_detections")
                 continue
             
             # Check temporal consistency
@@ -703,18 +743,26 @@ def camera_detection_process(
             
             if not temporal_pass:
                 event_start_time = None
+                _log_gate("temporal_consistency_failed")
                 continue
             
             # Enforce minimum event duration
             if event_start_time is None:
                 event_start_time = current_time
+                _log_gate("event_started_waiting_min_duration")
                 continue
             
             if current_time - event_start_time < config.event.min_event_duration:
+                _log_gate(
+                    f"min_duration_wait elapsed={current_time - event_start_time:.1f}s required={config.event.min_event_duration:.1f}s"
+                )
                 continue
             
             # Check event cooldown
             if current_time - last_event_time < config.event.cooldown_seconds:
+                _log_gate(
+                    f"cooldown_active remaining={config.event.cooldown_seconds - (current_time - last_event_time):.1f}s"
+                )
                 continue
             
             # Send event to main process
@@ -984,23 +1032,24 @@ class MultiprocessingDetectorWorker:
             logger.warning(f"Failed to create frame buffer for {camera.id}: {e}")
             frame_buffer_name = None
         
-        zones_payload = []
+        zones_payload: List[Dict] = []
         try:
-            for zone in (camera.zones or []):
-                if (
-                    zone.enabled
-                    and zone.mode
-                    and zone.mode.value in ("person", "both")
-                    and zone.polygon
-                ):
-                    zones_payload.append({
-                        "mode": zone.mode.value,
-                        "polygon": zone.polygon,
-                    })
-        except Exception as e:
-            logger.warning("Failed to load zones for camera %s: %s", camera.id, e)
-        
-        # Create camera config dict (JSON-serializable)
+            for zone in camera.zones or []:
+                if not zone.enabled:
+                    continue
+                if zone.mode and zone.mode.value not in ("person", "both"):
+                    continue
+                polygon = zone.polygon or []
+                if len(polygon) < 3:
+                    continue
+                zones_payload.append(
+                    {
+                        "mode": zone.mode.value if zone.mode else "person",
+                        "polygon": polygon,
+                    }
+                )
+        except Exception:
+            zones_payload = []
         camera_config = {
             "id": camera.id,
             "name": camera.name,

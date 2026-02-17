@@ -6,6 +6,13 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.56] - 2026-02-18
+
+### Düzeltmeler
+
+- **Live View (Ingress):** MJPEG response header’ları ile HA ingress buffering/sıkıştırma sorunu azaltıldı.
+- **Live View fallback:** go2rtc MJPEG başlamazsa worker frame’lerinden MJPEG yayın.
+
 ## [3.10.55] - 2026-02-18
 
 ### Düzeltmeler

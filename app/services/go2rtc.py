@@ -49,7 +49,7 @@ class Go2RTCService:
         except Exception as e:
             logger.warning(f"go2rtc not available: {e}")
             return False
-    
+
     def _restart_go2rtc(self) -> None:
         """Restart go2rtc to reload configuration."""
         try:
@@ -210,7 +210,6 @@ class Go2RTCService:
     def sync_all_cameras(self, cameras: list) -> None:
         """Sync all cameras to go2rtc."""
         can_restart = self.refresh_enabled()
-
         logger.info(f"Syncing {len(cameras)} cameras to go2rtc...")
         
         success_count = 0
