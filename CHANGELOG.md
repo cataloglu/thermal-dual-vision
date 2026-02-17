@@ -6,6 +6,12 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.61] - 2026-02-18
+
+### Düzeltmeler
+
+- **Live View:** go2rtc başarısızsa worker stream tercih edilir.
+
 ## [3.10.60] - 2026-02-18
 
 ### Düzeltmeler

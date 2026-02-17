@@ -1375,12 +1375,14 @@ async def get_live_stream(
     else:
         go2rtc_error = "disabled" if go2rtc_service else "not_configured"
 
+    worker_supported = hasattr(detector_worker, "get_latest_frame")
+
     if probe:
         rtsp_urls = _get_live_rtsp_urls(camera)
         worker_frame = _get_latest_worker_frame(camera_id)
         if use_go2rtc_mjpeg:
             source = "go2rtc"
-        elif worker_frame is not None:
+        elif worker_supported:
             source = "worker"
         elif rtsp_urls:
             source = "rtsp"
@@ -1459,43 +1461,43 @@ async def get_live_stream(
         )
 
     # Fallback: stream latest frames from detector worker (fastest)
-    first_frame = _wait_for_live_frame(camera_id, timeout=1.0)
-    if first_frame is None:
-        # Fallback: generate MJPEG from go2rtc RTSP restream (still go2rtc source)
-        stream_urls = _get_live_rtsp_urls(camera)
-        if stream_urls:
-            quality = int(getattr(getattr(config, "live", None), "mjpeg_quality", 92))
-            logger.info("Live stream fallback via RTSP for %s", camera_id)
-            return StreamingResponse(
-                _proxy_rtsp_mjpeg(stream_urls[0], quality),
-                media_type="multipart/x-mixed-replace; boundary=frame",
-                headers=stream_headers,
-            )
-        _live_stream_semaphore.release()
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "error": True,
-                "code": "LIVE_FRAME_UNAVAILABLE",
-                "message": "Live frame not available. Check go2rtc and detection stream.",
-            },
+    if worker_supported:
+        mjpeg_quality = int(getattr(config.live, "mjpeg_quality", 92))
+        fallback_fps = float(getattr(config.detection, "inference_fps", 2))
+        fallback_fps = max(1.0, min(fallback_fps, 10.0))
+
+        def fallback_stream():
+            try:
+                yield from _iter_mjpeg_from_worker(camera_id, fallback_fps, mjpeg_quality)
+            finally:
+                _live_stream_semaphore.release()
+
+        logger.warning("Live stream fallback for %s (worker frames)", camera_id)
+        return StreamingResponse(
+            fallback_stream(),
+            media_type="multipart/x-mixed-replace; boundary=frame",
+            headers=stream_headers,
         )
 
-    mjpeg_quality = int(getattr(config.live, "mjpeg_quality", 92))
-    fallback_fps = float(getattr(config.detection, "inference_fps", 2))
-    fallback_fps = max(1.0, min(fallback_fps, 10.0))
+    # Fallback: generate MJPEG from go2rtc RTSP restream (still go2rtc source)
+    stream_urls = _get_live_rtsp_urls(camera)
+    if stream_urls:
+        quality = int(getattr(getattr(config, "live", None), "mjpeg_quality", 92))
+        logger.info("Live stream fallback via RTSP for %s", camera_id)
+        return StreamingResponse(
+            _proxy_rtsp_mjpeg(stream_urls[0], quality),
+            media_type="multipart/x-mixed-replace; boundary=frame",
+            headers=stream_headers,
+        )
 
-    def fallback_stream():
-        try:
-            yield from _iter_mjpeg_from_worker(camera_id, fallback_fps, mjpeg_quality)
-        finally:
-            _live_stream_semaphore.release()
-
-    logger.warning("Live stream fallback for %s (worker frames)", camera_id)
-    return StreamingResponse(
-        fallback_stream(),
-        media_type="multipart/x-mixed-replace; boundary=frame",
-        headers=stream_headers,
+    _live_stream_semaphore.release()
+    raise HTTPException(
+        status_code=503,
+        detail={
+            "error": True,
+            "code": "LIVE_FRAME_UNAVAILABLE",
+            "message": "Live frame not available. Check go2rtc and detection stream.",
+        },
     )
 
 
