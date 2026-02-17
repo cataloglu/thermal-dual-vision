@@ -1833,6 +1833,8 @@ async def delete_camera(
     try:
         # Remove from go2rtc first
         go2rtc_service.remove_camera(camera_id)
+        # Stop continuous recording before removing DB record
+        continuous_recorder.stop_recording(camera_id)
         recording_state_service.clear_state(db, camera_id)
         
         detector_worker.stop_camera_detection(camera_id)

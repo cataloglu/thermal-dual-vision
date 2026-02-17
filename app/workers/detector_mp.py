@@ -1047,8 +1047,17 @@ class MultiprocessingDetectorWorker:
                                         if postbuffer_seconds > 0:
                                             time.sleep(postbuffer_seconds)
                                         # Attach to shared buffer WITH timestamps
-                                        shm = shared_memory.SharedMemory(name=buffer_info['name'])
-                                        shm_ts = shared_memory.SharedMemory(name=f"tdv_timestamps_{camera_id}")
+                                        try:
+                                            shm = shared_memory.SharedMemory(name=buffer_info['name'])
+                                            shm_ts = shared_memory.SharedMemory(name=f"tdv_timestamps_{camera_id}")
+                                        except FileNotFoundError:
+                                            logger.warning(
+                                                "Shared buffer missing for event %s (camera=%s). "
+                                                "Camera may have been removed; skipping media generation.",
+                                                event.id,
+                                                camera_id,
+                                            )
+                                            continue
                                         
                                         buffer_size = buffer_info['buffer_size']
                                         frame_shape = tuple(buffer_info['frame_shape'])

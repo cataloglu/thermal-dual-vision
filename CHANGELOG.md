@@ -6,6 +6,15 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.50] - 2026-02-17
+
+### Düzeltmeler
+
+- **Kamera silme:** Kayıt süreci silinen kamerada yeniden başlatılmıyor.
+- **MP medya:** Silinen kamera için paylaşılan buffer yoksa medya üretimi temiz şekilde atlanıyor.
+
+---
+
 ## [3.10.49] - 2026-02-17
 
 ### Düzeltmeler
