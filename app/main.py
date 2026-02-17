@@ -1309,7 +1309,11 @@ async def get_live_streams(request: Request, db: Session = Depends(get_session))
 
 
 @app.get("/api/live/{camera_id}.mjpeg")
-async def get_live_stream(camera_id: str, db: Session = Depends(get_session)) -> StreamingResponse:
+async def get_live_stream(
+    camera_id: str,
+    db: Session = Depends(get_session),
+    probe: bool = Query(False),
+) -> Response:
     """
     Stream live MJPEG from go2rtc with fallbacks when needed.
     """
@@ -1328,7 +1332,10 @@ async def get_live_stream(camera_id: str, db: Session = Depends(get_session)) ->
     go2rtc_mjpeg = None
     media_type = "multipart/x-mixed-replace; boundary=frame"
     use_go2rtc_mjpeg = False
-    if go2rtc_service and go2rtc_service.ensure_enabled():
+    stream_name = None
+    go2rtc_error = None
+    go2rtc_ready = bool(go2rtc_service and go2rtc_service.ensure_enabled())
+    if go2rtc_ready:
         stream_name = _resolve_go2rtc_stream_name(camera)
         if stream_name:
             go2rtc_mjpeg = f"{go2rtc_service.api_url}/api/stream.mjpeg?src={stream_name}"
@@ -1345,19 +1352,51 @@ async def get_live_stream(camera_id: str, db: Session = Depends(get_session)) ->
                                 if first_chunk:
                                     use_go2rtc_mjpeg = True
                                 else:
+                                    go2rtc_error = "empty"
                                     logger.warning("go2rtc live check returned empty for %s", camera_id)
                             except asyncio.TimeoutError:
+                                go2rtc_error = "timeout"
                                 logger.warning("go2rtc live check timed out for %s", camera_id)
                             except StopAsyncIteration:
+                                go2rtc_error = "ended"
                                 logger.warning("go2rtc live check ended early for %s", camera_id)
                         else:
+                            go2rtc_error = f"status_{check_resp.status_code}"
                             logger.warning(
                                 "go2rtc live check failed for %s (status=%s)",
                                 camera_id,
                                 check_resp.status_code,
                             )
             except Exception as e:
+                go2rtc_error = "error"
                 logger.debug("go2rtc live check for %s failed: %s", camera_id, e)
+        else:
+            go2rtc_error = "stream_missing"
+    else:
+        go2rtc_error = "disabled" if go2rtc_service else "not_configured"
+
+    if probe:
+        rtsp_urls = _get_live_rtsp_urls(camera)
+        worker_frame = _get_latest_worker_frame(camera_id)
+        if use_go2rtc_mjpeg:
+            source = "go2rtc"
+        elif worker_frame is not None:
+            source = "worker"
+        elif rtsp_urls:
+            source = "rtsp"
+        else:
+            source = None
+        return JSONResponse(
+            {
+                "ok": source is not None,
+                "source": source,
+                "go2rtc_ok": use_go2rtc_mjpeg,
+                "go2rtc_error": go2rtc_error,
+                "rtsp_available": bool(rtsp_urls),
+                "worker_frame": worker_frame is not None,
+                "stream_name": stream_name,
+            }
+        )
 
     def _acquire():
         return _live_stream_semaphore.acquire(blocking=True, timeout=3)

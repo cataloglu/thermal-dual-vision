@@ -6,6 +6,13 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.59] - 2026-02-18
+
+### Eklenenler
+
+- **Live Log:** Canlı görüntü altında debug bilgisi gösterilir.
+- **Live probe:** `/api/live/{id}.mjpeg?probe=1` ile hızlı durum sorgusu.
+
 ## [3.10.58] - 2026-02-18
 
 ### Düzeltmeler

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MdRefresh, MdError, MdCheckCircle } from 'react-icons/md'
 import { getLiveStreamUrl, resolveApiPath } from '../services/api'
@@ -15,6 +15,19 @@ interface StreamViewerProps {
   loadStream?: boolean
 }
 
+interface LiveDebugInfo {
+  ok?: boolean
+  source?: string | null
+  go2rtc_ok?: boolean
+  go2rtc_error?: string | null
+  rtsp_available?: boolean
+  worker_frame?: boolean
+  stream_name?: string | null
+  status?: number
+  error?: string
+  reason?: string
+}
+
 export function StreamViewer({
   cameraId,
   cameraName,
@@ -26,19 +39,51 @@ export function StreamViewer({
   const [error, setError] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
   const [isVisible, setIsVisible] = useState(true)
+  const [debugInfo, setDebugInfo] = useState<LiveDebugInfo | null>(null)
+  const [debugUpdatedAt, setDebugUpdatedAt] = useState('')
 
   const imgRef = useRef<HTMLImageElement>(null)
   const retryTimeoutRef = useRef<number | null>(null)
   const loadingTimeoutRef = useRef<number | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const lastDebugRef = useRef(0)
   const maxRetries = 15
   const RETRY_DELAYS = [1500, 2500, 4000, 6000, 8000, 10000, 12000, 15000, 18000, 20000]
 
   const effectiveUrl = resolveApiPath(getLiveStreamUrl(cameraId))
+  const probeUrl = `${effectiveUrl}${effectiveUrl.includes('?') ? '&' : '?'}probe=1`
+
+  const updateDebug = useCallback(
+    async (reason: string) => {
+      const now = Date.now()
+      if (now - lastDebugRef.current < 1000) return
+      lastDebugRef.current = now
+      try {
+        const res = await fetch(`${probeUrl}&t=${now}`, { cache: 'no-store' })
+        const data = await res.json().catch(() => null)
+        setDebugInfo({
+          ...(data ?? {}),
+          status: res.status,
+          reason,
+        })
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        setDebugInfo({ ok: false, error: message, reason })
+      }
+      setDebugUpdatedAt(new Date().toLocaleTimeString())
+    },
+    [probeUrl]
+  )
+
+  const formatBool = (value?: boolean) => (value ? t('liveDebugYes') : t('liveDebugNo'))
+  const formatValue = (value?: string | number | null) =>
+    value === null || value === undefined || value === '' ? '-' : String(value)
 
   useEffect(() => {
     setLoading(true)
     setError(false)
+    setDebugInfo(null)
+    setDebugUpdatedAt('')
     if (retryTimeoutRef.current) {
       window.clearTimeout(retryTimeoutRef.current)
       retryTimeoutRef.current = null
@@ -76,11 +121,12 @@ export function StreamViewer({
     setLoading(true)
     setError(false)
     setRetryCount(0)
+    updateDebug('visibility_change')
     if (retryTimeoutRef.current) {
       window.clearTimeout(retryTimeoutRef.current)
       retryTimeoutRef.current = null
     }
-  }, [isVisible, loadStream])
+  }, [isVisible, loadStream, updateDebug])
 
   useEffect(() => {
     return () => {
@@ -108,12 +154,14 @@ export function StreamViewer({
     setLoading(false)
     setError(false)
     setRetryCount(0)
+    updateDebug('load')
   }
 
   const handleError = () => {
     if (!isVisible) return
     setLoading(false)
     setError(true)
+    updateDebug('img_error')
     if (retryCount < maxRetries) {
       const delay = RETRY_DELAYS[Math.min(retryCount, RETRY_DELAYS.length - 1)]
       retryTimeoutRef.current = window.setTimeout(() => {
@@ -131,6 +179,7 @@ export function StreamViewer({
     setRetryCount(0)
     setError(false)
     setLoading(true)
+    updateDebug('manual_retry')
     if (retryTimeoutRef.current) {
       window.clearTimeout(retryTimeoutRef.current)
       retryTimeoutRef.current = null
@@ -157,7 +206,8 @@ export function StreamViewer({
   const resolvedStatus = status || 'retrying'
 
   return (
-    <div ref={containerRef} className="relative bg-surface2 rounded-lg overflow-hidden aspect-video border border-border">
+    <div className="flex flex-col gap-2">
+      <div ref={containerRef} className="relative bg-surface2 rounded-lg overflow-hidden aspect-video border border-border">
       {/* Camera Name & Status Overlay */}
       <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/60 to-transparent p-4">
         <div className="flex items-center justify-between">
@@ -228,6 +278,42 @@ export function StreamViewer({
           <span className="text-sm">{t('connected')}</span>
         </div>
       )}
+      </div>
+
+      <div className="rounded-lg border border-border bg-surface1 p-3 text-xs text-muted">
+        <div className="flex items-center justify-between">
+          <span className="text-text font-semibold">{t('liveDebugTitle')}</span>
+          <span>{debugUpdatedAt ? `${t('liveDebugUpdated')}: ${debugUpdatedAt}` : t('liveDebugEmpty')}</span>
+        </div>
+        {debugInfo && (
+          <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1">
+            <span>{t('liveDebugOk')}</span>
+            <span className={debugInfo.ok ? 'text-green-400' : 'text-red-400'}>
+              {formatBool(debugInfo.ok)}
+            </span>
+            <span>{t('liveDebugSource')}</span>
+            <span>{formatValue(debugInfo.source)}</span>
+            <span>{t('liveDebugGo2rtc')}</span>
+            <span>{formatBool(debugInfo.go2rtc_ok)}</span>
+            <span>{t('liveDebugGo2rtcError')}</span>
+            <span>{formatValue(debugInfo.go2rtc_error)}</span>
+            <span>{t('liveDebugRtsp')}</span>
+            <span>{formatBool(debugInfo.rtsp_available)}</span>
+            <span>{t('liveDebugWorker')}</span>
+            <span>{formatBool(debugInfo.worker_frame)}</span>
+            <span>{t('liveDebugReason')}</span>
+            <span>{formatValue(debugInfo.reason)}</span>
+            <span>{t('liveDebugStatus')}</span>
+            <span>{formatValue(debugInfo.status)}</span>
+            {debugInfo.error && (
+              <>
+                <span>{t('liveDebugError')}</span>
+                <span>{formatValue(debugInfo.error)}</span>
+              </>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
