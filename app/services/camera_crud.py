@@ -163,18 +163,33 @@ class CameraCRUDService:
             if not camera:
                 return None
 
+            allowed_fields = {
+                "name",
+                "type",
+                "enabled",
+                "rtsp_url",
+                "rtsp_url_color",
+                "rtsp_url_thermal",
+                "rtsp_url_detection",
+                "channel_color",
+                "channel_thermal",
+                "detection_source",
+                "stream_roles",
+                "motion_config",
+            }
             # Update fields
             for key, value in data.items():
-                if hasattr(camera, key):
-                    # Handle enum conversions
-                    if key == "type" and isinstance(value, str):
-                        value = CameraType(value)
-                    elif key == "detection_source" and isinstance(value, str):
-                        value = DetectionSource(value)
-                    elif key == "status" and isinstance(value, str):
-                        value = CameraStatus(value)
-                    
-                    setattr(camera, key, value)
+                if key not in allowed_fields or not hasattr(camera, key):
+                    continue
+                # Handle enum conversions
+                if key == "type" and isinstance(value, str):
+                    value = CameraType(value)
+                elif key == "detection_source" and isinstance(value, str):
+                    value = DetectionSource(value)
+                elif key == "status" and isinstance(value, str):
+                    value = CameraStatus(value)
+                
+                setattr(camera, key, value)
             
             db.commit()
             db.refresh(camera)

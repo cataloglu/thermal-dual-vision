@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { useSettings } from '../../hooks/useSettings';
-import { LoadingState } from '../LoadingState';
 import { useTranslation } from 'react-i18next';
 import { api } from '../../services/api';
+import type { MqttConfig } from '../../types/api';
 
 interface MqttStatus {
   enabled: boolean;
@@ -17,14 +16,20 @@ interface MqttStatus {
   last_error: string | null;
 }
 
-export function MqttTab() {
+interface MqttTabProps {
+  config: MqttConfig;
+  onChange: (config: MqttConfig) => void;
+  onSave: (nextConfig?: MqttConfig) => void;
+}
+
+export function MqttTab({ config, onChange, onSave }: MqttTabProps) {
   const MASKED_VALUE = '***REDACTED***'
-  // Fix: use saveSettings instead of updateSettings
-  const { settings, saveSettings, loading } = useSettings();
   const { t } = useTranslation();
   const [mqttStatus, setMqttStatus] = useState<MqttStatus | null>(null);
   const [statusLoading, setStatusLoading] = useState(false);
   const [cameras, setCameras] = useState<any[]>([]);
+  const [passwordDraft, setPasswordDraft] = useState('');
+  const [passwordTouched, setPasswordTouched] = useState(false);
 
   // Fetch cameras for sensor list
   useEffect(() => {
@@ -41,7 +46,7 @@ export function MqttTab() {
 
   // Fetch MQTT status
   useEffect(() => {
-    if (!settings?.mqtt.enabled) {
+    if (!config.enabled) {
       setMqttStatus(null);
       return;
     }
@@ -62,22 +67,38 @@ export function MqttTab() {
     const interval = setInterval(fetchStatus, 5000); // Refresh every 5s
 
     return () => clearInterval(interval);
-  }, [settings?.mqtt.enabled]);
+  }, [config.enabled]);
 
-  if (loading || !settings) return <LoadingState />;
+  useEffect(() => {
+    if (config.password && config.password !== MASKED_VALUE) {
+      setPasswordDraft(config.password);
+      setPasswordTouched(true);
+      return;
+    }
+    if (!passwordTouched) {
+      setPasswordDraft('');
+    }
+  }, [config.password, passwordTouched]);
 
   const handleMqttChange = (key: string, value: any) => {
-    saveSettings({
-      mqtt: {
-        ...settings.mqtt,
-        [key]: value
-      }
+    onChange({
+      ...config,
+      [key]: value,
     });
   };
 
-  const hasPassword = Boolean(settings.mqtt.password)
-  const passwordValue =
-    settings.mqtt.password === MASKED_VALUE ? '' : settings.mqtt.password || ''
+  const handlePasswordChange = (value: string) => {
+    setPasswordTouched(true);
+    setPasswordDraft(value);
+    onChange({
+      ...config,
+      password: value,
+    });
+  };
+
+  const hasPassword = Boolean(config.password)
+  const isPasswordMasked = config.password === MASKED_VALUE
+  const passwordValue = passwordTouched ? passwordDraft : (isPasswordMasked ? '' : config.password || '')
 
   return (
     <div className="space-y-6">
@@ -93,14 +114,14 @@ export function MqttTab() {
               {t('mqttEnabled')}
             </label>
             <button
-              onClick={() => handleMqttChange('enabled', !settings.mqtt.enabled)}
+              onClick={() => handleMqttChange('enabled', !config.enabled)}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                settings.mqtt.enabled ? 'bg-primary' : 'bg-muted'
+                config.enabled ? 'bg-primary' : 'bg-muted'
               }`}
             >
               <span
                 className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  settings.mqtt.enabled ? 'translate-x-6' : 'translate-x-1'
+                  config.enabled ? 'translate-x-6' : 'translate-x-1'
                 }`}
               />
             </button>
@@ -113,7 +134,7 @@ export function MqttTab() {
               </label>
               <input
                 type="text"
-                value={settings.mqtt.host}
+                value={config.host}
                 onChange={(e) => handleMqttChange('host', e.target.value)}
                 placeholder="core-mosquitto"
                 className="w-full bg-background border border-border rounded px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
@@ -129,7 +150,7 @@ export function MqttTab() {
               </label>
               <input
                 type="number"
-                value={settings.mqtt.port}
+                value={config.port}
                 onChange={(e) => handleMqttChange('port', parseInt(e.target.value))}
                 className="w-full bg-background border border-border rounded px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
               />
@@ -141,7 +162,7 @@ export function MqttTab() {
               </label>
               <input
                 type="text"
-                value={settings.mqtt.username || ''}
+                value={config.username || ''}
                 onChange={(e) => handleMqttChange('username', e.target.value)}
                 className="w-full bg-background border border-border rounded px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
               />
@@ -154,7 +175,7 @@ export function MqttTab() {
               <input
                 type="password"
                 value={passwordValue}
-                onChange={(e) => handleMqttChange('password', e.target.value)}
+                onChange={(e) => handlePasswordChange(e.target.value)}
                 placeholder={hasPassword ? '******' : ''}
                 className="w-full bg-background border border-border rounded px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
               />
@@ -166,7 +187,7 @@ export function MqttTab() {
               </label>
               <input
                 type="text"
-                value={settings.mqtt.topic_prefix}
+                value={config.topic_prefix}
                 onChange={(e) => handleMqttChange('topic_prefix', e.target.value)}
                 className="w-full bg-background border border-border rounded px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
               />
@@ -185,7 +206,7 @@ export function MqttTab() {
       </div>
 
       {/* MQTT Monitoring (NEW) */}
-      {settings.mqtt.enabled && (
+      {config.enabled && (
         <div className="bg-card p-6 rounded-lg border border-border">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-medium text-foreground">
@@ -323,6 +344,13 @@ export function MqttTab() {
           )}
         </div>
       )}
+
+      <button
+        onClick={() => onSave(config)}
+        className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-opacity-90 transition-colors"
+      >
+        {t('save')}
+      </button>
     </div>
   );
 }

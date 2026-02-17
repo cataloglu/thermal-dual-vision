@@ -340,26 +340,31 @@ def camera_detection_process(
         
         # Scrypted-style: only go2rtc. Prefer substream (detect) when set - ~5% CPU for 10 cams.
         rtsp_urls: List[str] = []
+        go2rtc_ready = False
         try:
             from app.services.go2rtc import get_go2rtc_service
             go2rtc = get_go2rtc_service()
-            if go2rtc and go2rtc.ensure_enabled():
-                # Substream for detection when rtsp_url_detection is set (low CPU)
-                if camera_config.get("rtsp_url_detection"):
-                    stream_name = f"{camera_id}_detect"
-                else:
-                    source = "thermal" if (camera_config.get("type") == "thermal" or camera_config.get("rtsp_url_thermal")) else "color"
-                    stream_name = f"{camera_id}_{source}" if source in ("thermal", "color") else camera_id
-                rtsp_base = os.getenv("GO2RTC_RTSP_URL", "rtsp://127.0.0.1:8554")
-                restream_url = f"{rtsp_base}/{stream_name}"
-                rtsp_urls.append(restream_url)
+            go2rtc_ready = bool(go2rtc and go2rtc.ensure_enabled())
         except Exception as e:
             process_logger.debug(f"go2rtc not available: {e}")
-        if not rtsp_urls:
-            process_logger.error(f"Camera {camera_id}: go2rtc required but not available. Enable go2rtc.")
-            _send_status("down")
-            time.sleep(60)
-            return
+        if not go2rtc_ready:
+            now = time.time()
+            last_log = getattr(camera_detection_process, f"_last_go2rtc_log_{camera_id}", 0.0)
+            if now - last_log >= 30.0:
+                process_logger.warning(
+                    "go2rtc not available for camera %s; will keep retrying restream URL",
+                    camera_id,
+                )
+                setattr(camera_detection_process, f"_last_go2rtc_log_{camera_id}", now)
+        # Substream for detection when rtsp_url_detection is set (low CPU)
+        if camera_config.get("rtsp_url_detection"):
+            stream_name = f"{camera_id}_detect"
+        else:
+            source = "thermal" if (camera_config.get("type") == "thermal" or camera_config.get("rtsp_url_thermal")) else "color"
+            stream_name = f"{camera_id}_{source}" if source in ("thermal", "color") else camera_id
+        rtsp_base = os.getenv("GO2RTC_RTSP_URL", "rtsp://127.0.0.1:8554")
+        restream_url = f"{rtsp_base}/{stream_name}"
+        rtsp_urls.append(restream_url)
         
         # Open camera from go2rtc only
         cam_name = camera_config.get("name", "?")
@@ -438,12 +443,42 @@ def camera_detection_process(
         event_start_time = None
         last_event_time = 0
         last_frame_time = 0
+
+        def _point_in_polygon(x: float, y: float, polygon: List[List[float]]) -> bool:
+            inside = False
+            n = len(polygon)
+            j = n - 1
+            for i in range(n):
+                xi, yi = polygon[i]
+                xj, yj = polygon[j]
+                intersects = ((yi > y) != (yj > y)) and (
+                    x < (xj - xi) * (y - yi) / ((yj - yi) or 1e-9) + xi
+                )
+                if intersects:
+                    inside = not inside
+                j = i
+            return inside
+
+        def _is_point_in_any_zone(x: float, y: float, polygons: List[List[List[float]]]) -> bool:
+            for polygon in polygons:
+                if _point_in_polygon(x, y, polygon):
+                    return True
+            return False
         
         # Get detection parameters
         detection_source = camera_config.get("detection_source") or camera_config.get("type", "thermal")
         frame_delay = 1.0 / config.detection.inference_fps
         motion_config = camera_config.get("motion_config") or {}
-        zones = camera_config.get("zones", [])
+        zones_raw = camera_config.get("zones") or []
+        zones: List[List[List[float]]] = []
+        for zone in zones_raw:
+            polygon = None
+            if isinstance(zone, dict):
+                polygon = zone.get("polygon") or zone.get("points")
+            elif isinstance(zone, list):
+                polygon = zone
+            if polygon and len(polygon) >= 3:
+                zones.append(polygon)
         
         motion_enabled = motion_config.get("enabled", True) is not False
         motion_sensitivity = int(motion_config.get("sensitivity", 7))
@@ -485,6 +520,23 @@ def camera_detection_process(
             
             if not ret or frame is None:
                 frames_failed += 1
+
+                if frames_failed % 100 == 0:
+                    process_logger.warning(
+                        "Camera %s (%s) read failures=%d; reconnecting",
+                        cam_name,
+                        camera_id[:8],
+                        frames_failed,
+                    )
+                    try:
+                        cap.release()
+                    except Exception:
+                        pass
+                    cap = _open_capture()
+                    if cap and cap.isOpened():
+                        _send_status("connected")
+                        frames_failed = 0
+                        continue
                 
                 # Aggressive exponential backoff for failed reads (prevent CPU waste!)
                 if frames_failed > 500:
@@ -606,23 +658,13 @@ def camera_detection_process(
             
             # Filter by zones (if configured)
             if zones:
+                height, width = frame.shape[:2]
                 filtered = []
                 for det in detections:
                     x1, y1, x2, y2 = det["bbox"]
-                    cx = (x1 + x2) / 2
-                    cy = (y1 + y2) / 2
-                    
-                    # Check if center point is in any zone
-                    in_zone = False
-                    for zone in zones:
-                        points = zone.get("points", [])
-                        if len(points) >= 3:
-                            # Simple point-in-polygon check
-                            if inference_service.check_point_in_polygon((cx, cy), points):
-                                in_zone = True
-                                break
-                    
-                    if in_zone:
+                    cx = (x1 + x2) / 2.0 / max(width, 1)
+                    cy = (y1 + y2) / 2.0 / max(height, 1)
+                    if _is_point_in_any_zone(cx, cy, zones):
                         filtered.append(det)
                 
                 detections = filtered
@@ -926,6 +968,22 @@ class MultiprocessingDetectorWorker:
             logger.warning(f"Failed to create frame buffer for {camera.id}: {e}")
             frame_buffer_name = None
         
+        zones_payload = []
+        try:
+            for zone in (camera.zones or []):
+                if (
+                    zone.enabled
+                    and zone.mode
+                    and zone.mode.value in ("person", "both")
+                    and zone.polygon
+                ):
+                    zones_payload.append({
+                        "mode": zone.mode.value,
+                        "polygon": zone.polygon,
+                    })
+        except Exception as e:
+            logger.warning("Failed to load zones for camera %s: %s", camera.id, e)
+        
         # Create camera config dict (JSON-serializable)
         camera_config = {
             "id": camera.id,
@@ -940,6 +998,7 @@ class MultiprocessingDetectorWorker:
             "detection_source": camera.detection_source.value if camera.detection_source else None,
             "stream_roles": camera.stream_roles,
             "motion_config": camera.motion_config,
+            "zones": zones_payload,
         }
         
         # Create process

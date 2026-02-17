@@ -6,6 +6,26 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.53] - 2026-02-17
+
+### Eklenenler
+
+- **CI:** GitHub Actions ile backend test + UI lint.
+- **Medya sırası kontrolü:** Eşzamanlı medya üretimi sınırlandı (queue logları).
+
+### Değişenler
+
+- **MQTT ayarları:** Auto-save kaldırıldı, tek state + manuel kaydet akışı.
+- **Tema tokenları:** UI token eşlemesi (bg-card/foreground/primary vb.).
+
+### Düzeltmeler
+
+- **MP zone filtresi:** Polygon check hatası giderildi.
+- **go2rtc retry:** Threading + MP modda go2rtc yoksa sürekli retry + uyarı.
+- **Kamera update:** Whitelist ile güvenli update.
+- **Events bulk seçimi:** Filtre/sayfa değişince seçim temizlenir.
+- **EventDetail:** localStorage parse güvenliği.
+
 ## [3.10.52] - 2026-02-17
 
 ### Eklenenler

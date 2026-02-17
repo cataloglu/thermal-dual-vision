@@ -89,6 +89,10 @@ export function Events() {
   }, [debouncedCameraFilter, debouncedDateFilter, debouncedConfidenceFilter, showRejected, resetPage])
 
   useEffect(() => {
+    setSelectedIds(new Set())
+  }, [debouncedCameraFilter, debouncedDateFilter, debouncedConfidenceFilter, showRejected, page, pageSize])
+
+  useEffect(() => {
     const saved = localStorage.getItem('events_filters_open')
     if (saved) {
       setShowFilters(saved === 'true')

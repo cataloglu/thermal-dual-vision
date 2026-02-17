@@ -1315,12 +1315,32 @@ class DetectorWorker:
         camera_id: str,
         source: Optional[str] = None,
     ) -> Optional[str]:
-        if not self.go2rtc_service or not self.go2rtc_service.ensure_enabled():
-            return None
         rtsp_base = os.getenv("GO2RTC_RTSP_URL", "rtsp://127.0.0.1:8554")
         normalized_source = source if source in ("color", "thermal", "detect") else None
         stream_name = f"{camera_id}_{normalized_source}" if normalized_source else camera_id
-        return f"{rtsp_base}/{stream_name}"
+        restream_url = f"{rtsp_base}/{stream_name}"
+        if self.go2rtc_service and self.go2rtc_service.ensure_enabled():
+            return restream_url
+        self._log_go2rtc_unavailable(camera_id)
+        return restream_url
+
+    def _log_go2rtc_unavailable(self, camera_id: str, interval: float = 30.0) -> None:
+        now = time.time()
+        with self.stream_stats_lock:
+            stats = self.stream_stats.get(camera_id)
+            if not stats:
+                self._init_stream_stats(camera_id)
+                stats = self.stream_stats.get(camera_id)
+            if not stats:
+                return
+            last_log = stats.get("last_go2rtc_log", 0.0)
+            if now - last_log < interval:
+                return
+            stats["last_go2rtc_log"] = now
+        logger.warning(
+            "go2rtc not available for camera %s; will keep retrying restream URL",
+            camera_id,
+        )
 
     def _get_adaptive_clahe_clip(self, frame: np.ndarray, config) -> float:
         if len(frame.shape) == 3:
@@ -1346,6 +1366,7 @@ class DetectorWorker:
                 "last_error": None,
                 "last_reconnect_reason": None,
                 "last_frame_time": 0.0,
+                "last_go2rtc_log": 0.0,
             }
 
     def _update_stream_stats(
