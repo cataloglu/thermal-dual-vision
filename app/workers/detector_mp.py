@@ -57,6 +57,34 @@ def _is_ai_confirmed(summary) -> bool:
     return any(marker in text for marker in positive_markers)
 
 
+def _point_in_polygon(x: float, y: float, polygon: List[List[float]]) -> bool:
+    inside = False
+    n = len(polygon)
+    if n < 3:
+        return False
+    j = n - 1
+    for i in range(n):
+        xi, yi = polygon[i]
+        xj, yj = polygon[j]
+        intersects = ((yi > y) != (yj > y)) and (
+            x < (xj - xi) * (y - yi) / ((yj - yi) or 1e-9) + xi
+        )
+        if intersects:
+            inside = not inside
+        j = i
+    return inside
+
+
+def _is_point_in_any_zone(x: float, y: float, zones: List[Dict]) -> bool:
+    for zone in zones:
+        polygon = zone.get("polygon", [])
+        if len(polygon) < 3:
+            continue
+        if _point_in_polygon(x, y, polygon):
+            return True
+    return False
+
+
 class SharedFrameBuffer:
     """
     Shared memory circular buffer for frame storage WITH TIMESTAMPS.
@@ -400,10 +428,28 @@ def camera_detection_process(
         # Get detection parameters
         detection_source = camera_config.get("detection_source") or camera_config.get("type", "thermal")
         frame_delay = 1.0 / config.detection.inference_fps
-        motion_config = camera_config.get("motion_config", {})
+        motion_config = camera_config.get("motion_config") or {}
         zones = camera_config.get("zones", [])
+        motion_enabled = motion_config.get("enabled", True) is not False
+        motion_sensitivity = int(motion_config.get("sensitivity", 7))
+        motion_min_area = int(motion_config.get("min_area", motion_config.get("threshold", 500)))
+        motion_cooldown = int(motion_config.get("cooldown_seconds", motion_config.get("cooldown", 0) or 0))
+        motion_log_interval = 30.0
+        last_motion_log = 0.0
+        last_motion_state = None
+        last_motion_time = 0.0
+        gate_log_interval = 30.0
+        last_gate_log = 0.0
         
         process_logger.info(f"Detection parameters [{cam_name}]: source={detection_source}, fps={config.detection.inference_fps}, zones={len(zones)}")
+        process_logger.info(
+            "Motion filter [%s]: enabled=%s, sensitivity=%d, min_area=%d, cooldown=%ds",
+            cam_name,
+            motion_enabled,
+            motion_sensitivity,
+            motion_min_area,
+            motion_cooldown,
+        )
         
         frames_failed = 0
         
@@ -443,6 +489,12 @@ def camera_detection_process(
             frames_failed = 0  # Reset on successful read
             
             last_frame_time = current_time
+
+            def _log_gate(reason: str) -> None:
+                nonlocal last_gate_log
+                if current_time - last_gate_log >= gate_log_interval:
+                    process_logger.debug("EVENT_GATE [%s]: %s", cam_name, reason)
+                    last_gate_log = current_time
             
             # Resize large frames immediately (optimization)
             if frame.shape[1] > 1280:
@@ -484,12 +536,45 @@ def camera_detection_process(
                     process_logger.debug(f"Frame buffer write error: {e}")
             
             # Motion detection (pre-filter)
-            motion_active, fg_mask = motion_service.detect_motion(
-                camera_id=camera_id,
-                frame=frame,
-                min_area=motion_config.get("min_area", 500),
-                sensitivity=motion_config.get("sensitivity", 7)
-            )
+            motion_active = True
+            motion_area = 0
+            motion_min_area_eff = 0
+            if motion_enabled:
+                motion_detected, _, motion_area, motion_min_area_eff = motion_service.detect_motion(
+                    camera_id=camera_id,
+                    frame=frame,
+                    min_area=motion_min_area,
+                    sensitivity=motion_sensitivity,
+                )
+                if motion_detected:
+                    last_motion_time = current_time
+                    motion_active = True
+                elif motion_cooldown and last_motion_time and (current_time - last_motion_time) < motion_cooldown:
+                    motion_active = True
+                else:
+                    motion_active = False
+
+                if last_motion_state is None or motion_active != last_motion_state:
+                    process_logger.info(
+                        "Motion filter [%s]: %s (area=%d, min=%d, sensitivity=%d)",
+                        cam_name,
+                        "active" if motion_active else "idle",
+                        motion_area,
+                        motion_min_area_eff,
+                        motion_sensitivity,
+                    )
+                    last_motion_state = motion_active
+                    last_motion_log = current_time
+                elif current_time - last_motion_log >= motion_log_interval:
+                    process_logger.debug(
+                        "Motion filter [%s]: %s (area=%d, min=%d, sensitivity=%d)",
+                        cam_name,
+                        "active" if motion_active else "idle",
+                        motion_area,
+                        motion_min_area_eff,
+                        motion_sensitivity,
+                    )
+                    last_motion_log = current_time
             
             if not motion_active:
                 continue
@@ -527,26 +612,18 @@ def camera_detection_process(
             
             # Filter by zones (if configured)
             if zones:
-                filtered = []
-                for det in detections:
-                    x1, y1, x2, y2 = det["bbox"]
-                    cx = (x1 + x2) / 2
-                    cy = (y1 + y2) / 2
+                height, width = frame.shape[:2]
+                if width > 0 and height > 0:
+                    filtered = []
+                    for det in detections:
+                        x1, y1, x2, y2 = det["bbox"]
+                        cx = (x1 + x2) / 2.0 / width
+                        cy = (y1 + y2) / 2.0 / height
+                        
+                        if _is_point_in_any_zone(cx, cy, zones):
+                            filtered.append(det)
                     
-                    # Check if center point is in any zone
-                    in_zone = False
-                    for zone in zones:
-                        points = zone.get("points", [])
-                        if len(points) >= 3:
-                            # Simple point-in-polygon check
-                            if inference_service.check_point_in_polygon((cx, cy), points):
-                                in_zone = True
-                                break
-                    
-                    if in_zone:
-                        filtered.append(det)
-                
-                detections = filtered
+                    detections = filtered
             
             # Update detection history
             detection_history.append(detections)
@@ -554,6 +631,7 @@ def camera_detection_process(
             # Check if person detected
             if len(detections) == 0:
                 event_start_time = None
+                _log_gate("no_detections")
                 continue
             
             # Check temporal consistency
@@ -566,18 +644,26 @@ def camera_detection_process(
             
             if not temporal_pass:
                 event_start_time = None
+                _log_gate("temporal_consistency_failed")
                 continue
             
             # Enforce minimum event duration
             if event_start_time is None:
                 event_start_time = current_time
+                _log_gate("event_started_waiting_min_duration")
                 continue
             
             if current_time - event_start_time < config.event.min_event_duration:
+                _log_gate(
+                    f"min_duration_wait elapsed={current_time - event_start_time:.1f}s required={config.event.min_event_duration:.1f}s"
+                )
                 continue
             
             # Check event cooldown
             if current_time - last_event_time < config.event.cooldown_seconds:
+                _log_gate(
+                    f"cooldown_active remaining={config.event.cooldown_seconds - (current_time - last_event_time):.1f}s"
+                )
                 continue
             
             # Send event to main process
@@ -801,6 +887,24 @@ class MultiprocessingDetectorWorker:
             frame_buffer_name = None
         
         # Create camera config dict (JSON-serializable)
+        zones_payload: List[Dict] = []
+        try:
+            for zone in camera.zones or []:
+                if not zone.enabled:
+                    continue
+                if zone.mode and zone.mode.value not in ("person", "both"):
+                    continue
+                polygon = zone.polygon or []
+                if len(polygon) < 3:
+                    continue
+                zones_payload.append(
+                    {
+                        "mode": zone.mode.value if zone.mode else "person",
+                        "polygon": polygon,
+                    }
+                )
+        except Exception:
+            zones_payload = []
         camera_config = {
             "id": camera.id,
             "name": camera.name,
@@ -814,6 +918,7 @@ class MultiprocessingDetectorWorker:
             "detection_source": camera.detection_source.value if camera.detection_source else None,
             "stream_roles": camera.stream_roles,
             "motion_config": camera.motion_config,
+            "zones": zones_payload,
         }
         
         # Create process

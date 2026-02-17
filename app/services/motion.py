@@ -71,7 +71,7 @@ class MotionDetectionService:
         frame: np.ndarray,
         min_area: int = 500,
         sensitivity: int = 7
-    ) -> Tuple[bool, Optional[np.ndarray]]:
+    ) -> Tuple[bool, Optional[np.ndarray], int, int]:
         """
         Detect motion using background subtraction.
         
@@ -91,7 +91,7 @@ class MotionDetectionService:
             sensitivity: Motion sensitivity (1-10, higher = more sensitive)
             
         Returns:
-            Tuple of (motion_detected, foreground_mask)
+            Tuple of (motion_detected, foreground_mask, motion_area, adjusted_min_area)
         """
         try:
             # 1. Downscale for performance (320px = düşük CPU, motion sadece ön filtre)
@@ -140,11 +140,11 @@ class MotionDetectionService:
             adjusted_min_area = max(1, int(min_area * (11 - sensitivity) / 7.0))
             motion_detected = motion_area >= adjusted_min_area
             
-            return motion_detected, fg_mask
+            return motion_detected, fg_mask, motion_area, adjusted_min_area
             
         except Exception as e:
             logger.error(f"Motion detection failed for camera {camera_id}: {e}")
-            return True, None  # Fail-safe: allow YOLO to run
+            return True, None, 0, 0  # Fail-safe: allow YOLO to run
     
     def analyze_motion_quality(
         self,

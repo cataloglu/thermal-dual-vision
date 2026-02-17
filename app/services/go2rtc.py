@@ -4,6 +4,7 @@ Manages camera streams in go2rtc configuration.
 """
 import os
 import logging
+import time
 from pathlib import Path
 from typing import Optional, Dict, Any
 import yaml
@@ -21,6 +22,7 @@ class Go2RTCService:
         # Use 127.0.0.1 instead of localhost for HA addon compatibility
         self.api_url = os.getenv("GO2RTC_URL", "http://127.0.0.1:1984")
         self.enabled = self._check_availability()
+        self._last_check = 0.0
         logger.info(f"go2rtc service initialized - URL: {self.api_url}, enabled: {self.enabled}")
     
     def _check_availability(self) -> bool:
@@ -31,6 +33,15 @@ class Go2RTCService:
         except Exception as e:
             logger.warning(f"go2rtc not available: {e}")
             return False
+
+    def ensure_enabled(self, interval: float = 10.0) -> bool:
+        """Refresh go2rtc availability with a throttle interval."""
+        now = time.time()
+        if now - self._last_check < interval:
+            return self.enabled
+        self._last_check = now
+        self.enabled = self._check_availability()
+        return self.enabled
     
     def _restart_go2rtc(self) -> None:
         """Restart go2rtc to reload configuration."""
@@ -118,7 +129,7 @@ class Go2RTCService:
         default_url: Optional[str] = None,
     ) -> bool:
         """Upsert camera streams in go2rtc config."""
-        if not self.enabled:
+        if not self.ensure_enabled():
             logger.debug("go2rtc not enabled, skipping camera update")
             return False
 
@@ -180,7 +191,7 @@ class Go2RTCService:
 
     def remove_camera(self, camera_id: str) -> bool:
         """Remove camera from go2rtc streams."""
-        if not self.enabled:
+        if not self.ensure_enabled():
             logger.debug("go2rtc not enabled, skipping camera remove")
             return False
 
@@ -198,7 +209,7 @@ class Go2RTCService:
             
     def sync_all_cameras(self, cameras: list) -> None:
         """Sync all cameras to go2rtc."""
-        if not self.enabled:
+        if not self.ensure_enabled():
             logger.info("go2rtc disabled, skipping camera sync")
             return
         

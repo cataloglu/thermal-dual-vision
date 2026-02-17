@@ -282,7 +282,7 @@ def _resolve_default_stream_source(camera) -> Optional[str]:
 
 
 def _get_go2rtc_restream_url(camera_id: str, source: Optional[str] = None) -> Optional[str]:
-    if not go2rtc_service or not go2rtc_service.enabled:
+    if not go2rtc_service or not go2rtc_service.ensure_enabled():
         return None
     rtsp_base = os.getenv("GO2RTC_RTSP_URL", "rtsp://127.0.0.1:8554")
     normalized_source = source if source in ("color", "thermal") else None
@@ -300,6 +300,49 @@ def _get_live_rtsp_urls(camera) -> List[str]:
     """Scrypted-style: only go2rtc. Ya var ya yok."""
     restream = _get_go2rtc_restream_url(camera.id, source=_resolve_default_stream_source(camera))
     return [restream] if restream else []
+
+
+def _get_latest_worker_frame(camera_id: str) -> Optional[np.ndarray]:
+    try:
+        if hasattr(detector_worker, "get_latest_frame"):
+            return detector_worker.get_latest_frame(camera_id)
+    except Exception as e:
+        logger.debug("Live frame fetch failed for %s: %s", camera_id, e)
+    return None
+
+
+def _wait_for_live_frame(camera_id: str, timeout: float = 3.0) -> Optional[np.ndarray]:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        frame = _get_latest_worker_frame(camera_id)
+        if frame is not None:
+            return frame
+        time.sleep(0.1)
+    return None
+
+
+def _iter_mjpeg_from_worker(camera_id: str, fps: float, quality: int):
+    boundary = b"--frame\r\n"
+    delay = 1.0 / max(fps, 1.0)
+    while True:
+        frame = _get_latest_worker_frame(camera_id)
+        if frame is None:
+            time.sleep(0.2)
+            continue
+        ok, buffer = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), quality])
+        if not ok:
+            time.sleep(0.2)
+            continue
+        jpg = buffer.tobytes()
+        yield (
+            boundary
+            + b"Content-Type: image/jpeg\r\n"
+            + f"Content-Length: {len(jpg)}\r\n\r\n".encode("ascii")
+            + jpg
+            + b"\r\n"
+        )
+        if delay > 0:
+            time.sleep(delay)
 
 
 def _resolve_go2rtc_stream_name(camera) -> Optional[str]:
@@ -1275,52 +1318,27 @@ async def get_live_stream(camera_id: str, db: Session = Depends(get_session)) ->
             }
         )
 
-    if not go2rtc_service or not go2rtc_service.enabled:
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "error": True,
-                "code": "GO2RTC_REQUIRED",
-                "message": "Live stream requires go2rtc. Enable go2rtc in settings.",
-            },
-        )
-
-    stream_name = _resolve_go2rtc_stream_name(camera)
-    if not stream_name:
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "error": True,
-                "code": "GO2RTC_STREAM_MISSING",
-                "message": "Camera has no go2rtc stream. Check camera configuration and go2rtc.",
-            },
-        )
-
-    go2rtc_mjpeg = f"{go2rtc_service.api_url}/api/stream.mjpeg?src={stream_name}"
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            async with client.stream("GET", go2rtc_mjpeg) as check_resp:
-                if check_resp.status_code != 200:
-                    raise HTTPException(
-                        status_code=503,
-                        detail={
-                            "error": True,
-                            "code": "GO2RTC_UNAVAILABLE",
-                            "message": "go2rtc stream unavailable. Ensure go2rtc is running and camera is connected.",
-                        },
-                    )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.debug("go2rtc live check for %s failed: %s", camera_id, e)
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "error": True,
-                "code": "GO2RTC_UNAVAILABLE",
-                "message": "go2rtc stream unavailable. Ensure go2rtc is running and camera is connected.",
-            },
-        )
+    config = settings_service.load_config()
+    go2rtc_ok = False
+    stream_name = None
+    go2rtc_mjpeg = None
+    if go2rtc_service and go2rtc_service.ensure_enabled():
+        stream_name = _resolve_go2rtc_stream_name(camera)
+        if stream_name:
+            go2rtc_mjpeg = f"{go2rtc_service.api_url}/api/stream.mjpeg?src={stream_name}"
+            try:
+                async with httpx.AsyncClient(timeout=5.0) as client:
+                    async with client.stream("GET", go2rtc_mjpeg) as check_resp:
+                        if check_resp.status_code == 200:
+                            go2rtc_ok = True
+                        else:
+                            logger.warning(
+                                "go2rtc live check failed for %s (status=%s)",
+                                camera_id,
+                                check_resp.status_code,
+                            )
+            except Exception as e:
+                logger.debug("go2rtc live check for %s failed: %s", camera_id, e)
 
     def _acquire():
         return _live_stream_semaphore.acquire(blocking=True, timeout=3)
@@ -1335,19 +1353,58 @@ async def get_live_stream(camera_id: str, db: Session = Depends(get_session)) ->
             },
         )
 
-    async def proxy_go2rtc():
+    stream_headers = {
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Pragma": "no-cache",
+        "X-Accel-Buffering": "no",
+        "Content-Encoding": "identity",
+    }
+
+    if go2rtc_ok and go2rtc_mjpeg:
+        async def proxy_go2rtc():
+            try:
+                async with httpx.AsyncClient(timeout=60.0) as c2:
+                    async with c2.stream("GET", go2rtc_mjpeg) as r:
+                        async for chunk in r.aiter_bytes():
+                            yield chunk
+            finally:
+                _live_stream_semaphore.release()
+
+        logger.info("Live stream from go2rtc for %s", camera_id)
+        return StreamingResponse(
+            proxy_go2rtc(),
+            media_type="multipart/x-mixed-replace; boundary=frame",
+            headers=stream_headers,
+        )
+
+    # Fallback: stream latest frames from detector worker
+    first_frame = _wait_for_live_frame(camera_id, timeout=3.0)
+    if first_frame is None:
+        _live_stream_semaphore.release()
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": True,
+                "code": "LIVE_FRAME_UNAVAILABLE",
+                "message": "Live frame not available. Check go2rtc and detection stream.",
+            },
+        )
+
+    mjpeg_quality = int(getattr(config.live, "mjpeg_quality", 92))
+    fallback_fps = float(getattr(config.detection, "inference_fps", 2))
+    fallback_fps = max(1.0, min(fallback_fps, 10.0))
+
+    def fallback_stream():
         try:
-            async with httpx.AsyncClient(timeout=60.0) as c2:
-                async with c2.stream("GET", go2rtc_mjpeg) as r:
-                    async for chunk in r.aiter_bytes():
-                        yield chunk
+            yield from _iter_mjpeg_from_worker(camera_id, fallback_fps, mjpeg_quality)
         finally:
             _live_stream_semaphore.release()
 
-    logger.info("Live stream from go2rtc for %s", camera_id)
+    logger.warning("Live stream fallback for %s (worker frames)", camera_id)
     return StreamingResponse(
-        proxy_go2rtc(),
+        fallback_stream(),
         media_type="multipart/x-mixed-replace; boundary=frame",
+        headers=stream_headers,
     )
 
 
