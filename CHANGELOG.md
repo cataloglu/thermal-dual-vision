@@ -6,6 +6,12 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.66] - 2026-02-18
+
+### Düzeltmeler
+
+- **Live View:** Uzayan yüklemede snapshot fallback devreye girer.
+
 ## [3.10.65] - 2026-02-18
 
 ### Düzeltmeler

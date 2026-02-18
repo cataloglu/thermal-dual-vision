@@ -47,10 +47,12 @@ export function StreamViewer({
   const imgRef = useRef<HTMLImageElement>(null)
   const retryTimeoutRef = useRef<number | null>(null)
   const loadingTimeoutRef = useRef<number | null>(null)
+  const stallTimeoutRef = useRef<number | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const lastDebugRef = useRef(0)
   const maxRetries = 15
   const RETRY_DELAYS = [1500, 2500, 4000, 6000, 8000, 10000, 12000, 15000, 18000, 20000]
+  const STALL_SNAPSHOT_MS = 5000
 
   const effectiveUrl = resolveApiPath(getLiveStreamUrl(cameraId))
   const snapshotUrl = resolveApiPath(getLiveSnapshotUrl(cameraId))
@@ -97,6 +99,10 @@ export function StreamViewer({
       window.clearTimeout(loadingTimeoutRef.current)
       loadingTimeoutRef.current = null
     }
+    if (stallTimeoutRef.current) {
+      window.clearTimeout(stallTimeoutRef.current)
+      stallTimeoutRef.current = null
+    }
   }, [cameraId])
 
   useEffect(() => {
@@ -131,6 +137,19 @@ export function StreamViewer({
       window.clearTimeout(retryTimeoutRef.current)
       retryTimeoutRef.current = null
     }
+    if (stallTimeoutRef.current) {
+      window.clearTimeout(stallTimeoutRef.current)
+    }
+    stallTimeoutRef.current = window.setTimeout(() => {
+      if (!snapshotMode && imgRef.current) {
+        setSnapshotMode(true)
+        setError(false)
+        setRetryCount(0)
+        setLoading(true)
+        updateDebug('stall_snapshot')
+        imgRef.current.src = `${snapshotUrl}?t=${Date.now()}`
+      }
+    }, STALL_SNAPSHOT_MS)
   }, [isVisible, loadStream, updateDebug])
 
   useEffect(() => {
@@ -148,6 +167,9 @@ export function StreamViewer({
       }
       if (loadingTimeoutRef.current) {
         window.clearTimeout(loadingTimeoutRef.current)
+      }
+      if (stallTimeoutRef.current) {
+        window.clearTimeout(stallTimeoutRef.current)
       }
     }
   }, [])
@@ -167,6 +189,10 @@ export function StreamViewer({
     setLoading(false)
     setError(false)
     setRetryCount(0)
+    if (stallTimeoutRef.current) {
+      window.clearTimeout(stallTimeoutRef.current)
+      stallTimeoutRef.current = null
+    }
     updateDebug('load')
   }
 
@@ -203,6 +229,19 @@ export function StreamViewer({
     setError(false)
     setLoading(true)
     setSnapshotMode(false)
+    if (stallTimeoutRef.current) {
+      window.clearTimeout(stallTimeoutRef.current)
+    }
+    stallTimeoutRef.current = window.setTimeout(() => {
+      if (!snapshotMode && imgRef.current) {
+        setSnapshotMode(true)
+        setError(false)
+        setRetryCount(0)
+        setLoading(true)
+        updateDebug('stall_snapshot')
+        imgRef.current.src = `${snapshotUrl}?t=${Date.now()}`
+      }
+    }, STALL_SNAPSHOT_MS)
     updateDebug('manual_retry')
     if (retryTimeoutRef.current) {
       window.clearTimeout(retryTimeoutRef.current)
