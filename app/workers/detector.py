@@ -1446,9 +1446,27 @@ class DetectorWorker:
         return any(marker in text for marker in positive_markers)
 
     def _is_motion_active(self, camera: Camera, frame: np.ndarray, config) -> bool:
-        motion_settings = dict(config.motion.model_dump())
-        if camera.motion_config:
-            motion_settings.update(camera.motion_config)
+        base_motion = config.motion.model_dump()
+        camera_motion = camera.motion_config or {}
+        use_global_motion = camera_motion.get("use_global") is True
+
+        def _is_legacy_motion_defaults(cfg: dict) -> bool:
+            try:
+                sensitivity = int(cfg.get("sensitivity", 7))
+                min_area = int(cfg.get("min_area", cfg.get("threshold", 500)))
+                cooldown = int(cfg.get("cooldown_seconds", cfg.get("cooldown", 5)))
+            except Exception:
+                return False
+            return sensitivity == 7 and min_area == 500 and cooldown == 5
+
+        if use_global_motion or _is_legacy_motion_defaults(camera_motion):
+            motion_settings = dict(base_motion)
+            if "enabled" in camera_motion:
+                motion_settings["enabled"] = camera_motion["enabled"]
+            if "roi" in camera_motion:
+                motion_settings["roi"] = camera_motion["roi"]
+        else:
+            motion_settings = {**base_motion, **camera_motion}
 
         if motion_settings.get("enabled", True) is False:
             return True

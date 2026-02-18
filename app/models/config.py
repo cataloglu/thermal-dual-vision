@@ -13,7 +13,7 @@ class DetectionConfig(BaseModel):
     """YOLOv8 person detection configuration."""
     
     model: Literal["yolov8n-person", "yolov8s-person", "yolov9t", "yolov9s"] = Field(
-        default="yolov8n-person",
+        default="yolov8s-person",
         description="Primary model selection: yolov8n (fast), yolov8s (accurate), yolov9t (thermal), yolov9s (best)"
     )
     confidence_threshold: float = Field(
@@ -35,11 +35,11 @@ class DetectionConfig(BaseModel):
         description="Non-Maximum Suppression IoU threshold"
     )
     inference_resolution: List[int] = Field(
-        default=[416, 416],
+        default=[640, 640],
         description="Inference resolution [width, height]. Lower = less CPU (416 = düşük CPU)."
     )
     inference_fps: int = Field(
-        default=2,
+        default=5,
         ge=1,
         le=30,
         description="Frames per second for inference (1–2 = acil düşük CPU, 3+ = daha akıcı)"
@@ -113,32 +113,32 @@ class MotionConfig(BaseModel):
         description="Algorithm: frame_diff (simple), mog2/knn (stable, fewer false alarms from shadows)"
     )
     sensitivity: int = Field(
-        default=7,
+        default=8,
         ge=1,
         le=10,
         description="Motion sensitivity (1-10 scale)"
     )
     min_area: int = Field(
-        default=500,
+        default=450,
         ge=0,
         description="Minimum pixel area for motion"
     )
     cooldown_seconds: int = Field(
-        default=5,
+        default=6,
         ge=0,
         description="Minimum time between motion detections"
     )
     presets: dict[str, MotionPreset] = Field(
         default_factory=lambda: {
             "thermal_recommended": MotionPreset(
-                sensitivity=8,
-                min_area=450,
-                cooldown_seconds=4
+                sensitivity=9,
+                min_area=350,
+                cooldown_seconds=6
             ),
             "color_recommended": MotionPreset(
-                sensitivity=7,
-                min_area=500,
-                cooldown_seconds=5
+                sensitivity=8,
+                min_area=400,
+                cooldown_seconds=6
             ),
         },
         description="Predefined motion presets"
@@ -272,7 +272,7 @@ class EventConfig(BaseModel):
     """Event generation configuration."""
     
     cooldown_seconds: int = Field(
-        default=60,
+        default=7,
         ge=0,
         description="Minimum time between events (higher = fewer rapid false alarms)"
     )

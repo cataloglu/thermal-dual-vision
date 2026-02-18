@@ -80,11 +80,7 @@ class CameraCRUDService:
                 status=CameraStatus.INITIALIZING,
                 motion_config=motion_config or {
                     "enabled": True,
-                    "sensitivity": 7,
-                    "threshold": 500,
-                    "cooldown": 5,
-                    "min_area": 500,
-                    "cooldown_seconds": 5,
+                    "use_global": True,
                     "roi": ""
                 }
             )

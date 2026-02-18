@@ -269,11 +269,48 @@ class SettingsService:
             if detection.get("thermal_confidence_threshold") in (0.25, 0.45):
                 detection["thermal_confidence_threshold"] = 0.35  # Thermal needs lower threshold
             result["detection"] = detection
-        # Migrate event: cooldown default 60sn (was 7)
+        # Migrate motion defaults: align with tuned prefilter values
+        motion = result.get("motion")
+        if isinstance(motion, dict):
+            try:
+                sensitivity = int(motion.get("sensitivity", 0))
+                min_area = int(motion.get("min_area", 0))
+                cooldown = int(motion.get("cooldown_seconds", 0))
+            except Exception:
+                sensitivity = min_area = cooldown = None
+            if sensitivity == 7 and min_area == 500 and cooldown == 5:
+                motion["sensitivity"] = 8
+                motion["min_area"] = 450
+                motion["cooldown_seconds"] = 6
+            presets = motion.get("presets")
+            if isinstance(presets, dict):
+                thermal = presets.get("thermal_recommended")
+                if isinstance(thermal, dict):
+                    try:
+                        t_sens = int(thermal.get("sensitivity", 0))
+                        t_area = int(thermal.get("min_area", 0))
+                        t_cd = int(thermal.get("cooldown_seconds", 0))
+                    except Exception:
+                        t_sens = t_area = t_cd = None
+                    if t_sens == 8 and t_area == 450 and t_cd == 4:
+                        thermal.update({"sensitivity": 9, "min_area": 350, "cooldown_seconds": 6})
+                color = presets.get("color_recommended")
+                if isinstance(color, dict):
+                    try:
+                        c_sens = int(color.get("sensitivity", 0))
+                        c_area = int(color.get("min_area", 0))
+                        c_cd = int(color.get("cooldown_seconds", 0))
+                    except Exception:
+                        c_sens = c_area = c_cd = None
+                    if c_sens == 7 and c_area == 500 and c_cd == 5:
+                        color.update({"sensitivity": 8, "min_area": 400, "cooldown_seconds": 6})
+            result["motion"] = motion
+        # Migrate event: ensure cooldown_seconds exists (do not override user value)
         event = result.get("event")
         if isinstance(event, dict):
-            if event.get("cooldown_seconds") in (5, 7, 10):
-                event["cooldown_seconds"] = 60
+            if event.get("cooldown_seconds") is None:
+                legacy_cooldown = event.get("cooldown")
+                event["cooldown_seconds"] = legacy_cooldown if legacy_cooldown is not None else 7
             if event.get("min_event_duration") in (1.0, 1.2, 1.5):
                 event["min_event_duration"] = 1.0
             # prebuffer < 5 caused ~3 sec event videos (too few frames)

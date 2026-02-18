@@ -6,6 +6,15 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.67] - 2026-02-18
+
+### Düzeltmeler
+
+- **Telegram video:** `.legacy` MP4'ler artık engellenmez; gönderimde hata olursa `send_document` fallback + log eklendi.
+- **Motion presetleri:** Eco/Balanced/Frigate/Quality ayarları güncellendi; varsayılan artık Balanced.
+- **Motion global ayar:** Kamera custom yoksa global motion ayarı uygulanır (eski default override engellendi).
+- **MP reconnect:** Multiprocessing modunda read failure sonrası go2rtc stream yeniden açılır.
+
 ## [3.10.56] - 2026-02-18
 
 ### Düzeltmeler

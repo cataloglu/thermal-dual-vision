@@ -389,30 +389,42 @@ def camera_detection_process(
         )
         
         codec_fallbacks = [None, "H264", "H265", "MJPG"]
-        cap = None
-        
-        for rtsp_url in rtsp_urls:
-            for codec in codec_fallbacks:
-                try:
-                    temp_cap = cv2.VideoCapture(rtsp_url, cv2.CAP_FFMPEG)
-                    temp_cap.set(cv2.CAP_PROP_BUFFERSIZE, config.stream.buffer_size)
-                    if hasattr(cv2, "CAP_PROP_OPEN_TIMEOUT_MSEC"):
-                        temp_cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 10000)
-                    if hasattr(cv2, "CAP_PROP_READ_TIMEOUT_MSEC"):
-                        temp_cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, 10000)
-                    if codec:
-                        temp_cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*codec))
-                    if temp_cap.isOpened():
-                        ret, _ = temp_cap.read()
-                        if ret:
-                            process_logger.info(f"Camera {cam_name} ({camera_id[:8]}) opened via go2rtc with codec {codec or 'default'}")
-                            cap = temp_cap
-                            break
-                    temp_cap.release()
-                except Exception as e:
-                    process_logger.debug(f"Codec {codec} attempt failed: {e}")
-            if cap is not None:
-                break
+
+        def _open_capture(is_reconnect: bool = False):
+            cap_local = None
+            for rtsp_url in rtsp_urls:
+                for codec in codec_fallbacks:
+                    try:
+                        temp_cap = cv2.VideoCapture(rtsp_url, cv2.CAP_FFMPEG)
+                        temp_cap.set(cv2.CAP_PROP_BUFFERSIZE, config.stream.buffer_size)
+                        if hasattr(cv2, "CAP_PROP_OPEN_TIMEOUT_MSEC"):
+                            temp_cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 10000)
+                        if hasattr(cv2, "CAP_PROP_READ_TIMEOUT_MSEC"):
+                            temp_cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, 10000)
+                        if codec:
+                            temp_cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*codec))
+                        if temp_cap.isOpened():
+                            ret, _ = temp_cap.read()
+                            if ret:
+                                process_logger.info(
+                                    "Camera %s (%s) opened via go2rtc with codec %s",
+                                    cam_name,
+                                    camera_id[:8],
+                                    codec or "default",
+                                )
+                                cap_local = temp_cap
+                                break
+                        temp_cap.release()
+                    except Exception as e:
+                        if is_reconnect:
+                            process_logger.debug("Reconnect codec %s failed: %s", codec, e)
+                        else:
+                            process_logger.debug("Codec %s attempt failed: %s", codec, e)
+                if cap_local is not None:
+                    break
+            return cap_local
+
+        cap = _open_capture()
         
         if not cap or not cap.isOpened():
             process_logger.error(f"Failed to open camera {cam_name} ({camera_id[:8]}) after all codec attempts")
@@ -424,16 +436,51 @@ def camera_detection_process(
         event_start_time = None
         last_event_time = 0
         last_frame_time = 0
+        last_success_time = time.time()
+        failure_threshold = max(1, int(getattr(config.stream, "read_failure_threshold", 5)))
+        failure_timeout = float(getattr(config.stream, "read_failure_timeout_seconds", 20.0))
+        reconnect_delay = max(1, int(getattr(config.stream, "reconnect_delay_seconds", 1)))
         
         # Get detection parameters
         detection_source = camera_config.get("detection_source") or camera_config.get("type", "thermal")
         frame_delay = 1.0 / config.detection.inference_fps
-        motion_config = camera_config.get("motion_config") or {}
+        base_motion = config.motion.model_dump()
+        camera_motion = camera_config.get("motion_config") or {}
+        use_global_motion = camera_motion.get("use_global") is True
+
+        def _is_legacy_motion_defaults(cfg: dict) -> bool:
+            try:
+                sensitivity = int(cfg.get("sensitivity", 7))
+                min_area = int(cfg.get("min_area", cfg.get("threshold", 500)))
+                cooldown = int(cfg.get("cooldown_seconds", cfg.get("cooldown", 5)))
+            except Exception:
+                return False
+            return sensitivity == 7 and min_area == 500 and cooldown == 5
+
+        if use_global_motion or _is_legacy_motion_defaults(camera_motion):
+            motion_config = dict(base_motion)
+            if "enabled" in camera_motion:
+                motion_config["enabled"] = camera_motion["enabled"]
+            if "roi" in camera_motion:
+                motion_config["roi"] = camera_motion["roi"]
+        else:
+            motion_config = {**base_motion, **camera_motion}
+
         zones = camera_config.get("zones", [])
         motion_enabled = motion_config.get("enabled", True) is not False
-        motion_sensitivity = int(motion_config.get("sensitivity", 7))
-        motion_min_area = int(motion_config.get("min_area", motion_config.get("threshold", 500)))
-        motion_cooldown = int(motion_config.get("cooldown_seconds", motion_config.get("cooldown", 0) or 0))
+        motion_sensitivity = int(motion_config.get("sensitivity", base_motion.get("sensitivity", 8)))
+        motion_min_area = int(
+            motion_config.get(
+                "min_area",
+                motion_config.get("threshold", base_motion.get("min_area", 400)),
+            )
+        )
+        motion_cooldown = int(
+            motion_config.get(
+                "cooldown_seconds",
+                motion_config.get("cooldown", base_motion.get("cooldown_seconds", 0)),
+            )
+        )
         motion_log_interval = 30.0
         last_motion_log = 0.0
         last_motion_state = None
@@ -470,12 +517,38 @@ def camera_detection_process(
                 time.sleep(0.01)
                 continue
             
+            # Ensure capture is available
+            if cap is None or not cap.isOpened():
+                cap = _open_capture(is_reconnect=True)
+                if not cap or not cap.isOpened():
+                    time.sleep(reconnect_delay)
+                    continue
+
             # Read frame
             ret, frame = cap.read()
             
             if not ret or frame is None:
                 frames_failed += 1
-                
+                now = time.time()
+                last_age = None if not last_success_time else (now - last_success_time)
+
+                if frames_failed >= failure_threshold and (last_age is None or last_age >= failure_timeout):
+                    process_logger.warning(
+                        "Camera %s (%s) read failures=%s; reconnecting",
+                        cam_name,
+                        camera_id[:8],
+                        frames_failed,
+                    )
+                    try:
+                        cap.release()
+                    except Exception:
+                        pass
+                    cap = _open_capture(is_reconnect=True)
+                    frames_failed = 0
+                    if not cap or not cap.isOpened():
+                        time.sleep(reconnect_delay)
+                    continue
+
                 # Aggressive exponential backoff for failed reads (prevent CPU waste!)
                 if frames_failed > 500:
                     # After 500 failures, give up for 30s
@@ -487,6 +560,7 @@ def camera_detection_process(
                 continue
             
             frames_failed = 0  # Reset on successful read
+            last_success_time = current_time
             
             last_frame_time = current_time
 
