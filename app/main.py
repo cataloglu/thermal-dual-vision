@@ -1501,6 +1501,60 @@ async def get_live_stream(
     )
 
 
+@app.get("/api/live/{camera_id}.jpg")
+async def get_live_snapshot(camera_id: str, db: Session = Depends(get_session)) -> Response:
+    """
+    Return a single JPEG frame for live view (fallback-friendly).
+    """
+    camera = camera_crud_service.get_camera(db, camera_id)
+    if not camera:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": True,
+                "code": "CAMERA_NOT_FOUND",
+                "message": f"Camera not found: {camera_id}"
+            }
+        )
+
+    config = settings_service.load_config()
+    quality = int(getattr(getattr(config, "live", None), "mjpeg_quality", 92))
+    headers = {
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Pragma": "no-cache",
+    }
+
+    frame = _get_latest_worker_frame(camera_id)
+    if frame is not None:
+        ok, buffer = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), quality])
+        if ok:
+            return Response(content=buffer.tobytes(), media_type="image/jpeg", headers=headers)
+
+    stream_urls = _get_live_rtsp_urls(camera)
+    if stream_urls:
+        settings = settings_service.load_config()
+        if settings.stream.protocol == "tcp":
+            stream_urls = [camera_service.force_tcp_protocol(url) for url in stream_urls]
+        result = None
+        for candidate_url in stream_urls:
+            result = camera_service.test_rtsp_connection(candidate_url)
+            if result["success"]:
+                break
+        if result and result.get("success"):
+            snapshot_data = result["snapshot_base64"].split(",", 1)[1]
+            image_bytes = base64.b64decode(snapshot_data)
+            return Response(content=image_bytes, media_type="image/jpeg", headers=headers)
+
+    raise HTTPException(
+        status_code=503,
+        detail={
+            "error": True,
+            "code": "LIVE_SNAPSHOT_UNAVAILABLE",
+            "message": "Live snapshot not available. Check go2rtc and detection stream.",
+        },
+    )
+
+
 @app.get("/api/cameras/{camera_id}/snapshot")
 async def get_camera_snapshot(camera_id: str, db: Session = Depends(get_session)) -> Response:
     """

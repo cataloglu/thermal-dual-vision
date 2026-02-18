@@ -219,6 +219,9 @@ export const getCameraSnapshotUrl = (cameraId: string) =>
 export const getLiveStreamUrl = (cameraId: string) =>
   joinApiUrl(`live/${cameraId}.mjpeg`);
 
+export const getLiveSnapshotUrl = (cameraId: string) =>
+  joinApiUrl(`live/${cameraId}.jpg`);
+
 export const getCameraZones = async (cameraId: string): Promise<{ zones: Zone[] }> => {
   const response = await apiClient.get(`cameras/${cameraId}/zones`);
   return response.data;

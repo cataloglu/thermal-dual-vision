@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MdRefresh, MdError, MdCheckCircle } from 'react-icons/md'
-import { getLiveStreamUrl, resolveApiPath } from '../services/api'
+import { getLiveSnapshotUrl, getLiveStreamUrl, resolveApiPath } from '../services/api'
 
 /** Max concurrent live streams (backend limit); only this many tiles load MJPEG. */
 export const MAX_LIVE_STREAMS = 2
@@ -39,6 +39,8 @@ export function StreamViewer({
   const [error, setError] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
   const [isVisible, setIsVisible] = useState(true)
+  const [snapshotMode, setSnapshotMode] = useState(false)
+  const [snapshotTick, setSnapshotTick] = useState(0)
   const [debugInfo, setDebugInfo] = useState<LiveDebugInfo | null>(null)
   const [debugUpdatedAt, setDebugUpdatedAt] = useState('')
 
@@ -51,6 +53,7 @@ export function StreamViewer({
   const RETRY_DELAYS = [1500, 2500, 4000, 6000, 8000, 10000, 12000, 15000, 18000, 20000]
 
   const effectiveUrl = resolveApiPath(getLiveStreamUrl(cameraId))
+  const snapshotUrl = resolveApiPath(getLiveSnapshotUrl(cameraId))
   const probeUrl = `${effectiveUrl}${effectiveUrl.includes('?') ? '&' : '?'}probe=1`
 
   const updateDebug = useCallback(
@@ -82,6 +85,8 @@ export function StreamViewer({
   useEffect(() => {
     setLoading(true)
     setError(false)
+    setSnapshotMode(false)
+    setSnapshotTick(0)
     setDebugInfo(null)
     setDebugUpdatedAt('')
     if (retryTimeoutRef.current) {
@@ -129,6 +134,14 @@ export function StreamViewer({
   }, [isVisible, loadStream, updateDebug])
 
   useEffect(() => {
+    if (!snapshotMode) return
+    const interval = window.setInterval(() => {
+      setSnapshotTick((prev) => prev + 1)
+    }, 1000)
+    return () => window.clearInterval(interval)
+  }, [snapshotMode])
+
+  useEffect(() => {
     return () => {
       if (retryTimeoutRef.current) {
         window.clearTimeout(retryTimeoutRef.current)
@@ -162,6 +175,15 @@ export function StreamViewer({
     setLoading(false)
     setError(true)
     updateDebug('img_error')
+    if (!snapshotMode && retryCount >= 1) {
+      setSnapshotMode(true)
+      setError(false)
+      setLoading(true)
+      if (imgRef.current) {
+        imgRef.current.src = `${snapshotUrl}?t=${Date.now()}`
+      }
+      return
+    }
     if (retryCount < maxRetries) {
       const delay = RETRY_DELAYS[Math.min(retryCount, RETRY_DELAYS.length - 1)]
       retryTimeoutRef.current = window.setTimeout(() => {
@@ -169,7 +191,8 @@ export function StreamViewer({
         setError(false)
         setLoading(true)
         if (imgRef.current) {
-          imgRef.current.src = `${effectiveUrl}?t=${Date.now()}`
+          const baseUrl = snapshotMode ? snapshotUrl : effectiveUrl
+          imgRef.current.src = `${baseUrl}?t=${Date.now()}`
         }
       }, delay)
     }
@@ -179,6 +202,7 @@ export function StreamViewer({
     setRetryCount(0)
     setError(false)
     setLoading(true)
+    setSnapshotMode(false)
     updateDebug('manual_retry')
     if (retryTimeoutRef.current) {
       window.clearTimeout(retryTimeoutRef.current)
@@ -262,7 +286,11 @@ export function StreamViewer({
       {loadStream && isVisible && (
         <img
           ref={imgRef}
-          src={effectiveUrl}
+          src={
+            snapshotMode
+              ? `${snapshotUrl}?t=${snapshotTick}`
+              : effectiveUrl
+          }
           alt={cameraName}
           loading="lazy"
           className={`w-full h-full object-contain ${error ? 'hidden' : 'block'}`}
@@ -301,6 +329,8 @@ export function StreamViewer({
             <span>{formatBool(debugInfo.rtsp_available)}</span>
             <span>{t('liveDebugWorker')}</span>
             <span>{formatBool(debugInfo.worker_frame)}</span>
+            <span>{t('liveDebugSnapshot')}</span>
+            <span>{formatBool(snapshotMode)}</span>
             <span>{t('liveDebugReason')}</span>
             <span>{formatValue(debugInfo.reason)}</span>
             <span>{t('liveDebugStatus')}</span>

@@ -13,6 +13,7 @@
   "liveDebugGo2rtcError": "go2rtc error",
   "liveDebugRtsp": "RTSP available",
   "liveDebugWorker": "Worker frame",
+  "liveDebugSnapshot": "Snapshot mode",
   "liveDebugReason": "Reason",
   "liveDebugStatus": "HTTP status",
   "liveDebugError": "Error",

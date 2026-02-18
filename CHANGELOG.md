@@ -6,6 +6,12 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.62] - 2026-02-18
+
+### Eklenenler
+
+- **Live Snapshot:** MJPEG çalışmazsa tek kare snapshot fallback.
+
 ## [3.10.61] - 2026-02-18
 
 ### Düzeltmeler
