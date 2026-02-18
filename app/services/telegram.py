@@ -198,9 +198,6 @@ class TelegramService:
     def _is_playable_mp4(self, mp4_path: Path) -> bool:
         if not mp4_path or not mp4_path.exists():
             return False
-        legacy_marker = Path(f"{mp4_path}.legacy")
-        if legacy_marker.exists():
-            return False
         try:
             if mp4_path.stat().st_size < 1024:
                 return False
