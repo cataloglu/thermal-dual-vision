@@ -6,6 +6,13 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.64] - 2026-02-18
+
+### Düzeltmeler
+
+- **Telegram video:** Video gönderimi hata verirse dosya olarak fallback.
+- **Telegram log:** Video gönderim denemeleri loglanır.
+
 ## [3.10.63] - 2026-02-18
 
 ### Düzeltmeler

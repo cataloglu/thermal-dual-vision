@@ -123,13 +123,50 @@ class TelegramService:
                         )
                     
                     # Send MP4 timelapse if available and playable
-                    if mp4_path and config.telegram.send_images and self._is_playable_mp4(mp4_path):
-                        with open(mp4_path, 'rb') as video:
-                            await bot.send_video(
-                                chat_id=chat_id,
-                                video=video,
-                                caption="🎥 Event Video",
-                                supports_streaming=True
+                    if mp4_path and config.telegram.send_images:
+                        if self._is_playable_mp4(mp4_path):
+                            try:
+                                size_mb = mp4_path.stat().st_size / 1024 / 1024
+                            except Exception:
+                                size_mb = None
+                            logger.info(
+                                "Telegram video send queued (event=%s, size=%sMB)",
+                                event.get("id"),
+                                f"{size_mb:.2f}" if size_mb is not None else "unknown",
+                            )
+                            try:
+                                with open(mp4_path, 'rb') as video:
+                                    await bot.send_video(
+                                        chat_id=chat_id,
+                                        video=video,
+                                        caption="🎥 Event Video",
+                                        supports_streaming=True
+                                    )
+                                logger.info("Telegram video sent (event=%s)", event.get("id"))
+                            except TelegramError as e:
+                                logger.warning(
+                                    "Telegram send_video failed (event=%s): %s. Sending as document.",
+                                    event.get("id"),
+                                    e,
+                                )
+                                try:
+                                    with open(mp4_path, 'rb') as video:
+                                        await bot.send_document(
+                                            chat_id=chat_id,
+                                            document=video,
+                                            caption="🎥 Event Video",
+                                        )
+                                    logger.info("Telegram video sent as document (event=%s)", event.get("id"))
+                                except TelegramError as doc_err:
+                                    logger.error(
+                                        "Telegram send_document failed (event=%s): %s",
+                                        event.get("id"),
+                                        doc_err,
+                                    )
+                        else:
+                            logger.warning(
+                                "Telegram video skipped (event=%s): mp4 not playable",
+                                event.get("id"),
                             )
                     elif gif_path and gif_path.exists() and config.telegram.send_images:
                         with open(gif_path, 'rb') as animation:
