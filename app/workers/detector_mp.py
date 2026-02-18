@@ -767,6 +767,22 @@ def camera_detection_process(
             
             # Send event to main process
             best_detection = max(detections, key=lambda d: d["confidence"])
+            event_bbox = list(best_detection["bbox"])
+            if frame_buffer:
+                try:
+                    frame_h, frame_w = frame.shape[:2]
+                    buffer_h, buffer_w = frame_buffer["frame_shape"][:2]
+                    if frame_w > 0 and frame_h > 0 and (frame_w != buffer_w or frame_h != buffer_h):
+                        scale_x = buffer_w / frame_w
+                        scale_y = buffer_h / frame_h
+                        x1, y1, x2, y2 = event_bbox
+                        x1 = int(max(0, min(buffer_w - 1, x1 * scale_x)))
+                        y1 = int(max(0, min(buffer_h - 1, y1 * scale_y)))
+                        x2 = int(max(0, min(buffer_w - 1, x2 * scale_x)))
+                        y2 = int(max(0, min(buffer_h - 1, y2 * scale_y)))
+                        event_bbox = [x1, y1, x2, y2]
+                except Exception as e:
+                    process_logger.debug("BBox scale failed for %s: %s", camera_id, e)
             
             # Get current buffer position (for frame extraction)
             buffer_info = None
@@ -787,7 +803,7 @@ def camera_detection_process(
                 "camera_id": camera_id,
                 "person_count": len(detections),
                 "confidence": best_detection["confidence"],
-                "bbox": best_detection["bbox"],
+                "bbox": event_bbox,
                 "buffer_info": buffer_info,  # Share buffer info (not frames)
                 "timestamp": event_ts_utc.isoformat()
             }

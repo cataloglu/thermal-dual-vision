@@ -6,6 +6,12 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.65] - 2026-02-18
+
+### Düzeltmeler
+
+- **Collage bbox:** MP modda kutu koordinatları buffer boyutuna ölçeklenir.
+
 ## [3.10.64] - 2026-02-18
 
 ### Düzeltmeler
