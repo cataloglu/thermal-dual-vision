@@ -15,37 +15,129 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 - **Motion global ayar:** Kamera custom yoksa global motion ayarı uygulanır (eski default override engellendi).
 - **MP reconnect:** Multiprocessing modunda read failure sonrası go2rtc stream yeniden açılır.
 
+## [3.10.66] - 2026-02-18
+
+### Düzeltmeler
+
+- **Live View:** Uzayan yüklemede snapshot fallback devreye girer.
+
+## [3.10.65] - 2026-02-18
+
+### Düzeltmeler
+
+- **Collage bbox:** MP modda kutu koordinatları buffer boyutuna ölçeklenir.
+
+## [3.10.64] - 2026-02-18
+
+### Düzeltmeler
+
+- **Telegram video:** Video gönderimi hata verirse dosya olarak fallback.
+- **Telegram log:** Video gönderim denemeleri loglanır.
+
+## [3.10.63] - 2026-02-18
+
+### Düzeltmeler
+
+- **Telegram video:** `.legacy` MP4'ler artık Telegram’a gönderilir.
+
+## [3.10.62] - 2026-02-18
+
+### Eklenenler
+
+- **Live Snapshot:** MJPEG çalışmazsa tek kare snapshot fallback.
+
+## [3.10.61] - 2026-02-18
+
+### Düzeltmeler
+
+- **Live View:** go2rtc başarısızsa worker stream tercih edilir.
+
+## [3.10.60] - 2026-02-18
+
+### Düzeltmeler
+
+- **Live View:** Worker frame hazırsa önce worker fallback kullanılır.
+
+## [3.10.59] - 2026-02-18
+
+### Eklenenler
+
+- **Live Log:** Canlı görüntü altında debug bilgisi gösterilir.
+- **Live probe:** `/api/live/{id}.mjpeg?probe=1` ile hızlı durum sorgusu.
+
+## [3.10.58] - 2026-02-18
+
+### Düzeltmeler
+
+- **Live View:** go2rtc MJPEG ilk frame gelmezse fallback kullanılır.
+
+## [3.10.57] - 2026-02-18
+
+### Düzeltmeler
+
+- **Backend crash:** Live View fallback type hint için eksik `numpy` import eklendi.
+
 ## [3.10.56] - 2026-02-18
 
 ### Düzeltmeler
 
 - **Live View (Ingress):** MJPEG response header’ları ile HA ingress buffering/sıkıştırma sorunu azaltıldı.
-- **Live View fallback:** go2rtc MJPEG erişilemezse worker frame’lerinden yayın.
+- **Live View fallback:** go2rtc MJPEG başlamazsa worker frame’lerinden MJPEG yayın.
 
-## [3.10.53] - 2026-02-18
+## [3.10.55] - 2026-02-18
+
+### Düzeltmeler
+
+- **MP motion cooldown:** Hareket algılama, cooldown süresince aktif tutulur (false negative azalır).
+
+## [3.10.54] - 2026-02-17
+
+### Değişenler
+
+- **Preset ayarları:** Eco/Balanced/Frigate/Quality stream + event + motion + detection değerleri netleştirildi.
+- **MP motion:** Global motion ayarları MP modda kamera ayarlarına merge edilir.
+
+## [3.10.53] - 2026-02-17
+
+### Eklenenler
+
+- **CI:** GitHub Actions ile backend test + UI lint.
+- **Medya sırası kontrolü:** Eşzamanlı medya üretimi sınırlandı (queue logları).
+
+### Değişenler
+
+- **MQTT ayarları:** Auto-save kaldırıldı, tek state + manuel kaydet akışı.
+- **Tema tokenları:** UI token eşlemesi (bg-card/foreground/primary vb.).
 
 ### Düzeltmeler
 
 - **Live View (Ingress):** MJPEG response header’larına `Content-Encoding: identity` ve `X-Accel-Buffering: no` eklendi; HA ingress sıkıştırma/buffering sorunlarıyla uyum.
+- **MP zone filtresi:** Polygon check hatası giderildi.
+- **go2rtc retry:** Threading + MP modda go2rtc yoksa sürekli retry + uyarı.
+- **Kamera update:** Whitelist ile güvenli update.
+- **Events bulk seçimi:** Filtre/sayfa değişince seçim temizlenir.
+- **EventDetail:** localStorage parse güvenliği.
 
-## [3.10.52] - 2026-02-18
+## [3.10.52] - 2026-02-17
 
 ### Eklenenler
 
 - **Live View fallback:** go2rtc MJPEG erişilemezse worker frame’lerinden MJPEG yayın.
 - **Event gate debug:** MP modda min_duration/cooldown/temporal nedenleri için debug logları.
+- **Motion filtresi logları:** Motion aktif/idle geçişleri ve alan/eşik bilgisi loglanır (MP + threading).
 
 ### Değişenler
 
 - **go2rtc sağlığı:** availability dinamik yenileniyor (restart sonrası otomatik toparlama).
+- **Yeni kamera akışı:** go2rtc config güncellemesi detection/recording öncesine alındı; update sonrası detection yeniden başlatılır.
+- **RTSP açılışı retry:** go2rtc reload gecikmesine karşı MP detector açılış denemeleri backoff ile sürer.
 
 ### Düzeltmeler
 
 - **MP motion cooldown:** hızlı active/idle dalgalanması sonrası event kaçırma azaltıldı.
 - **MP zone filtre:** polygon kontrolü ve zone payload aktarımı düzeltildi.
 - **Motion log:** efektif min_area eşiği loglanıyor.
-
-## [3.10.51] - 2026-02-16
+- **Gürültülü loglar:** Bazı RTSP ve kamera durumu logları debug seviyesine çekildi.
 
 ### Eklenenler
 
@@ -59,7 +151,55 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 ### Düzeltmeler
 
 - **Gürültülü loglar:** Bazı RTSP ve kamera durumu logları debug seviyesine çekildi.
+## [3.10.51] - 2026-02-17
 
+### Düzeltmeler
+
+- **Live View:** go2rtc MJPEG başlamazsa go2rtc RTSP restream ile MJPEG üretimi (tek stream desteği).
+
+---
+
+## [3.10.50] - 2026-02-17
+
+### Düzeltmeler
+
+- **Kamera silme:** Kayıt süreci silinen kamerada yeniden başlatılmıyor.
+- **MP medya:** Silinen kamera için paylaşılan buffer yoksa medya üretimi temiz şekilde atlanıyor.
+
+---
+
+## [3.10.49] - 2026-02-17
+
+### Düzeltmeler
+
+- **Live View:** Ana stream yoksa go2rtc `*_detect` substream ile canlı görüntü verilir.
+
+---
+
+## [3.10.48] - 2026-02-17
+
+### Düzeltmeler
+
+- **MP kamera durumu:** Multiprocessing modunda kamera status güncellemeleri ve UI göstergeleri düzeltildi.
+
+---
+
+## [3.10.47] - 2026-02-17
+
+### Değişenler
+
+- **Kamera ekleme:** Kullanılmayan ikinci stream (substream) alanı kaldırıldı.
+
+---
+
+## [3.10.46] - 2026-02-17
+
+### Düzeltmeler
+
+- **go2rtc durumu:** Live/detection için erişilebilirlik dinamik kontrol ediliyor; geç açılan go2rtc artık sistemi kilitlemiyor.
+- **go2rtc sync:** go2rtc kapalı olsa bile kamera stream config'i yazılıyor; online olduğunda restart ile yükleniyor.
+
+---
 ## [3.10.45] - 2026-02-16
 
 ### Eklenenler

@@ -108,9 +108,18 @@ export function EventDetail({ event, cameraName, initialTab, onClose, onDelete }
 
   const persistMeta = (nextTags: string[], nextNote: string) => {
     const raw = localStorage.getItem('event_meta')
-    const meta = raw ? JSON.parse(raw) : {}
+    let meta: Record<string, { tags: string[]; note: string }> = {}
+    try {
+      meta = raw ? JSON.parse(raw) : {}
+    } catch {
+      meta = {}
+    }
     meta[displayEvent.id] = { tags: nextTags, note: nextNote }
-    localStorage.setItem('event_meta', JSON.stringify(meta))
+    try {
+      localStorage.setItem('event_meta', JSON.stringify(meta))
+    } catch {
+      // ignore storage errors
+    }
   }
 
   const formatDate = (dateString: string) => {

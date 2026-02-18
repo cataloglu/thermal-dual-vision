@@ -1,5 +1,7 @@
 # Upgrade Guide - v2.1 → v2.2 (Optimized)
 
+> Not: Bu doküman 2.x serisi için tarihsel yükseltme rehberidir. Güncel sürümler için `CHANGELOG.md` ve `config.yaml` takip edilmelidir.
+
 **Tarih**: 2026-02-01  
 **Versiyon**: 2.2.0
 

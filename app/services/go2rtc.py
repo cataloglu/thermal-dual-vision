@@ -21,9 +21,26 @@ class Go2RTCService:
         # Environment variable kullan (Docker için)
         # Use 127.0.0.1 instead of localhost for HA addon compatibility
         self.api_url = os.getenv("GO2RTC_URL", "http://127.0.0.1:1984")
+        self._last_check_ts = 0.0
+        self._check_interval = float(os.getenv("GO2RTC_CHECK_INTERVAL", "10"))
         self.enabled = self._check_availability()
         self._last_check = 0.0
         logger.info(f"go2rtc service initialized - URL: {self.api_url}, enabled: {self.enabled}")
+
+    def refresh_enabled(self, force: bool = False) -> bool:
+        """Refresh go2rtc availability (cached for a short interval)."""
+        now = time.time()
+        if not force and (now - self._last_check_ts) < self._check_interval:
+            return self.enabled
+        self._last_check_ts = now
+        self.enabled = self._check_availability()
+        return self.enabled
+
+    def ensure_enabled(self) -> bool:
+        """Force a refresh only when currently disabled."""
+        if self.enabled:
+            return True
+        return self.refresh_enabled(force=True)
     
     def _check_availability(self) -> bool:
         """Check if go2rtc is available."""
@@ -34,15 +51,6 @@ class Go2RTCService:
             logger.warning(f"go2rtc not available: {e}")
             return False
 
-    def ensure_enabled(self, interval: float = 10.0) -> bool:
-        """Refresh go2rtc availability with a throttle interval."""
-        now = time.time()
-        if now - self._last_check < interval:
-            return self.enabled
-        self._last_check = now
-        self.enabled = self._check_availability()
-        return self.enabled
-    
     def _restart_go2rtc(self) -> None:
         """Restart go2rtc to reload configuration."""
         try:
@@ -129,10 +137,7 @@ class Go2RTCService:
         default_url: Optional[str] = None,
     ) -> bool:
         """Upsert camera streams in go2rtc config."""
-        if not self.ensure_enabled():
-            logger.debug("go2rtc not enabled, skipping camera update")
-            return False
-
+        can_restart = self.refresh_enabled()
         try:
             config = self._load_config()
             streams = config.get("streams") or {}
@@ -170,7 +175,7 @@ class Go2RTCService:
                 config["streams"] = streams
                 self._write_config(config)
                 logger.info("go2rtc config updated for camera %s", camera_id)
-                if reload:
+                if reload and can_restart:
                     self._restart_go2rtc()
             else:
                 logger.debug("go2rtc config already up to date for camera %s", camera_id)
@@ -191,10 +196,6 @@ class Go2RTCService:
 
     def remove_camera(self, camera_id: str) -> bool:
         """Remove camera from go2rtc streams."""
-        if not self.ensure_enabled():
-            logger.debug("go2rtc not enabled, skipping camera remove")
-            return False
-
         try:
             if not self.config_path.exists():
                 return True
@@ -209,10 +210,7 @@ class Go2RTCService:
             
     def sync_all_cameras(self, cameras: list) -> None:
         """Sync all cameras to go2rtc."""
-        if not self.ensure_enabled():
-            logger.info("go2rtc disabled, skipping camera sync")
-            return
-        
+        can_restart = self.refresh_enabled()
         logger.info(f"Syncing {len(cameras)} cameras to go2rtc...")
         
         success_count = 0
@@ -236,7 +234,7 @@ class Go2RTCService:
                 logger.error(f"Failed to sync camera {camera.id}: {e}", exc_info=True)
         
         logger.info(f"Camera sync complete: {success_count}/{len(cameras)} cameras synced")
-        if config_changed:
+        if config_changed and can_restart:
             self._restart_go2rtc()
 
 

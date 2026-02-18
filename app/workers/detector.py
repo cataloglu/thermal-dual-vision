@@ -1315,12 +1315,32 @@ class DetectorWorker:
         camera_id: str,
         source: Optional[str] = None,
     ) -> Optional[str]:
-        if not self.go2rtc_service or not self.go2rtc_service.enabled:
-            return None
         rtsp_base = os.getenv("GO2RTC_RTSP_URL", "rtsp://127.0.0.1:8554")
         normalized_source = source if source in ("color", "thermal", "detect") else None
         stream_name = f"{camera_id}_{normalized_source}" if normalized_source else camera_id
-        return f"{rtsp_base}/{stream_name}"
+        restream_url = f"{rtsp_base}/{stream_name}"
+        if self.go2rtc_service and self.go2rtc_service.ensure_enabled():
+            return restream_url
+        self._log_go2rtc_unavailable(camera_id)
+        return restream_url
+
+    def _log_go2rtc_unavailable(self, camera_id: str, interval: float = 30.0) -> None:
+        now = time.time()
+        with self.stream_stats_lock:
+            stats = self.stream_stats.get(camera_id)
+            if not stats:
+                self._init_stream_stats(camera_id)
+                stats = self.stream_stats.get(camera_id)
+            if not stats:
+                return
+            last_log = stats.get("last_go2rtc_log", 0.0)
+            if now - last_log < interval:
+                return
+            stats["last_go2rtc_log"] = now
+        logger.warning(
+            "go2rtc not available for camera %s; will keep retrying restream URL",
+            camera_id,
+        )
 
     def _get_adaptive_clahe_clip(self, frame: np.ndarray, config) -> float:
         if len(frame.shape) == 3:
@@ -1346,6 +1366,7 @@ class DetectorWorker:
                 "last_error": None,
                 "last_reconnect_reason": None,
                 "last_frame_time": 0.0,
+                "last_go2rtc_log": 0.0,
             }
 
     def _update_stream_stats(
@@ -1468,8 +1489,16 @@ class DetectorWorker:
         else:
             motion_settings = {**base_motion, **camera_motion}
 
+        state = self.motion_state[camera.id]
         if motion_settings.get("enabled", True) is False:
+            if not state.get("motion_disabled_logged"):
+                logger.info(
+                    "Motion filter disabled for camera %s; running inference on all frames",
+                    camera.id,
+                )
+                state["motion_disabled_logged"] = True
             return True
+        state.pop("motion_disabled_logged", None)
 
         algorithm = motion_settings.get("algorithm", "mog2")
         sensitivity = int(motion_settings.get("sensitivity", config.motion.sensitivity))
@@ -1483,7 +1512,6 @@ class DetectorWorker:
             )
         )
 
-        state = self.motion_state[camera.id]
         if state.get("algorithm") != algorithm:
             state.clear()
             state["algorithm"] = algorithm
@@ -1513,20 +1541,45 @@ class DetectorWorker:
             motion_area = self._motion_area_frame_diff(gray, sensitivity, state)
 
         prebuffer_seconds = float(getattr(config.event, "prebuffer_seconds", 0.0))
-
-        if motion_area >= min_area:
+        motion_detected = motion_area >= min_area
+        if motion_detected:
             if not motion_active:
                 self._reset_motion_buffers(camera.id, prebuffer_seconds)
             state["last_motion"] = now
-            state["motion_active"] = True
-            return True
+            motion_active = True
+        elif not (cooldown_seconds and now - last_motion < cooldown_seconds):
+            motion_active = False
 
-        if cooldown_seconds and now - last_motion < cooldown_seconds:
-            state["motion_active"] = motion_active
-            return motion_active
+        state["motion_active"] = motion_active
 
-        state["motion_active"] = False
-        return False
+        last_logged_state = state.get("last_motion_logged_state")
+        last_motion_log = state.get("last_motion_log", 0.0)
+        log_interval = float(motion_settings.get("log_interval", 30.0))
+        if last_logged_state is None or motion_active != last_logged_state:
+            logger.info(
+                "Motion filter [%s]: %s (area=%d, min=%d, sensitivity=%d, algo=%s)",
+                camera.id,
+                "active" if motion_active else "idle",
+                motion_area,
+                min_area,
+                sensitivity,
+                algorithm,
+            )
+            state["last_motion_logged_state"] = motion_active
+            state["last_motion_log"] = now
+        elif now - last_motion_log >= log_interval:
+            logger.debug(
+                "Motion filter [%s]: %s (area=%d, min=%d, sensitivity=%d, algo=%s)",
+                camera.id,
+                "active" if motion_active else "idle",
+                motion_area,
+                min_area,
+                sensitivity,
+                algorithm,
+            )
+            state["last_motion_log"] = now
+
+        return motion_active
 
     def _motion_area_frame_diff(self, gray: np.ndarray, sensitivity: int, state: Dict[str, Any]) -> int:
         """Frame-diff motion area (original method)."""

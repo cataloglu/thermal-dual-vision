@@ -299,6 +299,17 @@ def camera_detection_process(
             pass
     process_logger = logging.getLogger(f"detector.{camera_id}")
     process_logger.info(f"Camera detection process started: {camera_id}")
+
+    def _send_status(status: str) -> None:
+        try:
+            event_queue.put_nowait({
+                "type": "status",
+                "camera_id": camera_id,
+                "status": status,
+                "timestamp": datetime.utcnow().isoformat()
+            })
+        except Exception:
+            pass
     
     try:
         # Import heavy dependencies only in worker process (not in main)
@@ -357,29 +368,35 @@ def camera_detection_process(
         
         # Scrypted-style: only go2rtc. Prefer substream (detect) when set - ~5% CPU for 10 cams.
         rtsp_urls: List[str] = []
+        go2rtc_ready = False
         try:
             from app.services.go2rtc import get_go2rtc_service
             go2rtc = get_go2rtc_service()
-            if go2rtc and go2rtc.enabled:
-                # Substream for detection when rtsp_url_detection is set (low CPU)
-                if camera_config.get("rtsp_url_detection"):
-                    stream_name = f"{camera_id}_detect"
-                else:
-                    source = "thermal" if (camera_config.get("type") == "thermal" or camera_config.get("rtsp_url_thermal")) else "color"
-                    stream_name = f"{camera_id}_{source}" if source in ("thermal", "color") else camera_id
-                rtsp_base = os.getenv("GO2RTC_RTSP_URL", "rtsp://127.0.0.1:8554")
-                restream_url = f"{rtsp_base}/{stream_name}"
-                rtsp_urls.append(restream_url)
+            go2rtc_ready = bool(go2rtc and go2rtc.ensure_enabled())
         except Exception as e:
             process_logger.debug(f"go2rtc not available: {e}")
-        if not rtsp_urls:
-            process_logger.error(f"Camera {camera_id}: go2rtc required but not available. Enable go2rtc.")
-            time.sleep(60)
-            return
+        if not go2rtc_ready:
+            now = time.time()
+            last_log = getattr(camera_detection_process, f"_last_go2rtc_log_{camera_id}", 0.0)
+            if now - last_log >= 30.0:
+                process_logger.warning(
+                    "go2rtc not available for camera %s; will keep retrying restream URL",
+                    camera_id,
+                )
+                setattr(camera_detection_process, f"_last_go2rtc_log_{camera_id}", now)
+        # Substream for detection when rtsp_url_detection is set (low CPU)
+        if camera_config.get("rtsp_url_detection"):
+            stream_name = f"{camera_id}_detect"
+        else:
+            source = "thermal" if (camera_config.get("type") == "thermal" or camera_config.get("rtsp_url_thermal")) else "color"
+            stream_name = f"{camera_id}_{source}" if source in ("thermal", "color") else camera_id
+        rtsp_base = os.getenv("GO2RTC_RTSP_URL", "rtsp://127.0.0.1:8554")
+        restream_url = f"{rtsp_base}/{stream_name}"
+        rtsp_urls.append(restream_url)
         
         # Open camera from go2rtc only
         cam_name = camera_config.get("name", "?")
-        process_logger.info(f"[DEBUG-RTSP] Opening camera {cam_name} ({camera_id[:8]})...")
+        process_logger.debug(f"[DEBUG-RTSP] Opening camera {cam_name} ({camera_id[:8]})...")
         
         # Set FFmpeg options (same as threading detector!)
         transport = "tcp"
@@ -389,9 +406,8 @@ def camera_detection_process(
         )
         
         codec_fallbacks = [None, "H264", "H265", "MJPG"]
-
-        def _open_capture(is_reconnect: bool = False):
-            cap_local = None
+        
+        def _open_capture(is_reconnect: bool = False) -> Optional["cv2.VideoCapture"]:
             for rtsp_url in rtsp_urls:
                 for codec in codec_fallbacks:
                     try:
@@ -412,24 +428,46 @@ def camera_detection_process(
                                     camera_id[:8],
                                     codec or "default",
                                 )
-                                cap_local = temp_cap
-                                break
+                                return temp_cap
                         temp_cap.release()
                     except Exception as e:
                         if is_reconnect:
                             process_logger.debug("Reconnect codec %s failed: %s", codec, e)
                         else:
                             process_logger.debug("Codec %s attempt failed: %s", codec, e)
-                if cap_local is not None:
-                    break
-            return cap_local
-
-        cap = _open_capture()
+            return None
+        
+        cap = None
+        open_attempts = 0
+        last_open_log = 0.0
+        
+        while not stop_event.is_set():
+            cap = _open_capture()
+            if cap and cap.isOpened():
+                break
+            
+            open_attempts += 1
+            _send_status("down")
+            
+            retry_delay = min(30.0, 5.0 + open_attempts * 2.0)
+            now = time.time()
+            if open_attempts == 1 or now - last_open_log >= 30.0:
+                process_logger.warning(
+                    "Failed to open camera %s (%s). Retrying in %.1fs",
+                    cam_name,
+                    camera_id[:8],
+                    retry_delay,
+                )
+                last_open_log = now
+            
+            end_sleep = time.time() + retry_delay
+            while time.time() < end_sleep and not stop_event.is_set():
+                time.sleep(0.2)
         
         if not cap or not cap.isOpened():
-            process_logger.error(f"Failed to open camera {cam_name} ({camera_id[:8]}) after all codec attempts")
-            time.sleep(60)
             return
+
+        _send_status("connected")
         
         # Detection state (process-local)
         detection_history = deque(maxlen=5)  # Keep last 5 detections for temporal consistency
@@ -440,6 +478,27 @@ def camera_detection_process(
         failure_threshold = max(1, int(getattr(config.stream, "read_failure_threshold", 5)))
         failure_timeout = float(getattr(config.stream, "read_failure_timeout_seconds", 20.0))
         reconnect_delay = max(1, int(getattr(config.stream, "reconnect_delay_seconds", 1)))
+        
+        def _point_in_polygon(x: float, y: float, polygon: List[List[float]]) -> bool:
+            inside = False
+            n = len(polygon)
+            j = n - 1
+            for i in range(n):
+                xi, yi = polygon[i]
+                xj, yj = polygon[j]
+                intersects = ((yi > y) != (yj > y)) and (
+                    x < (xj - xi) * (y - yi) / ((yj - yi) or 1e-9) + xi
+                )
+                if intersects:
+                    inside = not inside
+                j = i
+            return inside
+
+        def _is_point_in_any_zone(x: float, y: float, polygons: List[List[List[float]]]) -> bool:
+            for polygon in polygons:
+                if _point_in_polygon(x, y, polygon):
+                    return True
+            return False
         
         # Get detection parameters
         detection_source = camera_config.get("detection_source") or camera_config.get("type", "thermal")
@@ -481,6 +540,16 @@ def camera_detection_process(
                 motion_config.get("cooldown", base_motion.get("cooldown_seconds", 0)),
             )
         )
+        zones_raw = camera_config.get("zones") or []
+        zones: List[List[List[float]]] = []
+        for zone in zones_raw:
+            polygon = None
+            if isinstance(zone, dict):
+                polygon = zone.get("polygon") or zone.get("points")
+            elif isinstance(zone, list):
+                polygon = zone
+            if polygon and len(polygon) >= 3:
+                zones.append(polygon)
         motion_log_interval = 30.0
         last_motion_log = 0.0
         last_motion_state = None
@@ -529,12 +598,20 @@ def camera_detection_process(
             
             if not ret or frame is None:
                 frames_failed += 1
+                if frames_failed % 100 == 0:
+                    process_logger.warning(
+                        "Camera %s (%s) read failures=%d; reconnecting",
+                        cam_name,
+                        camera_id[:8],
+                        frames_failed,
+                    )
+
                 now = time.time()
                 last_age = None if not last_success_time else (now - last_success_time)
 
                 if frames_failed >= failure_threshold and (last_age is None or last_age >= failure_timeout):
                     process_logger.warning(
-                        "Camera %s (%s) read failures=%s; reconnecting",
+                        "Camera %s (%s) read failures=%d; reconnecting",
                         cam_name,
                         camera_id[:8],
                         frames_failed,
@@ -545,10 +622,11 @@ def camera_detection_process(
                         pass
                     cap = _open_capture(is_reconnect=True)
                     frames_failed = 0
-                    if not cap or not cap.isOpened():
+                    if cap and cap.isOpened():
+                        _send_status("connected")
+                    else:
                         time.sleep(reconnect_delay)
                     continue
-
                 # Aggressive exponential backoff for failed reads (prevent CPU waste!)
                 if frames_failed > 500:
                     # After 500 failures, give up for 30s
@@ -627,7 +705,6 @@ def camera_detection_process(
                     motion_active = True
                 else:
                     motion_active = False
-
                 if last_motion_state is None or motion_active != last_motion_state:
                     process_logger.info(
                         "Motion filter [%s]: %s (area=%d, min=%d, sensitivity=%d)",
@@ -687,17 +764,15 @@ def camera_detection_process(
             # Filter by zones (if configured)
             if zones:
                 height, width = frame.shape[:2]
-                if width > 0 and height > 0:
-                    filtered = []
-                    for det in detections:
-                        x1, y1, x2, y2 = det["bbox"]
-                        cx = (x1 + x2) / 2.0 / width
-                        cy = (y1 + y2) / 2.0 / height
-                        
-                        if _is_point_in_any_zone(cx, cy, zones):
-                            filtered.append(det)
-                    
-                    detections = filtered
+                filtered = []
+                for det in detections:
+                    x1, y1, x2, y2 = det["bbox"]
+                    cx = (x1 + x2) / 2.0 / max(width, 1)
+                    cy = (y1 + y2) / 2.0 / max(height, 1)
+                    if _is_point_in_any_zone(cx, cy, zones):
+                        filtered.append(det)
+                
+                detections = filtered
             
             # Update detection history
             detection_history.append(detections)
@@ -742,6 +817,22 @@ def camera_detection_process(
             
             # Send event to main process
             best_detection = max(detections, key=lambda d: d["confidence"])
+            event_bbox = list(best_detection["bbox"])
+            if frame_buffer:
+                try:
+                    frame_h, frame_w = frame.shape[:2]
+                    buffer_h, buffer_w = frame_buffer["frame_shape"][:2]
+                    if frame_w > 0 and frame_h > 0 and (frame_w != buffer_w or frame_h != buffer_h):
+                        scale_x = buffer_w / frame_w
+                        scale_y = buffer_h / frame_h
+                        x1, y1, x2, y2 = event_bbox
+                        x1 = int(max(0, min(buffer_w - 1, x1 * scale_x)))
+                        y1 = int(max(0, min(buffer_h - 1, y1 * scale_y)))
+                        x2 = int(max(0, min(buffer_w - 1, x2 * scale_x)))
+                        y2 = int(max(0, min(buffer_h - 1, y2 * scale_y)))
+                        event_bbox = [x1, y1, x2, y2]
+                except Exception as e:
+                    process_logger.debug("BBox scale failed for %s: %s", camera_id, e)
             
             # Get current buffer position (for frame extraction)
             buffer_info = None
@@ -762,7 +853,7 @@ def camera_detection_process(
                 "camera_id": camera_id,
                 "person_count": len(detections),
                 "confidence": best_detection["confidence"],
-                "bbox": best_detection["bbox"],
+                "bbox": event_bbox,
                 "buffer_info": buffer_info,  # Share buffer info (not frames)
                 "timestamp": event_ts_utc.isoformat()
             }
@@ -826,11 +917,58 @@ class MultiprocessingDetectorWorker:
         self.event_queues: Dict[str, mp.Queue] = {}
         self.control_queues: Dict[str, mp.Queue] = {}
         self.frame_buffers: Dict[str, SharedFrameBuffer] = {}
+        self.last_status_update: Dict[str, float] = {}
         
         # Event handler thread (in main process)
         self.event_handler_thread = None
         
         logger.info("MultiprocessingDetectorWorker initialized")
+
+    def _update_camera_status(
+        self,
+        camera_id: str,
+        status: CameraStatus,
+        last_frame_ts: Optional[datetime] = None,
+        min_interval_seconds: float = 5.0,
+    ) -> None:
+        now = time.time()
+        last_update = self.last_status_update.get(camera_id, 0.0)
+        if now - last_update < min_interval_seconds:
+            return
+
+        db = next(get_session())
+        try:
+            camera = db.query(Camera).filter(Camera.id == camera_id).first()
+            if not camera:
+                return
+
+            camera.status = status
+            if last_frame_ts is not None:
+                camera.last_frame_ts = last_frame_ts
+            db.commit()
+            self.last_status_update[camera_id] = now
+
+            try:
+                online = db.query(Camera).filter(Camera.status == CameraStatus.CONNECTED).count()
+                retrying = db.query(Camera).filter(Camera.status == CameraStatus.RETRYING).count()
+                down = db.query(Camera).filter(Camera.status == CameraStatus.DOWN).count()
+                from app.services.websocket import get_websocket_manager
+                websocket_manager = get_websocket_manager()
+                websocket_manager.broadcast_status_sync({
+                    "camera_id": camera_id,
+                    "status": status.value,
+                    "counts": {
+                        "online": online,
+                        "retrying": retrying,
+                        "down": down,
+                    },
+                })
+            except Exception as e:
+                logger.debug("Status broadcast skipped: %s", e)
+        except Exception as e:
+            logger.error("Failed to update camera status for %s: %s", camera_id, e)
+        finally:
+            db.close()
     
     def start(self) -> None:
         """
@@ -1022,7 +1160,7 @@ class MultiprocessingDetectorWorker:
             camera_id: Camera identifier
         """
         if camera_id not in self.processes:
-            logger.warning(f"No detection process running for camera {camera_id}")
+            logger.debug("No detection process running for camera %s", camera_id)
             return
         
         # Signal stop
@@ -1164,8 +1302,17 @@ class MultiprocessingDetectorWorker:
                                         if postbuffer_seconds > 0:
                                             time.sleep(postbuffer_seconds)
                                         # Attach to shared buffer WITH timestamps
-                                        shm = shared_memory.SharedMemory(name=buffer_info['name'])
-                                        shm_ts = shared_memory.SharedMemory(name=f"tdv_timestamps_{camera_id}")
+                                        try:
+                                            shm = shared_memory.SharedMemory(name=buffer_info['name'])
+                                            shm_ts = shared_memory.SharedMemory(name=f"tdv_timestamps_{camera_id}")
+                                        except FileNotFoundError:
+                                            logger.warning(
+                                                "Shared buffer missing for event %s (camera=%s). "
+                                                "Camera may have been removed; skipping media generation.",
+                                                event.id,
+                                                camera_id,
+                                            )
+                                            continue
                                         
                                         buffer_size = buffer_info['buffer_size']
                                         frame_shape = tuple(buffer_info['frame_shape'])
@@ -1423,7 +1570,13 @@ class MultiprocessingDetectorWorker:
                                 
                             elif event_type == "status":
                                 # Handle status update
-                                pass
+                                try:
+                                    status_raw = event_data.get("status")
+                                    if status_raw:
+                                        status_enum = CameraStatus(status_raw)
+                                        self._update_camera_status(camera_id, status_enum, None)
+                                except Exception as e:
+                                    logger.debug("Status event ignored for %s: %s", camera_id, e)
                     
                     except Exception as e:
                         logger.error(f"Event handler error for {camera_id}: {e}")

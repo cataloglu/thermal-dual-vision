@@ -1,6 +1,6 @@
 {
   "name": "smart-motion-ui",
-  "version": "2.3.0",
+  "version": "3.10.55",
   "type": "module",
   "scripts": {
     "dev": "vite",

@@ -1,6 +1,8 @@
-# Thermal Dual Vision (Smart Motion Detector v2)
+# Thermal Dual Vision (Smart Motion Detector)
 
 Person‑only motion detection for thermal + color cameras, built as a **Home Assistant add‑on**.
+
+Current release version is tracked in `config.yaml` and `CHANGELOG.md`.
 
 ## 🔥 Highlights
 - 🎯 **Person‑only detection** (YOLOv8/YOLOv9)
@@ -9,7 +11,7 @@ Person‑only motion detection for thermal + color cameras, built as a **Home As
 - 🧠 **Optional AI summaries** (OpenAI, key optional)
 - 🔔 **Telegram alerts** + **MQTT auto‑discovery** (HA)
 - ⚡ **Performance presets** + per‑camera zones
-- 🚀 **NEW (v2.2)**: TensorRT/ONNX optimization, MOG2 motion, Prometheus metrics
+- 🚀 **Latest**: go2rtc-only pipeline, MP worker, diagnostics (see `CHANGELOG.md`)
 
 ## 🚀 Quick Start
 
