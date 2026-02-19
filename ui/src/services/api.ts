@@ -18,7 +18,7 @@ const resolveIngressApiBase = (): string => {
 
 // Nginx sub_filter injects API_URL; pathname fallback for Ingress
 const getBaseUrl = (): string => {
-  // @ts-expect-error: window.env injected by nginx sub_filter
+  // @ts-ignore
   const envUrl = window.env?.API_URL as string | undefined;
   if (envUrl?.startsWith('http')) return envUrl;
   if (envUrl && envUrl !== '/api') return envUrl;
@@ -222,6 +222,9 @@ export const getLiveStreamUrl = (cameraId: string) =>
 export const getLiveSnapshotUrl = (cameraId: string) =>
   joinApiUrl(`live/${cameraId}.jpg`);
 
+export const getLiveWebRTCUrl = (cameraId: string) =>
+  joinApiUrl(`live/${cameraId}/webrtc`);
+
 export const getCameraZones = async (cameraId: string): Promise<{ zones: Zone[] }> => {
   const response = await apiClient.get(`cameras/${cameraId}/zones`);
   return response.data;
@@ -288,6 +291,7 @@ export const api = {
   bulkDeleteEvents,
   deleteEventsFiltered,
   getLiveStreams,
+  getLiveWebRTCUrl,
   getCameraSnapshotUrl,
   getCameraZones,
   createCameraZone,

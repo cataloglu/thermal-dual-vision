@@ -4,16 +4,9 @@ Inference service for Smart Motion Detector v2.
 This service handles YOLOv8 model loading, preprocessing, and inference.
 """
 import logging
-import os
 import shutil
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-
-# Disable Ultralytics' runtime pip auto-install before importing the library.
-# Without this, each camera subprocess independently tries to pip install
-# openvino when it detects it's "missing" (race condition: another subprocess
-# is mid-uninstall/reinstall). Openvino is now pre-installed via requirements.txt.
-os.environ.setdefault("ULTRALYTICS_AUTO_UPDATE", "0")
 
 import cv2
 import numpy as np
@@ -128,8 +121,11 @@ class InferenceService:
                     logger.info("Loading OpenVINO model: %s (Intel iGPU/NPU/CPU)", openvino_dir)
                     self.model = YOLO(str(openvino_dir), task='detect')
                     self.model_name = model_name
-                    self._inference_device = "intel:gpu"  # i7 dahili ekran kartı; yoksa intel:cpu düşer
-                    logger.info("OpenVINO model loaded (device=intel:gpu)")
+                    # OpenVINO models auto-select best device (GPU/CPU) internally.
+                    # Don't pass device= on inference calls; it causes GPU-not-available
+                    # warnings in forked subprocesses where iGPU DRM context isn't shared.
+                    self._inference_device = None
+                    logger.info("OpenVINO model loaded (device=AUTO)")
                 else:
                     self._load_pt_then_export_openvino(model_name, pytorch_path, root_pytorch_path, openvino_dir)
                 # warmup below
@@ -325,8 +321,8 @@ class InferenceService:
             shutil.move(str(cwd_ov), str(openvino_dir))
         self.model = YOLO(str(openvino_dir), task='detect')
         self.model_name = model_name
-        self._inference_device = "intel:gpu"
-        logger.info("OpenVINO model exported and loaded (device=intel:gpu)")
+        self._inference_device = None
+        logger.info("OpenVINO model exported and loaded (device=AUTO)")
     
     def get_kurtosis_based_clahe_params(self, frame: np.ndarray) -> Dict[str, any]:
         """
