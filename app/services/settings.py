@@ -317,10 +317,9 @@ class SettingsService:
             pb = event.get("prebuffer_seconds")
             if pb is not None and float(pb) < 5.0:
                 event["prebuffer_seconds"] = 5.0
-            # postbuffer < 15 → ~2.5s video at 4x; bump to 15 for ~5s video
             pob = event.get("postbuffer_seconds")
-            if pob is not None and float(pob) < 15.0:
-                event["postbuffer_seconds"] = 15.0
+            if pob is not None and float(pob) < 3.0:
+                event["postbuffer_seconds"] = 3.0
             result["event"] = event
         record = result.get("record")
         if isinstance(record, dict):

@@ -190,7 +190,7 @@ class MediaService:
             try:
                 config = get_settings_service().load_config()
                 prebuffer = float(getattr(config.event, "prebuffer_seconds", 5.0))
-                postbuffer = float(getattr(config.event, "postbuffer_seconds", 15.0))
+                postbuffer = float(getattr(config.event, "postbuffer_seconds", 5.0))
                 speed_factor = max(1.0, min(10.0, float(getattr(config.telegram, "video_speed", 2) or 2)))
                 start_utc = event_utc - timedelta(seconds=prebuffer)
                 end_utc = event_utc + timedelta(seconds=postbuffer)

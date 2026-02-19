@@ -6,6 +6,18 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.73] - 2026-02-19
+
+### İyileştirmeler
+
+- **Kritik: Paralel event işleme (detector_mp):** `_event_handler_loop` daha önce tek thread'de sıralı çalışıyordu; bir kameranın eventi işlenirken (postbuffer sleep + medya + AI) diğer kameraların eventleri kuyrukta 7-16 saniye bekliyordu. Artık her detection eventi kendi `threading.Thread`'inde işleniyor (`_handle_detection_event` metodu). Ana loop anlık olarak tüm kuyrukları taramaya devam ediyor. Birden fazla kamera aynı anda event ürettiğinde paralel işlenir; kameralar arası gecikme ortadan kalktı.
+
+## [3.10.72] - 2026-02-19
+
+### Düzeltmeler
+
+- **Kritik: `postbuffer_seconds` sanitizer override sorunu:** `settings.py`'de `_sanitize_config_dict` fonksiyonu `postbuffer_seconds < 15` olan her değeri zorla 15'e çekiyordu. Bu nedenle 3.10.69'da config.py'de 5s'e düşürülen default ve kullanıcının ayarladığı herhangi bir değer (3-14 arası) yok sayılıyordu. Sanitizer eşiği 15→3'e düşürüldü. `detector_mp.py` ve `media.py`'deki hardcoded fallback'ler de 15.0→5.0 olarak güncellendi. Artık `postbuffer_seconds=5` ile Telegram bildirimi ~10 saniye erken gelir (19s→9s).
+
 ## [3.10.71] - 2026-02-19
 
 ### Düzeltmeler

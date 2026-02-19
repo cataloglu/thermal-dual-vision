@@ -12,6 +12,7 @@ import multiprocessing as mp
 import os
 import shutil
 import signal
+import threading
 import time
 from collections import deque
 from datetime import datetime, timezone as tz
@@ -919,7 +920,11 @@ class MultiprocessingDetectorWorker:
         
         # Event handler thread (in main process)
         self.event_handler_thread = None
-        
+
+        # Per-event processing threads (one per detection event, parallel)
+        self._event_threads: List[threading.Thread] = []
+        self._event_threads_lock = threading.Lock()
+
         logger.info("MultiprocessingDetectorWorker initialized")
 
     def _update_camera_status(
@@ -1211,6 +1216,281 @@ class MultiprocessingDetectorWorker:
             return None
         return buf.get_latest_frame_by_timestamp()
     
+    def _handle_detection_event(self, camera_id: str, event_data: dict) -> None:
+        """Process a single detection event in its own thread (parallel per camera)."""
+        import calendar
+        from multiprocessing import shared_memory as shm_mod
+        from app.services.events import get_event_service
+        from app.services.websocket import get_websocket_manager
+        from app.services.mqtt import get_mqtt_service
+        from app.services.ai import get_ai_service
+        from app.services.media import get_media_service
+        from app.services.settings import get_settings_service
+
+        db = next(get_session())
+        try:
+            camera = db.query(Camera).filter(Camera.id == camera_id).first()
+            if not camera:
+                logger.warning(f"Camera {camera_id} not found for event")
+                return
+
+            config = get_settings_service().load_config()
+            event_service = get_event_service()
+            websocket_manager = get_websocket_manager()
+            mqtt_service = get_mqtt_service()
+            ai_service = get_ai_service()
+            media_service = get_media_service()
+
+            person_count = event_data.get("person_count", 1)
+            confidence = event_data.get("confidence", 0.0)
+            event_ts_str = event_data.get("timestamp")
+            event_ts = datetime.utcnow()
+            if event_ts_str:
+                try:
+                    event_ts = datetime.strptime(event_ts_str.replace("Z", ""), "%Y-%m-%dT%H:%M:%S.%f")
+                except ValueError:
+                    try:
+                        event_ts = datetime.strptime(event_ts_str.replace("Z", ""), "%Y-%m-%dT%H:%M:%S")
+                    except ValueError:
+                        pass
+
+            event = event_service.create_event(
+                db=db,
+                camera_id=camera.id,
+                timestamp=event_ts,
+                confidence=confidence,
+                event_type="person",
+                summary=None,
+                ai_enabled=config.ai.enabled,
+                ai_reason="not_configured" if not config.ai.enabled else None,
+                person_count=person_count,
+            )
+            logger.info(f"Event created: {event.id} for camera {camera_id}")
+
+            ai_required = _ai_requires_confirmation(config)
+            buffer_info = event_data.get("buffer_info")
+            if not (buffer_info and buffer_info.get("name")):
+                logger.warning("Event %s: no buffer_info, cannot generate media (event created but no video)", event.id)
+                return
+
+            try:
+                postbuffer_seconds = float(getattr(config.event, "postbuffer_seconds", 5.0))
+                if postbuffer_seconds > 0:
+                    time.sleep(postbuffer_seconds)
+
+                try:
+                    shm = shm_mod.SharedMemory(name=buffer_info['name'])
+                    shm_ts = shm_mod.SharedMemory(name=f"tdv_timestamps_{camera_id}")
+                except FileNotFoundError:
+                    logger.warning(
+                        "Shared buffer missing for event %s (camera=%s). "
+                        "Camera may have been removed; skipping media generation.",
+                        event.id, camera_id,
+                    )
+                    return
+
+                buffer_size = buffer_info['buffer_size']
+                frame_shape = tuple(buffer_info['frame_shape'])
+                frames_array = np.ndarray((buffer_size, *frame_shape), dtype=np.uint8, buffer=shm.buf)
+                timestamps_array = np.ndarray((buffer_size,), dtype=np.float64, buffer=shm_ts.buf)
+
+                if event_ts_str:
+                    try:
+                        event_dt = datetime.strptime(event_ts_str.replace("Z", ""), "%Y-%m-%dT%H:%M:%S.%f")
+                        event_time = calendar.timegm(event_dt.timetuple()) + event_dt.microsecond / 1e6
+                    except Exception:
+                        event_dt = datetime.strptime(event_ts_str.replace("Z", ""), "%Y-%m-%dT%H:%M:%S")
+                        event_time = calendar.timegm(event_dt.timetuple())
+                else:
+                    event_time = time.time()
+
+                prebuffer_seconds = float(getattr(config.event, "prebuffer_seconds", 5.0))
+                postbuffer_seconds = float(getattr(config.event, "postbuffer_seconds", 5.0))
+                start_time = event_time - prebuffer_seconds
+                end_time = event_time + postbuffer_seconds
+
+                def _collect_frames(st: float, et: float):
+                    out = []
+                    for i in range(buffer_size):
+                        ts = timestamps_array[i]
+                        if ts > 0 and st <= ts <= et:
+                            out.append((ts, i, frames_array[i].copy()))
+                    out.sort(key=lambda x: x[0])
+                    return out
+
+                frames_with_ts = _collect_frames(start_time, end_time)
+                valid_timestamps = int(np.sum(timestamps_array > 0))
+
+                if len(frames_with_ts) == 0 and valid_timestamps > 0:
+                    frames_with_ts = _collect_frames(event_time - prebuffer_seconds * 2, event_time + postbuffer_seconds * 2)
+                    if frames_with_ts:
+                        logger.info("Event %s: no frames in exact range, used wider window (%d frames)", event.id, len(frames_with_ts))
+
+                frames_with_ts.sort(key=lambda x: x[0])
+                frames = [frame for ts, idx, frame in frames_with_ts]
+                logger.info(f"Collected {len(frames)} frames from buffer for event {event.id}")
+
+                shm.close()
+                shm_ts.close()
+
+                if len(frames) == 0:
+                    try:
+                        from app.services.recorder import get_continuous_recorder
+                        recorder = get_continuous_recorder()
+                        start_dt = datetime.fromtimestamp(start_time, tz=tz).replace(tzinfo=None)
+                        end_dt = datetime.fromtimestamp(end_time, tz=tz).replace(tzinfo=None)
+                        frames = recorder.extract_frames(event.camera_id, start_dt, end_dt, max_frames=60)
+                        if frames:
+                            logger.info(f"Recovered {len(frames)} frames from recording for event {event.id}")
+                    except Exception as e:
+                        logger.warning(f"extract_frames fallback failed: {e}")
+
+                if len(frames) > 0:
+                    camera_obj = db.query(Camera).filter(Camera.id == camera_id).first()
+                    camera_name = camera_obj.name if camera_obj else "Camera"
+
+                    if frames_with_ts and len(frames_with_ts) >= len(frames):
+                        frame_timestamps = [ts for ts, idx, frame in frames_with_ts[:len(frames)]]
+                    else:
+                        span = end_time - start_time
+                        frame_timestamps = [start_time + span * i / max(1, len(frames) - 1) for i in range(len(frames))]
+
+                    logger.info(f"[DEBUG-MEDIA] Generating media: event={event.id}, frames={len(frames)}, timestamps={len(frame_timestamps)}")
+
+                    bbox = event_data.get("bbox")
+                    detections_list = [None] * len(frames)
+                    if bbox and len(frames) >= 3:
+                        mid = len(frames) // 2
+                        detections_list[mid] = {"bbox": bbox, "confidence": confidence}
+
+                    try:
+                        media_urls = media_service.generate_event_media(
+                            db=db,
+                            event_id=event.id,
+                            frames=frames,
+                            detections=detections_list,
+                            timestamps=frame_timestamps,
+                            camera_name=camera_name,
+                            include_gif=False,
+                            mp4_frames=frames,
+                            mp4_detections=[None] * len(frames),
+                            mp4_timestamps=frame_timestamps,
+                            mp4_real_time=False,
+                        )
+                        logger.info(f"Media generated for event {event.id}")
+
+                        if ai_required:
+                            try:
+                                collage_path = media_service.get_media_path(event.id, "collage")
+                                if collage_path and collage_path.exists():
+                                    from app.services.time_utils import get_detection_source
+                                    detection_source = get_detection_source(
+                                        camera_obj.detection_source.value if hasattr(camera_obj, "detection_source") and camera_obj.detection_source else "thermal"
+                                    )
+                                    summary = asyncio.run(ai_service.analyze_event(
+                                        {
+                                            "id": event.id,
+                                            "camera_id": event.camera_id,
+                                            "timestamp": event.timestamp.isoformat() + "Z",
+                                            "confidence": event.confidence,
+                                        },
+                                        collage_path=str(collage_path),
+                                        camera={
+                                            "id": camera_obj.id,
+                                            "name": camera_name,
+                                            "type": (camera_obj.type.value if hasattr(camera_obj, "type") and camera_obj.type else None),
+                                            "detection_source": detection_source,
+                                        },
+                                    ))
+                                    event.summary = summary
+                                    event.ai_enabled = True
+                                    event.ai_reason = None
+                                    if not _is_ai_confirmed(summary):
+                                        logger.info(f"Event {event.id} rejected by AI, keeping for review (media already created)")
+                                        event.rejected_by_ai = True
+                                    else:
+                                        event.rejected_by_ai = False
+                                    db.commit()
+                                else:
+                                    logger.warning(f"Event {event.id}: no collage for AI analysis")
+                            except Exception as e:
+                                logger.error(f"AI analysis failed for event {event.id}: {e}")
+
+                        db.refresh(event)
+                        ai_confirmed = _is_ai_confirmed(event.summary) if ai_required else True
+                        if ai_confirmed:
+                            mqtt_service.publish_event({
+                                "id": event.id,
+                                "camera_id": event.camera_id,
+                                "timestamp": event.timestamp.isoformat() + "Z",
+                                "confidence": event.confidence,
+                                "event_type": event.event_type,
+                                "summary": event.summary,
+                                "person_count": person_count,
+                                "ai_required": ai_required,
+                                "ai_confirmed": ai_confirmed,
+                                "ai_enabled": bool(event.ai_enabled),
+                                "ai_reason": event.ai_reason,
+                            }, person_detected=True)
+                            try:
+                                websocket_manager.broadcast_event_sync({
+                                    "id": event.id,
+                                    "camera_id": camera_id,
+                                    "timestamp": event.timestamp.isoformat() + "Z",
+                                    "confidence": confidence,
+                                    "person_count": person_count,
+                                    "summary": event.summary,
+                                })
+                            except Exception:
+                                pass
+                            try:
+                                from app.services.telegram import get_telegram_service
+                                telegram = get_telegram_service()
+                                collage_path_obj = media_service.get_media_path(event.id, "collage")
+                                mp4_path_obj = media_service.get_media_path(event.id, "mp4")
+                                asyncio.run(telegram.send_event_notification(
+                                    event={
+                                        "id": event.id,
+                                        "camera_id": event.camera_id,
+                                        "timestamp": event.timestamp.isoformat() + "Z",
+                                        "confidence": event.confidence,
+                                        "summary": event.summary,
+                                    },
+                                    camera={"id": camera_obj.id, "name": camera_name},
+                                    collage_path=collage_path_obj,
+                                    mp4_path=mp4_path_obj,
+                                ))
+                            except Exception as te:
+                                logger.warning(f"Telegram notify failed: {te}")
+                    except Exception as e:
+                        logger.error(f"Failed to create media for event {event.id}: {e}")
+                        import traceback
+                        logger.error(traceback.format_exc())
+                else:
+                    logger.warning(
+                        "No frames available for event %s (buffer_range=%.1f-%.1f, valid_ts=%d), deleting orphan event",
+                        event.id, start_time, end_time, valid_timestamps,
+                    )
+                    try:
+                        event_dir = media_service.MEDIA_DIR / event.id
+                        if event_dir.exists():
+                            shutil.rmtree(event_dir, ignore_errors=True)
+                        db.delete(event)
+                        db.commit()
+                    except Exception as e:
+                        logger.error(f"Failed to delete orphan event {event.id}: {e}")
+
+            except Exception as e:
+                logger.error(f"Failed to generate media for event {event.id}: {e}")
+                import traceback
+                logger.error(traceback.format_exc())
+        except Exception as e:
+            logger.error(f"_handle_detection_event error for camera {camera_id}: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+        finally:
+            db.close()
+
     def _event_handler_loop(self) -> None:
         """
         Event handler loop (runs in main process).
@@ -1220,24 +1500,12 @@ class MultiprocessingDetectorWorker:
         logger.info("Event handler loop started")
         
         try:
-            # Import services
-            from multiprocessing import shared_memory
-            from app.services.events import get_event_service
-            from app.services.websocket import get_websocket_manager
-            from app.services.mqtt import get_mqtt_service
-            from app.services.ai import get_ai_service
-            from app.services.media import get_media_service
-            
-            event_service = get_event_service()
-            websocket_manager = get_websocket_manager()
-            mqtt_service = get_mqtt_service()
-            ai_service = get_ai_service()
-            media_service = get_media_service()
-            
-            db = next(get_session())
-            
             while self.running:
-                
+
+                # Prune finished event threads
+                with self._event_threads_lock:
+                    self._event_threads = [t for t in self._event_threads if t.is_alive()]
+
                 # Check all event queues
                 for camera_id, event_queue in list(self.event_queues.items()):
                     try:
@@ -1248,324 +1516,22 @@ class MultiprocessingDetectorWorker:
                             event_type = event_data.get("type")
                             
                             if event_type == "detection":
-                                # Get camera
-                                camera = db.query(Camera).filter(Camera.id == camera_id).first()
-                                if not camera:
-                                    logger.warning(f"Camera {camera_id} not found for event")
-                                    continue
-                                
-                                # Load config
-                                from app.services.settings import get_settings_service
-                                settings_service = get_settings_service()
-                                config = settings_service.load_config()
-                                
-                                # Create event in DB - use detection timestamp (critical for recording extract)
-                                person_count = event_data.get("person_count", 1)
-                                confidence = event_data.get("confidence", 0.0)
-                                event_ts_str = event_data.get("timestamp")
-                                event_ts = datetime.utcnow()
-                                if event_ts_str:
-                                    try:
-                                        event_ts = datetime.strptime(event_ts_str.replace("Z", ""), "%Y-%m-%dT%H:%M:%S.%f")
-                                    except ValueError:
-                                        try:
-                                            event_ts = datetime.strptime(event_ts_str.replace("Z", ""), "%Y-%m-%dT%H:%M:%S")
-                                        except ValueError:
-                                            pass
-                                event = event_service.create_event(
-                                    db=db,
-                                    camera_id=camera.id,
-                                    timestamp=event_ts,
-                                    confidence=confidence,
-                                    event_type="person",
-                                    summary=None,  # AI summary added later
-                                    ai_enabled=config.ai.enabled,
-                                    ai_reason="not_configured" if not config.ai.enabled else None,
-                                    person_count=person_count,
+                                # Dispatch each detection to its own thread so the loop
+                                # never blocks on time.sleep(postbuffer) or media work.
+                                t = threading.Thread(
+                                    target=self._handle_detection_event,
+                                    args=(camera_id, event_data),
+                                    daemon=True,
+                                    name=f"event-{camera_id[:8]}",
                                 )
-                                
-                                logger.info(f"Event created: {event.id} for camera {camera_id}")
+                                t.start()
+                                with self._event_threads_lock:
+                                    self._event_threads.append(t)
+                                continue
 
-                                ai_required = _ai_requires_confirmation(config)
-                                # Don't publish MQTT/WebSocket until media is ready - prevents "message before video" notifications
-                                # Generate collage/MP4 from shared buffer
-                                buffer_info = event_data.get("buffer_info")
-                                if not (buffer_info and buffer_info.get("name")):
-                                    logger.warning("Event %s: no buffer_info, cannot generate media (event created but no video)", event.id)
-                                elif buffer_info and buffer_info['name']:
-                                    try:
-                                        # CRITICAL: Wait for postbuffer so we capture frames AFTER event
-                                        # (buffer only contains past frames until we wait)
-                                        postbuffer_seconds = float(getattr(config.event, "postbuffer_seconds", 15.0))
-                                        if postbuffer_seconds > 0:
-                                            time.sleep(postbuffer_seconds)
-                                        # Attach to shared buffer WITH timestamps
-                                        try:
-                                            shm = shared_memory.SharedMemory(name=buffer_info['name'])
-                                            shm_ts = shared_memory.SharedMemory(name=f"tdv_timestamps_{camera_id}")
-                                        except FileNotFoundError:
-                                            logger.warning(
-                                                "Shared buffer missing for event %s (camera=%s). "
-                                                "Camera may have been removed; skipping media generation.",
-                                                event.id,
-                                                camera_id,
-                                            )
-                                            continue
-                                        
-                                        buffer_size = buffer_info['buffer_size']
-                                        frame_shape = tuple(buffer_info['frame_shape'])
-                                        
-                                        frames_array = np.ndarray(
-                                            (buffer_size, *frame_shape),
-                                            dtype=np.uint8,
-                                            buffer=shm.buf
-                                        )
-                                        timestamps_array = np.ndarray(
-                                            (buffer_size,),
-                                            dtype=np.float64,
-                                            buffer=shm_ts.buf
-                                        )
-                                        
-                                        # FIXED: Use event's ACTUAL timestamp (not current time!)
-                                        event_timestamp_str = event_data.get("timestamp")
-                                        if event_timestamp_str:
-                                            # Parse ISO timestamp as UTC, convert to epoch timestamp
-                                            # CRITICAL: Use strptime with explicit UTC to avoid timezone issues!
-                                            try:
-                                                # Remove 'Z' and parse as UTC
-                                                event_dt = datetime.strptime(event_timestamp_str.replace("Z", ""), "%Y-%m-%dT%H:%M:%S.%f")
-                                                # Convert UTC datetime to epoch timestamp
-                                                import calendar
-                                                event_time = calendar.timegm(event_dt.timetuple()) + event_dt.microsecond / 1e6
-                                            except:
-                                                # Fallback to simpler format (no microseconds)
-                                                event_dt = datetime.strptime(event_timestamp_str.replace("Z", ""), "%Y-%m-%dT%H:%M:%S")
-                                                event_time = calendar.timegm(event_dt.timetuple())
-                                        else:
-                                            # Fallback to current time (should not happen)
-                                            event_time = time.time()
-                                        
-                                        # Get desired time range (Scrypted-style: capture event window)
-                                        prebuffer_seconds = float(getattr(config.event, "prebuffer_seconds", 5.0))
-                                        postbuffer_seconds = float(getattr(config.event, "postbuffer_seconds", 15.0))
-                                        
-                                        start_time = event_time - prebuffer_seconds
-                                        end_time = event_time + postbuffer_seconds
-                                        
-                                        def _collect_frames(st: float, et: float):
-                                            out = []
-                                            for i in range(buffer_size):
-                                                ts = timestamps_array[i]
-                                                if ts > 0 and st <= ts <= et:
-                                                    out.append((ts, i, frames_array[i].copy()))
-                                            out.sort(key=lambda x: x[0])
-                                            return out
-                                        
-                                        # Collect frames within time range (SORTED by timestamp!)
-                                        frames_with_ts = _collect_frames(start_time, end_time)
-                                        valid_timestamps = int(np.sum(timestamps_array > 0))
-                                        
-                                        # Fallback: if no frames in exact range, try wider window (timestamp sync tolerance)
-                                        if len(frames_with_ts) == 0 and valid_timestamps > 0:
-                                            wider_pre = prebuffer_seconds * 2
-                                            wider_post = postbuffer_seconds * 2
-                                            frames_with_ts = _collect_frames(event_time - wider_pre, event_time + wider_post)
-                                            if frames_with_ts:
-                                                logger.info("Event %s: no frames in exact range, used wider window (%d frames)", event.id, len(frames_with_ts))
-                                        
-                                        # Sort by timestamp (ascending)
-                                        frames_with_ts.sort(key=lambda x: x[0])
-                                        
-                                        # Take all frames from buffer
-                                        frames = [frame for ts, idx, frame in frames_with_ts]
-                                        
-                                        logger.info(f"Collected {len(frames)} frames from buffer for event {event.id}")
-                                        
-                                        shm.close()
-                                        shm_ts.close()
-                                        
-                                        # When buffer has no frames: try recording extract (Scrypted-style primary source)
-                                        if len(frames) == 0:
-                                            try:
-                                                from app.services.recorder import get_continuous_recorder
-                                                from datetime import timezone as tz
-                                                recorder = get_continuous_recorder()
-                                                start_dt = datetime.fromtimestamp(start_time, tz=tz.utc).replace(tzinfo=None)
-                                                end_dt = datetime.fromtimestamp(end_time, tz=tz.utc).replace(tzinfo=None)
-                                                # Extract more frames for usable MP4 (Scrypted: recording is primary)
-                                                frames = recorder.extract_frames(event.camera_id, start_dt, end_dt, max_frames=60)
-                                                if frames:
-                                                    logger.info(f"Recovered {len(frames)} frames from recording for event {event.id}")
-                                            except Exception as e:
-                                                logger.warning(f"extract_frames fallback failed: {e}")
-                                        
-                                        # Generate media (collage + MP4)
-                                        if len(frames) > 0:
-                                            # Get camera for name
-                                            camera_obj = db.query(Camera).filter(Camera.id == camera_id).first()
-                                            camera_name = camera_obj.name if camera_obj else "Camera"
-                                            
-                                            # Create timestamps list from frames_with_ts
-                                            # frame_timestamps: from buffer or spread for recording-extracted frames
-                                            if frames_with_ts and len(frames_with_ts) >= len(frames):
-                                                frame_timestamps = [ts for ts, idx, frame in frames_with_ts[:len(frames)]]
-                                            else:
-                                                span = end_time - start_time
-                                                frame_timestamps = [start_time + span * i / max(1, len(frames) - 1) for i in range(len(frames))]
-                                            
-                                            logger.info(f"[DEBUG-MEDIA] Generating media: event={event.id}, frames={len(frames)}, timestamps={len(frame_timestamps)}")
-                                            
-                                            # PHASE 3: Scrypted-style approach
-                                            # 1. Collage: Use buffer frames (fast!)
-                                            # 2. MP4: Extract from continuous recording (high quality, no duplicates!)
-                                            
-                                            # Generate collage from buffer
-                                            from app.workers.media import get_media_worker
-                                            media_worker = get_media_worker()
-                                            
-                                            bbox = event_data.get("bbox")
-                                            detections_list = [None] * len(frames)
-                                            if bbox and len(frames) >= 3:
-                                                mid = len(frames) // 2
-                                                detections_list[mid] = {
-                                                    "bbox": bbox,
-                                                    "confidence": event_data.get("confidence", 0.0)
-                                                }
-                                            
-                                            
-                                            mp4_url = None
-                                            collage_url = None
-                                            
-                                            # Video/collage first, AI after - no waiting for AI (timing stays correct)
-                                            try:
-                                                media_urls = media_service.generate_event_media(
-                                                    db=db,
-                                                    event_id=event.id,
-                                                    frames=frames,
-                                                    detections=detections_list,
-                                                    timestamps=frame_timestamps,
-                                                    camera_name=camera_name,
-                                                    include_gif=False,
-                                                    mp4_frames=frames,
-                                                    mp4_detections=[None] * len(frames),
-                                                    mp4_timestamps=frame_timestamps,
-                                                    mp4_real_time=False,
-                                                )
-                                                mp4_url = media_urls.get('mp4_url')
-                                                collage_url = media_urls.get('collage_url')
-                                                logger.info(f"Media generated for event {event.id}")
-                                                
-                                                # AI after media (no blocking)
-                                                if ai_required:
-                                                    try:
-                                                        collage_path = media_service.get_media_path(event.id, "collage")
-                                                        if collage_path and collage_path.exists():
-                                                            from app.services.time_utils import get_detection_source
-                                                            detection_source = get_detection_source(
-                                                                camera_obj.detection_source.value if hasattr(camera_obj, "detection_source") and camera_obj.detection_source else "thermal"
-                                                            )
-                                                            summary = asyncio.run(ai_service.analyze_event(
-                                                                {
-                                                                    "id": event.id,
-                                                                    "camera_id": event.camera_id,
-                                                                    "timestamp": event.timestamp.isoformat() + "Z",
-                                                                    "confidence": event.confidence,
-                                                                },
-                                                                collage_path=str(collage_path),
-                                                                camera={
-                                                                    "id": camera_obj.id,
-                                                                    "name": camera_name,
-                                                                    "type": (camera_obj.type.value if hasattr(camera_obj, "type") and camera_obj.type else None),
-                                                                    "detection_source": detection_source,
-                                                                },
-                                                            ))
-                                                            event.summary = summary
-                                                            event.ai_enabled = True
-                                                            event.ai_reason = None
-                                                            if not _is_ai_confirmed(summary):
-                                                                logger.info(f"Event {event.id} rejected by AI, keeping for review (media already created)")
-                                                                event.rejected_by_ai = True
-                                                            else:
-                                                                event.rejected_by_ai = False  # AI onayı = onaylı, UI doğru göstersin
-                                                            db.commit()
-                                                        else:
-                                                            logger.warning(f"Event {event.id}: no collage for AI analysis")
-                                                    except Exception as e:
-                                                        logger.error(f"AI analysis failed for event {event.id}: {e}")
-                                                # AI onayı = son onay; MQTT/WebSocket/Telegram sadece onaylarsa
-                                                db.refresh(event)
-                                                ai_confirmed = _is_ai_confirmed(event.summary) if ai_required else True
-                                                if ai_confirmed:
-                                                    mqtt_service.publish_event({
-                                                        "id": event.id,
-                                                        "camera_id": event.camera_id,
-                                                        "timestamp": event.timestamp.isoformat() + "Z",
-                                                        "confidence": event.confidence,
-                                                        "event_type": event.event_type,
-                                                        "summary": event.summary,
-                                                        "person_count": person_count,
-                                                        "ai_required": ai_required,
-                                                        "ai_confirmed": ai_confirmed,
-                                                        "ai_enabled": bool(event.ai_enabled),
-                                                        "ai_reason": event.ai_reason,
-                                                    }, person_detected=True)
-                                                    try:
-                                                        websocket_manager.broadcast_event_sync({
-                                                            "id": event.id,
-                                                            "camera_id": camera_id,
-                                                            "timestamp": event.timestamp.isoformat() + "Z",
-                                                            "confidence": confidence,
-                                                            "person_count": person_count,
-                                                            "summary": event.summary,
-                                                        })
-                                                    except Exception:
-                                                        pass
-                                                    try:
-                                                        from app.services.telegram import get_telegram_service
-                                                        telegram = get_telegram_service()
-                                                        collage_path_obj = media_service.get_media_path(event.id, "collage")
-                                                        mp4_path_obj = media_service.get_media_path(event.id, "mp4")
-                                                        asyncio.run(telegram.send_event_notification(
-                                                            event={
-                                                                "id": event.id,
-                                                                "camera_id": event.camera_id,
-                                                                "timestamp": event.timestamp.isoformat() + "Z",
-                                                                "confidence": event.confidence,
-                                                                "summary": event.summary,
-                                                            },
-                                                            camera={"id": camera_obj.id, "name": camera_name},
-                                                            collage_path=collage_path_obj,
-                                                            mp4_path=mp4_path_obj,
-                                                        ))
-                                                    except Exception as te:
-                                                        logger.warning(f"Telegram notify failed: {te}")
-                                            except Exception as e:
-                                                logger.error(f"Failed to create media for event {event.id}: {e}")
-                                                import traceback
-                                                logger.error(traceback.format_exc())
-                                            
-                                        else:
-                                            logger.warning(
-                                                "No frames available for event %s (buffer_range=%.1f-%.1f, valid_ts=%d), deleting orphan event",
-                                                event.id, start_time, end_time, valid_timestamps
-                                            )
-                                            try:
-                                                event_dir = media_service.MEDIA_DIR / event.id
-                                                if event_dir.exists():
-                                                    shutil.rmtree(event_dir, ignore_errors=True)
-                                                db.delete(event)
-                                                db.commit()
-                                            except Exception as e:
-                                                logger.error(f"Failed to delete orphan event {event.id}: {e}")
-                                        
-                                    except Exception as e:
-                                        logger.error(f"Failed to generate media for event {event.id}: {e}")
-                                        import traceback
-                                        logger.error(traceback.format_exc())
-                                
                             elif event_type == "error":
                                 logger.error(f"Error event from {camera_id}: {event_data.get('error')}")
-                                
+
                             elif event_type == "status":
                                 # Handle status update
                                 try:
@@ -1582,8 +1548,6 @@ class MultiprocessingDetectorWorker:
                         logger.error(traceback.format_exc())
                 
                 time.sleep(0.01)  # 10ms polling interval
-            
-            db.close()
         
         except Exception as e:
             logger.error(f"Event handler loop error: {e}")
