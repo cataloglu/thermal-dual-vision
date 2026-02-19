@@ -160,7 +160,6 @@ async def lifespan(app: FastAPI):
             logger.info(f"Metrics server started on port {config.performance.metrics_port}")
 
         worker_mode = getattr(getattr(config, "performance", None), "worker_mode", "threading") or "threading"
-        global detector_worker
         if worker_mode == "multiprocessing":
             detector_worker = get_mp_detector_worker()
             logger.info("Using multiprocessing detector worker (experimental)")
@@ -171,6 +170,12 @@ async def lifespan(app: FastAPI):
         logger.warning(f"Failed to load config / start metrics: {e}")
         detector_worker = get_detector_worker()
         logger.info("Using threading detector worker (fallback)")
+
+    # Publish the chosen worker back to app.dependencies so all routers
+    # (live.py, system.py, …) see the correct instance instead of the
+    # default threading worker that was set at import time.
+    import app.dependencies as _deps
+    _deps.detector_worker = detector_worker
 
     detector_worker.start()
     logger.info("Detector worker started")
