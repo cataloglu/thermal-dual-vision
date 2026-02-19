@@ -103,7 +103,7 @@ export function Dashboard() {
     [handleEvent, handleStatus]
   )
 
-  const { } = useWebSocket('/api/ws/events', wsOptions)
+  useWebSocket('/api/ws/events', wsOptions)
 
   useEffect(() => {
     const fetchData = async () => {
