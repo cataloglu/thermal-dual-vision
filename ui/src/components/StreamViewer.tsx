@@ -178,7 +178,7 @@ export function StreamViewer({
           updateDebug('webrtc_timeout')
           startSnapshot()
         }
-      }, 8000)
+      }, 15000)
     } catch (err) {
       if (!ac.signal.aborted) {
         updateDebug('webrtc_error')

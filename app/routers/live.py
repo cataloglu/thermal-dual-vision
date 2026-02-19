@@ -39,8 +39,10 @@ def _resolve_go2rtc_stream_name(camera) -> Optional[str]:
 
 def _get_latest_worker_frame(camera_id: str) -> Optional[np.ndarray]:
     try:
-        if hasattr(detector_worker, "get_latest_frame"):
-            return detector_worker.get_latest_frame(camera_id)
+        import app.dependencies as _deps
+        worker = _deps.detector_worker
+        if hasattr(worker, "get_latest_frame"):
+            return worker.get_latest_frame(camera_id)
     except Exception as e:
         logger.debug("Live frame fetch failed for %s: %s", camera_id, e)
     return None
