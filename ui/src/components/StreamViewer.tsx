@@ -52,7 +52,8 @@ export function StreamViewer({
   const lastDebugRef = useRef(0)
   const maxRetries = 15
   const RETRY_DELAYS = [1500, 2500, 4000, 6000, 8000, 10000, 12000, 15000, 18000, 20000]
-  const STALL_SNAPSHOT_MS = 5000
+  // Allow extra time for go2rtc probe + worker fallback startup before switching to snapshots.
+  const STALL_SNAPSHOT_MS = 15000
 
   const effectiveUrl = resolveApiPath(getLiveStreamUrl(cameraId))
   const snapshotUrl = resolveApiPath(getLiveSnapshotUrl(cameraId))
@@ -145,9 +146,14 @@ export function StreamViewer({
         setSnapshotMode(true)
         setError(false)
         setRetryCount(0)
-        setLoading(true)
         updateDebug('stall_snapshot')
-        imgRef.current.src = `${snapshotUrl}?t=${Date.now()}`
+        // Reset the loading timeout so snapshot spinner auto-clears even if onLoad is slow.
+        if (loadingTimeoutRef.current) {
+          window.clearTimeout(loadingTimeoutRef.current)
+        }
+        loadingTimeoutRef.current = window.setTimeout(() => {
+          setLoading(false)
+        }, 2500)
       }
     }, STALL_SNAPSHOT_MS)
   }, [isVisible, loadStream, updateDebug])
@@ -237,9 +243,13 @@ export function StreamViewer({
         setSnapshotMode(true)
         setError(false)
         setRetryCount(0)
-        setLoading(true)
         updateDebug('stall_snapshot')
-        imgRef.current.src = `${snapshotUrl}?t=${Date.now()}`
+        if (loadingTimeoutRef.current) {
+          window.clearTimeout(loadingTimeoutRef.current)
+        }
+        loadingTimeoutRef.current = window.setTimeout(() => {
+          setLoading(false)
+        }, 2500)
       }
     }, STALL_SNAPSHOT_MS)
     updateDebug('manual_retry')
@@ -321,7 +331,7 @@ export function StreamViewer({
         </div>
       )}
 
-      {/* MJPEG Stream */}
+      {/* MJPEG / Snapshot Stream */}
       {loadStream && isVisible && (
         <img
           ref={imgRef}
@@ -331,7 +341,6 @@ export function StreamViewer({
               : effectiveUrl
           }
           alt={cameraName}
-          loading="lazy"
           className={`w-full h-full object-contain ${error ? 'hidden' : 'block'}`}
           onLoad={handleLoad}
           onError={handleError}

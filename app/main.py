@@ -1375,6 +1375,45 @@ async def get_live_stream(
     else:
         go2rtc_error = "disabled" if go2rtc_service else "not_configured"
 
+    # If main go2rtc stream failed, try _detect stream as fallback.
+    # detector_mp reads from {camera_id}_detect via go2rtc RTSP, so this stream is
+    # already active and will return frames immediately.
+    if not use_go2rtc_mjpeg and go2rtc_ready and go2rtc_error in ("ended", "empty", "timeout"):
+        detect_stream_name = f"{camera.id}_detect"
+        detect_rtsp_url = getattr(camera, "rtsp_url_detection", None)
+        if detect_stream_name != stream_name and detect_rtsp_url:
+            detect_mjpeg_url = f"{go2rtc_service.api_url}/api/stream.mjpeg?src={detect_stream_name}"
+            try:
+                _detect_probe_timeout = 2.0
+                _detect_timeout = httpx.Timeout(4.0, read=_detect_probe_timeout)
+                async with httpx.AsyncClient(timeout=_detect_timeout) as _dc:
+                    async with _dc.stream("GET", detect_mjpeg_url) as _dr:
+                        if _dr.status_code == 200:
+                            _daiter = _dr.aiter_bytes()
+                            try:
+                                _dchunk = await asyncio.wait_for(
+                                    _daiter.__anext__(), timeout=_detect_probe_timeout
+                                )
+                                if _dchunk:
+                                    use_go2rtc_mjpeg = True
+                                    go2rtc_mjpeg = detect_mjpeg_url
+                                    stream_name = detect_stream_name
+                                    go2rtc_error = None
+                                    media_type = _dr.headers.get("content-type", media_type)
+                                    logger.info(
+                                        "go2rtc detect stream fallback OK for %s", camera_id
+                                    )
+                            except (asyncio.TimeoutError, StopAsyncIteration) as _de:
+                                logger.debug(
+                                    "go2rtc detect stream fallback failed for %s: %s",
+                                    camera_id,
+                                    _de,
+                                )
+            except Exception as _de:
+                logger.debug(
+                    "go2rtc detect stream fallback error for %s: %s", camera_id, _de
+                )
+
     worker_supported = hasattr(detector_worker, "get_latest_frame")
 
     if probe:
