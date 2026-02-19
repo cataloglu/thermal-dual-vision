@@ -46,9 +46,9 @@ def test_load_default_config(settings_service):
     config = settings_service.load_config()
     
     assert isinstance(config, AppConfig)
-    assert config.detection.model == "yolov8n-person"
-    assert config.detection.confidence_threshold == 0.25
-    assert config.motion.sensitivity == 7
+    assert config.detection.model == "yolov8s-person"
+    assert config.detection.confidence_threshold == 0.30
+    assert config.motion.sensitivity == 8
     assert config.thermal.enable_enhancement is True
     assert config.stream.protocol == "tcp"
     assert config.live.output_mode == "mjpeg"
@@ -101,7 +101,7 @@ def test_partial_update(settings_service):
     
     # Check other fields remain default
     assert updated["detection"]["inference_fps"] == 5  # Default
-    assert updated["motion"]["sensitivity"] == 7  # Default
+    assert updated["motion"]["sensitivity"] == 8  # Default
     assert updated["thermal"]["enable_enhancement"] is True  # Default
 
 
@@ -208,9 +208,9 @@ def test_validation_error_disk_limit(settings_service):
     """Test validation error for invalid disk limit."""
     settings_service.load_config()
     
-    # Invalid disk limit (out of range)
+    # disk_limit_percent is in MediaConfig, not RecordConfig
     partial_data = {
-        "record": {
+        "media": {
             "disk_limit_percent": 30  # Invalid: must be 50-95
         }
     }
@@ -279,8 +279,8 @@ def test_get_default_config(settings_service):
     assert isinstance(default_config, dict)
     assert "detection" in default_config
     assert "motion" in default_config
-    assert default_config["detection"]["model"] == "yolov8n-person"
-    assert default_config["motion"]["sensitivity"] == 7
+    assert default_config["detection"]["model"] == "yolov8s-person"
+    assert default_config["motion"]["sensitivity"] == 8
 
 
 def test_concurrent_updates(settings_service):

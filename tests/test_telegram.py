@@ -113,21 +113,19 @@ async def test_send_notification_no_chat_ids(telegram_service, test_event, test_
 
 
 @pytest.mark.asyncio
-@patch('app.services.telegram.Bot')
-async def test_send_notification_success(mock_bot_class, telegram_service, test_event, test_camera, test_image, mock_config):
+async def test_send_notification_success(telegram_service, test_event, test_camera, test_image, mock_config):
     """Test successful notification send."""
-    # Mock bot
     mock_bot = AsyncMock()
     mock_bot.send_photo = AsyncMock()
-    mock_bot_class.return_value = mock_bot
-    
-    with patch.object(telegram_service.settings_service, 'load_config', return_value=mock_config):
+
+    with patch('app.services.telegram.Bot', return_value=mock_bot), \
+         patch.object(telegram_service.settings_service, 'load_config', return_value=mock_config):
         result = await telegram_service.send_event_notification(
-            test_event, 
-            test_camera, 
-            collage_path=test_image
+            test_event,
+            test_camera,
+            collage_path=test_image,
         )
-        
+
         assert result is True
         mock_bot.send_photo.assert_called_once()
 
@@ -135,19 +133,18 @@ async def test_send_notification_success(mock_bot_class, telegram_service, test_
 @pytest.mark.asyncio
 async def test_rate_limiting(telegram_service, test_event, test_camera, mock_config):
     """Test rate limiting prevents rapid messages."""
-    with patch.object(telegram_service.settings_service, 'load_config', return_value=mock_config):
-        with patch('app.services.telegram.Bot') as mock_bot_class:
-            mock_bot = AsyncMock()
-            mock_bot.send_message = AsyncMock()
-            mock_bot_class.return_value = mock_bot
-            
-            # First send should succeed
-            result1 = await telegram_service.send_event_notification(test_event, test_camera)
-            assert result1 is True
-            
-            # Second send immediately should be rate limited
-            result2 = await telegram_service.send_event_notification(test_event, test_camera)
-            assert result2 is False
+    mock_bot = AsyncMock()
+    mock_bot.send_message = AsyncMock()
+
+    with patch('app.services.telegram.Bot', return_value=mock_bot), \
+         patch.object(telegram_service.settings_service, 'load_config', return_value=mock_config):
+        # First send should succeed
+        result1 = await telegram_service.send_event_notification(test_event, test_camera)
+        assert result1 is True
+
+        # Second send immediately should be rate limited
+        result2 = await telegram_service.send_event_notification(test_event, test_camera)
+        assert result2 is False
 
 
 def test_check_rate_limit(telegram_service):
