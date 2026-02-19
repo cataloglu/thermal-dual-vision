@@ -52,7 +52,7 @@ def test_load_default_config(settings_service):
     assert config.thermal.enable_enhancement is True
     assert config.stream.protocol == "tcp"
     assert config.live.output_mode == "mjpeg"
-    assert config.record.enabled is False
+    assert config.record.enabled is True
     assert config.ai.enabled is False
     assert config.telegram.enabled is False
 
