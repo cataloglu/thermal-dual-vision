@@ -1,71 +1,69 @@
-# TEST PLAN — Phase 2 UI Save Verification
+# Test Plan
 
-Bu doküman, **Save butonları ve ayarların kalıcılığı** için hızlı test planı ve rapor şablonu içerir.
+## Automated Tests
 
----
+```bash
+python -m pytest          # full suite (174 tests as of v3.10.79)
+python -m pytest -q       # quiet summary only
+```
 
-## 1) Hızlı Test Planı (60–90 dk)
-
-### A) UI Smoke (her sekme 1 kaydet)
-1. **Detection** → model/confidence değiştir → Save → başarı mesajı
-2. **Thermal** → enable_enhancement toggle → Save
-3. **Stream** → buffer_size değiştir → Save
-4. **Live Stream** → output_mode değiştir → Save
-5. **Recording** → retention_days değiştir → Save
-6. **Events** → cooldown_seconds değiştir → Save
-7. **AI** → model/temperature değiştir → Save
-8. **Telegram** → chat_ids ekle → Save
-9. **Zones** → polygon oluştur → Save
-10. **Cameras** → kamera ekle → Save
-
-### B) API Doğrulama (GET/PUT eşleştir)
-Her kaydetmeden sonra:
-- `GET /api/settings` ile değişikliğin **gerçekten kaydedildiğini** doğrula.
-- `PUT /api/settings` ile **tek alan** update testi yap (partial update).
-
-### C) Persist Test (restart)
-- API’yi yeniden başlat
-- `GET /api/settings` ile değişikliklerin **kalıcı** olduğunu doğrula.
-
-### D) Hata Testleri (en az 2 adet)
-- Geçersiz değer (ör: `disk_limit_percent=999`) → **400 + VALIDATION_ERROR**
-- Invalid enum (ör: `output_mode=webrtcx`) → **400 + VALIDATION_ERROR**
+Test categories (pytest markers):
+- `unit` — config validation, settings service, event pipeline
+- `integration` — API endpoints, camera CRUD, event creation
+- `slow` — retention, benchmark
 
 ---
 
-## 1.1) E2E Otomasyon (Playwright)
-- UI save akışlarını otomatik test etmek için Playwright kullanılır.
-- Detaylar: `docs/E2E_TESTS.md`
+## Manual Smoke Test (after each release)
+
+### Backend API
+```bash
+# Health
+curl http://localhost:8000/api/health
+
+# Settings round-trip
+curl http://localhost:8000/api/settings
+curl -X PUT http://localhost:8000/api/settings \
+  -H "Content-Type: application/json" \
+  -d '{"detection": {"confidence_threshold": 0.35}}'
+curl http://localhost:8000/api/settings   # verify change persisted
+```
+
+### UI Settings Tabs (save each one)
+
+| Tab | Action | Expected |
+|---|---|---|
+| Cameras | Add → Test → Save | Camera appears in list |
+| Camera Settings | Change confidence → Save | Toast + value persists after reload |
+| Zones | Draw polygon → Save Zone | Zone appears in saved list |
+| Events | Change cooldown → Save | Value persists |
+| Media | Change retention → Save | Value persists |
+| AI | Enter key → Test → Save | Key masked after save |
+| Telegram | Enter token → Test | Test message received |
+| MQTT | Enable → Save | Status panel shows broker connection |
+| Appearance | Switch language | UI language changes instantly |
+
+### Persist Test
+1. Save a setting via UI
+2. Restart backend
+3. `GET /api/settings` — verify value is still there
+
+### Validation Errors
+```bash
+# Should return 422
+curl -X PUT http://localhost:8000/api/settings \
+  -H "Content-Type: application/json" \
+  -d '{"detection": {"confidence_threshold": 99}}'
+```
 
 ---
 
-## 2) Rapor Şablonu
+## Regression Checklist (critical paths)
 
-**Test Raporu — Phase 2 UI Save**
-- Tarih:  
-- Ortam: (local / docker / branch)  
-- Test eden:  
-
-**Özet**
-- Toplam test: 12  
-- Başarılı:  
-- Başarısız:  
-- Bloker:  
-
-**Detay**
-1. Detection Save → ✅/❌  
-2. Thermal Save → ✅/❌  
-3. Stream Save → ✅/❌  
-4. Live Stream Save → ✅/❌  
-5. Recording Save → ✅/❌  
-6. Events Save → ✅/❌  
-7. AI Save → ✅/❌  
-8. Telegram Save → ✅/❌  
-9. Zones Save → ✅/❌  
-10. Cameras Save → ✅/❌  
-11. Persist after restart → ✅/❌  
-12. Validation error handling → ✅/❌  
-
-**Hatalar**
-- #1: (adım, beklenen, görülen, log/endpoint)
-- #2: ...
+- [ ] Person detection triggers event creation (collage + MP4)
+- [ ] Telegram notification sends with correct image + video
+- [ ] MQTT publishes `binary_sensor` + `sensor` on event
+- [ ] Live view loads (go2rtc or snapshot fallback)
+- [ ] Retention worker deletes old events within disk limit
+- [ ] AI summary generated when API key set and valid
+- [ ] DB migration runs cleanly on fresh install and upgrade

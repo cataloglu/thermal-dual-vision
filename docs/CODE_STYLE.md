@@ -347,5 +347,4 @@ describe('CameraCard', () => {
 
 - Her public function/class dokümante et
 - API endpoint'leri `API_CONTRACT.md`'de güncelle
-- UI değişiklikleri `DESIGN_SYSTEM.md`'de güncelle
 - Breaking changes `CHANGELOG.md`'de belirt

@@ -1,68 +1,125 @@
-# DEVELOPMENT — Smart Motion Detector (v2)
+# Development Guide
 
-## 1) Gereksinimler
-- Python 3.11
-- Node.js 20+
-- FFmpeg
+## Requirements
+
+| Tool | Version |
+|---|---|
+| Python | 3.11 |
+| Node.js | 20+ |
+| FFmpeg | any recent |
+| go2rtc | bundled in Docker; install separately for local dev |
 
 ---
 
-## 2) Backend Kurulum
+## Backend Setup
+
 ```bash
 python -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate        # Linux/Mac
+# .venv\Scripts\activate         # Windows
+
 pip install -r requirements.txt
 ```
 
-Çalıştırma:
+Run:
 ```bash
+python -m uvicorn app.main:app --reload --port 8000
+# or simply:
 python -m app.main
 ```
 
-Ortam değişkenleri için: `docs/ENVIRONMENT.md`
+API available at `http://localhost:8000`  
+Swagger docs at `http://localhost:8000/docs`
+
+Environment variables: see `docs/ENVIRONMENT.md`
 
 ---
 
-## 3) Frontend Kurulum
+## Frontend Setup
+
 ```bash
 cd ui
 npm install
 npm run dev
 ```
 
----
+UI at `http://localhost:5173` — proxies `/api` to `localhost:8000` automatically.
 
-## 4) Test
+Build for production:
 ```bash
-pytest
+npm run build   # outputs to ui/dist/
+npm run lint    # ESLint check (0 warnings policy)
 ```
 
 ---
 
-## 5) Smoke Test (UI)
-1) Backend
+## Running Tests
+
 ```bash
-python -m app.main
+# All tests
+python -m pytest
+
+# Specific file
+python -m pytest tests/test_settings.py -v
+
+# Fast smoke (health + settings)
+python -m pytest tests/test_health.py tests/test_settings.py -v
 ```
 
-2) Frontend
-```bash
-cd ui
-npm run dev
-```
-
-3) Kontrol listesi
-- Dashboard: sistem durumu kartları yükleniyor, son event görünür.
-- Events: liste açılıyor, filtreler çalışıyor, pagination geçişi var.
-- Live: en az bir kamera stream görüntüsü geliyor, retry/snapshot/fullscreen çalışıyor.
-- Settings: tab geçişleri sorunsuz, kaydetme toast görünüyor.
-- Diagnostics: health/logs yükleniyor, log filtre + indirme çalışıyor.
+Test config: `pytest.ini` (root)
 
 ---
 
-## 6) Testing Strategy
-- Unit: config validation, event pipeline, settings
-- Integration: camera test endpoint, event creation
-- UI smoke: dashboard/events/settings basic render
-- Mock RTSP stream ile test edilir
+## Smoke Test Checklist (manual)
 
+Start backend + frontend, then verify:
+
+| Page | Check |
+|---|---|
+| Dashboard | Health cards load, last event visible |
+| Events | List loads, filters work, pagination works |
+| Live | Camera stream appears (snapshot fallback if no go2rtc) |
+| Settings → Cameras | Add/test/save camera works |
+| Settings → Detection | Change value → Save → toast appears |
+| Settings → Zones | Draw polygon → Save |
+| Settings → AI | API key field masked, test button works |
+| Settings → Telegram | Test message sends |
+| Settings → MQTT | Status panel shows connected/disconnected |
+| Diagnostics | Health + logs load, log filter works |
+| Video Analysis | Event list loads, analyze button works |
+
+---
+
+## Project Structure
+
+```
+thermal-dual-vision/
+├── app/                    # FastAPI backend
+│   ├── main.py             # All API routes
+│   ├── db/                 # SQLAlchemy models + session + migrations
+│   ├── models/             # Pydantic config models
+│   ├── services/           # Business logic (ai, mqtt, telegram, go2rtc...)
+│   └── workers/            # Background workers (detector, media, retention)
+├── ui/                     # React + TypeScript frontend
+│   └── src/
+│       ├── pages/          # Full-page components
+│       ├── components/     # Shared components + tab components
+│       ├── hooks/          # Custom React hooks
+│       ├── services/       # API client
+│       └── i18n/           # en.json + tr.json translations
+├── tests/                  # pytest test suite
+├── docs/                   # Documentation
+├── config.yaml             # HA addon manifest + version (single source of truth)
+├── env.example             # Environment variable template
+└── pytest.ini              # Test configuration
+```
+
+---
+
+## Adding a New Setting
+
+1. Add field to the right config class in `app/models/config.py`
+2. If it's a DB column: add migration in `app/db/session.py` (`_migrate_add_*`)
+3. Add UI input in the relevant `ui/src/components/tabs/` file
+4. Add i18n keys to `ui/src/i18n/en.json` and `ui/src/i18n/tr.json`
+5. Run `npm run build` + `python -m pytest` to verify
