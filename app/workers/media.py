@@ -27,6 +27,20 @@ from app.utils.paths import DATA_DIR
 logger = logging.getLogger(__name__)
 
 
+def _ascii_safe(text: str) -> str:
+    """Replace Turkish/Unicode chars with ASCII for cv2.putText (HERSHEY fonts are ASCII-only)."""
+    table = str.maketrans(
+        "öşçığüÖŞÇİĞÜ",
+        "osciguOSCIGU",
+    )
+    return text.translate(table)
+
+
+def _local_time_str(utc_dt: datetime) -> str:
+    """Convert a UTC datetime to local wall-clock time string (HH:MM:SS)."""
+    return datetime.fromtimestamp(utc_dt.timestamp()).strftime("%H:%M:%S")
+
+
 class MediaWorker:
     """Worker for event media generation."""
     
@@ -603,11 +617,11 @@ class MediaWorker:
             # Add frame number badge (1-5)
             _draw_badge(img, str(idx + 1))
             
-            # Add timestamp on first frame
+            # Add timestamp on first frame (local wall-clock time)
             if idx == 0 and timestamp:
                 cv2.putText(
                     img,
-                    timestamp.strftime("%H:%M:%S"),
+                    _local_time_str(timestamp),
                     (10, 70),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.6,
@@ -644,10 +658,10 @@ class MediaWorker:
         
         collage = np.vstack(rows)
         
-        # Add camera name (top right)
+        # Add camera name (top right) — ASCII-safe for cv2 HERSHEY font
         cv2.putText(
             collage,
-            camera_name,
+            _ascii_safe(camera_name),
             (1700, 40),
             cv2.FONT_HERSHEY_SIMPLEX,
             1.0,
@@ -742,7 +756,7 @@ class MediaWorker:
             # Add camera name
             cv2.putText(
                 img,
-                camera_name,
+                _ascii_safe(camera_name),
                 (480, 30),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.6,
@@ -933,15 +947,16 @@ class MediaWorker:
                 )
 
             if camera_name:
+                safe_name = _ascii_safe(camera_name)
                 (name_w, name_h), _ = cv2.getTextSize(
-                    camera_name,
+                    safe_name,
                     cv2.FONT_HERSHEY_SIMPLEX,
                     font_medium,
                     text_thickness,
                 )
                 cv2.putText(
                     img,
-                    camera_name,
+                    safe_name,
                     (target_size[0] - name_w - margin, max(margin, name_h + margin // 2)),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     font_medium,
