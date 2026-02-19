@@ -1381,8 +1381,25 @@ class MultiprocessingDetectorWorker:
 
                         if ai_required:
                             try:
-                                collage_path = media_service.get_media_path(event.id, "collage")
-                                if collage_path and collage_path.exists():
+                                # Generate a clean collage (no bounding boxes) for AI independent analysis
+                                from app.workers.media import get_media_worker as _get_mw
+                                _mw = _get_mw()
+                                _ai_collage_path = media_service.MEDIA_DIR / event.id / "collage_ai.jpg"
+                                try:
+                                    _mw.create_collage(
+                                        frames,
+                                        None,  # No boxes: AI judges independently
+                                        frame_timestamps,
+                                        str(_ai_collage_path),
+                                        camera_name,
+                                        event.timestamp,
+                                        event.confidence,
+                                    )
+                                    ai_collage_to_use = _ai_collage_path if _ai_collage_path.exists() else media_service.get_media_path(event.id, "collage")
+                                except Exception:
+                                    ai_collage_to_use = media_service.get_media_path(event.id, "collage")
+
+                                if ai_collage_to_use and ai_collage_to_use.exists():
                                     from app.services.time_utils import get_detection_source
                                     detection_source = get_detection_source(
                                         camera_obj.detection_source.value if hasattr(camera_obj, "detection_source") and camera_obj.detection_source else "thermal"
@@ -1394,14 +1411,21 @@ class MultiprocessingDetectorWorker:
                                             "timestamp": event.timestamp.isoformat() + "Z",
                                             "confidence": event.confidence,
                                         },
-                                        collage_path=str(collage_path),
+                                        collage_path=str(ai_collage_to_use),
                                         camera={
                                             "id": camera_obj.id,
                                             "name": camera_name,
                                             "type": (camera_obj.type.value if hasattr(camera_obj, "type") and camera_obj.type else None),
                                             "detection_source": detection_source,
                                         },
+                                        confidence=event.confidence,
                                     ))
+                                    # Clean up temporary AI collage
+                                    try:
+                                        if _ai_collage_path.exists():
+                                            _ai_collage_path.unlink()
+                                    except Exception:
+                                        pass
                                     event.summary = summary
                                     event.ai_enabled = True
                                     event.ai_reason = None

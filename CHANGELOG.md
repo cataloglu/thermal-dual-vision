@@ -6,6 +6,12 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.75] - 2026-02-19
+
+### Düzeltmeler
+
+- **AI bağımsız analiz (kutu yok):** AI collage'ına bounding box çizilmemesi sağlandı. Daha önce "Person 41%" etiketiyle çizili kutu AI'ı yanıltıyordu — kutuyu görünce bağımsız değerlendirme yapmadan onaylıyordu. Artık `generate_collage_for_ai` ve `detector_mp._handle_detection_event` içinde AI için ayrı, kutu olmayan bir collage oluşturuluyor. Kullanıcıya gösterilen collage (UI + Telegram) hâlâ kutulu kalıyor.
+
 ## [3.10.74] - 2026-02-19
 
 ### Düzeltmeler

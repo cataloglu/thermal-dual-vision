@@ -103,7 +103,7 @@ class MediaService:
         timestamps: Optional[List[float]] = None,
         camera_name: str = "Camera",
     ) -> Optional[Path]:
-        """Create collage only for AI pre-check. Returns path or None."""
+        """Create collage for AI pre-check — no bounding boxes so AI judges independently."""
         event = db.query(Event).filter(Event.id == event_id).first()
         if not event or len(frames) == 0:
             return None
@@ -113,7 +113,7 @@ class MediaService:
         try:
             self.media_worker.create_collage(
                 frames,
-                detections,
+                None,        # No bounding boxes for AI: independent judgment
                 timestamps,
                 collage_path,
                 camera_name,
