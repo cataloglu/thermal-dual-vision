@@ -1586,7 +1586,15 @@ class MultiprocessingDetectorWorker:
                                     status_raw = event_data.get("status")
                                     if status_raw:
                                         status_enum = CameraStatus(status_raw)
-                                        self._update_camera_status(camera_id, status_enum, None)
+                                        last_frame_ts = None
+                                        if status_raw == "connected":
+                                            ts_raw = event_data.get("timestamp")
+                                            if ts_raw:
+                                                try:
+                                                    last_frame_ts = datetime.fromisoformat(ts_raw)
+                                                except Exception:
+                                                    last_frame_ts = datetime.utcnow()
+                                        self._update_camera_status(camera_id, status_enum, last_frame_ts)
                                 except Exception as e:
                                     logger.debug("Status event ignored for %s: %s", camera_id, e)
                     
