@@ -438,6 +438,7 @@
   "language": "Language",
   "themeChangesInstant": "Theme changes apply instantly. No page reload needed.",
   "zoneSettings": "Zone Settings",
+  "zoneEditor": "Zone Editor",
   "zoneDesc": "Define detection zones in camera view",
   "selectCamera": "Select Camera",
   "zoneName": "Zone Name",

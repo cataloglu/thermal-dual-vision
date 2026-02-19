@@ -139,30 +139,10 @@ export const ZonesTab: React.FC = () => {
 
       {selectedCamera && (
         <>
-          <div className="bg-surface1 border border-border rounded-lg p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="text-sm font-medium text-text">{t('snapshot')}</h4>
-              <button
-                onClick={refreshSnapshot}
-                className="px-3 py-1 bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors text-sm"
-              >
-                {t('refresh')}
-              </button>
-            </div>
-            <div className="aspect-video bg-surface2 rounded-lg overflow-hidden">
-              {snapshotUrl ? (
-                <img src={snapshotUrl} alt={t('snapshot')} className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-muted text-sm">
-                  {t('loading')}...
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Zone Editor */}
+          {/* Zone Editor — snapshot is displayed inside the canvas */}
           <ZoneEditor
             snapshotUrl={snapshotUrl}
+            onRefreshSnapshot={refreshSnapshot}
             onSave={handleSaveZone}
           />
 

@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { MdUndo, MdClear, MdSave } from 'react-icons/md'
+import { MdUndo, MdClear, MdSave, MdRefresh } from 'react-icons/md'
 
 interface Point {
   x: number
@@ -11,9 +11,10 @@ interface ZoneEditorProps {
   snapshotUrl?: string
   initialPoints?: Point[]
   onSave: (points: Point[]) => void
+  onRefreshSnapshot?: () => void
 }
 
-export function ZoneEditor({ snapshotUrl, initialPoints = [], onSave }: ZoneEditorProps) {
+export function ZoneEditor({ snapshotUrl, initialPoints = [], onSave, onRefreshSnapshot }: ZoneEditorProps) {
   const { t } = useTranslation()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const imgRef = useRef<HTMLImageElement | null>(null)
@@ -178,6 +179,20 @@ export function ZoneEditor({ snapshotUrl, initialPoints = [], onSave }: ZoneEdit
 
   return (
     <div className="space-y-4">
+      {/* Canvas header */}
+      <div className="flex items-center justify-between">
+        <h4 className="text-sm font-medium text-text">{t('zoneEditor')}</h4>
+        {onRefreshSnapshot && (
+          <button
+            onClick={onRefreshSnapshot}
+            className="flex items-center gap-1.5 px-3 py-1 bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors text-sm"
+          >
+            <MdRefresh />
+            {t('refresh')}
+          </button>
+        )}
+      </div>
+
       {/* Canvas */}
       <div className="border border-border rounded-lg overflow-hidden bg-surface2">
         <canvas

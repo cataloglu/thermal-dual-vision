@@ -438,6 +438,7 @@
   "language": "Dil",
   "themeChangesInstant": "Tema değişiklikleri anında uygulanır. Sayfa yenilemeye gerek yoktur.",
   "zoneSettings": "Bölge Ayarları",
+  "zoneEditor": "Bölge Editörü",
   "zoneDesc": "Kamera görüntüsünde algılama bölgeleri tanımlayın",
   "selectCamera": "Kamera Seçin",
   "zoneName": "Bölge Adı",
