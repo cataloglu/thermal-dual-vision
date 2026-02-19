@@ -579,13 +579,7 @@ def camera_detection_process(
                         break
             except:
                 pass
-            
-            # FPS throttling
-            current_time = time.time()
-            if current_time - last_frame_time < frame_delay:
-                time.sleep(0.01)
-                continue
-            
+
             # Ensure capture is available
             if cap is None or not cap.isOpened():
                 cap = _open_capture(is_reconnect=True)
@@ -593,9 +587,11 @@ def camera_detection_process(
                     time.sleep(reconnect_delay)
                     continue
 
-            # Read frame
+            # ALWAYS read frame before FPS throttle — drains go2rtc buffer at camera FPS.
+            # Scrypted/NVR approach: consume every frame from the stream, discard if not
+            # needed for inference. Prevents "reader too slow" disconnects from go2rtc.
             ret, frame = cap.read()
-            
+
             if not ret or frame is None:
                 frames_failed += 1
                 if frames_failed % 100 == 0:
@@ -627,32 +623,22 @@ def camera_detection_process(
                     else:
                         time.sleep(reconnect_delay)
                     continue
-                # Aggressive exponential backoff for failed reads (prevent CPU waste!)
                 if frames_failed > 500:
-                    # After 500 failures, give up for 30s
                     time.sleep(30)
-                    frames_failed = 0  # Reset counter
+                    frames_failed = 0
                 else:
-                    sleep_time = min(2.0, 0.5 + (frames_failed / 100))  # Max 2.0s
-                    time.sleep(sleep_time)
+                    time.sleep(min(0.5, 0.01 * frames_failed))
                 continue
-            
-            frames_failed = 0  # Reset on successful read
-            last_success_time = current_time
-            
-            last_frame_time = current_time
 
-            def _log_gate(reason: str) -> None:
-                nonlocal last_gate_log
-                if current_time - last_gate_log >= gate_log_interval:
-                    process_logger.debug("EVENT_GATE [%s]: %s", cam_name, reason)
-                    last_gate_log = current_time
-            
-            # Resize large frames immediately (optimization)
+            frames_failed = 0
+            current_time = time.time()
+            last_success_time = current_time
+
+            # Resize large frames immediately (every frame, not just inference frames)
             if frame.shape[1] > 1280:
                 height = int(frame.shape[0] * 1280 / frame.shape[1])
                 frame = cv2.resize(frame, (1280, height))
-            
+
             # Write frame to buffer ONLY if timestamp advanced (prevent same-frame duplicates!)
             if frame_buffer:
                 try:
@@ -687,6 +673,18 @@ def camera_detection_process(
                 except Exception as e:
                     process_logger.debug(f"Frame buffer write error: {e}")
             
+            # FPS throttle for inference — buffer already written above at record_fps rate.
+            # Frame was consumed from go2rtc regardless; only inference is rate-limited.
+            if current_time - last_frame_time < frame_delay:
+                continue
+            last_frame_time = current_time
+
+            def _log_gate(reason: str) -> None:
+                nonlocal last_gate_log
+                if current_time - last_gate_log >= gate_log_interval:
+                    process_logger.debug("EVENT_GATE [%s]: %s", cam_name, reason)
+                    last_gate_log = current_time
+
             # Motion detection (pre-filter)
             motion_active = True
             motion_area = 0

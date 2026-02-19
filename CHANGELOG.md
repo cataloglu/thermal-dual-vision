@@ -6,6 +6,12 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.70] - 2026-02-19
+
+### Düzeltmeler
+
+- **Kritik: Kamera bağlantı kopması engellendi (MP modu):** `detector_mp.py` ana döngüsünde `cap.read()` artık FPS throttle'dan **önce** çalışır. Önceden sistem inference_fps (5fps) arasında `time.sleep(0.01)` ile bekliyordu; bu sürede go2rtc frame buffer'ı dolup "reader too slow" hatası vererek bağlantıyı kesiyordu. Artık her frame stream'den tüketilir (Scrypted/NVR yaklaşımı), inference FPS'i sadece YOLO çalıştırma sıklığını belirler. Ek olarak `frame_buffer` yazımı da FPS throttle'dan bağımsız çalışarak `record_fps` (10fps) hızında buffer doldurur.
+
 ## [3.10.69] - 2026-02-19
 
 ### İyileştirmeler
