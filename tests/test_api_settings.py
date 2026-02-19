@@ -52,9 +52,9 @@ def test_get_settings_default(client):
     assert "telegram" in data
     
     # Check default values
-    assert data["detection"]["model"] == "yolov8n-person"
-    assert data["detection"]["confidence_threshold"] == 0.25
-    assert data["motion"]["sensitivity"] == 7
+    assert data["detection"]["model"] == "yolov8s-person"
+    assert data["detection"]["confidence_threshold"] == 0.30
+    assert data["motion"]["sensitivity"] == 8
     assert data["thermal"]["enable_enhancement"] is True
     assert data["stream"]["protocol"] == "tcp"
     assert data["live"]["output_mode"] == "mjpeg"
@@ -81,7 +81,7 @@ def test_put_settings_partial_update(client):
     
     # Check other fields remain default
     assert data["detection"]["inference_fps"] == 5
-    assert data["motion"]["sensitivity"] == 7
+    assert data["motion"]["sensitivity"] == 8
 
 
 def test_put_settings_multiple_sections(client):
@@ -281,7 +281,7 @@ def test_put_settings_validation_error_ai_key_format(client):
 def test_put_settings_validation_error_disk_limit(client):
     """Test PUT /api/settings validation error for invalid disk limit."""
     update_data = {
-        "record": {
+        "media": {
             "disk_limit_percent": 30  # Invalid: must be 50-95
         }
     }
@@ -425,4 +425,4 @@ def test_post_settings_reset(client):
     response = client.post("/api/settings/reset")
     assert response.status_code == 200
     data = response.json()
-    assert data["detection"]["model"] == "yolov8n-person"
+    assert data["detection"]["model"] == "yolov8s-person"

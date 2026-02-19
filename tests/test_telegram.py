@@ -33,6 +33,7 @@ def mock_config():
     config.telegram.rate_limit_seconds = 5
     config.telegram.cooldown_seconds = 5
     config.telegram.send_images = True
+    config.telegram.max_messages_per_min = 20
     return config
 
 
