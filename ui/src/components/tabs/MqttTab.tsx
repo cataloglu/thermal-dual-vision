@@ -3,6 +3,13 @@ import { useTranslation } from 'react-i18next';
 import { api } from '../../services/api';
 import type { MqttConfig } from '../../types/api';
 
+interface Camera {
+  id: string
+  name: string
+  type: string
+  enabled: boolean
+}
+
 interface MqttStatus {
   enabled: boolean;
   connected: boolean;
@@ -27,7 +34,7 @@ export function MqttTab({ config, onChange, onSave }: MqttTabProps) {
   const { t } = useTranslation();
   const [mqttStatus, setMqttStatus] = useState<MqttStatus | null>(null);
   const [statusLoading, setStatusLoading] = useState(false);
-  const [cameras, setCameras] = useState<any[]>([]);
+  const [cameras, setCameras] = useState<Camera[]>([]);
   const [passwordDraft, setPasswordDraft] = useState('');
   const [passwordTouched, setPasswordTouched] = useState(false);
 
@@ -317,7 +324,7 @@ export function MqttTab({ config, onChange, onSave }: MqttTabProps) {
                 <div className="p-4 bg-background rounded-lg border border-border">
                   <div className="space-y-2 text-xs">
                     {cameras && cameras.length > 0 ? (
-                      cameras.map((cam: any) => (
+                      cameras.map((cam) => (
                         <div key={cam.id} className="p-2 bg-surface1 rounded border-l-2 border-accent">
                           <div className="font-semibold text-foreground mb-1">{cam.name}</div>
                           <div className="space-y-0.5 text-muted-foreground font-mono">

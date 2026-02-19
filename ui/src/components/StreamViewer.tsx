@@ -9,7 +9,6 @@ export const MAX_LIVE_STREAMS = 2
 interface StreamViewerProps {
   cameraId: string
   cameraName: string
-  streamUrl?: string
   status?: 'connected' | 'retrying' | 'down' | 'initializing'
   /** If false, show placeholder instead of loading stream (to respect backend limit). */
   loadStream?: boolean

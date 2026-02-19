@@ -150,7 +150,7 @@ export function Events() {
       // Refresh events list
       refresh()
     } catch (error) {
-      toast.error('Event silinemedi')
+      toast.error(t('deleteEventFailed'))
       console.error('Failed to delete event:', error)
     }
   }
@@ -161,11 +161,11 @@ export function Events() {
     try {
       const result = await api.bulkDeleteEvents(ids)
       const deletedCount = result?.deleted_count ?? ids.length
-      toast.success(`${deletedCount} event silindi`)
+      toast.success(t('deleteAllSuccess', { count: deletedCount }))
       setSelectedIds(new Set())
       refresh()
     } catch (error) {
-      toast.error('Toplu silme başarısız')
+      toast.error(t('deleteAllFailed'))
     }
   }
 

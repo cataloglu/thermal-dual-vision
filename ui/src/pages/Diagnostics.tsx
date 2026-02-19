@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import apiClient, { api } from '../services/api'
 import { MdContentCopy, MdCheckCircle, MdRefresh, MdDownload, MdDelete } from 'react-icons/md'
@@ -22,16 +22,16 @@ export function Diagnostics() {
   const [mediaLogFilter, setMediaLogFilter] = useState('')
   const isRefreshingRef = useRef(false)
 
-  const fetchSystemInfo = async () => {
+  const fetchSystemInfo = useCallback(async () => {
     try {
       const data = await api.getSystemInfo()
       setSystemInfo(data)
     } catch (error) {
       console.error('Failed to fetch system info:', error)
     }
-  }
+  }, [])
 
-  const fetchLogs = async () => {
+  const fetchLogs = useCallback(async () => {
     try {
       setLogsLoading(true)
       const data = await api.getLogs(logLineLimit)
@@ -41,7 +41,7 @@ export function Diagnostics() {
     } finally {
       setLogsLoading(false)
     }
-  }
+  }, [logLineLimit])
 
   useEffect(() => {
     const fetchData = async () => {
@@ -57,7 +57,7 @@ export function Diagnostics() {
     if (!loading) {
       fetchLogs()
     }
-  }, [logLineLimit])
+  }, [logLineLimit, fetchLogs])
 
   // Auto-refresh
   useEffect(() => {
@@ -72,7 +72,7 @@ export function Diagnostics() {
     }, 5000)
 
     return () => clearInterval(interval)
-  }, [autoRefresh])
+  }, [autoRefresh, fetchSystemInfo, fetchLogs])
 
   const handleCopyLogs = () => {
     if (logs.length > 0) {
@@ -151,19 +151,21 @@ export function Diagnostics() {
   const isMediaLog = (line: string) =>
     mediaLogPatterns.some((pattern) => line.toLowerCase().includes(pattern.toLowerCase()))
 
-  const cameraLogs = logs.filter((line) => isCameraLog(line) && !isMediaLog(line))
-  const mediaLogs = logs.filter((line) => isMediaLog(line))
-  const applicationLogs = logs.filter((line) => !isCameraLog(line) && !isMediaLog(line))
-
-  const filteredAppLogs = applicationLogs.filter((line) =>
-    appLogFilter ? line.toLowerCase().includes(appLogFilter.toLowerCase()) : true
-  )
-  const filteredCameraLogs = cameraLogs.filter((line) =>
-    cameraLogFilter ? line.toLowerCase().includes(cameraLogFilter.toLowerCase()) : true
-  )
-  const filteredMediaLogs = mediaLogs.filter((line) =>
-    mediaLogFilter ? line.toLowerCase().includes(mediaLogFilter.toLowerCase()) : true
-  )
+  const { cameraLogs, mediaLogs, applicationLogs, filteredAppLogs, filteredCameraLogs, filteredMediaLogs } = useMemo(() => {
+    const cameraLogs = logs.filter((line) => isCameraLog(line) && !isMediaLog(line))
+    const mediaLogs = logs.filter((line) => isMediaLog(line))
+    const applicationLogs = logs.filter((line) => !isCameraLog(line) && !isMediaLog(line))
+    const filteredAppLogs = applicationLogs.filter((line) =>
+      appLogFilter ? line.toLowerCase().includes(appLogFilter.toLowerCase()) : true
+    )
+    const filteredCameraLogs = cameraLogs.filter((line) =>
+      cameraLogFilter ? line.toLowerCase().includes(cameraLogFilter.toLowerCase()) : true
+    )
+    const filteredMediaLogs = mediaLogs.filter((line) =>
+      mediaLogFilter ? line.toLowerCase().includes(mediaLogFilter.toLowerCase()) : true
+    )
+    return { cameraLogs, mediaLogs, applicationLogs, filteredAppLogs, filteredCameraLogs, filteredMediaLogs }
+  }, [logs, appLogFilter, cameraLogFilter, mediaLogFilter])
 
   const parseLogLine = (line: string) => {
     const pipeMatch = line.match(
@@ -207,7 +209,6 @@ export function Diagnostics() {
   }
 
   const handleDownloadLogs = () => {
-    // FIX: filteredLogs -> filteredAppLogs
     const content = filteredAppLogs.join('\n')
     const blob = new Blob([content], { type: 'text/plain' })
     const url = URL.createObjectURL(blob)

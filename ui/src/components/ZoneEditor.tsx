@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from 'react'
+import { useRef, useEffect, useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MdUndo, MdClear, MdSave } from 'react-icons/md'
 
@@ -16,14 +16,11 @@ interface ZoneEditorProps {
 export function ZoneEditor({ snapshotUrl, initialPoints = [], onSave }: ZoneEditorProps) {
   const { t } = useTranslation()
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const imgRef = useRef<HTMLImageElement | null>(null)
   const [points, setPoints] = useState<Point[]>(initialPoints)
   const [hoveredPoint, setHoveredPoint] = useState<number | null>(null)
 
-  useEffect(() => {
-    drawCanvas()
-  }, [points, snapshotUrl, hoveredPoint])
-
-  const drawCanvas = () => {
+  const drawCanvas = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas) return
 
@@ -35,11 +32,26 @@ export function ZoneEditor({ snapshotUrl, initialPoints = [], onSave }: ZoneEdit
 
     // Draw snapshot if available
     if (snapshotUrl) {
-      const img = new Image()
-      img.src = snapshotUrl
-      img.onload = () => {
+      if (!imgRef.current || imgRef.current.src !== snapshotUrl) {
+        const img = new Image()
+        img.src = snapshotUrl
+        imgRef.current = img
+      }
+      const img = imgRef.current
+      if (img.complete && img.naturalWidth > 0) {
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
         drawPolygon(ctx)
+      } else {
+        img.onload = () => {
+          if (canvasRef.current) {
+            const ctx2 = canvasRef.current.getContext('2d')
+            if (ctx2) {
+              ctx2.clearRect(0, 0, canvas.width, canvas.height)
+              ctx2.drawImage(img, 0, 0, canvas.width, canvas.height)
+              drawPolygon(ctx2)
+            }
+          }
+        }
       }
     } else {
       // Draw placeholder
@@ -51,7 +63,12 @@ export function ZoneEditor({ snapshotUrl, initialPoints = [], onSave }: ZoneEdit
       ctx.fillText(t('selectCamera'), canvas.width / 2, canvas.height / 2)
       drawPolygon(ctx)
     }
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snapshotUrl, points, hoveredPoint, t])
+
+  useEffect(() => {
+    drawCanvas()
+  }, [drawCanvas])
 
   const drawPolygon = (ctx: CanvasRenderingContext2D) => {
     if (points.length === 0) return

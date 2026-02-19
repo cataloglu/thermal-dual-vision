@@ -107,6 +107,12 @@ export const Settings: React.FC = () => {
     }
   };
 
+  // handleSaveEvent can be used as onSubmit handler for forms (prevents default before saving)
+  const handleSaveEvent = useCallback((e: React.SyntheticEvent) => {
+    e.preventDefault()
+    handleSave()
+  }, [handleSave])
+
   const handleSavePartial = useCallback(async (updates: Partial<SettingsType>) => {
     const saved = await saveSettings(updates);
     if (saved) {
@@ -225,7 +231,7 @@ export const Settings: React.FC = () => {
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-6xl mx-auto px-6 py-8">
-        <div className="mb-8 flex items-start justify-between">
+        <div className="mb-8">
           <h1 className="text-3xl font-bold text-text mb-2">{t('settingsTitle')}</h1>
           <p className="text-muted">{t('settingsSubtitle')}</p>
         </div>

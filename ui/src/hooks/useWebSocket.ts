@@ -1,13 +1,31 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
 
+interface WebSocketEventData {
+  event_id?: string
+  camera_id?: string
+  event_type?: string
+  [key: string]: unknown
+}
+
+interface WebSocketStatusData {
+  camera_id?: string
+  status?: string
+  counts?: {
+    online?: number
+    retrying?: number
+    down?: number
+  }
+  [key: string]: unknown
+}
+
 interface WebSocketMessage {
   type: 'event' | 'status'
-  data: any
+  data: WebSocketEventData | WebSocketStatusData | Record<string, unknown>
 }
 
 interface UseWebSocketOptions {
-  onEvent?: (data: any) => void
-  onStatus?: (data: any) => void
+  onEvent?: (data: WebSocketEventData) => void
+  onStatus?: (data: WebSocketStatusData) => void
   onConnect?: () => void
   onDisconnect?: () => void
   reconnectInterval?: number
@@ -159,7 +177,7 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
     }
   }, [connect])
 
-  const send = useCallback((data: any) => {
+  const send = useCallback((data: Record<string, unknown> | string) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify(data))
     } else {

@@ -364,6 +364,7 @@ export function EventDetail({ event, cameraName, initialTab, onClose, onDelete }
                 className="w-full px-3 py-2 bg-surface1 border border-border rounded-lg text-text placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent"
               />
             </div>
+            <p className="text-xs text-muted mt-2 italic">{t('localStorageNote')}</p>
           </div>
 
           {/* Actions */}

@@ -192,11 +192,17 @@ export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
         
         {/* Language Toggle */}
         <button
-          onClick={() => {
+          onClick={async () => {
             const currentLang = localStorage.getItem('language') || 'tr'
             const newLang = currentLang === 'tr' ? 'en' : 'tr'
             localStorage.setItem('language', newLang)
             i18n.changeLanguage(newLang)
+            // Persist to backend so addon restart preserves the language choice
+            try {
+              await api.updateSettings({ appearance: { language: newLang, theme: 'pure-black' } })
+            } catch {
+              // Non-critical: language is already applied locally
+            }
           }}
           className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-surface2 border border-border rounded-lg hover:bg-accent hover:text-white transition-colors text-text text-sm font-medium"
           title="Dil değiştir / Change language"

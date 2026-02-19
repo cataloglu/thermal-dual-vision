@@ -9,6 +9,23 @@ import type { AIConfig } from '../../types/api';
 import { api } from '../../services/api';
 import apiClient from '../../services/api';
 
+interface EventItem {
+  id: string
+  camera_id?: string
+  camera_name?: string
+  timestamp: string
+  collage_url?: string | null
+}
+
+interface AITestResult {
+  result?: string
+  summary?: string
+  error?: string
+  prompt?: string
+  image_url?: string
+  [key: string]: unknown
+}
+
 interface AITabProps {
   config: AIConfig;
   onChange: (config: AIConfig) => void;
@@ -33,11 +50,11 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
   }, [config.api_key, isKeyMasked]);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [eventsError, setEventsError] = useState<string | null>(null);
-  const [events, setEvents] = useState<any[]>([]);
+  const [events, setEvents] = useState<EventItem[]>([]);
   const [cameras, setCameras] = useState<{ id: string; name: string }[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string>('');
   const [aiTestLoading, setAiTestLoading] = useState(false);
-  const [aiTestResult, setAiTestResult] = useState<any | null>(null);
+  const [aiTestResult, setAiTestResult] = useState<AITestResult | null>(null);
   const [aiTestError, setAiTestError] = useState<string | null>(null);
 
   const templatePreview = () => {
@@ -80,8 +97,9 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
       if (!selectedEventId && eventList.length > 0) {
         setSelectedEventId(eventList[0].id);
       }
-    } catch (error: any) {
-      setEventsError(error?.response?.data?.detail?.message ?? error?.message ?? t('error'));
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { detail?: { message?: string } } }; message?: string }
+      setEventsError(err?.response?.data?.detail?.message ?? err?.message ?? t('error'));
     } finally {
       setEventsLoading(false);
     }
@@ -104,8 +122,9 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
     try {
       const result = await api.testAiEvent(selectedEventId);
       setAiTestResult(result);
-    } catch (error: any) {
-      setAiTestError(error?.response?.data?.detail?.message ?? error?.message ?? t('error'));
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { detail?: { message?: string } } }; message?: string }
+      setAiTestError(err?.response?.data?.detail?.message ?? err?.message ?? t('error'));
     } finally {
       setAiTestLoading(false);
     }
