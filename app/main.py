@@ -13,7 +13,7 @@ import os
 import threading
 from fastapi import FastAPI, HTTPException, Depends, Query, WebSocket, WebSocketDisconnect, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import ValidationError, BaseModel
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
@@ -35,7 +35,7 @@ from app.services.settings import get_settings_service
 from app.services.websocket import get_websocket_manager
 from app.services.telegram import get_telegram_service
 from app.services.logs import get_logs_service
-from app.services.ai_test import test_openai_connection
+from app.services.ai_probe import test_openai_connection
 from app.services.ai import get_ai_service
 from app.services.time_utils import get_detection_source
 from app.services.go2rtc import get_go2rtc_service
@@ -121,8 +121,6 @@ def _debug_headers_enabled() -> bool:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan for startup/shutdown tasks."""
-    import asyncio
-
     logger.info("Starting Smart Motion Detector v2")
 
     # Start retention worker
