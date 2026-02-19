@@ -17,13 +17,13 @@ class DetectionConfig(BaseModel):
         description="Primary model selection: yolov8n (fast), yolov8s (accurate), yolov9t (thermal), yolov9s (best)"
     )
     confidence_threshold: float = Field(
-        default=0.30,
+        default=0.50,
         ge=0.0,
         le=1.0,
         description="Minimum confidence for detections (higher = fewer false alarms)"
     )
     thermal_confidence_threshold: float = Field(
-        default=0.35,
+        default=0.55,
         ge=0.0,
         le=1.0,
         description="Minimum confidence for thermal (higher = fewer false alarms from heat blobs)"

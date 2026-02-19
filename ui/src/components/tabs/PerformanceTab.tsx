@@ -20,8 +20,8 @@ const ALGORITHM_HINTS: Record<string, { tr: string; en: string }> = {
 }
 
 export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, onChange, onSave }) => {
-  const { t, i18n } = useTranslation()
-  const lang = (i18n.language || 'tr') as 'tr' | 'en'
+  const { t } = useTranslation()
+  const lang = (localStorage.getItem('language') || 'tr') as 'tr' | 'en'
   const [showAdvancedStream, setShowAdvancedStream] = useState(false)
   const [showAdvancedThermal, setShowAdvancedThermal] = useState(false)
   const [showAdvancedPerf, setShowAdvancedPerf] = useState(false)
@@ -38,10 +38,10 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
           model: 'yolov8n-person',
           inference_fps: 2,
           inference_resolution: [416, 416],
-          confidence_threshold: 0.30,
-          thermal_confidence_threshold: 0.35,
+          confidence_threshold: 0.50,
+          thermal_confidence_threshold: 0.55,
         },
-        motion: { ...base.motion, algorithm: 'frame_diff', sensitivity: 7, min_area: 600, cooldown_seconds: 6 },
+        motion: { ...base.motion, algorithm: 'frame_diff', sensitivity: 7, min_area: 600, cooldown_seconds: 8 },
         thermal: { ...base.thermal, enable_enhancement: false },
         stream: {
           ...base.stream,
@@ -59,8 +59,8 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
           postbuffer_seconds: 8,
           record_fps: 8,
           frame_interval: 3,
-          min_event_duration: 1.0,
-          cooldown_seconds: 7,
+          min_event_duration: 1.5,
+          cooldown_seconds: 10,
         },
       },
       balanced: {
@@ -69,8 +69,8 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
           model: 'yolov8s-person',
           inference_fps: 5,
           inference_resolution: [640, 640],
-          confidence_threshold: 0.30,
-          thermal_confidence_threshold: 0.35,
+          confidence_threshold: 0.50,
+          thermal_confidence_threshold: 0.55,
         },
         motion: { ...base.motion, algorithm: 'mog2', sensitivity: 8, min_area: 450, cooldown_seconds: 6 },
         thermal: { ...base.thermal, enable_enhancement: true, enhancement_method: 'clahe', clahe_clip_limit: 2.0 },
@@ -100,8 +100,8 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
           model: 'yolov8s-person',
           inference_fps: 5,
           inference_resolution: [640, 640],
-          confidence_threshold: 0.30,
-          thermal_confidence_threshold: 0.35,
+          confidence_threshold: 0.50,
+          thermal_confidence_threshold: 0.55,
         },
         motion: { ...base.motion, algorithm: 'mog2', sensitivity: 8, min_area: 400, cooldown_seconds: 6 },
         thermal: { ...base.thermal, enable_enhancement: true, enhancement_method: 'clahe', clahe_clip_limit: 2.0 },
@@ -131,11 +131,11 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
           model: 'yolov9s',
           inference_fps: 7,
           inference_resolution: [640, 640],
-          confidence_threshold: 0.30,
-          thermal_confidence_threshold: 0.35,
+          confidence_threshold: 0.55,
+          thermal_confidence_threshold: 0.60,
         },
-        motion: { ...base.motion, algorithm: 'mog2', sensitivity: 9, min_area: 350, cooldown_seconds: 6 },
-        thermal: { ...base.thermal, enable_enhancement: true, enhancement_method: 'clahe', clahe_clip_limit: 2.0 },
+        motion: { ...base.motion, algorithm: 'mog2', sensitivity: 9, min_area: 350, cooldown_seconds: 5 },
+        thermal: { ...base.thermal, enable_enhancement: true, enhancement_method: 'clahe', clahe_clip_limit: 2.5 },
         stream: {
           ...base.stream,
           protocol: 'tcp',
