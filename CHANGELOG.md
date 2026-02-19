@@ -6,6 +6,19 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.72] - 2026-02-19
+
+### Teknik İyileştirmeler (Refactor)
+
+- **`app/main.py` bölündü:** 2566 satırlık god file, 6 ayrı router dosyasına ayrıldı (`cameras`, `events`, `live`, `settings`, `system`, `websocket_router`). Yeni ajan oturumlarında token limiti sorunu yaşanmaz.
+- **`app/dependencies.py` oluşturuldu:** Tüm servis singleton'ları tek yerden yönetilir; router'lar circular import olmadan bu dosyadan import eder.
+- **AI onay string'leri merkezi hale getirildi:** `detector.py` ve `detector_mp.py`'deki hardcoded Türkçe/İngilizce string'ler `app/services/ai_constants.py`'e taşındı. Model veya prompt değişikliği artık her iki worker'ı da otomatik etkiler.
+- **`_get_go2rtc_restream_url` tekrarı kaldırıldı:** `main.py` ve `detector.py`'deki iki ayrı kopya, `Go2RTCService.build_restream_url()` metodunda birleştirildi.
+- **`ai_test.py` → `ai_probe.py`:** Servis klasöründeki yanıltıcı isim düzeltildi.
+- **Duplicate import'lar temizlendi:** `main.py`'deki tekrar eden `asyncio` ve `Response` import'ları kaldırıldı.
+
+---
+
 ## [3.10.71] - 2026-02-19
 
 ### Düzeltmeler
