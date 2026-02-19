@@ -63,7 +63,6 @@ export function ZoneEditor({ snapshotUrl, initialPoints = [], onSave }: ZoneEdit
       ctx.fillText(t('selectCamera'), canvas.width / 2, canvas.height / 2)
       drawPolygon(ctx)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snapshotUrl, points, hoveredPoint, t])
 
   useEffect(() => {
