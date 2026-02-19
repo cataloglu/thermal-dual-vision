@@ -18,7 +18,7 @@ const resolveIngressApiBase = (): string => {
 
 // Nginx sub_filter injects API_URL; pathname fallback for Ingress
 const getBaseUrl = (): string => {
-  // @ts-ignore
+  // @ts-expect-error - window.env is injected by nginx sub_filter at runtime
   const envUrl = window.env?.API_URL as string | undefined;
   if (envUrl?.startsWith('http')) return envUrl;
   if (envUrl && envUrl !== '/api') return envUrl;

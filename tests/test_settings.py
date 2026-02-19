@@ -47,7 +47,7 @@ def test_load_default_config(settings_service):
     
     assert isinstance(config, AppConfig)
     assert config.detection.model == "yolov8s-person"
-    assert config.detection.confidence_threshold == 0.30
+    assert config.detection.confidence_threshold == 0.50
     assert config.motion.sensitivity == 8
     assert config.thermal.enable_enhancement is True
     assert config.stream.protocol == "tcp"
@@ -324,7 +324,7 @@ def test_concurrent_updates(settings_service):
     
     # Verify final state (one of the updates should win)
     settings = settings_service.get_settings()
-    assert settings["detection"]["confidence_threshold"] in [0.25, 0.3]
+    assert settings["detection"]["confidence_threshold"] in [0.3, 0.5]
     assert settings["motion"]["sensitivity"] in [7, 8]
 
 
