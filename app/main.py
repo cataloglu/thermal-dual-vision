@@ -290,7 +290,8 @@ async def health():
         ai_enabled = False
         ai_reason = "not_configured"
 
-    pipeline_status = "ok" if detector_worker.running else "down"
+    import app.dependencies as _deps
+    pipeline_status = "ok" if _deps.detector_worker.running else "down"
     telegram_status = "ok" if telegram_service.is_enabled() else "disabled"
     try:
         mqtt_cfg = settings_service.load_config().mqtt
