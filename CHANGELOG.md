@@ -6,6 +6,12 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.68] - 2026-02-19
+
+### Düzeltmeler
+
+- **Kritik: Video kaybı engellendi:** `_extract_single` ve `_extract_multi` artık FFmpeg çıktısını geçici dosyaya yazar; yalnızca başarı durumunda `os.replace()` ile hedef dosyanın üzerine atomik yazar. Böylece geç gelen kayıt çıkarma denemesi başarısız olsa da mevcut buffer MP4 bozulmadan korunur. Bu hata hem UI'da hem Telegram'da video görünmemesinin ana nedeni idi.
+
 ## [3.10.67] - 2026-02-18
 
 ### Düzeltmeler

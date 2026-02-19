@@ -323,35 +323,43 @@ class ContinuousRecorder:
 
         duration = (end_time - start_time).total_seconds()
 
-        if speed_factor <= 1.0:
-            cmd = [
-                ffmpeg, "-hide_banner", "-loglevel", "error",
-                "-i", str(recording),
-                "-ss", f"{offset:.2f}",
-                "-t", f"{duration:.2f}",
-                "-c", "copy",
-                "-movflags", "+faststart",
-                "-y", output_path,
-            ]
-        else:
-            pts = 1.0 / speed_factor
-            cmd = [
-                ffmpeg, "-hide_banner", "-loglevel", "error",
-                "-i", str(recording),
-                "-ss", f"{offset:.2f}",
-                "-t", f"{duration:.2f}",
-                "-filter:v", f"setpts={pts}*PTS",
-                "-an",
-                "-c:v", "libx264",
-                "-preset", "medium",
-                "-crf", "18",
-                "-pix_fmt", "yuv420p",
-                "-movflags", "+faststart",
-                "-y", output_path,
-            ]
+        tmp_path = None
         try:
+            tmp_fd, tmp_path = tempfile.mkstemp(
+                suffix=".mp4", prefix="extract_", dir=os.path.dirname(output_path)
+            )
+            os.close(tmp_fd)
+
+            if speed_factor <= 1.0:
+                cmd = [
+                    ffmpeg, "-hide_banner", "-loglevel", "error",
+                    "-i", str(recording),
+                    "-ss", f"{offset:.2f}",
+                    "-t", f"{duration:.2f}",
+                    "-c", "copy",
+                    "-movflags", "+faststart",
+                    "-y", tmp_path,
+                ]
+            else:
+                pts = 1.0 / speed_factor
+                cmd = [
+                    ffmpeg, "-hide_banner", "-loglevel", "error",
+                    "-i", str(recording),
+                    "-ss", f"{offset:.2f}",
+                    "-t", f"{duration:.2f}",
+                    "-filter:v", f"setpts={pts}*PTS",
+                    "-an",
+                    "-c:v", "libx264",
+                    "-preset", "medium",
+                    "-crf", "18",
+                    "-pix_fmt", "yuv420p",
+                    "-movflags", "+faststart",
+                    "-y", tmp_path,
+                ]
             result = subprocess.run(cmd, capture_output=True, timeout=120)
             if result.returncode == 0:
+                os.replace(tmp_path, output_path)
+                tmp_path = None
                 logger.info("Extracted clip: %s (%.1fx speed)", output_path, speed_factor)
                 return True
             stderr = result.stderr.decode(errors="ignore")
@@ -365,6 +373,12 @@ class ContinuousRecorder:
         except Exception as e:
             logger.warning("Extract clip failed: %s", e)
             return False
+        finally:
+            if tmp_path:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
 
     def _extract_multi(
         self,
@@ -378,6 +392,7 @@ class ContinuousRecorder:
         """Extract clip spanning multiple segment files using concat demuxer."""
         concat_fd = None
         concat_path = None
+        tmp_path = None
         try:
             concat_fd, concat_path = tempfile.mkstemp(suffix=".txt", prefix="concat_")
             with open(concat_fd, "w", encoding="utf-8") as f:
@@ -385,6 +400,11 @@ class ContinuousRecorder:
                     escaped = str(fp).replace("'", "'\\''")
                     f.write(f"file '{escaped}'\n")
             concat_fd = None  # ownership transferred
+
+            tmp_fd, tmp_path = tempfile.mkstemp(
+                suffix=".mp4", prefix="extract_", dir=os.path.dirname(output_path)
+            )
+            os.close(tmp_fd)
 
             first_start = self._parse_filename_timestamp(files[0])
             if first_start is None:
@@ -403,7 +423,7 @@ class ContinuousRecorder:
                     "-t", f"{duration:.2f}",
                     "-c", "copy",
                     "-movflags", "+faststart",
-                    "-y", output_path,
+                    "-y", tmp_path,
                 ]
             else:
                 pts = 1.0 / speed_factor
@@ -420,10 +440,12 @@ class ContinuousRecorder:
                     "-crf", "18",
                     "-pix_fmt", "yuv420p",
                     "-movflags", "+faststart",
-                    "-y", output_path,
+                    "-y", tmp_path,
                 ]
             result = subprocess.run(cmd, capture_output=True, timeout=120)
             if result.returncode == 0:
+                os.replace(tmp_path, output_path)
+                tmp_path = None
                 logger.info("Extracted multi-segment clip: %s", output_path)
                 return True
             logger.error(
@@ -439,6 +461,11 @@ class ContinuousRecorder:
                 try:
                     Path(concat_path).unlink(missing_ok=True)
                 except Exception:
+                    pass
+            if tmp_path:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
                     pass
 
     # ------------------------------------------------------------------
