@@ -39,6 +39,7 @@ from app.services.websocket import get_websocket_manager
 from app.services.mqtt import get_mqtt_service
 from app.services.go2rtc import get_go2rtc_service
 from app.services.metrics import get_metrics_service
+from app.services.ai_constants import AI_NEGATIVE_MARKERS, AI_POSITIVE_MARKERS
 from app.utils.rtsp import redact_rtsp_url
 
 
@@ -1449,22 +1450,9 @@ class DetectorWorker:
         if not summary:
             return False
         text = summary.lower()
-        negative_markers = [
-            "insan tespit edilmedi",
-            "no human",
-            "muhtemel yanlış alarm",
-            "muhtemel yanlis alarm",
-            "false alarm",
-        ]
-        if any(marker in text for marker in negative_markers):
+        if any(marker in text for marker in AI_NEGATIVE_MARKERS):
             return False
-        positive_markers = [
-            "kişi tespit edildi",
-            "kisi tespit edildi",
-            "insan tespit edildi",
-            "person detected",
-        ]
-        return any(marker in text for marker in positive_markers)
+        return any(marker in text for marker in AI_POSITIVE_MARKERS)
 
     def _is_motion_active(self, camera: Camera, frame: np.ndarray, config) -> bool:
         base_motion = config.motion.model_dump()

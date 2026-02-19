@@ -21,6 +21,7 @@ import numpy as np
 
 from app.db.models import Camera, CameraStatus
 from app.db.session import get_session
+from app.services.ai_constants import AI_NEGATIVE_MARKERS, AI_POSITIVE_MARKERS
 
 
 logger = logging.getLogger(__name__)
@@ -40,23 +41,9 @@ def _is_ai_confirmed(summary) -> bool:
     if not summary:
         return False
     text = (summary or "").lower()
-    negative_markers = [
-        "insan tespit edilmedi",
-        "no human",
-        "muhtemel yanlış alarm",
-        "muhtemel yanlis alarm",
-        "false alarm",
-    ]
-    if any(marker in text for marker in negative_markers):
+    if any(marker in text for marker in AI_NEGATIVE_MARKERS):
         return False
-    positive_markers = [
-        "kişi tespit",
-        "kişi tespit",
-        "person detected",
-        "insan tespit",
-    ]
-    return any(marker in text for marker in positive_markers)
-
+    return any(marker in text for marker in AI_POSITIVE_MARKERS)
 
 def _point_in_polygon(x: float, y: float, polygon: List[List[float]]) -> bool:
     inside = False
