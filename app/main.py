@@ -261,6 +261,12 @@ continuous_recorder = get_continuous_recorder()
 # Limit concurrent live MJPEG streams to avoid CPU spike (each stream = full RTSP decode + encode)
 _live_stream_semaphore = threading.Semaphore(2)
 
+# Per-camera go2rtc probe result cache: {camera_id: (success: bool, expires_at: float)}
+# Avoids hammering go2rtc with repeated checks when it's known to fail for a camera.
+_go2rtc_probe_cache: Dict[str, tuple] = {}
+_GO2RTC_PROBE_CACHE_TTL = 20.0   # seconds to cache a failure result
+_GO2RTC_SUCCESS_CACHE_TTL = 5.0  # seconds to cache a success result
+
 
 def _resolve_default_rtsp_url(camera) -> Optional[str]:
     if camera.type.value == "thermal":
@@ -1339,37 +1345,59 @@ async def get_live_stream(
         stream_name = _resolve_go2rtc_stream_name(camera)
         if stream_name:
             go2rtc_mjpeg = f"{go2rtc_service.api_url}/api/stream.mjpeg?src={stream_name}"
-            try:
-                probe_timeout = 3.0
-                timeout = httpx.Timeout(5.0, read=probe_timeout)
-                async with httpx.AsyncClient(timeout=timeout) as client:
-                    async with client.stream("GET", go2rtc_mjpeg) as check_resp:
-                        if check_resp.status_code == 200:
-                            media_type = check_resp.headers.get("content-type", media_type)
-                            aiter = check_resp.aiter_bytes()
-                            try:
-                                first_chunk = await asyncio.wait_for(aiter.__anext__(), timeout=probe_timeout)
-                                if first_chunk:
-                                    use_go2rtc_mjpeg = True
-                                else:
-                                    go2rtc_error = "empty"
-                                    logger.warning("go2rtc live check returned empty for %s", camera_id)
-                            except asyncio.TimeoutError:
-                                go2rtc_error = "timeout"
-                                logger.warning("go2rtc live check timed out for %s", camera_id)
-                            except StopAsyncIteration:
-                                go2rtc_error = "ended"
-                                logger.warning("go2rtc live check ended early for %s", camera_id)
-                        else:
-                            go2rtc_error = f"status_{check_resp.status_code}"
-                            logger.warning(
-                                "go2rtc live check failed for %s (status=%s)",
-                                camera_id,
-                                check_resp.status_code,
-                            )
-            except Exception as e:
-                go2rtc_error = "error"
-                logger.debug("go2rtc live check for %s failed: %s", camera_id, e)
+
+            # Check per-camera probe cache before hitting go2rtc again.
+            _now = time.time()
+            _cache_key = f"{camera_id}:{stream_name}"
+            _cached = _go2rtc_probe_cache.get(_cache_key)
+            _cache_hit = _cached is not None and _now < _cached[1]
+            if _cache_hit:
+                use_go2rtc_mjpeg = _cached[0]
+                if not use_go2rtc_mjpeg:
+                    go2rtc_error = "cached_failure"
+            else:
+                try:
+                    probe_timeout = 3.0
+                    timeout = httpx.Timeout(5.0, read=probe_timeout)
+                    async with httpx.AsyncClient(timeout=timeout) as client:
+                        async with client.stream("GET", go2rtc_mjpeg) as check_resp:
+                            if check_resp.status_code == 200:
+                                media_type = check_resp.headers.get("content-type", media_type)
+                                aiter = check_resp.aiter_bytes()
+                                try:
+                                    first_chunk = await asyncio.wait_for(aiter.__anext__(), timeout=probe_timeout)
+                                    if first_chunk:
+                                        use_go2rtc_mjpeg = True
+                                    else:
+                                        go2rtc_error = "empty"
+                                        logger.debug("go2rtc live check returned empty for %s", camera_id)
+                                except asyncio.TimeoutError:
+                                    go2rtc_error = "timeout"
+                                    logger.debug("go2rtc live check timed out for %s", camera_id)
+                                except StopAsyncIteration:
+                                    go2rtc_error = "ended"
+                                    logger.debug("go2rtc live check ended early for %s", camera_id)
+                            else:
+                                go2rtc_error = f"status_{check_resp.status_code}"
+                                logger.debug(
+                                    "go2rtc live check failed for %s (status=%s)",
+                                    camera_id,
+                                    check_resp.status_code,
+                                )
+                except Exception as e:
+                    go2rtc_error = "error"
+                    logger.debug("go2rtc live check for %s failed: %s", camera_id, e)
+
+                # Cache the probe result to avoid repeated checks.
+                _ttl = _GO2RTC_SUCCESS_CACHE_TTL if use_go2rtc_mjpeg else _GO2RTC_PROBE_CACHE_TTL
+                _go2rtc_probe_cache[_cache_key] = (use_go2rtc_mjpeg, _now + _ttl)
+                if not use_go2rtc_mjpeg:
+                    logger.info(
+                        "go2rtc unavailable for %s (%s), using fallback (cached %ds)",
+                        camera_id[:8],
+                        go2rtc_error,
+                        int(_GO2RTC_PROBE_CACHE_TTL),
+                    )
         else:
             go2rtc_error = "stream_missing"
     else:
@@ -1511,7 +1539,7 @@ async def get_live_stream(
             finally:
                 _live_stream_semaphore.release()
 
-        logger.warning("Live stream fallback for %s (worker frames)", camera_id)
+        logger.debug("Live stream fallback for %s (worker frames)", camera_id)
         return StreamingResponse(
             fallback_stream(),
             media_type="multipart/x-mixed-replace; boundary=frame",
@@ -1898,6 +1926,10 @@ async def create_camera(
             rtsp_url_detection=camera.rtsp_url_detection,
             default_url=_resolve_default_rtsp_url(camera),
         )
+        # Invalidate go2rtc probe cache so next live request re-probes fresh.
+        _go2rtc_probe_cache.pop(camera.id, None)
+        for _suffix in ("_thermal", "_color", "_detect", ""):
+            _go2rtc_probe_cache.pop(f"{camera.id}:{camera.id}{_suffix}", None)
         
         roles = camera.stream_roles if isinstance(camera.stream_roles, list) else []
         has_detect = not roles or "detect" in roles
@@ -2006,6 +2038,9 @@ async def update_camera(
             rtsp_url_detection=camera.rtsp_url_detection,
             default_url=_resolve_default_rtsp_url(camera),
         )
+        # Invalidate go2rtc probe cache for this camera.
+        for _suffix in ("_thermal", "_color", "_detect", ""):
+            _go2rtc_probe_cache.pop(f"{camera.id}:{camera.id}{_suffix}", None)
         
         roles = camera.stream_roles if isinstance(camera.stream_roles, list) else []
         has_detect = not roles or "detect" in roles
