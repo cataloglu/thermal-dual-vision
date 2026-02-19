@@ -286,24 +286,15 @@ def _resolve_default_stream_source(camera) -> Optional[str]:
     return None
 
 
-def _get_go2rtc_restream_url(camera_id: str, source: Optional[str] = None) -> Optional[str]:
-    if not go2rtc_service or not go2rtc_service.ensure_enabled():
-        return None
-    rtsp_base = os.getenv("GO2RTC_RTSP_URL", "rtsp://127.0.0.1:8554")
-    normalized_source = source if source in ("color", "thermal") else None
-    stream_name = f"{camera_id}_{normalized_source}" if normalized_source else camera_id
-    return f"{rtsp_base}/{stream_name}"
-
-
 def _get_recording_rtsp_url(camera) -> str:
     """Scrypted-style: only go2rtc. Ya var ya yok."""
-    restream = _get_go2rtc_restream_url(camera.id, source=_resolve_default_stream_source(camera))
+    restream = go2rtc_service.get_restream_url(camera.id, source=_resolve_default_stream_source(camera))
     return restream or ""
 
 
 def _get_live_rtsp_urls(camera) -> List[str]:
     """Scrypted-style: only go2rtc. Ya var ya yok."""
-    restream = _get_go2rtc_restream_url(camera.id, source=_resolve_default_stream_source(camera))
+    restream = go2rtc_service.get_restream_url(camera.id, source=_resolve_default_stream_source(camera))
     return [restream] if restream else []
 
 

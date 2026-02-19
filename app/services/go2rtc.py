@@ -208,6 +208,19 @@ class Go2RTCService:
             logger.error(f"Failed to remove camera from go2rtc: {e}", exc_info=True)
             return False
             
+    def build_restream_url(self, camera_id: str, source: Optional[str] = None) -> str:
+        """Build go2rtc RTSP restream URL without checking availability."""
+        rtsp_base = os.getenv("GO2RTC_RTSP_URL", "rtsp://127.0.0.1:8554")
+        normalized_source = source if source in ("color", "thermal", "detect") else None
+        stream_name = f"{camera_id}_{normalized_source}" if normalized_source else camera_id
+        return f"{rtsp_base}/{stream_name}"
+
+    def get_restream_url(self, camera_id: str, source: Optional[str] = None) -> Optional[str]:
+        """Return go2rtc RTSP restream URL, or None if go2rtc is not enabled."""
+        if not self.ensure_enabled():
+            return None
+        return self.build_restream_url(camera_id, source)
+
     def sync_all_cameras(self, cameras: list) -> None:
         """Sync all cameras to go2rtc."""
         can_restart = self.refresh_enabled()

@@ -1316,14 +1316,12 @@ class DetectorWorker:
         camera_id: str,
         source: Optional[str] = None,
     ) -> Optional[str]:
-        rtsp_base = os.getenv("GO2RTC_RTSP_URL", "rtsp://127.0.0.1:8554")
-        normalized_source = source if source in ("color", "thermal", "detect") else None
-        stream_name = f"{camera_id}_{normalized_source}" if normalized_source else camera_id
-        restream_url = f"{rtsp_base}/{stream_name}"
-        if self.go2rtc_service and self.go2rtc_service.ensure_enabled():
-            return restream_url
-        self._log_go2rtc_unavailable(camera_id)
-        return restream_url
+        if not self.go2rtc_service:
+            self._log_go2rtc_unavailable(camera_id)
+            return None
+        if not self.go2rtc_service.ensure_enabled():
+            self._log_go2rtc_unavailable(camera_id)
+        return self.go2rtc_service.build_restream_url(camera_id, source)
 
     def _log_go2rtc_unavailable(self, camera_id: str, interval: float = 30.0) -> None:
         now = time.time()
