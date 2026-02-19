@@ -57,7 +57,7 @@ class SettingsService:
         self._config: Optional[AppConfig] = None
         self._config_cache: Optional[AppConfig] = None
         self._cache_time: float = 0.0
-        self._cache_ttl: float = 5.0  # Cache for 5 seconds
+        self._cache_ttl: float = 30.0  # Cache for 30 seconds
         self._file_lock = Lock()
         self._cache_lock = Lock()
         self._initialized = True

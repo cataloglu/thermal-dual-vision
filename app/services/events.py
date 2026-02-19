@@ -153,8 +153,9 @@ class EventService:
             .all()
         )
         
+        total_pages = max(1, (total + page_size - 1) // page_size) if total > 0 else 0
         logger.info(
-            f"Retrieved {len(events)} events (page {page}/{(total + page_size - 1) // page_size})"
+            f"Retrieved {len(events)} events (page {page}/{total_pages}, total={total})"
         )
         
         return {
