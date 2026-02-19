@@ -88,7 +88,6 @@ def _migrate_add_rejected_by_ai() -> None:
     from sqlalchemy import text
     with engine.connect() as conn:
         try:
-            # SQLite: check if column exists
             row = conn.execute(text(
                 "SELECT COUNT(*) FROM pragma_table_info('events') WHERE name='rejected_by_ai'"
             )).scalar()
@@ -100,6 +99,24 @@ def _migrate_add_rejected_by_ai() -> None:
                 logger.info("Migration: added rejected_by_ai to events")
         except Exception as e:
             logger.warning("Migration rejected_by_ai: %s", e)
+
+
+def _migrate_add_person_count() -> None:
+    """Add person_count column to events if missing (SQLite)."""
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        try:
+            row = conn.execute(text(
+                "SELECT COUNT(*) FROM pragma_table_info('events') WHERE name='person_count'"
+            )).scalar()
+            if row == 0:
+                conn.execute(text(
+                    "ALTER TABLE events ADD COLUMN person_count INTEGER DEFAULT 1 NOT NULL"
+                ))
+                conn.commit()
+                logger.info("Migration: added person_count to events")
+        except Exception as e:
+            logger.warning("Migration person_count: %s", e)
 
 
 def init_db() -> None:
@@ -116,6 +133,7 @@ def init_db() -> None:
     Base.metadata.create_all(bind=engine)
     
     _migrate_add_rejected_by_ai()
+    _migrate_add_person_count()
     _migrate_add_rtsp_url_detection()
 
     logger.info(f"Database initialized at {DATABASE_FILE}")
