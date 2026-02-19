@@ -4,9 +4,16 @@ Inference service for Smart Motion Detector v2.
 This service handles YOLOv8 model loading, preprocessing, and inference.
 """
 import logging
+import os
 import shutil
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+
+# Disable Ultralytics' runtime pip auto-install before importing the library.
+# Without this, each camera subprocess independently tries to pip install
+# openvino when it detects it's "missing" (race condition: another subprocess
+# is mid-uninstall/reinstall). Openvino is now pre-installed via requirements.txt.
+os.environ.setdefault("ULTRALYTICS_AUTO_UPDATE", "0")
 
 import cv2
 import numpy as np
