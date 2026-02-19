@@ -6,6 +6,13 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.71] - 2026-02-19
+
+### Düzeltmeler
+
+- **Kritik: Boş video sorunu (recorder):** FFmpeg `returncode == 0` döndürmesi dosyanın oynatılabilir olduğunu garanti etmiyor. Kayıt segmentinde tam o zaman aralığında boşluk varsa FFmpeg geçerli MP4 container'ı ama 0 frame ile yazıyordu (< 4KB). Bu boş dosya `os.replace()` ile buffer MP4'ün üzerine yazılıyordu — AI onaylı event'te bile siyah video görülmesinin nedeni buydu. `_extract_single` ve `_extract_multi` fonksiyonlarına 4KB minimum boyut kontrolü eklendi; boyut altında kalırsa mevcut buffer MP4 korunuyor.
+- **UI: Bozuk video hata mesajı:** Video oynatıcı bozuk/boş dosyayı yüklemeye çalışırken tarayıcının cryptic "no source" ikonunu göstermek yerine artık "noData" mesajı gösteriliyor (`onError` handler eklendi).
+
 ## [3.10.70] - 2026-02-19
 
 ### Düzeltmeler

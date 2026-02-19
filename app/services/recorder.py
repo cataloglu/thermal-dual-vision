@@ -358,6 +358,18 @@ class ContinuousRecorder:
                 ]
             result = subprocess.run(cmd, capture_output=True, timeout=120)
             if result.returncode == 0:
+                # Verify the output is a real video file (not just an empty container).
+                # FFmpeg returns 0 even when it writes 0 frames (e.g. gap in recording).
+                min_size = 4096  # 4 KB — any valid single-frame MP4 will exceed this
+                actual_size = os.path.getsize(tmp_path) if os.path.exists(tmp_path) else 0
+                if actual_size < min_size:
+                    logger.warning(
+                        "FFmpeg produced a suspiciously small clip (%d bytes) for %s — "
+                        "likely an empty container; keeping existing file.",
+                        actual_size,
+                        output_path,
+                    )
+                    return False
                 os.replace(tmp_path, output_path)
                 tmp_path = None
                 logger.info("Extracted clip: %s (%.1fx speed)", output_path, speed_factor)
@@ -444,6 +456,15 @@ class ContinuousRecorder:
                 ]
             result = subprocess.run(cmd, capture_output=True, timeout=120)
             if result.returncode == 0:
+                min_size = 4096
+                actual_size = os.path.getsize(tmp_path) if os.path.exists(tmp_path) else 0
+                if actual_size < min_size:
+                    logger.warning(
+                        "FFmpeg concat produced a suspiciously small clip (%d bytes) — "
+                        "likely an empty container; keeping existing file.",
+                        actual_size,
+                    )
+                    return False
                 os.replace(tmp_path, output_path)
                 tmp_path = None
                 logger.info("Extracted multi-segment clip: %s", output_path)

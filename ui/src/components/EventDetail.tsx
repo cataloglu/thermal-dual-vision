@@ -23,6 +23,7 @@ interface EventDetailProps {
 
 export function EventDetail({ event, cameraName, initialTab, onClose, onDelete }: EventDetailProps) {
   const { t } = useTranslation()
+  const [videoError, setVideoError] = useState(false)
   const navigate = useNavigate()
   const modalRef = useRef<HTMLDivElement>(null)
   const [displayEvent, setDisplayEvent] = useState(event)
@@ -30,7 +31,7 @@ export function EventDetail({ event, cameraName, initialTab, onClose, onDelete }
   const collagePending = !displayEvent.collage_url && isRecent(displayEvent.timestamp)
   const mp4Pending = !displayEvent.mp4_url && isRecent(displayEvent.timestamp)
 
-  useEffect(() => { setDisplayEvent(event) }, [event])
+  useEffect(() => { setDisplayEvent(event); setVideoError(false) }, [event])
 
   useEffect(() => {
     if (!mp4Pending || !displayEvent.id) return
@@ -249,7 +250,7 @@ export function EventDetail({ event, cameraName, initialTab, onClose, onDelete }
               )
             )}
             {activeTab === 'video' && (
-              displayEvent.mp4_url ? (
+              displayEvent.mp4_url && !videoError ? (
                 <div>
                   <video
                     key={displayEvent.mp4_url}
@@ -261,6 +262,7 @@ export function EventDetail({ event, cameraName, initialTab, onClose, onDelete }
                     muted
                     preload="auto"
                     className="w-full h-auto"
+                    onError={() => setVideoError(true)}
                   >
                     Tarayıcınız video oynatmayı desteklemiyor.
                   </video>
