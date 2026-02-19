@@ -10,7 +10,6 @@ import { TabId } from '../components/SettingsTabs';
 import { CamerasTab } from '../components/tabs/CamerasTab';
 import { CameraSettingsTab } from '../components/tabs/PerformanceTab';
 import { ZonesTab } from '../components/tabs/ZonesTab';
-import { LiveTab } from '../components/tabs/LiveTab';
 import { EventsTab } from '../components/tabs/EventsTab';
 import { MediaTab } from '../components/tabs/MediaTab';
 import { AITab } from '../components/tabs/AITab';
@@ -70,9 +69,6 @@ export const Settings: React.FC = () => {
           updates.thermal = localSettings.thermal;
           updates.stream = localSettings.stream;
           updates.performance = localSettings.performance;
-          break;
-        case 'live':
-          updates.live = localSettings.live;
           break;
         case 'events':
           updates.event = localSettings.event;
@@ -138,15 +134,6 @@ export const Settings: React.FC = () => {
       )
     }
     if (normalizedTab === 'zones') return <ZonesTab />
-    if (normalizedTab === 'live' && localSettings) {
-      return (
-        <LiveTab
-          config={localSettings.live}
-          onChange={(live) => updateLocalSettings({ ...localSettings, live })}
-          onSave={handleSave}
-        />
-      )
-    }
     if (normalizedTab === 'events' && localSettings) {
       return (
         <EventsTab
