@@ -23,34 +23,37 @@ import time
 import base64
 import numpy as np
 
-from app.db.session import get_session, init_db
+from app.db.session import get_session
 from app.db.models import Zone, ZoneMode, Camera, CameraStatus, Event
 from app.models.camera import CameraTestRequest, CameraTestResponse
 from app.models.config import AppConfig
-from app.services.camera import get_camera_service
-from app.services.camera_crud import get_camera_crud_service
-from app.services.events import get_event_service
-from app.services.media import get_media_service
-from app.services.settings import get_settings_service
-from app.services.websocket import get_websocket_manager
-from app.services.telegram import get_telegram_service
-from app.services.logs import get_logs_service
 from app.services.ai_probe import test_openai_connection
-from app.services.ai import get_ai_service
 from app.services.time_utils import get_detection_source
-from app.services.go2rtc import get_go2rtc_service
-from app.services.mqtt import get_mqtt_service
-from app.services.recording_state import get_recording_state_service
-from app.services.metrics import get_metrics_service
-from app.services.recorder import get_continuous_recorder
 from app.services.video_analyzer import analyze_video as run_video_analysis
 from app.utils.rtsp import redact_rtsp_url, validate_rtsp_url
 from app.utils.paths import DATA_DIR
 from telegram import Bot
-from app.workers.retention import get_retention_worker
-from app.workers.detector import get_detector_worker
 from app.workers.detector_mp import get_mp_detector_worker
 from app.version import __version__
+from app.dependencies import (
+    settings_service,
+    camera_service,
+    camera_crud_service,
+    event_service,
+    ai_service,
+    media_service,
+    retention_worker,
+    detector_worker,
+    websocket_manager,
+    telegram_service,
+    logs_service,
+    go2rtc_service,
+    mqtt_service,
+    recording_state_service,
+    metrics_service,
+    continuous_recorder,
+    live_stream_semaphore,
+)
 
 
 # Configure logging
@@ -232,32 +235,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize database
-init_db()
-
-# Initialize services
-settings_service = get_settings_service()
-camera_service = get_camera_service()
-camera_crud_service = get_camera_crud_service()
-event_service = get_event_service()
-ai_service = get_ai_service()
-media_service = get_media_service()
-retention_worker = get_retention_worker()
-
-# Default: threading. Overridden in lifespan based on performance.worker_mode
-detector_worker = get_detector_worker()
-
-websocket_manager = get_websocket_manager()
-telegram_service = get_telegram_service()
-logs_service = get_logs_service()
-go2rtc_service = get_go2rtc_service()
-mqtt_service = get_mqtt_service()
-recording_state_service = get_recording_state_service()
-metrics_service = get_metrics_service()
-continuous_recorder = get_continuous_recorder()
-
-# Limit concurrent live MJPEG streams to avoid CPU spike (each stream = full RTSP decode + encode)
-_live_stream_semaphore = threading.Semaphore(2)
+# Alias for backward compat within this file
+_live_stream_semaphore = live_stream_semaphore
 
 # Per-camera go2rtc probe result cache: {camera_id: (success: bool, expires_at: float)}
 # Avoids hammering go2rtc with repeated checks when it's known to fail for a camera.
