@@ -6,6 +6,12 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.74] - 2026-02-19
+
+### Düzeltmeler
+
+- **AI yanlış onay sorunu:** Collage'a çizili bounding box ve "Person 41%" etiketi LLM'i yanıltıyor; model kutuyu görünce bağımsız analiz yapmadan onaylıyordu. Artık prompt'a YOLO güven skoru ekleniyor: %50 altında "çizili kutuya güvenme, bizzat gör" uyarısı, %50-65 arası "dikkatli ol" notu gönderiliyor. Dinamik prompt oluşturma `_build_thermal_prompt(confidence)` / `_build_color_prompt(confidence)` fonksiyonlarıyla yapıldı.
+
 ## [3.10.73] - 2026-02-19
 
 ### İyileştirmeler

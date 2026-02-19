@@ -16,62 +16,98 @@ logger = logging.getLogger(__name__)
 
 
 # Prompt templates
-THERMAL_PROMPT_TR = (
-    "Sen bir güvenlik kamerası olay doğrulama modülüsün.\n"
-    "\n"
-    "Bu görüntü:\n"
-    "- TERMAL (ısı tabanlı) kamera görüntüsüdür.\n"
-    "- Video değildir.\n"
-    "- 1 saniye aralıklarla seçilmiş 5 kareden oluşan TEK bir kolajdır.\n"
-    "- İnsan her karede görünmek zorunda değildir.\n"
-    "\n"
-    "Kurallar:\n"
-    "- Sadece ısı dağılımına göre analiz yap.\n"
-    "- Renk, kıyafet, yüz, cinsiyet, yaş veya görsel detay YAPMA.\n"
-    "- Bu kolajdaki kareleri tek bir olay anı olarak değerlendir.\n"
-    "- İnsan sadece tek bir karede belirsiz görünüyorsa belirsiz kabul et.\n"
-    "- İnsan en az İKİ AYRI KAREDE tutarlı şekilde görünüyorsa gerçek insan kabul et.\n"
-    "- Kare açıklaması, olay sıralaması veya hikâyeleştirme YAPMA.\n"
-    "- SADECE TEK CÜMLE yaz.\n"
-    "- Türkçe yaz.\n"
-    "\n"
-    "Çıktı:\n"
-    "- En az iki ayrı karede insan varsa:\n"
-    "  \"Kamerada X kişi tespit edildi.\"\n"
-    "- Hiçbir karede insan yoksa:\n"
-    "  \"Kamerada insan tespit edilmedi (no human).\"\n"
-    "- Sadece tek karede belirsiz ısı varsa:\n"
-    "  \"Muhtemel yanlış alarm.\"\n"
-)
+def _build_thermal_prompt(confidence: float = 1.0) -> str:
+    conf_pct = int(confidence * 100)
+    skeptic = ""
+    if confidence < 0.50:
+        skeptic = (
+            f"\n⚠️  DİKKAT: Nesne tespiti yalnızca %{conf_pct} güvenle yapıldı (eşik %50 altı).\n"
+            "Görüntüde çizili kutu veya etiket gördüğünde buna güvenme; "
+            "BİZZAT insan silueti/ısı blobu gör, aksi hâlde 'Muhtemel yanlış alarm.' döndür.\n"
+        )
+    elif confidence < 0.65:
+        skeptic = (
+            f"\n⚠️  NOT: Tespit güveni %{conf_pct} (orta). "
+            "Sadece net ısı blobu veya siluet varsa onayla.\n"
+        )
+    return (
+        "Sen bir güvenlik kamerası olay doğrulama modülüsün.\n"
+        "\n"
+        "Bu görüntü:\n"
+        "- TERMAL (ısı tabanlı) kamera görüntüsüdür.\n"
+        "- Video değildir.\n"
+        "- 1 saniye aralıklarla seçilmiş 5 kareden oluşan TEK bir kolajdır.\n"
+        "- İnsan her karede görünmek zorunda değildir.\n"
+        f"{skeptic}"
+        "\n"
+        "Kurallar:\n"
+        "- Sadece ısı dağılımına göre analiz yap; kolajdaki çizili kutu/etiket senin kararını etkilemesin.\n"
+        "- Renk, kıyafet, yüz, cinsiyet, yaş veya görsel detay YAPMA.\n"
+        "- Bu kolajdaki kareleri tek bir olay anı olarak değerlendir.\n"
+        "- İnsan sadece tek bir karede belirsiz görünüyorsa belirsiz kabul et.\n"
+        "- İnsan en az İKİ AYRI KAREDE tutarlı şekilde görünüyorsa gerçek insan kabul et.\n"
+        "- Kare açıklaması, olay sıralaması veya hikâyeleştirme YAPMA.\n"
+        "- SADECE TEK CÜMLE yaz.\n"
+        "- Türkçe yaz.\n"
+        "\n"
+        "Çıktı:\n"
+        "- En az iki ayrı karede insan varsa:\n"
+        "  \"Kamerada X kişi tespit edildi.\"\n"
+        "- Hiçbir karede insan yoksa:\n"
+        "  \"Kamerada insan tespit edilmedi (no human).\"\n"
+        "- Sadece tek karede belirsiz ısı varsa:\n"
+        "  \"Muhtemel yanlış alarm.\"\n"
+    )
 
-COLOR_PROMPT_TR = (
-    "Sen bir güvenlik kamerası olay doğrulama modülüsün.\n"
-    "\n"
-    "Bu görüntü:\n"
-    "- RENKLİ (RGB) kamera görüntüsüdür.\n"
-    "- Video değildir.\n"
-    "- 1 saniye aralıklarla seçilmiş 5 kareden oluşan TEK bir kolajdır.\n"
-    "- İnsan her karede görünmek zorunda değildir.\n"
-    "\n"
-    "Kurallar:\n"
-    "- Görsel şekil ve nesneye göre analiz yap.\n"
-    "- İnsan, araç ve hayvanı ayırt et; ancak sadece İNSAN için sonuç üret.\n"
-    "- Renk, kıyafet, yüz, yaş, cinsiyet veya detaylı betimleme YAPMA.\n"
-    "- Bu kolajdaki kareleri tek bir olay anı olarak değerlendir.\n"
-    "- İnsan sadece tek bir karede belirsiz görünüyorsa belirsiz kabul et.\n"
-    "- İnsan en az İKİ AYRI KAREDE tutarlı şekilde görünüyorsa gerçek insan kabul et.\n"
-    "- Kare açıklaması, olay sıralaması veya hikâyeleştirme YAPMA.\n"
-    "- SADECE TEK CÜMLE yaz.\n"
-    "- Türkçe yaz.\n"
-    "\n"
-    "Çıktı:\n"
-    "- En az iki ayrı karede insan varsa:\n"
-    "  \"Kamerada X kişi tespit edildi.\"\n"
-    "- Hiçbir karede insan yoksa:\n"
-    "  \"Kamerada insan tespit edilmedi (no human).\"\n"
-    "- Sadece tek karede belirsiz insan varsa:\n"
-    "  \"Muhtemel yanlış alarm.\"\n"
-)
+
+def _build_color_prompt(confidence: float = 1.0) -> str:
+    conf_pct = int(confidence * 100)
+    skeptic = ""
+    if confidence < 0.50:
+        skeptic = (
+            f"\n⚠️  DİKKAT: Nesne tespiti yalnızca %{conf_pct} güvenle yapıldı (eşik %50 altı).\n"
+            "Görüntüde çizili kutu veya etiket gördüğünde buna güvenme; "
+            "BİZZAT insan figürü/silüeti gör, aksi hâlde 'Muhtemel yanlış alarm.' döndür.\n"
+        )
+    elif confidence < 0.65:
+        skeptic = (
+            f"\n⚠️  NOT: Tespit güveni %{conf_pct} (orta). "
+            "Sadece belirgin insan figürü varsa onayla.\n"
+        )
+    return (
+        "Sen bir güvenlik kamerası olay doğrulama modülüsün.\n"
+        "\n"
+        "Bu görüntü:\n"
+        "- RENKLİ (RGB) kamera görüntüsüdür.\n"
+        "- Video değildir.\n"
+        "- 1 saniye aralıklarla seçilmiş 5 kareden oluşan TEK bir kolajdır.\n"
+        "- İnsan her karede görünmek zorunda değildir.\n"
+        f"{skeptic}"
+        "\n"
+        "Kurallar:\n"
+        "- Görsel şekil ve nesneye göre analiz yap; kolajdaki çizili kutu/etiket senin kararını etkilemesin.\n"
+        "- İnsan, araç ve hayvanı ayırt et; ancak sadece İNSAN için sonuç üret.\n"
+        "- Renk, kıyafet, yüz, yaş, cinsiyet veya detaylı betimleme YAPMA.\n"
+        "- Bu kolajdaki kareleri tek bir olay anı olarak değerlendir.\n"
+        "- İnsan sadece tek bir karede belirsiz görünüyorsa belirsiz kabul et.\n"
+        "- İnsan en az İKİ AYRI KAREDE tutarlı şekilde görünüyorsa gerçek insan kabul et.\n"
+        "- Kare açıklaması, olay sıralaması veya hikâyeleştirme YAPMA.\n"
+        "- SADECE TEK CÜMLE yaz.\n"
+        "- Türkçe yaz.\n"
+        "\n"
+        "Çıktı:\n"
+        "- En az iki ayrı karede insan varsa:\n"
+        "  \"Kamerada X kişi tespit edildi.\"\n"
+        "- Hiçbir karede insan yoksa:\n"
+        "  \"Kamerada insan tespit edilmedi (no human).\"\n"
+        "- Sadece tek karede belirsiz insan varsa:\n"
+        "  \"Muhtemel yanlış alarm.\"\n"
+    )
+
+
+# Legacy sabit şablonlar (geriye dönük uyumluluk için)
+THERMAL_PROMPT_TR = _build_thermal_prompt()
+COLOR_PROMPT_TR = _build_color_prompt()
 
 
 class AIService:
@@ -94,7 +130,8 @@ class AIService:
         self,
         event: Dict[str, Any],
         collage_path: Path,
-        camera: Optional[Dict[str, Any]] = None
+        camera: Optional[Dict[str, Any]] = None,
+        confidence: Optional[float] = None,
     ) -> Optional[str]:
         """
         Analyze event using OpenAI Vision API.
@@ -121,8 +158,11 @@ class AIService:
                 logger.warning("AI API key not configured")
                 return None
             
+            # Confidence: from explicit arg, then event dict, then default 1.0
+            conf = confidence if confidence is not None else float(event.get("confidence") or 1.0)
+
             # Get prompt
-            prompt = self._get_prompt_for_event(event, camera)
+            prompt = self._get_prompt_for_event(event, camera, confidence=conf)
             
             # Load and encode image
             image_base64 = self._encode_image(collage_path)
@@ -177,7 +217,8 @@ class AIService:
     def _get_prompt_for_event(
         self,
         event: Dict[str, Any],
-        camera: Optional[Dict[str, Any]] = None
+        camera: Optional[Dict[str, Any]] = None,
+        confidence: float = 1.0,
     ) -> str:
         """
         Get AI prompt for event with hierarchy:
@@ -220,13 +261,13 @@ class AIService:
                     source = "color"
                 else:
                     source = camera.get("detection_source") or camera_type
-            base_prompt = COLOR_PROMPT_TR if source == "color" else THERMAL_PROMPT_TR
-            logger.debug("Using default prompt (%s)", source or "thermal")
+            base_prompt = _build_color_prompt(confidence) if source == "color" else _build_thermal_prompt(confidence)
+            logger.debug("Using default prompt (%s, conf=%.2f)", source or "thermal", confidence)
 
         # 4. Default
         else:
-            base_prompt = THERMAL_PROMPT_TR
-            logger.debug("Using default thermal prompt")
+            base_prompt = _build_thermal_prompt(confidence)
+            logger.debug("Using default thermal prompt (conf=%.2f)", confidence)
         
         return base_prompt
 
