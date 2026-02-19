@@ -27,6 +27,37 @@ from app.services.ai_constants import AI_NEGATIVE_MARKERS, AI_POSITIVE_MARKERS
 logger = logging.getLogger(__name__)
 
 
+class _AsyncRunner:
+    """Single background event loop thread for async calls from sync/MP contexts.
+
+    Using one persistent loop instead of asyncio.run() per call avoids creating
+    a new event loop on every detection event, which preserves HTTP connection
+    pools (Telegram bot, AI API) and prevents race conditions when multiple
+    detection threads fire simultaneously.
+    """
+
+    def __init__(self) -> None:
+        self._loop = asyncio.new_event_loop()
+        self._thread = threading.Thread(
+            target=self._loop.run_forever,
+            daemon=True,
+            name="async-runner",
+        )
+        self._thread.start()
+
+    def run(self, coro, timeout: float = 120.0):
+        """Submit coroutine and block until done. Returns result or raises."""
+        future = asyncio.run_coroutine_threadsafe(coro, self._loop)
+        return future.result(timeout=timeout)
+
+    def submit(self, coro) -> None:
+        """Fire-and-forget: submit without waiting."""
+        asyncio.run_coroutine_threadsafe(coro, self._loop)
+
+
+_async_runner = _AsyncRunner()
+
+
 def _ai_requires_confirmation(config) -> bool:
     """Check if AI confirmation is required before creating media."""
     try:
@@ -106,20 +137,26 @@ class SharedFrameBuffer:
         
         try:
             from multiprocessing import shared_memory
-            
+
+            def _create_shm(name: str, size: int):
+                """Create shared memory, unlinking any orphan segment first."""
+                try:
+                    return shared_memory.SharedMemory(name=name, create=True, size=size)
+                except FileExistsError:
+                    logger.warning("Orphan shared memory '%s' found — unlinking and recreating", name)
+                    try:
+                        orphan = shared_memory.SharedMemory(name=name, create=False, size=size)
+                        orphan.close()
+                        orphan.unlink()
+                    except Exception as cleanup_err:
+                        logger.warning("Could not unlink orphan '%s': %s", name, cleanup_err)
+                    return shared_memory.SharedMemory(name=name, create=True, size=size)
+
             # Frames
-            self.shm = shared_memory.SharedMemory(
-                name=f"tdv_frames_{camera_id}",
-                create=True,
-                size=total_size
-            )
-            
+            self.shm = _create_shm(f"tdv_frames_{camera_id}", total_size)
+
             # Timestamps
-            self.shm_ts = shared_memory.SharedMemory(
-                name=f"tdv_timestamps_{camera_id}",
-                create=True,
-                size=timestamp_size
-            )
+            self.shm_ts = _create_shm(f"tdv_timestamps_{camera_id}", timestamp_size)
             
             # Numpy array view of shared memory
             self.frames = np.ndarray(
@@ -1391,7 +1428,7 @@ class MultiprocessingDetectorWorker:
                                     detection_source = get_detection_source(
                                         camera_obj.detection_source.value if hasattr(camera_obj, "detection_source") and camera_obj.detection_source else "thermal"
                                     )
-                                    summary = asyncio.run(ai_service.analyze_event(
+                                    summary = _async_runner.run(ai_service.analyze_event(
                                         {
                                             "id": event.id,
                                             "camera_id": event.camera_id,
@@ -1459,7 +1496,7 @@ class MultiprocessingDetectorWorker:
                                 telegram = get_telegram_service()
                                 collage_path_obj = media_service.get_media_path(event.id, "collage")
                                 mp4_path_obj = media_service.get_media_path(event.id, "mp4")
-                                asyncio.run(telegram.send_event_notification(
+                                _async_runner.submit(telegram.send_event_notification(
                                     event={
                                         "id": event.id,
                                         "camera_id": event.camera_id,

@@ -90,6 +90,29 @@ for _noisy in ("httpcore", "httpx", "openai", "telegram", "hpack"):
 APP_START_TS = time.time()
 
 
+def _cleanup_orphan_shared_memory() -> None:
+    """Sweep /dev/shm for leftover tdv_* segments from previous crashes.
+
+    On Linux, POSIX shared memory lives in /dev/shm/. If the addon was
+    force-killed, segments are not unlinked and the next startup fails to
+    create new ones with FileExistsError, leaving cameras with no video.
+    """
+    shm_dir = Path("/dev/shm")
+    if not shm_dir.exists():
+        return
+    cleaned = 0
+    for pattern in ("tdv_frames_*", "tdv_timestamps_*"):
+        for seg in shm_dir.glob(pattern):
+            try:
+                seg.unlink()
+                cleaned += 1
+                logger.info("Removed orphan shared memory segment: %s", seg.name)
+            except Exception as exc:
+                logger.warning("Could not remove orphan segment %s: %s", seg.name, exc)
+    if cleaned:
+        logger.info("Shared memory cleanup: removed %d orphan segment(s)", cleaned)
+
+
 def _load_cors_origins() -> List[str]:
     raw = os.getenv("CORS_ORIGINS", "").strip()
     if raw:
@@ -109,6 +132,8 @@ def _debug_headers_enabled() -> bool:
 async def lifespan(app: FastAPI):
     """Application lifespan for startup/shutdown tasks."""
     logger.info("Starting Smart Motion Detector v2")
+
+    _cleanup_orphan_shared_memory()
 
     retention_worker.start()
     logger.info("Retention worker started")
