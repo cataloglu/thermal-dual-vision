@@ -251,6 +251,12 @@ export const deleteZone = async (zoneId: string) => {
   return response.data;
 };
 
+// Camera Status Monitor
+export const getCamerasStatus = async () => {
+  const response = await apiClient.get('cameras/status');
+  return response.data;
+};
+
 // Live Streams
 export const getLiveStreams = async () => {
   const response = await apiClient.get('live');
@@ -290,6 +296,7 @@ export const api = {
   deleteEvent,
   bulkDeleteEvents,
   deleteEventsFiltered,
+  getCamerasStatus,
   getLiveStreams,
   getLiveWebRTCUrl,
   getCameraSnapshotUrl,

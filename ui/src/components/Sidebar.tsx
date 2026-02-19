@@ -13,7 +13,8 @@ import {
   MdLanguage,
   MdRefresh,
   MdHub,
-  MdDescription
+  MdDescription,
+  MdCameraAlt
 } from 'react-icons/md'
 import { useWebSocket } from '../hooks/useWebSocket'
 import { api } from '../services/api'
@@ -49,6 +50,7 @@ export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
   const menuItems = [
     { path: '/', icon: MdDashboard, label: t('dashboard') },
     { path: '/live', icon: MdVideocam, label: t('live') },
+    { path: '/cameras', icon: MdCameraAlt, label: t('cameraMonitor') },
     { path: '/events', icon: MdEvent, label: t('events') },
     { path: '/diagnostics', icon: MdSearch, label: t('diagnostics') },
     { path: '/logs', icon: MdDescription, label: t('logs') },

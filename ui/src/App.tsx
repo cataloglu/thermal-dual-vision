@@ -16,6 +16,7 @@ const Diagnostics = lazy(() => import('./pages/Diagnostics').then(m => ({ defaul
 const Logs = lazy(() => import('./pages/Logs').then(m => ({ default: m.Logs })))
 const VideoAnalysis = lazy(() => import('./pages/VideoAnalysis').then(m => ({ default: m.VideoAnalysis })))
 const MqttMonitoring = lazy(() => import('./pages/MqttMonitoring').then(m => ({ default: m.MqttMonitoring })))
+const CameraMonitor = lazy(() => import('./pages/CameraMonitor').then(m => ({ default: m.CameraMonitor })))
 
 function App() {
   // Apply theme
@@ -34,6 +35,7 @@ function App() {
               <Route path="/logs" element={<Logs />} />
               <Route path="/video-analysis" element={<VideoAnalysis />} />
               <Route path="/mqtt" element={<MqttMonitoring />} />
+              <Route path="/cameras" element={<CameraMonitor />} />
               <Route path="/settings" element={<Settings />} />
             </Routes>
           </Suspense>

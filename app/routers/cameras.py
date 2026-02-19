@@ -1,13 +1,14 @@
 import base64
 import logging
-from typing import Any, Dict, Optional
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
-from app.db.models import Camera, Zone, ZoneMode
+from app.db.models import Camera, Event, Zone, ZoneMode
 from app.db.session import get_session
 from app.dependencies import (
     camera_crud_service,
@@ -54,6 +55,72 @@ def _sanitize_rtsp_updates(payload: Dict[str, Any]) -> Dict[str, Optional[str]]:
             raise ValueError(f"{key} must be a string")
         sanitized[key] = _normalize_rtsp_value(value)
     return sanitized
+
+
+@router.get("/api/cameras/status")
+async def get_cameras_status(db: Session = Depends(get_session)) -> Dict[str, Any]:
+    """Return aggregated status for every camera: connection, events (24h), recording, go2rtc."""
+    try:
+        cameras = camera_crud_service.get_cameras(db)
+        cutoff = datetime.utcnow() - timedelta(hours=24)
+        go2rtc_ok = go2rtc_service.refresh_enabled()
+
+        result: List[Dict[str, Any]] = []
+        for cam in cameras:
+            # 24h event count
+            try:
+                event_count_24h = (
+                    db.query(Event)
+                    .filter(Event.camera_id == cam.id, Event.timestamp >= cutoff)
+                    .count()
+                )
+            except Exception:
+                event_count_24h = 0
+
+            # Last event timestamp
+            try:
+                last_event = (
+                    db.query(Event)
+                    .filter(Event.camera_id == cam.id)
+                    .order_by(Event.timestamp.desc())
+                    .first()
+                )
+                last_event_ts = last_event.timestamp.isoformat() + "Z" if last_event else None
+            except Exception:
+                last_event_ts = None
+
+            # Recording status
+            is_recording = continuous_recorder.is_recording(cam.id)
+
+            # Detection worker running for this camera
+            try:
+                import app.dependencies as _deps
+                worker_cameras = getattr(_deps.detector_worker, "camera_ids", None)
+                if worker_cameras is None:
+                    worker_cameras = getattr(_deps.detector_worker, "_camera_ids", None)
+                detecting = cam.id in (worker_cameras or set())
+            except Exception:
+                detecting = False
+
+            result.append({
+                "id": cam.id,
+                "name": cam.name,
+                "type": cam.type.value if cam.type else "unknown",
+                "enabled": cam.enabled,
+                "status": cam.status.value if cam.status else "initializing",
+                "last_frame_ts": cam.last_frame_ts.isoformat() + "Z" if cam.last_frame_ts else None,
+                "event_count_24h": event_count_24h,
+                "last_event_ts": last_event_ts,
+                "recording": is_recording,
+                "detecting": detecting,
+                "go2rtc_ok": go2rtc_ok,
+                "stream_roles": cam.stream_roles if isinstance(cam.stream_roles, list) else [],
+            })
+
+        return {"cameras": result, "go2rtc_ok": go2rtc_ok}
+    except Exception as e:
+        logger.error(f"Failed to get camera status: {e}")
+        raise HTTPException(status_code=500, detail={"error": True, "code": "INTERNAL_ERROR", "message": f"Failed to get camera status: {str(e)}"})
 
 
 @router.post("/api/cameras/test", response_model=CameraTestResponse)
