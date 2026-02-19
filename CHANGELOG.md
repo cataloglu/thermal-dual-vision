@@ -6,6 +6,13 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.69] - 2026-02-19
+
+### İyileştirmeler
+
+- **Anlık Telegram uyarısı:** Olay DB'ye yazıldığı anda (hareket algılandıktan ~1.6 saniye sonra) metin bazlı anlık bir Telegram mesajı gönderilir. Collage ve video hazırlanınca ikinci mesaj olarak iletilir. Böylece ilk uyarı postbuffer/medya beklemez.
+- **`postbuffer_seconds` varsayılanı:** 15 → 5 saniye. Kayıt her zaman açık olduğundan olay videosu kayıt dosyasından çıkarılır; frame buffer'ın uzun süre dolmasını beklemek gereksizdi. Bildirim gecikmesi ~25 saniyeden ~10 saniyeye düşer.
+
 ## [3.10.68] - 2026-02-19
 
 ### Düzeltmeler
