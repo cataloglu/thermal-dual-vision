@@ -99,35 +99,35 @@ export function ZoneEditor({ snapshotUrl, initialPoints = [], onSave }: ZoneEdit
     })
   }
 
-  const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
+  const getCanvasPos = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current!
     const rect = canvas.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
+    const scaleX = canvas.width / rect.width
+    const scaleY = canvas.height / rect.height
+    return {
+      x: (e.clientX - rect.left) * scaleX,
+      y: (e.clientY - rect.top) * scaleY,
+    }
+  }
 
-    // Check if clicking near existing point
-    const clickedPoint = points.findIndex(p => 
+  const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!canvasRef.current) return
+    const { x, y } = getCanvasPos(e)
+
+    const clickedPoint = points.findIndex(p =>
       Math.sqrt((p.x - x) ** 2 + (p.y - y) ** 2) < 10
     )
 
     if (clickedPoint === -1 && points.length < 20) {
-      // Add new point
       setPoints([...points, { x, y }])
     }
   }
 
   const handleCanvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current
-    if (!canvas) return
+    if (!canvasRef.current) return
+    const { x, y } = getCanvasPos(e)
 
-    const rect = canvas.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
-
-    // Check if hovering over point
-    const hovered = points.findIndex(p => 
+    const hovered = points.findIndex(p =>
       Math.sqrt((p.x - x) ** 2 + (p.y - y) ** 2) < 10
     )
 
@@ -136,21 +136,14 @@ export function ZoneEditor({ snapshotUrl, initialPoints = [], onSave }: ZoneEdit
 
   const handleCanvasContextMenu = (e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault()
-    
-    const canvas = canvasRef.current
-    if (!canvas) return
+    if (!canvasRef.current) return
+    const { x, y } = getCanvasPos(e)
 
-    const rect = canvas.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
-
-    // Find clicked point
-    const clickedPoint = points.findIndex(p => 
+    const clickedPoint = points.findIndex(p =>
       Math.sqrt((p.x - x) ** 2 + (p.y - y) ** 2) < 10
     )
 
     if (clickedPoint !== -1) {
-      // Remove point
       setPoints(points.filter((_, i) => i !== clickedPoint))
     }
   }
