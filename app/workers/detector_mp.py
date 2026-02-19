@@ -1288,24 +1288,6 @@ class MultiprocessingDetectorWorker:
                                 
                                 logger.info(f"Event created: {event.id} for camera {camera_id}")
 
-                                # Send immediate text-only Telegram alert (no waiting for media/AI)
-                                try:
-                                    from app.services.telegram import get_telegram_service
-                                    _tg_quick = get_telegram_service()
-                                    asyncio.run(_tg_quick.send_event_notification(
-                                        event={
-                                            "id": event.id,
-                                            "camera_id": event.camera_id,
-                                            "timestamp": event.timestamp.isoformat() + "Z",
-                                            "confidence": event.confidence,
-                                            "summary": None,
-                                        },
-                                        camera={"id": camera.id, "name": camera.name},
-                                    ))
-                                    logger.info("Telegram quick alert sent for event %s", event.id)
-                                except Exception as _tq_e:
-                                    logger.debug("Telegram quick alert skipped: %s", _tq_e)
-
                                 ai_required = _ai_requires_confirmation(config)
                                 # Don't publish MQTT/WebSocket until media is ready - prevents "message before video" notifications
                                 # Generate collage/MP4 from shared buffer
