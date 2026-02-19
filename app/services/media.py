@@ -181,7 +181,7 @@ class MediaService:
             mp4_from_recording = False
             speed_factor = 4.0
             prebuffer = 5.0
-            postbuffer = 15.0
+            postbuffer = 5.0
             # event.timestamp is naive UTC from detector
             utc_dt = event.timestamp.replace(tzinfo=timezone.utc) if event.timestamp.tzinfo is None else event.timestamp.astimezone(timezone.utc)
             event_utc = utc_dt.replace(tzinfo=None)
