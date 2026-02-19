@@ -40,7 +40,8 @@ export function StreamViewer({
   const [retryCount, setRetryCount] = useState(0)
   const [isVisible, setIsVisible] = useState(true)
   const [snapshotMode, setSnapshotMode] = useState(false)
-  const [snapshotTick, setSnapshotTick] = useState(0)
+  // Use timestamp-based tick so first snapshot URL is never stale (cache-busted from t=0).
+  const [snapshotTick, setSnapshotTick] = useState(() => Date.now())
   const [debugInfo, setDebugInfo] = useState<LiveDebugInfo | null>(null)
   const [debugUpdatedAt, setDebugUpdatedAt] = useState('')
 
@@ -52,8 +53,10 @@ export function StreamViewer({
   const lastDebugRef = useRef(0)
   const maxRetries = 15
   const RETRY_DELAYS = [1500, 2500, 4000, 6000, 8000, 10000, 12000, 15000, 18000, 20000]
-  // Allow extra time for go2rtc probe + worker fallback startup before switching to snapshots.
-  const STALL_SNAPSHOT_MS = 15000
+  // Safety-net stall timeout: if the probe-driven switch doesn't fire, fall back after this long.
+  const STALL_SNAPSHOT_MS = 8000
+  // Snapshot refresh rate when streaming via snapshots (ms between frames).
+  const SNAPSHOT_INTERVAL_MS = 350 // ~3fps
 
   const effectiveUrl = resolveApiPath(getLiveStreamUrl(cameraId))
   const snapshotUrl = resolveApiPath(getLiveSnapshotUrl(cameraId))
@@ -89,7 +92,7 @@ export function StreamViewer({
     setLoading(true)
     setError(false)
     setSnapshotMode(false)
-    setSnapshotTick(0)
+    setSnapshotTick(Date.now())
     setDebugInfo(null)
     setDebugUpdatedAt('')
     if (retryTimeoutRef.current) {
@@ -158,11 +161,32 @@ export function StreamViewer({
     }, STALL_SNAPSHOT_MS)
   }, [isVisible, loadStream, updateDebug])
 
+  // As soon as the probe result arrives, decide which streaming mode to use.
+  // MJPEG streams are blocked by CDN/HA-Ingress proxies (they buffer infinite responses).
+  // Snapshot polling sends small, fast, independent JPEG requests — works through every proxy.
+  // → If go2rtc MJPEG is unavailable but worker frames exist, switch to snapshots immediately
+  //   instead of waiting for the stall timeout.
+  useEffect(() => {
+    if (!debugInfo || snapshotMode || !isVisible || !loadStream) return
+    if (debugInfo.ok && !debugInfo.go2rtc_ok && debugInfo.worker_frame) {
+      setSnapshotMode(true)
+      setError(false)
+      setRetryCount(0)
+      if (stallTimeoutRef.current) {
+        window.clearTimeout(stallTimeoutRef.current)
+        stallTimeoutRef.current = null
+      }
+      // Auto-clear loading spinner after first snapshot has time to arrive.
+      if (loadingTimeoutRef.current) window.clearTimeout(loadingTimeoutRef.current)
+      loadingTimeoutRef.current = window.setTimeout(() => setLoading(false), 2000)
+    }
+  }, [debugInfo, snapshotMode, isVisible, loadStream])
+
   useEffect(() => {
     if (!snapshotMode) return
     const interval = window.setInterval(() => {
-      setSnapshotTick((prev) => prev + 1)
-    }, 1000)
+      setSnapshotTick(Date.now())
+    }, SNAPSHOT_INTERVAL_MS)
     return () => window.clearInterval(interval)
   }, [snapshotMode])
 
