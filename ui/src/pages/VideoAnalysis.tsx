@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { getEvents, getCameras, analyzeVideo } from '../services/api'
@@ -44,30 +44,34 @@ export function VideoAnalysis() {
   const [analyzing, setAnalyzing] = useState(false)
   const [result, setResult] = useState<AnalysisResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [loadingData, setLoadingData] = useState(true)
+
+  const loadData = useCallback(async () => {
+    try {
+      const [eventsRes, camerasRes] = await Promise.all([
+        getEvents({ page: 1, page_size: 50 }),
+        getCameras(),
+      ])
+      const list = (eventsRes.events || []).filter((e: EventItem) => e.mp4_url || e.media?.mp4_url)
+      setEvents(list)
+      setCameras(camerasRes.cameras || [])
+      if (list.length > 0) {
+        const toSelect = (stateEventId && list.some((e: EventItem) => e.id === stateEventId))
+          ? stateEventId
+          : list[0].id
+        setSelectedEventId(toSelect)
+      }
+    } catch (e) {
+      console.error('Failed to fetch:', e)
+      setError(t('loadFailed') || 'Failed to load')
+    } finally {
+      setLoadingData(false)
+    }
+  }, [stateEventId, t])
 
   useEffect(() => {
-    const fetch = async () => {
-      try {
-        const [eventsRes, camerasRes] = await Promise.all([
-          getEvents({ page: 1, page_size: 50 }),
-          getCameras(),
-        ])
-        const list = (eventsRes.events || []).filter((e: EventItem) => e.mp4_url || e.media?.mp4_url)
-        setEvents(list)
-        setCameras(camerasRes.cameras || [])
-        if (list.length > 0) {
-          const toSelect = (stateEventId && list.some((e: EventItem) => e.id === stateEventId))
-            ? stateEventId
-            : list[0].id
-          setSelectedEventId(toSelect)
-        }
-      } catch (e) {
-        console.error('Failed to fetch:', e)
-        setError(t('loadFailed') || 'Failed to load')
-      }
-    }
-    fetch()
-  }, [])
+    loadData()
+  }, [loadData])
 
   const handleAnalyze = async () => {
     setError(null)
@@ -87,6 +91,14 @@ export function VideoAnalysis() {
     } finally {
       setAnalyzing(false)
     }
+  }
+
+  if (loadingData) {
+    return (
+      <div className="p-8 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-10 w-10 border-4 border-accent border-t-transparent" />
+      </div>
+    )
   }
 
   return (

@@ -20,8 +20,8 @@ const ALGORITHM_HINTS: Record<string, { tr: string; en: string }> = {
 }
 
 export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, onChange, onSave }) => {
-  const { t } = useTranslation()
-  const lang = (localStorage.getItem('language') || 'tr') as 'tr' | 'en'
+  const { t, i18n } = useTranslation()
+  const lang = (i18n.language || 'tr') as 'tr' | 'en'
   const [showAdvancedStream, setShowAdvancedStream] = useState(false)
   const [showAdvancedThermal, setShowAdvancedThermal] = useState(false)
   const [showAdvancedPerf, setShowAdvancedPerf] = useState(false)

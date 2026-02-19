@@ -132,9 +132,7 @@ export function Dashboard() {
     }
 
     fetchData()
-    const interval = setInterval(fetchData, 60000)
-    return () => clearInterval(interval)
-    // No more polling! WebSocket handles real-time updates
+    // WebSocket handles real-time updates; only fetch once on mount
   }, [])
 
   const formatUptime = (seconds: number) => {
