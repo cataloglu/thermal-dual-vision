@@ -1,13 +1,15 @@
-﻿import base64
+import base64
 import logging
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.db.models import Camera, Zone, ZoneMode
+from app.db.models import Camera, Event, Zone, ZoneMode
 from app.db.session import get_session
 from app.dependencies import (
     camera_crud_service,
@@ -56,6 +58,10 @@ def _sanitize_rtsp_updates(payload: Dict[str, Any]) -> Dict[str, Optional[str]]:
     return sanitized
 
 
+def _utc_now_naive() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
 @router.post("/api/cameras/test", response_model=CameraTestResponse)
 async def test_camera(request: CameraTestRequest) -> CameraTestResponse:
     try:
@@ -88,6 +94,83 @@ async def get_cameras(db: Session = Depends(get_session)) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Failed to get cameras: {e}")
         raise HTTPException(status_code=500, detail={"error": True, "code": "INTERNAL_ERROR", "message": f"Failed to retrieve cameras: {str(e)}"})
+
+
+@router.get("/api/cameras/status")
+async def get_cameras_status(db: Session = Depends(get_session)) -> Dict[str, Any]:
+    """Return camera monitor status payload used by CameraMonitor page."""
+    try:
+        cameras = camera_crud_service.get_cameras(db)
+        go2rtc_ok = bool(go2rtc_service.ensure_enabled())
+
+        # Aggregate event stats once to avoid per-camera N+1 queries.
+        since_24h = _utc_now_naive() - timedelta(hours=24)
+        event_rows = (
+            db.query(
+                Event.camera_id.label("camera_id"),
+                func.count(Event.id).label("event_count_24h"),
+                func.max(Event.timestamp).label("last_event_ts"),
+            )
+            .filter(Event.timestamp >= since_24h)
+            .group_by(Event.camera_id)
+            .all()
+        )
+        event_map = {
+            row.camera_id: {
+                "count": int(row.event_count_24h or 0),
+                "last_ts": row.last_event_ts,
+            }
+            for row in event_rows
+        }
+
+        # Determine detecting state from the active worker mode.
+        detecting_ids: set[str] = set()
+        try:
+            worker_mode = (
+                getattr(getattr(settings_service.load_config(), "performance", None), "worker_mode", "threading")
+                or "threading"
+            )
+            if worker_mode == "multiprocessing":
+                from app.workers.detector_mp import get_mp_detector_worker
+                mp_worker = get_mp_detector_worker()
+                if mp_worker.running:
+                    detecting_ids = set(mp_worker.processes.keys())
+            else:
+                from app.workers.detector import get_detector_worker
+                thread_worker = get_detector_worker()
+                if thread_worker.running:
+                    detecting_ids = set(thread_worker.threads.keys())
+        except Exception as e:
+            logger.debug("Could not resolve detecting state: %s", e)
+
+        payload = []
+        for cam in cameras:
+            roles = cam.stream_roles if isinstance(cam.stream_roles, list) else []
+            can_detect = (not roles) or ("detect" in roles)
+            event_stats = event_map.get(cam.id, {"count": 0, "last_ts": None})
+
+            payload.append({
+                "id": cam.id,
+                "name": cam.name,
+                "type": cam.type.value if cam.type else "color",
+                "enabled": bool(cam.enabled),
+                "status": cam.status.value if cam.status else "initializing",
+                "last_frame_ts": cam.last_frame_ts.isoformat() + "Z" if cam.last_frame_ts else None,
+                "event_count_24h": event_stats["count"],
+                "last_event_ts": event_stats["last_ts"].isoformat() + "Z" if event_stats["last_ts"] else None,
+                "recording": bool(cam.enabled and continuous_recorder.is_recording(cam.id)),
+                "detecting": bool(cam.enabled and can_detect and cam.id in detecting_ids),
+                "go2rtc_ok": go2rtc_ok,
+                "stream_roles": roles,
+            })
+
+        return {"cameras": payload, "go2rtc_ok": go2rtc_ok}
+    except Exception as e:
+        logger.error("Failed to get cameras status: %s", e)
+        raise HTTPException(
+            status_code=500,
+            detail={"error": True, "code": "INTERNAL_ERROR", "message": f"Failed to retrieve camera status: {str(e)}"},
+        )
 
 
 @router.post("/api/cameras")

@@ -18,6 +18,16 @@ def client():
     return TestClient(app)
 
 
+def test_get_cameras_status_exists(client):
+    """Camera monitor endpoint should exist and return expected shape."""
+    response = client.get("/api/cameras/status")
+    assert response.status_code == 200
+    data = response.json()
+    assert "cameras" in data
+    assert "go2rtc_ok" in data
+    assert isinstance(data["cameras"], list)
+
+
 @patch('cv2.VideoCapture')
 def test_post_cameras_test_thermal_success(mock_video_capture, client):
     """Test POST /api/cameras/test with thermal camera success."""
