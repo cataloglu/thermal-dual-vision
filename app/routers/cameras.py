@@ -1,15 +1,13 @@
-import base64
+﻿import base64
 import logging
-from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.db.models import Camera, Event, Zone, ZoneMode
+from app.db.models import Camera, Zone, ZoneMode
 from app.db.session import get_session
 from app.dependencies import (
     camera_crud_service,
@@ -56,69 +54,6 @@ def _sanitize_rtsp_updates(payload: Dict[str, Any]) -> Dict[str, Optional[str]]:
             raise ValueError(f"{key} must be a string")
         sanitized[key] = _normalize_rtsp_value(value)
     return sanitized
-
-
-@router.get("/api/cameras/status")
-async def get_cameras_status(db: Session = Depends(get_session)) -> Dict[str, Any]:
-    """Return aggregated status for every camera: connection, events (24h), recording, go2rtc."""
-    try:
-        cameras = camera_crud_service.get_cameras(db)
-        cutoff = datetime.utcnow() - timedelta(hours=24)
-        go2rtc_ok = go2rtc_service.refresh_enabled()
-
-        # Single aggregate query: (camera_id, count_24h, max_timestamp)
-        try:
-            agg_rows = (
-                db.query(
-                    Event.camera_id,
-                    func.count(Event.id).filter(Event.timestamp >= cutoff).label("count_24h"),
-                    func.max(Event.timestamp).label("last_ts"),
-                )
-                .group_by(Event.camera_id)
-                .all()
-            )
-            event_stats: Dict[str, tuple] = {r.camera_id: r for r in agg_rows}
-        except Exception:
-            event_stats = {}
-
-        result: List[Dict[str, Any]] = []
-        for cam in cameras:
-            row = event_stats.get(cam.id)
-            event_count_24h = int(row.count_24h) if row else 0
-            last_event_ts = (row.last_ts.isoformat() + "Z") if (row and row.last_ts) else None
-
-            # Recording status
-            is_recording = continuous_recorder.is_recording(cam.id)
-
-            # Detection worker running for this camera
-            try:
-                import app.dependencies as _deps
-                worker_cameras = getattr(_deps.detector_worker, "camera_ids", None)
-                if worker_cameras is None:
-                    worker_cameras = getattr(_deps.detector_worker, "_camera_ids", None)
-                detecting = cam.id in (worker_cameras or set())
-            except Exception:
-                detecting = False
-
-            result.append({
-                "id": cam.id,
-                "name": cam.name,
-                "type": cam.type.value if cam.type else "unknown",
-                "enabled": cam.enabled,
-                "status": cam.status.value if cam.status else "initializing",
-                "last_frame_ts": cam.last_frame_ts.isoformat() + "Z" if cam.last_frame_ts else None,
-                "event_count_24h": event_count_24h,
-                "last_event_ts": last_event_ts,
-                "recording": is_recording,
-                "detecting": detecting,
-                "go2rtc_ok": go2rtc_ok,
-                "stream_roles": cam.stream_roles if isinstance(cam.stream_roles, list) else [],
-            })
-
-        return {"cameras": result, "go2rtc_ok": go2rtc_ok}
-    except Exception as e:
-        logger.error(f"Failed to get camera status: {e}")
-        raise HTTPException(status_code=500, detail={"error": True, "code": "INTERNAL_ERROR", "message": f"Failed to get camera status: {str(e)}"})
 
 
 @router.post("/api/cameras/test", response_model=CameraTestResponse)
@@ -309,19 +244,9 @@ async def stop_recording(camera_id: str, db: Session = Depends(get_session)) -> 
 
 @router.get("/api/cameras/{camera_id}/snapshot")
 async def get_camera_snapshot(camera_id: str, db: Session = Depends(get_session)) -> Response:
-    import cv2
     camera = camera_crud_service.get_camera(db, camera_id)
     if not camera:
         raise HTTPException(status_code=404, detail={"error": True, "code": "CAMERA_NOT_FOUND", "message": f"Camera not found: {camera_id}"})
-
-    # Fast path: grab latest frame from shared buffer (detector already pulling at 8fps)
-    frame = detector_worker.get_latest_frame(camera_id)
-    if frame is not None:
-        ret, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
-        if ret:
-            return Response(content=buf.tobytes(), media_type="image/jpeg")
-
-    # Slow fallback: open new RTSP connection
     stream_urls = get_live_rtsp_urls(camera)
     if not stream_urls:
         raise HTTPException(status_code=400, detail={"error": True, "code": "STREAM_URL_MISSING", "message": "No RTSP URL configured for snapshot."})
@@ -383,35 +308,9 @@ async def update_zone(zone_id: str, request: Dict[str, Any], db: Session = Depen
     if "mode" in request:
         zone.mode = ZoneMode(request["mode"])
     if "polygon" in request:
-        polygon = request["polygon"]
-        if not isinstance(polygon, list) or len(polygon) < 3:
-            raise HTTPException(status_code=422, detail={"error": True, "code": "INVALID_POLYGON", "message": "Polygon must have at least 3 points"})
-        for pt in polygon:
-            if not (isinstance(pt, (list, tuple)) and len(pt) == 2):
-                raise HTTPException(status_code=422, detail={"error": True, "code": "INVALID_POLYGON", "message": "Each polygon point must be [x, y]"})
-            x, y = pt
-            if not (isinstance(x, (int, float)) and isinstance(y, (int, float))):
-                raise HTTPException(status_code=422, detail={"error": True, "code": "INVALID_POLYGON", "message": "Polygon coordinates must be numbers"})
-            if not (0.0 <= float(x) <= 1.0 and 0.0 <= float(y) <= 1.0):
-                raise HTTPException(status_code=422, detail={"error": True, "code": "INVALID_POLYGON", "message": "Polygon coordinates must be normalized (0.0–1.0)"})
-        zone.polygon = polygon
+        zone.polygon = request["polygon"]
     db.commit()
     db.refresh(zone)
-
-    # Push updated zones to the running detection process so it takes effect immediately
-    try:
-        camera = db.query(Camera).filter(Camera.id == zone.camera_id).first()
-        if camera:
-            active_zones = [
-                {"mode": z.mode.value if z.mode else "person", "polygon": z.polygon or []}
-                for z in (camera.zones or [])
-                if z.enabled and (z.polygon or []) and len(z.polygon) >= 3
-            ]
-            if hasattr(detector_worker, "update_camera_zones"):
-                detector_worker.update_camera_zones(camera.id, active_zones)
-    except Exception:
-        pass
-
     return {"id": zone.id, "name": zone.name, "enabled": zone.enabled, "mode": zone.mode.value, "polygon": zone.polygon, "created_at": zone.created_at.isoformat() + "Z", "updated_at": zone.updated_at.isoformat() + "Z"}
 
 

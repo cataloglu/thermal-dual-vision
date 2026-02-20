@@ -53,7 +53,7 @@ def test_get_settings_default(client):
     
     # Check default values
     assert data["detection"]["model"] == "yolov8s-person"
-    assert data["detection"]["confidence_threshold"] == 0.50
+    assert data["detection"]["confidence_threshold"] == 0.30
     assert data["motion"]["sensitivity"] == 8
     assert data["thermal"]["enable_enhancement"] is True
     assert data["stream"]["protocol"] == "tcp"

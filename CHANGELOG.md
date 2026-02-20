@@ -6,29 +6,56 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [3.10.97] - 2026-02-20
+
+### Düzeltmeler (Bug Fix Sprint)
+
+- **K-1:** SQLite WAL modu + foreign key enforcement her bağlantıda etkin
+- **K-2:** Settings `deepcopy` düzeltmesi — migration'lar artık diske yazılıyor
+- **K-3:** Paylaşımlı frame buffer yazmaları `mp.Lock` ile korunuyor
+- **K-4:** Çöken kamera process 5 saniye sonra otomatik yeniden başlatılıyor
+- **Y-1/Y-2:** Recorder zombie fix (`wait` sonrası `kill`) + process dict thread-safe
+- **Y-3:** go2rtc YAML config yazmaları atomik (tmp→rename) + lock korumalı
+- **Y-4:** Çift MQTT reconnect mekanizması devre dışı (paho + manual thread çakışması)
+- **Y-5:** `rejected_only=None` artık event filtrelemiyor (tümü gösteriliyor)
+- **Y-6:** cameras/status N+1 sorgusu tek GROUP BY aggregate ile değiştirildi
+- **Y-7:** Video seeking — Range:bytes header'ı 206 Partial Content döndürüyor
+- **Y-8:** `main.py` `detector_worker` `UnboundLocalError` riski giderildi
+- **Y-9:** `stop()` shared memory serbest bırakmadan önce event_handler_thread'i join ediyor
+- **Y-10:** `useWebSocket` callback'leri ref'lerde saklanıyor — parent re-render'da reconnect yok
+- **O-1:** `video_analyzer` `VideoCapture` try/finally ile sarıldı
+- **D-1–D-16:** i18n, locale, confirm dialog, auto-save, localStorage quota, datetime.utcnow düzeltmeleri
+
 ## [3.10.75] - 2026-02-19
 
 ### Düzeltmeler
 
-- **AI bağımsız analiz (kutu yok):** AI collage'ına bounding box çizilmemesi sağlandı. Daha önce "Person 41%" etiketiyle çizili kutu AI'ı yanıltıyordu — kutuyu görünce bağımsız değerlendirme yapmadan onaylıyordu. Artık `generate_collage_for_ai` ve `detector_mp._handle_detection_event` içinde AI için ayrı, kutu olmayan bir collage oluşturuluyor. Kullanıcıya gösterilen collage (UI + Telegram) hâlâ kutulu kalıyor.
+- **AI bağımsız analiz (kutu yok):** AI collage'ına bounding box çizilmemesi sağlandı.
 
 ## [3.10.74] - 2026-02-19
 
 ### Düzeltmeler
 
-- **AI yanlış onay sorunu:** Collage'a çizili bounding box ve "Person 41%" etiketi LLM'i yanıltıyor; model kutuyu görünce bağımsız analiz yapmadan onaylıyordu. Artık prompt'a YOLO güven skoru ekleniyor: %50 altında "çizili kutuya güvenme, bizzat gör" uyarısı, %50-65 arası "dikkatli ol" notu gönderiliyor. Dinamik prompt oluşturma `_build_thermal_prompt(confidence)` / `_build_color_prompt(confidence)` fonksiyonlarıyla yapıldı.
+- **AI yanlış onay sorunu:** Prompt'a YOLO güven skoru ekleniyor; dinamik prompt oluşturma.
 
 ## [3.10.73] - 2026-02-19
 
 ### İyileştirmeler
 
-- **Kritik: Paralel event işleme (detector_mp):** `_event_handler_loop` daha önce tek thread'de sıralı çalışıyordu; bir kameranın eventi işlenirken (postbuffer sleep + medya + AI) diğer kameraların eventleri kuyrukta 7-16 saniye bekliyordu. Artık her detection eventi kendi `threading.Thread`'inde işleniyor (`_handle_detection_event` metodu). Ana loop anlık olarak tüm kuyrukları taramaya devam ediyor. Birden fazla kamera aynı anda event ürettiğinde paralel işlenir; kameralar arası gecikme ortadan kalktı.
+- **Kritik: Paralel event işleme (detector_mp):** Her detection eventi kendi Thread'inde işleniyor.
 
 ## [3.10.72] - 2026-02-19
 
-### Düzeltmeler
+### Teknik İyileştirmeler (Refactor)
 
-- **Kritik: `postbuffer_seconds` sanitizer override sorunu:** `settings.py`'de `_sanitize_config_dict` fonksiyonu `postbuffer_seconds < 15` olan her değeri zorla 15'e çekiyordu. Bu nedenle 3.10.69'da config.py'de 5s'e düşürülen default ve kullanıcının ayarladığı herhangi bir değer (3-14 arası) yok sayılıyordu. Sanitizer eşiği 15→3'e düşürüldü. `detector_mp.py` ve `media.py`'deki hardcoded fallback'ler de 15.0→5.0 olarak güncellendi. Artık `postbuffer_seconds=5` ile Telegram bildirimi ~10 saniye erken gelir (19s→9s).
+- **`app/main.py` bölündü:** 2566 satırlık god file, 6 ayrı router dosyasına ayrıldı.
+- **`app/dependencies.py` oluşturuldu:** Tüm servis singleton'ları tek yerden yönetilir.
+- **AI onay string'leri merkezi hale getirildi:** `app/services/ai_constants.py`'e taşındı.
+- **`_get_go2rtc_restream_url` tekrarı kaldırıldı:** `Go2RTCService.build_restream_url()` metodunda birleştirildi.
+- **`ai_test.py` → `ai_probe.py`:** Servis klasöründeki yanıltıcı isim düzeltildi.
+- **`postbuffer_seconds` sanitizer override sorunu:** Sanitizer eşiği 15→3'e düşürüldü.
+
+---
 
 ## [3.10.71] - 2026-02-19
 

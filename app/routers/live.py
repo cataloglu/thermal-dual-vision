@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 import cv2
 import httpx
 import numpy as np
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -39,10 +39,8 @@ def _resolve_go2rtc_stream_name(camera) -> Optional[str]:
 
 def _get_latest_worker_frame(camera_id: str) -> Optional[np.ndarray]:
     try:
-        import app.dependencies as _deps
-        worker = _deps.detector_worker
-        if hasattr(worker, "get_latest_frame"):
-            return worker.get_latest_frame(camera_id)
+        if hasattr(detector_worker, "get_latest_frame"):
+            return detector_worker.get_latest_frame(camera_id)
     except Exception as e:
         logger.debug("Live frame fetch failed for %s: %s", camera_id, e)
     return None
@@ -236,44 +234,6 @@ async def get_live_stream(
     raise HTTPException(status_code=503, detail={"error": True, "code": "LIVE_FRAME_UNAVAILABLE", "message": "Live frame not available. Check go2rtc and detection stream."})
 
 
-@router.post("/api/live/{camera_id}/webrtc")
-async def webrtc_offer(
-    camera_id: str,
-    request: Request,
-    db: Session = Depends(get_session),
-) -> Response:
-    """Proxy WebRTC SDP offer to go2rtc and return SDP answer."""
-    camera = camera_crud_service.get_camera(db, camera_id)
-    if not camera:
-        raise HTTPException(status_code=404, detail={"error": True, "code": "CAMERA_NOT_FOUND", "message": f"Camera not found: {camera_id}"})
-
-    if not go2rtc_service or not go2rtc_service.ensure_enabled():
-        raise HTTPException(status_code=503, detail={"error": True, "code": "GO2RTC_UNAVAILABLE", "message": "go2rtc not available"})
-
-    stream_name = _resolve_go2rtc_stream_name(camera)
-    if not stream_name:
-        raise HTTPException(status_code=503, detail={"error": True, "code": "STREAM_NOT_FOUND", "message": "No stream configured"})
-
-    body = await request.body()
-    content_type = request.headers.get("content-type", "application/sdp")
-
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(
-                f"{go2rtc_service.api_url}/api/webrtc?src={stream_name}",
-                content=body,
-                headers={"Content-Type": content_type},
-            )
-            return Response(
-                content=resp.content,
-                status_code=resp.status_code,
-                media_type=resp.headers.get("content-type", "application/sdp"),
-            )
-    except Exception as e:
-        logger.error("WebRTC offer proxy failed for %s: %s", camera_id, e)
-        raise HTTPException(status_code=502, detail={"error": True, "code": "WEBRTC_PROXY_ERROR", "message": str(e)})
-
-
 @router.get("/api/live/{camera_id}.jpg")
 async def get_live_snapshot(camera_id: str, db: Session = Depends(get_session)) -> Response:
     """Return a single JPEG frame for live view."""
@@ -293,7 +253,8 @@ async def get_live_snapshot(camera_id: str, db: Session = Depends(get_session)) 
 
     stream_urls = get_live_rtsp_urls(camera)
     if stream_urls:
-        if config.stream.protocol == "tcp":
+        settings = settings_service.load_config()
+        if settings.stream.protocol == "tcp":
             stream_urls = [camera_service.force_tcp_protocol(url) for url in stream_urls]
         result = None
         for candidate_url in stream_urls:

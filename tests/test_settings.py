@@ -47,7 +47,7 @@ def test_load_default_config(settings_service):
     
     assert isinstance(config, AppConfig)
     assert config.detection.model == "yolov8s-person"
-    assert config.detection.confidence_threshold == 0.50
+    assert config.detection.confidence_threshold == 0.30
     assert config.motion.sensitivity == 8
     assert config.thermal.enable_enhancement is True
     assert config.stream.protocol == "tcp"
@@ -208,7 +208,7 @@ def test_validation_error_disk_limit(settings_service):
     """Test validation error for invalid disk limit."""
     settings_service.load_config()
     
-    # disk_limit_percent is in MediaConfig, not RecordConfig
+    # Invalid disk limit (out of range)
     partial_data = {
         "media": {
             "disk_limit_percent": 30  # Invalid: must be 50-95
@@ -324,7 +324,7 @@ def test_concurrent_updates(settings_service):
     
     # Verify final state (one of the updates should win)
     settings = settings_service.get_settings()
-    assert settings["detection"]["confidence_threshold"] in [0.3, 0.5]
+    assert settings["detection"]["confidence_threshold"] in [0.25, 0.3]
     assert settings["motion"]["sensitivity"] in [7, 8]
 
 

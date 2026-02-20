@@ -90,29 +90,6 @@ for _noisy in ("httpcore", "httpx", "openai", "telegram", "hpack"):
 APP_START_TS = time.time()
 
 
-def _cleanup_orphan_shared_memory() -> None:
-    """Sweep /dev/shm for leftover tdv_* segments from previous crashes.
-
-    On Linux, POSIX shared memory lives in /dev/shm/. If the addon was
-    force-killed, segments are not unlinked and the next startup fails to
-    create new ones with FileExistsError, leaving cameras with no video.
-    """
-    shm_dir = Path("/dev/shm")
-    if not shm_dir.exists():
-        return
-    cleaned = 0
-    for pattern in ("tdv_frames_*", "tdv_timestamps_*"):
-        for seg in shm_dir.glob(pattern):
-            try:
-                seg.unlink()
-                cleaned += 1
-                logger.info("Removed orphan shared memory segment: %s", seg.name)
-            except Exception as exc:
-                logger.warning("Could not remove orphan segment %s: %s", seg.name, exc)
-    if cleaned:
-        logger.info("Shared memory cleanup: removed %d orphan segment(s)", cleaned)
-
-
 def _load_cors_origins() -> List[str]:
     raw = os.getenv("CORS_ORIGINS", "").strip()
     if raw:
@@ -133,8 +110,6 @@ async def lifespan(app: FastAPI):
     """Application lifespan for startup/shutdown tasks."""
     logger.info("Starting Smart Motion Detector v2")
 
-    _cleanup_orphan_shared_memory()
-
     retention_worker.start()
     logger.info("Retention worker started")
 
@@ -153,7 +128,6 @@ async def lifespan(app: FastAPI):
 
     await asyncio.sleep(2)
 
-    _local_worker = None
     try:
         config = settings_service.load_config()
         if hasattr(config, "performance") and config.performance.enable_metrics:
@@ -161,23 +135,17 @@ async def lifespan(app: FastAPI):
             logger.info(f"Metrics server started on port {config.performance.metrics_port}")
 
         worker_mode = getattr(getattr(config, "performance", None), "worker_mode", "threading") or "threading"
+        global detector_worker
         if worker_mode == "multiprocessing":
-            _local_worker = get_mp_detector_worker()
+            detector_worker = get_mp_detector_worker()
             logger.info("Using multiprocessing detector worker (experimental)")
         else:
-            _local_worker = get_detector_worker()
+            detector_worker = get_detector_worker()
             logger.info("Using threading detector worker")
     except Exception as e:
         logger.warning(f"Failed to load config / start metrics: {e}")
-        _local_worker = get_detector_worker()
+        detector_worker = get_detector_worker()
         logger.info("Using threading detector worker (fallback)")
-    detector_worker = _local_worker
-
-    # Publish the chosen worker back to app.dependencies so all routers
-    # (live.py, system.py, …) see the correct instance instead of the
-    # default threading worker that was set at import time.
-    import app.dependencies as _deps
-    _deps.detector_worker = detector_worker
 
     detector_worker.start()
     logger.info("Detector worker started")
@@ -292,8 +260,7 @@ async def health():
         ai_enabled = False
         ai_reason = "not_configured"
 
-    import app.dependencies as _deps
-    pipeline_status = "ok" if _deps.detector_worker.running else "down"
+    pipeline_status = "ok" if detector_worker.running else "down"
     telegram_status = "ok" if telegram_service.is_enabled() else "disabled"
     try:
         mqtt_cfg = settings_service.load_config().mqtt
