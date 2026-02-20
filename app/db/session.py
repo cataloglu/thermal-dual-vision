@@ -4,6 +4,7 @@ Database session management for Smart Motion Detector v2.
 This module handles database connection, session creation, and initialization.
 """
 import logging
+from contextlib import contextmanager
 from typing import Generator
 
 from sqlalchemy import create_engine, event, text
@@ -14,6 +15,7 @@ from app.utils.paths import DATA_DIR
 
 
 logger = logging.getLogger(__name__)
+_MIGRATION_STATUS: dict[str, dict[str, str | bool]] = {}
 
 
 # Database configuration
@@ -77,6 +79,16 @@ def get_session() -> Generator[Session, None, None]:
         db.close()
 
 
+@contextmanager
+def session_scope() -> Generator[Session, None, None]:
+    """Context-managed DB session for worker/service code paths."""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
 def _migrate_add_rtsp_url_detection() -> None:
     """Add rtsp_url_detection (substream) column to cameras if missing."""
     from sqlalchemy import text
@@ -89,8 +101,10 @@ def _migrate_add_rtsp_url_detection() -> None:
                 conn.execute(text("ALTER TABLE cameras ADD COLUMN rtsp_url_detection VARCHAR(500)"))
                 conn.commit()
                 logger.info("Migration: added rtsp_url_detection to cameras")
+            _MIGRATION_STATUS["rtsp_url_detection"] = {"ok": True, "error": ""}
         except Exception as e:
             logger.warning("Migration rtsp_url_detection: %s", e)
+            _MIGRATION_STATUS["rtsp_url_detection"] = {"ok": False, "error": str(e)}
 
 
 def _migrate_add_rejected_by_ai() -> None:
@@ -107,8 +121,10 @@ def _migrate_add_rejected_by_ai() -> None:
                 ))
                 conn.commit()
                 logger.info("Migration: added rejected_by_ai to events")
+            _MIGRATION_STATUS["rejected_by_ai"] = {"ok": True, "error": ""}
         except Exception as e:
             logger.warning("Migration rejected_by_ai: %s", e)
+            _MIGRATION_STATUS["rejected_by_ai"] = {"ok": False, "error": str(e)}
 
 
 def _migrate_add_person_count() -> None:
@@ -125,8 +141,14 @@ def _migrate_add_person_count() -> None:
                 ))
                 conn.commit()
                 logger.info("Migration: added person_count to events")
+            _MIGRATION_STATUS["person_count"] = {"ok": True, "error": ""}
         except Exception as e:
             logger.warning("Migration person_count: %s", e)
+            _MIGRATION_STATUS["person_count"] = {"ok": False, "error": str(e)}
+
+
+def get_migration_status() -> dict[str, dict[str, str | bool]]:
+    return dict(_MIGRATION_STATUS)
 
 
 def init_db() -> None:

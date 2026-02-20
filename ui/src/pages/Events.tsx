@@ -10,6 +10,7 @@ import toast from 'react-hot-toast'
 import { useWebSocket } from '../hooks/useWebSocket'
 import { useDebounce } from '../hooks/useDebounce'
 import { LoadingState } from '../components/LoadingState'
+import { safeGetItem, safeSetItem } from '../utils/safeStorage'
 
 interface Camera {
   id: string
@@ -64,12 +65,14 @@ export function Events() {
   const handleEventRef = useRef<(data: any) => void>(() => {})
   handleEventRef.current = useCallback((data: any) => {
     if (cameraFilter || dateFilter || confidenceFilter > 0) return
+    const isRejected = Boolean(data?.rejected_by_ai)
+    if (showRejected && !isRejected) return
+    if (!showRejected && isRejected) return
     prependEvent(data)
-  }, [cameraFilter, dateFilter, confidenceFilter, prependEvent])
+  }, [cameraFilter, dateFilter, confidenceFilter, showRejected, prependEvent])
 
   const wsOptions = useMemo(() => ({
     onEvent: (data: any) => handleEventRef.current(data),
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [])  // stable reference — callback forwarded via ref
 
   useWebSocket('/api/ws/events', wsOptions)
@@ -96,14 +99,14 @@ export function Events() {
   }, [debouncedCameraFilter, debouncedDateFilter, debouncedConfidenceFilter, showRejected, page, pageSize])
 
   useEffect(() => {
-    const saved = localStorage.getItem('events_filters_open')
+    const saved = safeGetItem('events_filters_open')
     if (saved) {
       setShowFilters(saved === 'true')
     }
   }, [])
 
   useEffect(() => {
-    localStorage.setItem('events_filters_open', String(showFilters))
+    safeSetItem('events_filters_open', String(showFilters))
   }, [showFilters])
 
   const selectedEvent = events.find(e => e.id === selectedEventId)

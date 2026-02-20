@@ -17,7 +17,7 @@ import asyncio
 import shutil
 import subprocess
 from collections import defaultdict, deque
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple, Any
 
 import cv2
@@ -26,7 +26,7 @@ import psutil
 from sqlalchemy.orm import Session
 
 from app.db.models import Camera, Event, CameraStatus
-from app.db.session import get_session
+from app.db.session import session_scope
 from app.services.camera import CameraService
 from app.services.events import get_event_service
 from app.services.ai import get_ai_service
@@ -46,6 +46,10 @@ from app.utils.rtsp import redact_rtsp_url
 logger = logging.getLogger(__name__)
 
 
+def _utc_now_naive() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
 class DetectorWorker:
     """
     Detection worker for person detection pipeline.
@@ -53,6 +57,16 @@ class DetectorWorker:
     Manages per-camera detection threads with YOLOv8 inference.
     """
     
+    DETECTION_LOOP_PARITY_CHECKLIST = (
+        "stream_reconnect",
+        "status_updates",
+        "motion_gate",
+        "temporal_consistency",
+        "cooldown_gate",
+        "event_creation",
+        "media_generation",
+    )
+
     def __init__(self):
         """Initialize detector worker."""
         self.running = False
@@ -119,11 +133,14 @@ class DetectorWorker:
             
             self.running = True
             logger.info("DetectorWorker started")
+            logger.info(
+                "Detector parity checklist active: %s",
+                ",".join(self.DETECTION_LOOP_PARITY_CHECKLIST),
+            )
 
             # Start detection threads for enabled cameras
             # Legacy: empty/null stream_roles => run detection (backward compat)
-            db = next(get_session())
-            try:
+            with session_scope() as db:
                 cameras = db.query(Camera).filter(Camera.enabled.is_(True)).all()
                 started = 0
                 for camera in cameras:
@@ -133,8 +150,6 @@ class DetectorWorker:
                     self.start_camera_detection(camera)
                     started += 1
                 logger.info("DetectorWorker camera threads started: %s", started)
-            finally:
-                db.close()
             
         except Exception as e:
             self.running = False
@@ -272,8 +287,7 @@ class DetectorWorker:
             last_config_refresh = time.time()
 
             # Initialize cooldown from last persisted event to survive restarts
-            db = next(get_session())
-            try:
+            with session_scope() as db:
                 latest = (
                     db.query(Event)
                     .filter(Event.camera_id == camera_id)
@@ -287,8 +301,6 @@ class DetectorWorker:
                         camera_id,
                         latest.timestamp.isoformat(),
                     )
-            finally:
-                db.close()
             
             # Determine detection source (auto mode support)
             detection_source = get_detection_source(camera.detection_source.value)
@@ -576,7 +588,7 @@ class DetectorWorker:
                     time.sleep(0.2)
                     continue
                 
-                self._update_camera_status(camera_id, CameraStatus.CONNECTED, datetime.utcnow())
+                self._update_camera_status(camera_id, CameraStatus.CONNECTED, _utc_now_naive())
 
                 def _log_gate(reason: str) -> None:
                     last_gate = self.last_gate_log.get(camera_id, 0.0)
@@ -758,37 +770,35 @@ class DetectorWorker:
         if now - last_update < min_interval_seconds:
             return
 
-        db = next(get_session())
         try:
-            camera = db.query(Camera).filter(Camera.id == camera_id).first()
-            if not camera:
-                return
+            with session_scope() as db:
+                camera = db.query(Camera).filter(Camera.id == camera_id).first()
+                if not camera:
+                    return
 
-            camera.status = status
-            if last_frame_ts is not None:
-                camera.last_frame_ts = last_frame_ts
-            db.commit()
-            self.last_status_update[camera_id] = now
+                camera.status = status
+                if last_frame_ts is not None:
+                    camera.last_frame_ts = last_frame_ts
+                db.commit()
+                self.last_status_update[camera_id] = now
 
-            try:
-                online = db.query(Camera).filter(Camera.status == CameraStatus.CONNECTED).count()
-                retrying = db.query(Camera).filter(Camera.status == CameraStatus.RETRYING).count()
-                down = db.query(Camera).filter(Camera.status == CameraStatus.DOWN).count()
-                self.websocket_manager.broadcast_status_sync({
-                    "camera_id": camera_id,
-                    "status": status.value,
-                    "counts": {
-                        "online": online,
-                        "retrying": retrying,
-                        "down": down,
-                    },
-                })
-            except Exception as e:
-                logger.debug("Status broadcast skipped: %s", e)
+                try:
+                    online = db.query(Camera).filter(Camera.status == CameraStatus.CONNECTED).count()
+                    retrying = db.query(Camera).filter(Camera.status == CameraStatus.RETRYING).count()
+                    down = db.query(Camera).filter(Camera.status == CameraStatus.DOWN).count()
+                    self.websocket_manager.broadcast_status_sync({
+                        "camera_id": camera_id,
+                        "status": status.value,
+                        "counts": {
+                            "online": online,
+                            "retrying": retrying,
+                            "down": down,
+                        },
+                    })
+                except Exception as e:
+                    logger.debug("Status broadcast skipped: %s", e)
         except Exception as e:
             logger.error("Failed to update camera status for %s: %s", camera_id, e)
-        finally:
-            db.close()
     
     def _create_event(self, camera: Camera, detections: List[Dict], config) -> None:
         """
@@ -804,9 +814,7 @@ class DetectorWorker:
             best_detection = max(detections, key=lambda d: d["confidence"])
             
             # Get database session
-            db = next(get_session())
-            
-            try:
+            with session_scope() as db:
                 # Enforce cooldown against persisted events (handles restarts/multi-process)
                 if config.event.cooldown_seconds > 0:
                     latest = (
@@ -816,7 +824,7 @@ class DetectorWorker:
                         .first()
                     )
                     if latest and latest.timestamp:
-                        elapsed = (datetime.utcnow() - latest.timestamp).total_seconds()
+                        elapsed = (_utc_now_naive() - latest.timestamp).total_seconds()
                         if elapsed < config.event.cooldown_seconds:
                             logger.info(
                                 "Event suppressed by cooldown (db) camera=%s remaining=%.1fs",
@@ -830,7 +838,7 @@ class DetectorWorker:
                 event = self.event_service.create_event(
                     db=db,
                     camera_id=camera.id,
-                    timestamp=datetime.utcnow(),
+                    timestamp=_utc_now_naive(),
                     confidence=best_detection["confidence"],
                     event_type="person",
                     person_count=person_count,
@@ -884,8 +892,6 @@ class DetectorWorker:
                     logger.error("MQTT publish failed: %s", e)
 
                 self._start_media_generation(camera, event.id, config)
-            finally:
-                db.close()
                 
         except Exception as e:
             logger.error(f"Failed to create event: {e}")
@@ -1633,8 +1639,7 @@ class DetectorWorker:
         if cache and now - cache.get("loaded_at", 0.0) < 30.0:
             return cache.get("zones", [])
 
-        db = next(get_session())
-        try:
+        with session_scope() as db:
             camera_db = db.query(Camera).filter(Camera.id == camera.id).first()
             if not camera_db or not camera_db.zones:
                 zones = []
@@ -1652,8 +1657,6 @@ class DetectorWorker:
             cache["zones"] = zones
             cache["loaded_at"] = now
             return zones
-        finally:
-            db.close()
 
     def _is_point_in_any_zone(self, x: float, y: float, zones: List[Dict[str, Any]]) -> bool:
         for zone in zones:
@@ -1778,8 +1781,7 @@ class DetectorWorker:
                     event_id,
                 )
                 return
-            db = next(get_session())
-            try:
+            with session_scope() as db:
                 mp4_frames = video_frames if video_frames else frames
                 mp4_timestamps = video_timestamps if video_frames else timestamps
                 mp4_detections = (
@@ -1932,11 +1934,6 @@ class DetectorWorker:
                                 )
                             )
                         loop.close()
-            except Exception as e:
-                logger.error("Failed to generate media for event %s: %s", event_id, e)
-            finally:
-                db.close()
-
         threading.Thread(
             target=_run_media,
             daemon=True,

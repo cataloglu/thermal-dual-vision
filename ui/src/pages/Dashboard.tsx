@@ -193,7 +193,7 @@ export function Dashboard() {
       <div className="mb-8 flex items-start justify-between">
         <div>
           <h1 className="text-3xl font-bold text-text mb-2">{t('dashboard')}</h1>
-          <p className="text-muted">Sistem durumu ve özet bilgiler</p>
+          <p className="text-muted">{t('dashboardSummary')}</p>
         </div>
         <div className="flex items-center gap-2">
           <Link
@@ -242,7 +242,7 @@ export function Dashboard() {
             <div className="mt-4 border-t border-border pt-3 space-y-1">
               {healthHistory.slice(-5).map((item) => (
                 <div key={item.timestamp} className="flex items-center justify-between text-xs text-muted">
-                  <span>{new Date(item.timestamp).toLocaleTimeString('tr-TR')}</span>
+                  <span>{new Date(item.timestamp).toLocaleTimeString(undefined)}</span>
                   <span className="text-text">
                     {item.cameras.online}/{item.cameras.retrying}/{item.cameras.down}
                   </span>
@@ -310,7 +310,7 @@ export function Dashboard() {
               {health.ai.enabled && (
                 <div className="pt-2">
                   <p className="text-green-500 text-sm">
-                    Event özetleri oluşturuluyor
+                    {t('eventSummariesGenerating')}
                   </p>
                 </div>
               )}
@@ -350,7 +350,7 @@ export function Dashboard() {
                     {t('camera')}: {cameras.find((c) => c.id === lastEvent.camera_id)?.name ?? lastEvent.camera_id}
                   </p>
                   <p className="text-muted text-sm">
-                    {new Date(lastEvent.timestamp).toLocaleString('tr-TR')}
+                    {new Date(lastEvent.timestamp).toLocaleString(undefined)}
                   </p>
                   <p className="text-accent text-sm group-hover:underline">
                     {t('view')} →

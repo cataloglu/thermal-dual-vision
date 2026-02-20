@@ -8,19 +8,23 @@ import logging
 import shutil
 import threading
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import List, Optional
 
 from sqlalchemy.orm import Session
 
 from app.db.models import Event
-from app.db.session import get_session
+from app.db.session import session_scope
 from app.services.settings import get_settings_service
 from app.utils.paths import DATA_DIR
 
 
 logger = logging.getLogger(__name__)
+
+
+def _utc_now_naive() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 class RetentionWorker:
@@ -82,9 +86,7 @@ class RetentionWorker:
                 config = self.settings_service.load_config()
                 
                 # Get database session
-                db = next(get_session())
-                
-                try:
+                with session_scope() as db:
                     # Cleanup by retention days (0 = keep forever, skip)
                     deleted_by_age = 0
                     if config.media.retention_days > 0:
@@ -92,23 +94,20 @@ class RetentionWorker:
                             db=db,
                             retention_days=config.media.retention_days
                         )
-                    
+
                     if deleted_by_age > 0:
                         logger.info(f"Cleaned up {deleted_by_age} events by retention policy")
-                    
+
                     # Cleanup by disk limit
                     deleted_by_disk = self.cleanup_by_disk_limit(
                         db=db,
                         disk_limit_percent=config.media.disk_limit_percent
                     )
-                    
+
                     if deleted_by_disk > 0:
                         logger.info(f"Cleaned up {deleted_by_disk} events by disk limit")
-                    
+
                     # Recording buffer cleanup is done by recorder's monitor loop
-                    
-                finally:
-                    db.close()
                 
                 # Sleep interruptibly so stop() takes effect immediately
                 sleep_hours = config.media.cleanup_interval_hours
@@ -135,7 +134,7 @@ class RetentionWorker:
             Number of events deleted
         """
         # Calculate cutoff date
-        cutoff_date = datetime.utcnow() - timedelta(days=retention_days)
+        cutoff_date = _utc_now_naive() - timedelta(days=retention_days)
         
         # Query old events
         old_events = db.query(Event).filter(Event.timestamp < cutoff_date).all()
@@ -153,7 +152,7 @@ class RetentionWorker:
                 self.delete_event_media(event.id)
                 
                 deleted_count += 1
-                logger.debug(f"Deleted old event: {event.id} (age: {(datetime.utcnow() - event.timestamp).days} days)")
+                logger.debug(f"Deleted old event: {event.id} (age: {(_utc_now_naive() - event.timestamp).days} days)")
                 
             except Exception as e:
                 logger.error(f"Failed to delete event {event.id}: {e}")

@@ -24,6 +24,20 @@ from app.utils.stream_helpers import get_live_rtsp_urls, resolve_default_stream_
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+class _ReleaseGuard:
+    """Ensure semaphore is released exactly once across all stream paths."""
+
+    def __init__(self, semaphore) -> None:
+        self._semaphore = semaphore
+        self._released = False
+
+    def release(self) -> None:
+        if self._released:
+            return
+        self._released = True
+        self._semaphore.release()
+
+
 
 
 def _resolve_go2rtc_stream_name(camera) -> Optional[str]:
@@ -166,6 +180,7 @@ async def get_live_stream(
     acquired = await asyncio.get_event_loop().run_in_executor(None, _acquire)
     if not acquired:
         raise HTTPException(status_code=503, detail={"error": True, "code": "TOO_MANY_LIVE_STREAMS", "message": "Another live stream is open. Close it and try again."})
+    release_guard = _ReleaseGuard(live_stream_semaphore)
 
     def _proxy_rtsp_mjpeg(rtsp_url: str, quality: int):
         try:
@@ -188,7 +203,7 @@ async def get_live_stream(
                 cap.release()
             except Exception:
                 pass
-            live_stream_semaphore.release()
+            release_guard.release()
 
     stream_headers = {
         "Cache-Control": "no-cache, no-store, must-revalidate",
@@ -205,7 +220,7 @@ async def get_live_stream(
                         async for chunk in r.aiter_bytes():
                             yield chunk
             finally:
-                live_stream_semaphore.release()
+                release_guard.release()
 
         logger.info("Live stream from go2rtc for %s", camera_id)
         return StreamingResponse(proxy_go2rtc(), media_type=media_type, headers=stream_headers)
@@ -219,7 +234,7 @@ async def get_live_stream(
             try:
                 yield from _iter_mjpeg_from_worker(camera_id, fallback_fps, mjpeg_quality)
             finally:
-                live_stream_semaphore.release()
+                release_guard.release()
 
         logger.warning("Live stream fallback for %s (worker frames)", camera_id)
         return StreamingResponse(fallback_stream(), media_type="multipart/x-mixed-replace; boundary=frame", headers=stream_headers)
@@ -230,7 +245,7 @@ async def get_live_stream(
         logger.info("Live stream fallback via RTSP for %s", camera_id)
         return StreamingResponse(_proxy_rtsp_mjpeg(stream_urls[0], quality), media_type="multipart/x-mixed-replace; boundary=frame", headers=stream_headers)
 
-    live_stream_semaphore.release()
+    release_guard.release()
     raise HTTPException(status_code=503, detail={"error": True, "code": "LIVE_FRAME_UNAVAILABLE", "message": "Live frame not available. Check go2rtc and detection stream."})
 
 

@@ -16,7 +16,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.db.models import Camera, CameraStatus
-from app.db.session import get_session
+from app.db.session import get_session, session_scope, get_migration_status
 from app.version import __version__
 from app.workers.detector_mp import get_mp_detector_worker
 from app.workers.detector import get_detector_worker
@@ -101,6 +101,38 @@ def _debug_headers_enabled() -> bool:
     return os.getenv("DEBUG_HEADERS", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
+async def _wait_for_startup_readiness(timeout_seconds: float = 15.0) -> None:
+    """Wait until critical startup dependencies are reachable."""
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        db_ok = False
+        go2rtc_ok = False
+        mqtt_ready = False
+        try:
+            with session_scope() as db:
+                db.query(Camera).count()
+                db_ok = True
+        except Exception:
+            db_ok = False
+
+        try:
+            go2rtc_ok = bool(go2rtc_service and go2rtc_service.ensure_enabled())
+        except Exception:
+            go2rtc_ok = False
+
+        try:
+            mqtt_cfg = settings_service.load_config().mqtt
+            mqtt_ready = (not mqtt_cfg.enabled) or bool(mqtt_service.client) or bool(mqtt_service.connected)
+        except Exception:
+            mqtt_ready = True
+
+        if db_ok and go2rtc_ok and mqtt_ready:
+            logger.info("Startup readiness checks passed")
+            return
+        await asyncio.sleep(0.5)
+    logger.warning("Startup readiness timeout reached; continuing with best effort")
+
+
 # ---------------------------------------------------------------------------
 # Lifespan
 # ---------------------------------------------------------------------------
@@ -113,20 +145,15 @@ async def lifespan(app: FastAPI):
     retention_worker.start()
     logger.info("Retention worker started")
 
-    logger.info("Waiting 10 seconds for services to initialize...")
-    await asyncio.sleep(10)
+    await _wait_for_startup_readiness()
 
-    db = next(get_session())
     try:
-        cameras = camera_crud_service.get_cameras(db)
-        go2rtc_service.sync_all_cameras(cameras)
-        logger.info("Cameras synced to go2rtc")
+        with session_scope() as db:
+            cameras = camera_crud_service.get_cameras(db)
+            go2rtc_service.sync_all_cameras(cameras)
+            logger.info("Cameras synced to go2rtc")
     except Exception as e:
         logger.error(f"Failed to sync cameras to go2rtc: {e}")
-    finally:
-        db.close()
-
-    await asyncio.sleep(2)
 
     try:
         config = settings_service.load_config()
@@ -151,21 +178,19 @@ async def lifespan(app: FastAPI):
     logger.info("Detector worker started")
 
     continuous_recorder.start()
-    db = next(get_session())
     try:
-        cameras = camera_crud_service.get_cameras(db)
-        started = 0
-        for camera in cameras:
-            if camera.enabled:
-                rtsp_url = get_recording_rtsp_url(camera)
-                if rtsp_url:
-                    if continuous_recorder.start_recording(camera.id, rtsp_url):
-                        started += 1
-        logger.info(f"Started continuous recording for {started} cameras")
+        with session_scope() as db:
+            cameras = camera_crud_service.get_cameras(db)
+            started = 0
+            for camera in cameras:
+                if camera.enabled:
+                    rtsp_url = get_recording_rtsp_url(camera)
+                    if rtsp_url:
+                        if continuous_recorder.start_recording(camera.id, rtsp_url):
+                            started += 1
+            logger.info(f"Started continuous recording for {started} cameras")
     except Exception as e:
         logger.error(f"Failed to start continuous recording: {e}")
-    finally:
-        db.close()
 
     mqtt_service.start()
     logger.info("MQTT service started")
@@ -241,15 +266,13 @@ if _debug_headers_enabled():
 async def health():
     from app.routers.system import get_worker_info
     uptime_s = max(0, int(time.time() - APP_START_TS))
-    db = next(get_session())
     try:
-        online = db.query(Camera).filter(Camera.status == CameraStatus.CONNECTED).count()
-        retrying = db.query(Camera).filter(Camera.status == CameraStatus.RETRYING).count()
-        down = db.query(Camera).filter(Camera.status == CameraStatus.DOWN).count()
+        with session_scope() as db:
+            online = db.query(Camera).filter(Camera.status == CameraStatus.CONNECTED).count()
+            retrying = db.query(Camera).filter(Camera.status == CameraStatus.RETRYING).count()
+            down = db.query(Camera).filter(Camera.status == CameraStatus.DOWN).count()
     except Exception:
         online = retrying = down = 0
-    finally:
-        db.close()
 
     try:
         config = settings_service.load_config()
@@ -268,13 +291,17 @@ async def health():
     except Exception:
         mqtt_status = "unknown"
 
+    migrations = get_migration_status()
+    migrations_ok = all(item.get("ok", False) for item in migrations.values()) if migrations else True
+
     return {
-        "status": "ok" if pipeline_status == "ok" else "degraded",
+        "status": "ok" if pipeline_status == "ok" and migrations_ok else "degraded",
         "version": __version__,
         "uptime_s": uptime_s,
         "ai": {"enabled": ai_enabled, "reason": ai_reason},
         "cameras": {"online": online, "retrying": retrying, "down": down},
         "components": {"pipeline": pipeline_status, "telegram": telegram_status, "mqtt": mqtt_status},
+        "migrations": migrations,
         "worker": get_worker_info(),
     }
 

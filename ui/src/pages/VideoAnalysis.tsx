@@ -63,7 +63,7 @@ export function VideoAnalysis() {
       }
     } catch (e) {
       console.error('Failed to fetch:', e)
-      setError(t('loadFailed') || 'Failed to load')
+      setError(t('loadFailed'))
     } finally {
       setLoadingData(false)
     }
@@ -80,7 +80,7 @@ export function VideoAnalysis() {
     try {
       const params = selectedEventId ? { event_id: selectedEventId } : customPath ? { path: customPath } : null
       if (!params) {
-        setError(t('videoAnalysisSelectEvent') || 'Select an event or enter a file path')
+        setError(t('videoAnalysisSelectEvent'))
         return
       }
       const data = await analyzeVideo(params)
@@ -105,16 +105,16 @@ export function VideoAnalysis() {
     <div className="p-8">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-text mb-2">
-          {t('videoAnalysis') || 'Video Analizi'}
+          {t('videoAnalysis')}
         </h1>
         <p className="text-muted">
-          {t('videoAnalysisDesc') || 'Event videolarını çerçeve bazlı analiz edin: tekrar kareler, zaman sıçramaları, kalite sorunları.'}
+          {t('videoAnalysisDesc')}
         </p>
       </div>
 
       <div className="bg-surface1 border border-border rounded-lg p-6 mb-6">
         <h2 className="text-lg font-semibold text-text mb-4">
-          {t('videoAnalysisSelect') || 'Video Seç'}
+          {t('videoAnalysisSelect')}
         </h2>
         <div className="space-y-4">
           <div>
@@ -137,7 +137,7 @@ export function VideoAnalysis() {
           </div>
           <div>
             <label className="block text-sm text-muted mb-2">
-              {t('videoAnalysisOrPath') || 'Veya sunucu dosya yolu'}
+              {t('videoAnalysisOrPath')}
             </label>
             <input
               type="text"
@@ -155,12 +155,12 @@ export function VideoAnalysis() {
             {analyzing ? (
               <>
                 <MdRefresh className="animate-spin" />
-                {t('analyzing') || 'Analiz ediliyor...'}
+                {t('analyzing')}
               </>
             ) : (
               <>
                 <MdPlayArrow />
-                {t('analyze') || 'Analiz Et'}
+                {t('analyze')}
               </>
             )}
           </button>
@@ -186,7 +186,7 @@ export function VideoAnalysis() {
                 <MdError className="text-amber-500 text-2xl" />
               )}
               <h2 className="text-lg font-semibold text-text">
-                {result.ok ? (t('videoOk') || 'Video iyi görünüyor') : (t('videoIssues') || 'Sorunlar tespit edildi')}
+                {result.ok ? t('videoOk') : t('videoIssues')}
               </h2>
             </div>
             {result.issues.length > 0 && (
@@ -200,10 +200,10 @@ export function VideoAnalysis() {
 
           {/* Video properties */}
           <div className="bg-surface1 border border-border rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-text mb-4">{t('videoProperties') || 'Video Özellikleri'}</h3>
+            <h3 className="text-lg font-semibold text-text mb-4">{t('videoProperties')}</h3>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
               <div>
-                <span className="text-muted">{t('resolution') || 'Çözünürlük'}:</span>
+                <span className="text-muted">{t('resolution')}:</span>
                 <p className="text-text font-mono">{result.video_properties.width}×{result.video_properties.height}</p>
               </div>
               <div>
@@ -211,11 +211,11 @@ export function VideoAnalysis() {
                 <p className="text-text font-mono">{result.video_properties.fps}</p>
               </div>
               <div>
-                <span className="text-muted">{t('frames') || 'Kare'}:</span>
+                <span className="text-muted">{t('frames')}:</span>
                 <p className="text-text font-mono">{result.video_properties.frame_count}</p>
               </div>
               <div>
-                <span className="text-muted">{t('duration') || 'Süre'}:</span>
+                <span className="text-muted">{t('duration')}:</span>
                 <p className="text-text font-mono">{result.video_properties.duration}s</p>
               </div>
             </div>
@@ -223,26 +223,26 @@ export function VideoAnalysis() {
 
           {/* Analysis */}
           <div className="bg-surface1 border border-border rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-text mb-4">{t('analysis') || 'Analiz Sonuçları'}</h3>
+            <h3 className="text-lg font-semibold text-text mb-4">{t('analysis')}</h3>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-muted">{t('actualDuration') || 'Gerçek süre'}:</span>
+                <span className="text-muted">{t('actualDuration')}:</span>
                 <span className="text-text">{result.analysis.actual_duration}s</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted">{t('durationMismatch') || 'Süre farkı'}:</span>
+                <span className="text-muted">{t('durationMismatch')}:</span>
                 <span className="text-text">{result.analysis.duration_mismatch}s</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted">{t('duplicateFrames') || 'Tekrar kare'}:</span>
+                <span className="text-muted">{t('duplicateFrames')}:</span>
                 <span className="text-text">{result.analysis.duplicate_frames} ({result.analysis.duplicate_percentage}%)</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted">{t('timestampJumps') || 'Zaman sıçraması'}:</span>
+                <span className="text-muted">{t('timestampJumps')}:</span>
                 <span className="text-text">{result.analysis.timestamp_jumps}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted">{t('missingFrames') || 'Eksik kare tahmini'}:</span>
+                <span className="text-muted">{t('missingFrames')}:</span>
                 <span className="text-text">~{result.analysis.estimated_missing_frames}</span>
               </div>
             </div>
@@ -251,7 +251,7 @@ export function VideoAnalysis() {
           {/* Timestamp jumps detail */}
           {result.timestamp_jumps_detail && result.timestamp_jumps_detail.length > 0 && (
             <div className="bg-surface1 border border-border rounded-lg p-6">
-              <h3 className="text-lg font-semibold text-text mb-4">{t('timestampJumpsDetail') || 'Zaman sıçramaları'}</h3>
+              <h3 className="text-lg font-semibold text-text mb-4">{t('timestampJumpsDetail')}</h3>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -278,7 +278,7 @@ export function VideoAnalysis() {
           {/* Diff stats */}
           {result.diff_stats && Object.keys(result.diff_stats).length > 0 && (
             <div className="bg-surface1 border border-border rounded-lg p-6">
-              <h3 className="text-lg font-semibold text-text mb-4">{t('frameDiffStats') || 'Kare fark istatistikleri'}</h3>
+              <h3 className="text-lg font-semibold text-text mb-4">{t('frameDiffStats')}</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                 <div><span className="text-muted">Ort:</span> <span className="font-mono">{result.diff_stats.average?.toFixed(2)}</span></div>
                 <div><span className="text-muted">Std:</span> <span className="font-mono">{result.diff_stats.std_dev?.toFixed(2)}</span></div>

@@ -46,6 +46,7 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const reconnectAttemptsRef = useRef(0)
   const shouldReconnectRef = useRef(true)
+  const socketNonceRef = useRef(0)
   const [isConnected, setIsConnected] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -84,6 +85,8 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
 
   const connect = useCallback(() => {
     try {
+      const nonce = ++socketNonceRef.current
+
       // Close existing connection
       if (wsRef.current) {
         wsRef.current.close()
@@ -95,6 +98,7 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
       const ws = new WebSocket(wsUrl)
 
       ws.onopen = () => {
+        if (nonce !== socketNonceRef.current) return
         setIsConnected(true)
         setError(null)
         reconnectAttemptsRef.current = 0
@@ -116,6 +120,7 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
       }
 
       ws.onmessage = (event) => {
+        if (nonce !== socketNonceRef.current) return
         try {
           const message: WebSocketMessage = JSON.parse(event.data)
 
@@ -130,10 +135,12 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
       }
 
       ws.onerror = () => {
+        if (nonce !== socketNonceRef.current) return
         setError('WebSocket connection error')
       }
 
       ws.onclose = () => {
+        if (nonce !== socketNonceRef.current) return
         setIsConnected(false)
         
         if (onDisconnectRef.current) {

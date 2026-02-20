@@ -18,6 +18,7 @@ import {
 } from 'react-icons/md'
 import { useWebSocket } from '../hooks/useWebSocket'
 import { api } from '../services/api'
+import { safeGetItem, safeSetItem } from '../utils/safeStorage'
 
 interface SidebarProps {
   systemStatus?: 'ok' | 'degraded' | 'down'
@@ -55,7 +56,7 @@ export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
     { path: '/diagnostics', icon: MdSearch, label: t('diagnostics') },
     { path: '/logs', icon: MdDescription, label: t('logs') },
     { path: '/video-analysis', icon: MdMovieFilter, label: t('videoAnalysis') || 'Video Analizi' },
-    { path: '/mqtt', icon: MdHub, label: 'MQTT Bilgileri' },
+    { path: '/mqtt', icon: MdHub, label: t('mqttInfo') },
   ]
 
   const settingsSubItems = [
@@ -195,9 +196,9 @@ export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
         {/* Language Toggle */}
         <button
           onClick={async () => {
-            const currentLang = localStorage.getItem('language') || 'tr'
+            const currentLang = safeGetItem('language') || 'tr'
             const newLang = currentLang === 'tr' ? 'en' : 'tr'
-            localStorage.setItem('language', newLang)
+            safeSetItem('language', newLang)
             i18n.changeLanguage(newLang)
             // Persist to backend so addon restart preserves the language choice
             try {
@@ -210,7 +211,7 @@ export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
           title="Dil değiştir / Change language"
         >
           <MdLanguage />
-          {(localStorage.getItem('language') || 'tr') === 'tr' ? 'TR' : 'EN'}
+          {(safeGetItem('language') || 'tr') === 'tr' ? 'TR' : 'EN'}
         </button>
         
         <p className="text-xs text-muted text-center">

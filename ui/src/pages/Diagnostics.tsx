@@ -229,7 +229,7 @@ export function Diagnostics() {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold text-text mb-2">{t('diagnostics')}</h1>
-          <p className="text-muted">Sistem durumu ve debug bilgileri</p>
+          <p className="text-muted">{t('diagnosticsSummary')}</p>
         </div>
 
         <div className="flex items-center gap-3">
@@ -483,12 +483,12 @@ export function Diagnostics() {
       {systemInfo && (
         <div className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="bg-surface1 border border-border rounded-lg p-6">
-            <h3 className="text-sm font-semibold text-muted mb-2">CPU Kullanımı</h3>
+            <h3 className="text-sm font-semibold text-muted mb-2">{t('cpuUsage')}</h3>
             <p className="text-text text-2xl font-bold">{systemInfo.cpu?.percent ?? '-' }%</p>
           </div>
 
           <div className="bg-surface1 border border-border rounded-lg p-6">
-            <h3 className="text-sm font-semibold text-muted mb-2">Memory Kullanımı</h3>
+            <h3 className="text-sm font-semibold text-muted mb-2">{t('memoryUsage')}</h3>
             <p className="text-text text-2xl font-bold">
               {systemInfo.memory?.used_gb ?? '-'} / {systemInfo.memory?.total_gb ?? '-'} GB
             </p>
@@ -496,7 +496,7 @@ export function Diagnostics() {
           </div>
 
           <div className="bg-surface1 border border-border rounded-lg p-6">
-            <h3 className="text-sm font-semibold text-muted mb-2">Disk (tüm sistem)</h3>
+            <h3 className="text-sm font-semibold text-muted mb-2">{t('systemDisk')}</h3>
             <p className="text-text text-2xl font-bold">
               {systemInfo.disk?.used_gb ?? '-'} / {systemInfo.disk?.total_gb ?? '-'} GB
             </p>
@@ -515,7 +515,7 @@ export function Diagnostics() {
       {/* Additional Info */}
       <div className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-surface1 border border-border rounded-lg p-6">
-          <h3 className="text-sm font-semibold text-muted mb-2">API Base URL</h3>
+          <h3 className="text-sm font-semibold text-muted mb-2">{t('apiBaseUrl')}</h3>
           <p className="text-text font-mono text-sm break-all">
             {(() => {
               const base = apiClient.defaults.baseURL || '/api'
@@ -525,7 +525,7 @@ export function Diagnostics() {
         </div>
 
         <div className="bg-surface1 border border-border rounded-lg p-6">
-          <h3 className="text-sm font-semibold text-muted mb-2">Addon Version</h3>
+          <h3 className="text-sm font-semibold text-muted mb-2">{t('addonVersion')}</h3>
           <p className="text-text font-mono text-sm">{systemInfo?.version ?? '-'}</p>
         </div>
 

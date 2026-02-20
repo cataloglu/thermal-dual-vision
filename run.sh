@@ -69,57 +69,8 @@ if [ -n "${SUPERVISOR_TOKEN:-}" ]; then
             export MQTT_PORT="$MQTT_PORT"
             export MQTT_USER="$MQTT_USER"
             export MQTT_PASS="$MQTT_PASS"
-            
-            # Also update config.json directly to persist settings
-            # We use a small python script to inject these into config.json
-            python3 - <<'PY'
-import json
-import os
-
-config_path = '/app/data/config.json'
-try:
-    if os.path.exists(config_path):
-        with open(config_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-    else:
-        data = {}
-
-    if 'mqtt' not in data:
-        data['mqtt'] = {}
-
-    data['mqtt']['enabled'] = True
-    host = os.getenv('MQTT_HOST')
-    port_raw = os.getenv('MQTT_PORT')
-    user = os.getenv('MQTT_USER')
-    password = os.getenv('MQTT_PASS')
-
-    if not host or host == 'null':
-        host = 'core-mosquitto'
-
-    try:
-        port = int(port_raw or 1883)
-    except Exception:
-        port = 1883
-
-    data['mqtt']['host'] = host
-    data['mqtt']['port'] = port
-
-    if user and user != 'null':
-        data['mqtt']['username'] = user
-    else:
-        data['mqtt'].pop('username', None)
-
-    if password and password != 'null':
-        data['mqtt']['password'] = password
-    else:
-        data['mqtt'].pop('password', None)
-
-    with open(config_path, 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
-    print('Updated config.json with auto-discovered MQTT settings')
-except Exception as e:
-    print(f'Failed to update config: {e}')
-PY
+            # Persist MQTT settings via single-writer sync script.
+            python3 sync_options.py
         else
             result=$(echo "$MQTT_INFO" | jq -r '.result' 2>/dev/null || echo "unknown")
             echo "MQTT Service not available via Supervisor (result: $result)."
@@ -133,8 +84,19 @@ fi
 # Database migrations (standalone scripts, no app imports)
 echo "Checking database migrations..."
 cd /app || true
-python3 fix_stream_roles_migration.py 2>/dev/null || true
-python3 add_person_count_migration.py 2>/dev/null || true
+MIGRATION_DEGRADED=0
+if ! python3 fix_stream_roles_migration.py; then
+    echo "Migration failed: fix_stream_roles_migration.py"
+    MIGRATION_DEGRADED=1
+fi
+if ! python3 add_person_count_migration.py; then
+    echo "Migration failed: add_person_count_migration.py"
+    MIGRATION_DEGRADED=1
+fi
+if [ "${MIGRATION_DEGRADED}" -ne 0 ]; then
+    export TDV_MIGRATION_DEGRADED="1"
+    echo "WARNING: one or more migrations failed; service will start in degraded mode"
+fi
 
 echo "Starting supervisor..."
 exec supervisord -c /etc/supervisor/supervisord.conf

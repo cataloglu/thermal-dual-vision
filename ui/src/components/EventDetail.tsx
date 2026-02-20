@@ -29,6 +29,8 @@ export function EventDetail({ event, cameraName, initialTab, onClose, onDelete }
   const [displayEvent, setDisplayEvent] = useState(event)
   const isRecent = (value: string) => Date.now() - new Date(value).getTime() < 60000
   const mediaPending = (!displayEvent.collage_url || !displayEvent.mp4_url) && isRecent(displayEvent.timestamp)
+  const collagePending = !displayEvent.collage_url && isRecent(displayEvent.timestamp)
+  const mp4Pending = !displayEvent.mp4_url && isRecent(displayEvent.timestamp)
 
   useEffect(() => { setDisplayEvent(event); setVideoError(false) }, [event])
 

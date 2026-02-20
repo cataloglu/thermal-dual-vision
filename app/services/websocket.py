@@ -5,6 +5,7 @@ Handles real-time event and status updates via WebSocket connections.
 """
 import json
 import logging
+import threading
 from typing import List, Dict, Any, Callable, Coroutine
 from fastapi import WebSocket
 import asyncio
@@ -28,7 +29,32 @@ class WebSocketManager:
         # "no current event loop" errors when the manager is instantiated
         # at module import time (outside async context).
         self._lock: asyncio.Lock | None = None
+        self._bg_loop: asyncio.AbstractEventLoop | None = None
+        self._bg_thread: threading.Thread | None = None
+        self._bg_lock = threading.Lock()
         logger.info("WebSocketManager initialized")
+    def _ensure_background_loop(self) -> asyncio.AbstractEventLoop:
+        with self._bg_lock:
+            if self._bg_loop and self._bg_loop.is_running():
+                return self._bg_loop
+
+            loop = asyncio.new_event_loop()
+
+            def _runner() -> None:
+                asyncio.set_event_loop(loop)
+                loop.run_forever()
+
+            thread = threading.Thread(
+                target=_runner,
+                daemon=True,
+                name="websocket-manager-loop",
+            )
+            thread.start()
+
+            self._bg_loop = loop
+            self._bg_thread = thread
+            return loop
+
 
     def _get_lock(self) -> asyncio.Lock:
         if self._lock is None:
@@ -106,13 +132,14 @@ class WebSocketManager:
             loop = asyncio.get_running_loop()
             loop.create_task(coro_factory())
         except RuntimeError:
-            if not self._loop or not self.active_connections:
+            if not self.active_connections:
                 try:
                     coro_factory().close()
                 except Exception:
                     pass
                 return
-            asyncio.run_coroutine_threadsafe(coro_factory(), self._loop)
+            loop = self._ensure_background_loop()
+            asyncio.run_coroutine_threadsafe(coro_factory(), loop)
     
     async def _broadcast(self, message: Dict[str, Any]):
         """

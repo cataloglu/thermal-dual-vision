@@ -20,11 +20,15 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 
 from app.db.models import Camera, CameraStatus
-from app.db.session import get_session
+from app.db.session import session_scope, SessionLocal
 from app.services.ai_constants import AI_NEGATIVE_MARKERS, AI_POSITIVE_MARKERS
 
 
 logger = logging.getLogger(__name__)
+
+
+def _utc_now_naive() -> datetime:
+    return datetime.now(tz.utc).replace(tzinfo=None)
 
 
 class _AsyncRunner:
@@ -334,7 +338,7 @@ def camera_detection_process(
                 "type": "status",
                 "camera_id": camera_id,
                 "status": status,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": _utc_now_naive().isoformat()
             })
         except Exception:
             pass
@@ -925,7 +929,7 @@ def camera_detection_process(
                 "type": "error",
                 "camera_id": camera_id,
                 "error": str(e),
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": _utc_now_naive().isoformat()
             })
         except:
             pass
@@ -976,39 +980,37 @@ class MultiprocessingDetectorWorker:
         if now - last_update < min_interval_seconds:
             return
 
-        db = next(get_session())
         try:
-            camera = db.query(Camera).filter(Camera.id == camera_id).first()
-            if not camera:
-                return
+            with session_scope() as db:
+                camera = db.query(Camera).filter(Camera.id == camera_id).first()
+                if not camera:
+                    return
 
-            camera.status = status
-            if last_frame_ts is not None:
-                camera.last_frame_ts = last_frame_ts
-            db.commit()
-            self.last_status_update[camera_id] = now
+                camera.status = status
+                if last_frame_ts is not None:
+                    camera.last_frame_ts = last_frame_ts
+                db.commit()
+                self.last_status_update[camera_id] = now
 
-            try:
-                online = db.query(Camera).filter(Camera.status == CameraStatus.CONNECTED).count()
-                retrying = db.query(Camera).filter(Camera.status == CameraStatus.RETRYING).count()
-                down = db.query(Camera).filter(Camera.status == CameraStatus.DOWN).count()
-                from app.services.websocket import get_websocket_manager
-                websocket_manager = get_websocket_manager()
-                websocket_manager.broadcast_status_sync({
-                    "camera_id": camera_id,
-                    "status": status.value,
-                    "counts": {
-                        "online": online,
-                        "retrying": retrying,
-                        "down": down,
-                    },
-                })
-            except Exception as e:
-                logger.debug("Status broadcast skipped: %s", e)
+                try:
+                    online = db.query(Camera).filter(Camera.status == CameraStatus.CONNECTED).count()
+                    retrying = db.query(Camera).filter(Camera.status == CameraStatus.RETRYING).count()
+                    down = db.query(Camera).filter(Camera.status == CameraStatus.DOWN).count()
+                    from app.services.websocket import get_websocket_manager
+                    websocket_manager = get_websocket_manager()
+                    websocket_manager.broadcast_status_sync({
+                        "camera_id": camera_id,
+                        "status": status.value,
+                        "counts": {
+                            "online": online,
+                            "retrying": retrying,
+                            "down": down,
+                        },
+                    })
+                except Exception as e:
+                    logger.debug("Status broadcast skipped: %s", e)
         except Exception as e:
             logger.error("Failed to update camera status for %s: %s", camera_id, e)
-        finally:
-            db.close()
     
     def start(self) -> None:
         """
@@ -1029,23 +1031,19 @@ class MultiprocessingDetectorWorker:
             config = settings_service.load_config()
             
             # Get enabled cameras with detect role
-            db = next(get_session())
-            try:
+            with session_scope() as db:
                 cameras = db.query(Camera).filter(Camera.enabled.is_(True)).all()
                 started = 0
-                
+
                 for camera in cameras:
                     roles = camera.stream_roles if isinstance(camera.stream_roles, list) else []
                     if roles and "detect" not in roles:
                         continue  # Explicitly excludes detect
-                    
+
                     self.start_camera_detection(camera)
                     started += 1
-                
+
                 logger.info(f"MultiprocessingDetectorWorker started {started} camera processes")
-                
-            finally:
-                db.close()
             
             # Start event handler thread
             import threading
@@ -1277,7 +1275,7 @@ class MultiprocessingDetectorWorker:
         from app.services.media import get_media_service
         from app.services.settings import get_settings_service
 
-        db = next(get_session())
+        db = SessionLocal()
         try:
             camera = db.query(Camera).filter(Camera.id == camera_id).first()
             if not camera:
@@ -1294,7 +1292,7 @@ class MultiprocessingDetectorWorker:
             person_count = event_data.get("person_count", 1)
             confidence = event_data.get("confidence", 0.0)
             event_ts_str = event_data.get("timestamp")
-            event_ts = datetime.utcnow()
+            event_ts = _utc_now_naive()
             if event_ts_str:
                 try:
                     event_ts = datetime.strptime(event_ts_str.replace("Z", ""), "%Y-%m-%dT%H:%M:%S.%f")
@@ -1661,7 +1659,7 @@ class MultiprocessingDetectorWorker:
                                                 try:
                                                     last_frame_ts = datetime.fromisoformat(ts_raw)
                                                 except Exception:
-                                                    last_frame_ts = datetime.utcnow()
+                                                    last_frame_ts = _utc_now_naive()
                                         self._update_camera_status(camera_id, status_enum, last_frame_ts)
                                 except Exception as e:
                                     logger.debug("Status event ignored for %s: %s", camera_id, e)

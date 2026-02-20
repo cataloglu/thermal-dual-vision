@@ -6,14 +6,19 @@ import json
 import logging
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 import paho.mqtt.client as mqtt
 from app.models.config import MqttConfig
+from app.db.session import session_scope
 from app.services.settings import get_settings_service
 
 logger = logging.getLogger(__name__)
+
+
+def _utc_now_naive() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 class MqttService:
     """
@@ -114,7 +119,7 @@ class MqttService:
         if rc == 0:
             logger.info("Connected to MQTT broker")
             self.connected = True
-            self.connected_at = datetime.utcnow()
+            self.connected_at = _utc_now_naive()
             if self.availability_topic:
                 self.client.publish(self.availability_topic, "online", retain=True)
                 self._track_publish(self.availability_topic, "online")
@@ -187,37 +192,32 @@ class MqttService:
         # We need to fetch cameras. Since we are in a service, we can't easily import camera_crud_service 
         # without circular imports if not careful. Better to pass cameras or fetch from DB.
         # For simplicity, we'll import here.
-        from app.db.session import get_session
         from app.db.models import Event
         from app.services.camera_crud import get_camera_crud_service
-        
-        db = next(get_session())
         try:
-            camera_service = get_camera_crud_service()
-            cameras = camera_service.get_cameras(db)
-            
-            for cam in cameras:
-                latest = (
-                    db.query(Event)
-                    .filter_by(camera_id=cam.id)
-                    .order_by(Event.timestamp.desc())
-                    .first()
-                )
-                self._publish_camera_discovery(
-                    cam=cam,
-                    prefix=prefix,
-                    device_info=device_info,
-                    availability_fields=availability_fields,
-                )
-                self._publish_camera_state(cam=cam, latest=latest, prefix=prefix)
+            with session_scope() as db:
+                camera_service = get_camera_crud_service()
+                cameras = camera_service.get_cameras(db)
 
-            # Publish initial system status
-            self.client.publish(f"{prefix}/status", "ON", retain=True)
+                for cam in cameras:
+                    latest = (
+                        db.query(Event)
+                        .filter_by(camera_id=cam.id)
+                        .order_by(Event.timestamp.desc())
+                        .first()
+                    )
+                    self._publish_camera_discovery(
+                        cam=cam,
+                        prefix=prefix,
+                        device_info=device_info,
+                        availability_fields=availability_fields,
+                    )
+                    self._publish_camera_state(cam=cam, latest=latest, prefix=prefix)
 
+                # Publish initial system status
+                self.client.publish(f"{prefix}/status", "ON", retain=True)
         except Exception as e:
             logger.error(f"Failed to publish discovery: {e}")
-        finally:
-            db.close()
 
     def _publish_ha_config(self, component: str, object_id: str, config: Dict[str, Any]):
         """Helper to publish HA discovery config."""
@@ -340,10 +340,10 @@ class MqttService:
                 {
                     "id": None,
                     "camera_id": cam.id,
-                    "timestamp": datetime.utcnow().isoformat() + "Z",
+                    "timestamp": _utc_now_naive().isoformat() + "Z",
                     "confidence": 0.0,
                     "event_type": "none",
-                    "summary": "Henüz olay yok",
+                    "summary": "No events yet",
                 }
             )
         self.client.publish(
@@ -356,7 +356,6 @@ class MqttService:
         """Publish discovery/state for a single camera."""
         if not self.client or not self.connected:
             return
-        from app.db.session import get_session
         from app.db.models import Event
         from app.services.camera_crud import get_camera_crud_service
 
@@ -370,8 +369,7 @@ class MqttService:
         }
         device_info = self._get_device_info()
 
-        db = next(get_session())
-        try:
+        with session_scope() as db:
             camera_service = get_camera_crud_service()
             cam = camera_service.get_camera(db, camera_id)
             if not cam:
@@ -389,8 +387,6 @@ class MqttService:
                 availability_fields=availability_fields,
             )
             self._publish_camera_state(cam=cam, latest=latest, prefix=prefix)
-        finally:
-            db.close()
 
     def clear_camera_discovery(self, camera_id: str) -> None:
         """Remove a camera from HA discovery."""
@@ -473,7 +469,7 @@ class MqttService:
             self.publish_count += 1
             self.last_messages[topic] = {
                 "payload": payload if isinstance(payload, (str, int, float, bool)) else str(payload)[:200],
-                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "timestamp": _utc_now_naive().isoformat() + "Z",
             }
             # Keep only last 50 topics
             if len(self.last_messages) > 50:
