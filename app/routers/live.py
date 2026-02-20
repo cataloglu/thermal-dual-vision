@@ -293,8 +293,7 @@ async def get_live_snapshot(camera_id: str, db: Session = Depends(get_session)) 
 
     stream_urls = get_live_rtsp_urls(camera)
     if stream_urls:
-        settings = settings_service.load_config()
-        if settings.stream.protocol == "tcp":
+        if config.stream.protocol == "tcp":
             stream_urls = [camera_service.force_tcp_protocol(url) for url in stream_urls]
         result = None
         for candidate_url in stream_urls:

@@ -4,7 +4,6 @@ Logs service for Smart Motion Detector v2.
 Handles log file reading for diagnostics.
 """
 import logging
-from collections import deque
 from pathlib import Path
 from typing import List
 
@@ -39,27 +38,40 @@ class LogsService:
     def get_logs(self, lines: int = 200) -> List[str]:
         """
         Get last N lines from log file.
-        
-        Args:
-            lines: Number of lines to return (default 200)
-            
-        Returns:
-            List of log lines (newest last)
+        Reads from the end of file to avoid scanning the full file on every poll.
         """
         try:
             if not self.log_file.exists():
                 logger.warning(f"Log file not found: {self.log_file}")
                 return [f"Log file not found: {self.log_file}"]
-            
-            # Read file with bounded memory
-            tail: deque[str] = deque(maxlen=lines)
-            with open(self.log_file, 'r', encoding='utf-8', errors='ignore') as f:
-                for line in f:
-                    tail.append(line.rstrip('\n'))
+
+            # Read from end: scan backward in 32 KB chunks until we have enough lines
+            chunk_size = 32 * 1024
+            file_size = self.log_file.stat().st_size
+            collected: list[str] = []
+
+            with open(self.log_file, "rb") as f:
+                pos = file_size
+                leftover = b""
+                while pos > 0 and len(collected) < lines:
+                    read_size = min(chunk_size, pos)
+                    pos -= read_size
+                    f.seek(pos)
+                    chunk = f.read(read_size) + leftover
+                    # Split on newlines; last partial line becomes leftover for next chunk
+                    parts = chunk.split(b"\n")
+                    leftover = parts[0]
+                    new_lines = [p.decode("utf-8", errors="ignore") for p in reversed(parts[1:])]
+                    collected = new_lines + collected
+                # Include any leading leftover
+                if leftover:
+                    collected = [leftover.decode("utf-8", errors="ignore")] + collected
+
+            tail = collected[-lines:] if len(collected) > lines else collected
 
             # Redact RTSP credentials
             log_lines = [redact_rtsp_urls_in_text(line) for line in tail]
-            
+
             logger.debug(f"Retrieved {len(log_lines)} log lines")
             return log_lines
             

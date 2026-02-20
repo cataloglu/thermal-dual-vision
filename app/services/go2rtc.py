@@ -24,7 +24,6 @@ class Go2RTCService:
         self._last_check_ts = 0.0
         self._check_interval = float(os.getenv("GO2RTC_CHECK_INTERVAL", "10"))
         self.enabled = self._check_availability()
-        self._last_check = 0.0
         logger.info(f"go2rtc service initialized - URL: {self.api_url}, enabled: {self.enabled}")
 
     def refresh_enabled(self, force: bool = False) -> bool:
