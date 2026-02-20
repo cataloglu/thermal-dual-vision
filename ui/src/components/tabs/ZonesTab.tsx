@@ -143,6 +143,7 @@ export const ZonesTab: React.FC = () => {
           {/* Zone Editor — snapshot is displayed inside the canvas */}
           <ZoneEditor
             snapshotUrl={snapshotUrl}
+            existingZones={zones}
             onRefreshSnapshot={refreshSnapshot}
             onSave={handleSaveZone}
           />

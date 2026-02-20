@@ -7,16 +7,24 @@ interface Point {
   y: number
 }
 
+interface ExistingZone {
+  id: string
+  name: string
+  enabled: boolean
+  polygon: Array<[number, number]>
+}
+
 interface ZoneEditorProps {
   snapshotUrl?: string
   initialPoints?: Point[]
+  existingZones?: ExistingZone[]
   onSave: (points: Point[]) => void
   onRefreshSnapshot?: () => void
 }
 
 const HIT_RADIUS = 12
 
-export function ZoneEditor({ snapshotUrl, initialPoints = [], onSave, onRefreshSnapshot }: ZoneEditorProps) {
+export function ZoneEditor({ snapshotUrl, initialPoints = [], existingZones = [], onSave, onRefreshSnapshot }: ZoneEditorProps) {
   const { t } = useTranslation()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const imgRef = useRef<HTMLImageElement | null>(null)
@@ -50,9 +58,53 @@ export function ZoneEditor({ snapshotUrl, initialPoints = [], onSave, onRefreshS
       ctx.fillText(t('selectCamera'), canvas.width / 2, canvas.height / 2)
     }
 
+    // Draw saved (existing) zones on canvas
+    if (existingZones.length > 0) {
+      existingZones.forEach((zone) => {
+        if (zone.polygon.length < 3) return
+        const pts = zone.polygon.map(([nx, ny]) => ({
+          x: nx * canvas.width,
+          y: ny * canvas.height,
+        }))
+        const color = zone.enabled ? '#3B82F6' : '#6B7280'
+        const alpha = zone.enabled ? 0.2 : 0.12
+
+        // Filled polygon
+        ctx.beginPath()
+        ctx.moveTo(pts[0].x, pts[0].y)
+        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y)
+        ctx.closePath()
+        ctx.fillStyle = `rgba(${zone.enabled ? '59,130,246' : '107,114,128'},${alpha})`
+        ctx.fill()
+
+        // Outline
+        ctx.beginPath()
+        ctx.moveTo(pts[0].x, pts[0].y)
+        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y)
+        ctx.closePath()
+        ctx.strokeStyle = color
+        ctx.lineWidth = 1.5
+        ctx.setLineDash([5, 3])
+        ctx.stroke()
+        ctx.setLineDash([])
+
+        // Zone name label at centroid
+        const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length
+        const cy = pts.reduce((s, p) => s + p.y, 0) / pts.length
+        ctx.font = 'bold 11px sans-serif'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillStyle = 'rgba(0,0,0,0.55)'
+        ctx.fillRect(cx - 36, cy - 9, 72, 18)
+        ctx.fillStyle = zone.enabled ? '#93C5FD' : '#9CA3AF'
+        ctx.fillText(zone.name, cx, cy)
+        ctx.textBaseline = 'alphabetic'
+      })
+    }
+
     if (points.length === 0) return
 
-    // Filled polygon
+    // Filled polygon (currently drawing)
     if (points.length > 2) {
       ctx.beginPath()
       ctx.moveTo(points[0].x, points[0].y)
@@ -108,7 +160,7 @@ export function ZoneEditor({ snapshotUrl, initialPoints = [], onSave, onRefreshS
       ctx.fillText(String(index + 1), point.x, point.y)
     })
     ctx.textBaseline = 'alphabetic'
-  }, [snapshotUrl, points, mousePos, hoveredPoint, draggingPoint, t])
+  }, [snapshotUrl, points, existingZones, mousePos, hoveredPoint, draggingPoint, t])
 
   useEffect(() => {
     drawCanvas()
