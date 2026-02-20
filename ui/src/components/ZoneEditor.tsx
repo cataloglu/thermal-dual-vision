@@ -60,21 +60,21 @@ export function ZoneEditor({ snapshotUrl, initialPoints = [], existingZones = []
 
     // Draw saved (existing) zones on canvas
     if (existingZones.length > 0) {
-      existingZones.forEach((zone) => {
+      existingZones.filter((zone) => zone.enabled).forEach((zone) => {
         if (zone.polygon.length < 3) return
         const pts = zone.polygon.map(([nx, ny]) => ({
           x: nx * canvas.width,
           y: ny * canvas.height,
         }))
-        const color = zone.enabled ? '#3B82F6' : '#6B7280'
-        const alpha = zone.enabled ? 0.2 : 0.12
+        const color = '#3B82F6'
+        const alpha = 0.2
 
         // Filled polygon
         ctx.beginPath()
         ctx.moveTo(pts[0].x, pts[0].y)
         for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y)
         ctx.closePath()
-        ctx.fillStyle = `rgba(${zone.enabled ? '59,130,246' : '107,114,128'},${alpha})`
+        ctx.fillStyle = `rgba(59,130,246,${alpha})`
         ctx.fill()
 
         // Outline
@@ -96,7 +96,7 @@ export function ZoneEditor({ snapshotUrl, initialPoints = [], existingZones = []
         ctx.textBaseline = 'middle'
         ctx.fillStyle = 'rgba(0,0,0,0.55)'
         ctx.fillRect(cx - 36, cy - 9, 72, 18)
-        ctx.fillStyle = zone.enabled ? '#93C5FD' : '#9CA3AF'
+        ctx.fillStyle = '#93C5FD'
         ctx.fillText(zone.name, cx, cy)
         ctx.textBaseline = 'alphabetic'
       })
