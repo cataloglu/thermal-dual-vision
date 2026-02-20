@@ -70,7 +70,10 @@ if [ -n "${SUPERVISOR_TOKEN:-}" ]; then
             export MQTT_USER="$MQTT_USER"
             export MQTT_PASS="$MQTT_PASS"
             # Persist MQTT settings via single-writer sync script.
-            python3 sync_options.py
+            if ! python3 sync_options.py; then
+                echo "ERROR: sync_options.py failed"
+                exit 1
+            fi
         else
             result=$(echo "$MQTT_INFO" | jq -r '.result' 2>/dev/null || echo "unknown")
             echo "MQTT Service not available via Supervisor (result: $result)."

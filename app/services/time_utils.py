@@ -3,7 +3,7 @@ Time utilities for Smart Motion Detector v2.
 
 This module provides time-based utilities for auto detection source selection.
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Literal
 
 
@@ -26,7 +26,7 @@ def is_daytime(
     Returns:
         True if daytime, False if nighttime
     """
-    current_hour = datetime.now().hour
+    current_hour = datetime.now(timezone.utc).hour
     return sunrise_hour <= current_hour < sunset_hour
 
 

@@ -1,7 +1,7 @@
 """
 Integration tests for events API endpoints.
 """
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 import pytest
@@ -10,6 +10,10 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.db.session import get_session, init_db
 from app.db.models import Camera, Event, CameraType, CameraStatus
+
+
+def _utc_now_naive() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 @pytest.fixture
@@ -38,7 +42,7 @@ def _seed_events():
         for _ in range(2):
             event = Event(
                 camera_id=camera_id,
-                timestamp=datetime.utcnow(),
+                timestamp=_utc_now_naive(),
                 confidence=0.9,
             )
             db.add(event)

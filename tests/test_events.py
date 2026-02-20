@@ -10,7 +10,7 @@ Tests cover:
 - Database indexes
 """
 import tempfile
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -20,6 +20,10 @@ from sqlalchemy.orm import sessionmaker
 from app.db.models import Base, Camera, Event, Zone, CameraType, CameraStatus, DetectionSource
 from app.db.session import init_db
 from app.services.events import EventService
+
+
+def _utc_now_naive() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 @pytest.fixture
@@ -79,7 +83,7 @@ def test_camera(db_session):
 
 def test_create_event(db_session, event_service, test_camera):
     """Test creating an event."""
-    timestamp = datetime.utcnow()
+    timestamp = _utc_now_naive()
     
     event = event_service.create_event(
         db=db_session,
@@ -110,7 +114,7 @@ def test_create_event_invalid_camera(db_session, event_service):
         event_service.create_event(
             db=db_session,
             camera_id="invalid-camera",
-            timestamp=datetime.utcnow(),
+            timestamp=_utc_now_naive(),
             confidence=0.5,
         )
 
@@ -122,7 +126,7 @@ def test_get_events_pagination(db_session, event_service, test_camera):
         event_service.create_event(
             db=db_session,
             camera_id=test_camera.id,
-            timestamp=datetime.utcnow() - timedelta(minutes=i),
+            timestamp=_utc_now_naive() - timedelta(minutes=i),
             confidence=0.5 + (i * 0.01),
         )
     
@@ -172,7 +176,7 @@ def test_get_events_filter_by_camera(db_session, event_service):
         event_service.create_event(
             db=db_session,
             camera_id=camera1.id,
-            timestamp=datetime.utcnow(),
+            timestamp=_utc_now_naive(),
             confidence=0.5,
         )
     
@@ -180,7 +184,7 @@ def test_get_events_filter_by_camera(db_session, event_service):
         event_service.create_event(
             db=db_session,
             camera_id=camera2.id,
-            timestamp=datetime.utcnow(),
+            timestamp=_utc_now_naive(),
             confidence=0.5,
         )
     
@@ -233,7 +237,7 @@ def test_get_events_filter_by_confidence(db_session, event_service, test_camera)
         event_service.create_event(
             db=db_session,
             camera_id=test_camera.id,
-            timestamp=datetime.utcnow(),
+            timestamp=_utc_now_naive(),
             confidence=conf,
         )
     
@@ -277,7 +281,7 @@ def test_get_event_by_id(db_session, event_service, test_camera):
     created_event = event_service.create_event(
         db=db_session,
         camera_id=test_camera.id,
-        timestamp=datetime.utcnow(),
+        timestamp=_utc_now_naive(),
         confidence=0.75,
         summary="Test event",
     )
@@ -303,7 +307,7 @@ def test_delete_event(db_session, event_service, test_camera):
     event = event_service.create_event(
         db=db_session,
         camera_id=test_camera.id,
-        timestamp=datetime.utcnow(),
+        timestamp=_utc_now_naive(),
         confidence=0.5,
     )
     
@@ -340,7 +344,7 @@ def test_cascade_delete_camera(db_session, event_service):
         event_service.create_event(
             db=db_session,
             camera_id=camera.id,
-            timestamp=datetime.utcnow(),
+            timestamp=_utc_now_naive(),
             confidence=0.5,
         )
     
@@ -361,9 +365,9 @@ def test_event_timestamps_indexed(db_session, test_camera):
     """Test that timestamp index exists and works."""
     # Create events with different timestamps
     timestamps = [
-        datetime.utcnow() - timedelta(hours=3),
-        datetime.utcnow() - timedelta(hours=2),
-        datetime.utcnow() - timedelta(hours=1),
+        _utc_now_naive() - timedelta(hours=3),
+        _utc_now_naive() - timedelta(hours=2),
+        _utc_now_naive() - timedelta(hours=1),
     ]
     
     for ts in timestamps:
@@ -393,7 +397,7 @@ def test_get_event_count_by_camera(db_session, event_service, test_camera):
         event_service.create_event(
             db=db_session,
             camera_id=test_camera.id,
-            timestamp=datetime.utcnow(),
+            timestamp=_utc_now_naive(),
             confidence=0.5,
         )
     

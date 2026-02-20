@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { MdClose, MdDownload, MdDelete, MdMovieFilter } from 'react-icons/md'
 import { api, resolveApiPath } from '../services/api'
+import { safeGetItem, safeSetItem } from '../utils/safeStorage'
 
 interface EventDetailProps {
   event: {
@@ -95,7 +96,7 @@ export function EventDetail({ event, cameraName, initialTab, onClose, onDelete }
   }, [displayEvent.id, displayEvent.mp4_url, initialTab])
 
   useEffect(() => {
-    const raw = localStorage.getItem('event_meta')
+    const raw = safeGetItem('event_meta')
     if (!raw) return
     try {
       const meta = JSON.parse(raw) as Record<string, { tags: string[]; note: string }>
@@ -110,7 +111,7 @@ export function EventDetail({ event, cameraName, initialTab, onClose, onDelete }
   }, [displayEvent.id])
 
   const persistMeta = (nextTags: string[], nextNote: string) => {
-    const raw = localStorage.getItem('event_meta')
+    const raw = safeGetItem('event_meta')
     let meta: Record<string, { tags: string[]; note: string }> = {}
     try {
       meta = raw ? JSON.parse(raw) : {}
@@ -141,18 +142,13 @@ export function EventDetail({ event, cameraName, initialTab, onClose, onDelete }
       meta[displayEvent.id] = { tags: nextTags, note: nextNote }
     }
 
-    try {
-      localStorage.setItem('event_meta', JSON.stringify(meta))
-    } catch {
+    const saved = safeSetItem('event_meta', JSON.stringify(meta))
+    if (!saved) {
       // Quota exceeded — clear stale empty entries and retry once
-      try {
-        Object.keys(meta).forEach((k) => {
-          if (meta[k].tags.length === 0 && !meta[k].note) delete meta[k]
-        })
-        localStorage.setItem('event_meta', JSON.stringify(meta))
-      } catch {
-        // give up silently
-      }
+      Object.keys(meta).forEach((k) => {
+        if (meta[k].tags.length === 0 && !meta[k].note) delete meta[k]
+      })
+      safeSetItem('event_meta', JSON.stringify(meta))
     }
   }
 

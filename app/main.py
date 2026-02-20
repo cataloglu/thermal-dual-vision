@@ -293,15 +293,17 @@ async def health():
 
     migrations = get_migration_status()
     migrations_ok = all(item.get("ok", False) for item in migrations.values()) if migrations else True
+    external_migration_degraded = os.getenv("TDV_MIGRATION_DEGRADED", "").strip() == "1"
 
     return {
-        "status": "ok" if pipeline_status == "ok" and migrations_ok else "degraded",
+        "status": "ok" if pipeline_status == "ok" and migrations_ok and not external_migration_degraded else "degraded",
         "version": __version__,
         "uptime_s": uptime_s,
         "ai": {"enabled": ai_enabled, "reason": ai_reason},
         "cameras": {"online": online, "retrying": retrying, "down": down},
         "components": {"pipeline": pipeline_status, "telegram": telegram_status, "mqtt": mqtt_status},
         "migrations": migrations,
+        "migration_degraded": external_migration_degraded,
         "worker": get_worker_info(),
     }
 

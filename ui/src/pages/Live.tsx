@@ -6,6 +6,7 @@ import { api } from '../services/api'
 import { MdRefresh, MdVideocam } from 'react-icons/md'
 import { useWebSocket } from '../hooks/useWebSocket'
 import { LoadingState } from '../components/LoadingState'
+import { safeGetItem, safeSetItem } from '../utils/safeStorage'
 
 interface Camera {
   id: string
@@ -22,9 +23,7 @@ export function Live() {
   const { t } = useTranslation()
   const [cameras, setCameras] = useState<Camera[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedId, setSelectedId] = useState<string | null>(() =>
-    typeof localStorage !== 'undefined' ? localStorage.getItem(LIVE_SELECTED_KEY) : null
-  )
+  const [selectedId, setSelectedId] = useState<string | null>(() => safeGetItem(LIVE_SELECTED_KEY))
   const [refreshKey, setRefreshKey] = useState(0)
 
   const fetchData = useCallback(async () => {
@@ -75,9 +74,7 @@ export function Live() {
 
   const handleSelect = (cameraId: string) => {
     setSelectedId(cameraId)
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(LIVE_SELECTED_KEY, cameraId)
-    }
+    safeSetItem(LIVE_SELECTED_KEY, cameraId)
     setRefreshKey((k) => k + 1)
   }
 

@@ -50,9 +50,9 @@ def migrate():
         return True
     except Exception as e:
         print(f"Migration skipped: {e}")
-        return True  # Don't fail startup
+        return False
 
 
 if __name__ == "__main__":
-    migrate()
-    sys.exit(0)
+    success = migrate()
+    sys.exit(0 if success else 1)

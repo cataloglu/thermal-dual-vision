@@ -10,7 +10,7 @@ Tests cover:
 """
 import os
 import tempfile
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch, Mock
 
@@ -20,6 +20,10 @@ from sqlalchemy.orm import sessionmaker
 
 from app.db.models import Base, Camera, Event, CameraType, CameraStatus
 from app.workers.retention import RetentionWorker
+
+
+def _utc_now_naive() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 @pytest.fixture
@@ -87,7 +91,7 @@ def temp_media_dir(monkeypatch):
 def test_cleanup_old_events(db_session, retention_worker, test_camera, temp_media_dir):
     """Test cleanup of events older than retention days."""
     # Create old events (10 days ago)
-    old_timestamp = datetime.utcnow() - timedelta(days=10)
+    old_timestamp = _utc_now_naive() - timedelta(days=10)
     
     for i in range(3):
         event = Event(
@@ -107,7 +111,7 @@ def test_cleanup_old_events(db_session, retention_worker, test_camera, temp_medi
     db_session.commit()
     
     # Create recent events (2 days ago)
-    recent_timestamp = datetime.utcnow() - timedelta(days=2)
+    recent_timestamp = _utc_now_naive() - timedelta(days=2)
     
     for i in range(2):
         event = Event(
@@ -139,7 +143,7 @@ def test_cleanup_by_disk_limit(db_session, retention_worker, test_camera, temp_m
         event = Event(
             id=f"event-{i}",
             camera_id=test_camera.id,
-            timestamp=datetime.utcnow() - timedelta(hours=i),
+            timestamp=_utc_now_naive() - timedelta(hours=i),
             confidence=0.8,
             event_type="person",
         )
@@ -250,9 +254,9 @@ def test_cleanup_oldest_first(db_session, retention_worker, test_camera, temp_me
     """Test that oldest events are deleted first."""
     # Create events with different timestamps
     timestamps = [
-        datetime.utcnow() - timedelta(hours=10),  # Oldest
-        datetime.utcnow() - timedelta(hours=5),
-        datetime.utcnow() - timedelta(hours=1),   # Newest
+        _utc_now_naive() - timedelta(hours=10),  # Oldest
+        _utc_now_naive() - timedelta(hours=5),
+        _utc_now_naive() - timedelta(hours=1),   # Newest
     ]
     
     for i, ts in enumerate(timestamps):
@@ -296,7 +300,7 @@ def test_disk_usage_below_limit(db_session, retention_worker, test_camera):
     event = Event(
         id="test-event",
         camera_id=test_camera.id,
-        timestamp=datetime.utcnow(),
+        timestamp=_utc_now_naive(),
         confidence=0.8,
         event_type="person",
     )
@@ -347,7 +351,7 @@ def test_cleanup_with_db_error(db_session, retention_worker, test_camera, temp_m
     event = Event(
         id="test-event",
         camera_id=test_camera.id,
-        timestamp=datetime.utcnow() - timedelta(days=10),
+        timestamp=_utc_now_naive() - timedelta(days=10),
         confidence=0.8,
         event_type="person",
     )
@@ -361,8 +365,8 @@ def test_cleanup_with_db_error(db_session, retention_worker, test_camera, temp_m
         # Should handle error and continue
         assert deleted == 0
         
-        # Event should still exist (rollback)
-        assert db_session.query(Event).count() == 1
+        # DB row is intentionally deleted first to avoid ghost events.
+        assert db_session.query(Event).count() == 0
 
 
 def test_get_retention_worker_singleton():
