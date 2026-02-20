@@ -439,6 +439,7 @@
   "themeChangesInstant": "Tema değişiklikleri anında uygulanır. Sayfa yenilemeye gerek yoktur.",
   "zoneSettings": "Bölge Ayarları",
   "zoneEditor": "Bölge Editörü",
+  "points": "nokta",
   "zoneDesc": "Kamera görüntüsünde algılama bölgeleri tanımlayın",
   "selectCamera": "Kamera Seçin",
   "zoneName": "Bölge Adı",

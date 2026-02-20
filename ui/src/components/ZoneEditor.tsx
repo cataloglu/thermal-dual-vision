@@ -14,149 +14,186 @@ interface ZoneEditorProps {
   onRefreshSnapshot?: () => void
 }
 
+const HIT_RADIUS = 12
+
 export function ZoneEditor({ snapshotUrl, initialPoints = [], onSave, onRefreshSnapshot }: ZoneEditorProps) {
   const { t } = useTranslation()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const imgRef = useRef<HTMLImageElement | null>(null)
   const [points, setPoints] = useState<Point[]>(initialPoints)
+  const [mousePos, setMousePos] = useState<Point | null>(null)
   const [hoveredPoint, setHoveredPoint] = useState<number | null>(null)
+  const [draggingPoint, setDraggingPoint] = useState<number | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
 
+  // Redraw whenever state changes
   const drawCanvas = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-    // Draw snapshot if available
-    if (snapshotUrl) {
-      if (!imgRef.current || imgRef.current.src !== snapshotUrl) {
-        const img = new Image()
-        img.src = snapshotUrl
-        imgRef.current = img
-      }
-      const img = imgRef.current
-      if (img.complete && img.naturalWidth > 0) {
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-        drawPolygon(ctx)
-      } else {
-        img.onload = () => {
-          if (canvasRef.current) {
-            const ctx2 = canvasRef.current.getContext('2d')
-            if (ctx2) {
-              ctx2.clearRect(0, 0, canvas.width, canvas.height)
-              ctx2.drawImage(img, 0, 0, canvas.width, canvas.height)
-              drawPolygon(ctx2)
-            }
-          }
-        }
-      }
-    } else {
-      // Draw placeholder
-      ctx.fillStyle = '#1E293B'
-      ctx.fillRect(0, 0, canvas.width, canvas.height)
+    // Background
+    ctx.fillStyle = '#1E293B'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+    // Draw snapshot
+    const img = imgRef.current
+    if (img && img.complete && img.naturalWidth > 0) {
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+    } else if (!snapshotUrl) {
       ctx.fillStyle = '#94A3B8'
       ctx.font = '16px sans-serif'
       ctx.textAlign = 'center'
       ctx.fillText(t('selectCamera'), canvas.width / 2, canvas.height / 2)
-      drawPolygon(ctx)
     }
-  }, [snapshotUrl, points, hoveredPoint, t])
+
+    if (points.length === 0) return
+
+    // Filled polygon
+    if (points.length > 2) {
+      ctx.beginPath()
+      ctx.moveTo(points[0].x, points[0].y)
+      for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y)
+      ctx.closePath()
+      ctx.fillStyle = 'rgba(16, 185, 129, 0.25)'
+      ctx.fill()
+    }
+
+    // Polygon edges
+    ctx.beginPath()
+    ctx.moveTo(points[0].x, points[0].y)
+    for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y)
+    if (points.length > 2) ctx.closePath()
+    ctx.strokeStyle = '#10B981'
+    ctx.lineWidth = 2
+    ctx.stroke()
+
+    // Preview line: last point → mouse cursor
+    if (mousePos && draggingPoint === null) {
+      const nearFirst = points.length >= 3 &&
+        Math.hypot(mousePos.x - points[0].x, mousePos.y - points[0].y) < HIT_RADIUS
+
+      ctx.beginPath()
+      ctx.moveTo(points[points.length - 1].x, points[points.length - 1].y)
+      ctx.lineTo(mousePos.x, mousePos.y)
+      ctx.strokeStyle = nearFirst ? '#10B981' : 'rgba(255,255,255,0.5)'
+      ctx.lineWidth = 1.5
+      ctx.setLineDash([6, 4])
+      ctx.stroke()
+      ctx.setLineDash([])
+    }
+
+    // Points
+    points.forEach((point, index) => {
+      const isHovered = hoveredPoint === index
+      const isFirst = index === 0
+      const canClose = isFirst && points.length >= 3
+
+      ctx.beginPath()
+      ctx.arc(point.x, point.y, isHovered ? 9 : 7, 0, 2 * Math.PI)
+      ctx.fillStyle = isHovered && canClose ? '#10B981' : isHovered ? '#EF4444' : '#FFFFFF'
+      ctx.fill()
+      ctx.strokeStyle = '#000'
+      ctx.lineWidth = 2
+      ctx.stroke()
+
+      // Point index label
+      ctx.fillStyle = '#000'
+      ctx.font = 'bold 10px sans-serif'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(String(index + 1), point.x, point.y)
+    })
+    ctx.textBaseline = 'alphabetic'
+  }, [snapshotUrl, points, mousePos, hoveredPoint, draggingPoint, t])
 
   useEffect(() => {
     drawCanvas()
   }, [drawCanvas])
 
-  const drawPolygon = (ctx: CanvasRenderingContext2D) => {
-    if (points.length === 0) return
-
-    // Draw lines
-    ctx.beginPath()
-    ctx.moveTo(points[0].x, points[0].y)
-    for (let i = 1; i < points.length; i++) {
-      ctx.lineTo(points[i].x, points[i].y)
+  // Load snapshot image
+  useEffect(() => {
+    if (!snapshotUrl) {
+      imgRef.current = null
+      return
     }
-    if (points.length > 2) {
-      ctx.closePath()
-      ctx.fillStyle = 'rgba(16, 185, 129, 0.2)' // Yeşil fill
-      ctx.fill()
+    setIsLoading(true)
+    const img = new Image()
+    img.onload = () => {
+      imgRef.current = img
+      setIsLoading(false)
     }
-    ctx.strokeStyle = '#10B981' // Yeşil border
-    ctx.lineWidth = 2
-    ctx.stroke()
+    img.onerror = () => setIsLoading(false)
+    img.src = snapshotUrl
+  }, [snapshotUrl])
 
-    // Draw points
-    points.forEach((point, index) => {
-      ctx.beginPath()
-      ctx.arc(point.x, point.y, 6, 0, 2 * Math.PI)
-      ctx.fillStyle = hoveredPoint === index ? '#EF4444' : '#FFFFFF'
-      ctx.fill()
-      ctx.strokeStyle = '#000000'
-      ctx.lineWidth = 2
-      ctx.stroke()
-    })
-  }
-
-  const getCanvasPos = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const getCanvasPos = (e: React.MouseEvent<HTMLCanvasElement>): Point => {
     const canvas = canvasRef.current!
     const rect = canvas.getBoundingClientRect()
-    const scaleX = canvas.width / rect.width
-    const scaleY = canvas.height / rect.height
     return {
-      x: (e.clientX - rect.left) * scaleX,
-      y: (e.clientY - rect.top) * scaleY,
+      x: (e.clientX - rect.left) * (canvas.width / rect.width),
+      y: (e.clientY - rect.top) * (canvas.height / rect.height),
     }
   }
 
-  const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!canvasRef.current) return
-    const { x, y } = getCanvasPos(e)
+  const findPointAt = (pos: Point) =>
+    points.findIndex(p => Math.hypot(p.x - pos.x, p.y - pos.y) < HIT_RADIUS)
 
-    const clickedPoint = points.findIndex(p =>
-      Math.sqrt((p.x - x) ** 2 + (p.y - y) ** 2) < 10
-    )
-
-    if (clickedPoint === -1 && points.length < 20) {
-      setPoints([...points, { x, y }])
+  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (e.button !== 0) return
+    const pos = getCanvasPos(e)
+    const idx = findPointAt(pos)
+    if (idx !== -1) {
+      setDraggingPoint(idx)
     }
   }
 
-  const handleCanvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!canvasRef.current) return
-    const { x, y } = getCanvasPos(e)
+  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const pos = getCanvasPos(e)
+    setMousePos(pos)
 
-    const hovered = points.findIndex(p =>
-      Math.sqrt((p.x - x) ** 2 + (p.y - y) ** 2) < 10
-    )
+    if (draggingPoint !== null) {
+      setPoints(prev => prev.map((p, i) => i === draggingPoint ? pos : p))
+      return
+    }
 
-    setHoveredPoint(hovered === -1 ? null : hovered)
+    setHoveredPoint(findPointAt(pos) ?? null as unknown as number)
   }
 
-  const handleCanvasContextMenu = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handleMouseUp = () => {
+    setDraggingPoint(null)
+  }
+
+  const handleMouseLeave = () => {
+    setMousePos(null)
+    setHoveredPoint(null)
+    setDraggingPoint(null)
+  }
+
+  const handleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (draggingPoint !== null) return
+    const pos = getCanvasPos(e)
+    const idx = findPointAt(pos)
+
+    // Clicking first point with 3+ points closes/saves polygon — just a visual hint; user clicks Save
+    if (idx === 0 && points.length >= 3) return
+
+    // Clicking existing point: no-op (dragging handles move)
+    if (idx !== -1) return
+
+    if (points.length < 20) {
+      setPoints(prev => [...prev, pos])
+    }
+  }
+
+  const handleContextMenu = (e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault()
-    if (!canvasRef.current) return
-    const { x, y } = getCanvasPos(e)
-
-    const clickedPoint = points.findIndex(p =>
-      Math.sqrt((p.x - x) ** 2 + (p.y - y) ** 2) < 10
-    )
-
-    if (clickedPoint !== -1) {
-      setPoints(points.filter((_, i) => i !== clickedPoint))
-    }
-  }
-
-  const handleUndo = () => {
-    if (points.length > 0) {
-      setPoints(points.slice(0, -1))
-    }
-  }
-
-  const handleClear = () => {
-    setPoints([])
+    const pos = getCanvasPos(e)
+    const idx = findPointAt(pos)
+    if (idx !== -1) setPoints(prev => prev.filter((_, i) => i !== idx))
   }
 
   const handleSave = () => {
@@ -164,27 +201,20 @@ export function ZoneEditor({ snapshotUrl, initialPoints = [], onSave, onRefreshS
       alert(t('zoneMinPointsRequired'))
       return
     }
-
-    // Normalize coordinates (0.0-1.0)
     const canvas = canvasRef.current
     if (!canvas) return
-
-    const normalizedPoints = points.map(p => ({
-      x: p.x / canvas.width,
-      y: p.y / canvas.height
-    }))
-
-    onSave(normalizedPoints)
+    onSave(points.map(p => ({ x: p.x / canvas.width, y: p.y / canvas.height })))
+    setPoints([])
   }
 
   return (
     <div className="space-y-4">
-      {/* Canvas header */}
+      {/* Header */}
       <div className="flex items-center justify-between">
         <h4 className="text-sm font-medium text-text">{t('zoneEditor')}</h4>
         {onRefreshSnapshot && (
           <button
-            onClick={onRefreshSnapshot}
+            onClick={() => { setIsLoading(true); onRefreshSnapshot() }}
             className="flex items-center gap-1.5 px-3 py-1 bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors text-sm"
           >
             <MdRefresh />
@@ -193,28 +223,41 @@ export function ZoneEditor({ snapshotUrl, initialPoints = [], onSave, onRefreshS
         )}
       </div>
 
-      {/* Canvas */}
-      <div className="border border-border rounded-lg overflow-hidden bg-surface2">
+      {/* Canvas container */}
+      <div className="relative border border-border rounded-lg overflow-hidden bg-surface2">
         <canvas
           ref={canvasRef}
           width={800}
           height={600}
-          onClick={handleCanvasClick}
-          onMouseMove={handleCanvasMouseMove}
-          onContextMenu={handleCanvasContextMenu}
-          className="w-full h-auto cursor-crosshair"
+          onClick={handleClick}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseLeave}
+          onContextMenu={handleContextMenu}
+          className="w-full h-auto cursor-crosshair select-none"
         />
+        {/* Loading overlay */}
+        {isLoading && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-surface2/80 gap-3">
+            <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+            <span className="text-muted text-sm">{t('loading')}...</span>
+          </div>
+        )}
+        {/* Point counter badge */}
+        {points.length > 0 && (
+          <div className="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
+            {points.length} {t('points') || 'nokta'}
+          </div>
+        )}
       </div>
 
-      {/* Instructions */}
-      <div className="bg-surface2 border-l-4 border-info p-4 rounded-lg text-sm">
-        <p className="text-text mb-2"><strong>{t('howToUse')}:</strong></p>
-        <ul className="text-muted space-y-1">
-          <li>• {t('leftClick')}</li>
-          <li>• {t('rightClick')}</li>
-          <li>• {t('minPoints')}</li>
-          <li>• {t('maxPoints')}</li>
-        </ul>
+      {/* Compact instructions */}
+      <div className="flex gap-4 text-xs text-muted bg-surface2 px-4 py-2 rounded-lg">
+        <span>🖱️ Sol tık → nokta ekle</span>
+        <span>↕️ Sürükle → noktayı taşı</span>
+        <span>🖱️ Sağ tık → nokta sil</span>
+        <span>Min 3 nokta gerekli</span>
       </div>
 
       {/* Actions */}
@@ -225,10 +268,10 @@ export function ZoneEditor({ snapshotUrl, initialPoints = [], onSave, onRefreshS
           className="flex items-center gap-2 px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <MdSave />
-          {t('saveZone')} ({points.length})
+          {t('saveZone')} ({points.length}/3+)
         </button>
         <button
-          onClick={handleUndo}
+          onClick={() => setPoints(prev => prev.slice(0, -1))}
           disabled={points.length === 0}
           className="flex items-center gap-2 px-4 py-2 bg-surface2 border border-border text-text rounded-lg hover:bg-surface2/80 transition-colors disabled:opacity-50"
         >
@@ -236,7 +279,7 @@ export function ZoneEditor({ snapshotUrl, initialPoints = [], onSave, onRefreshS
           {t('undo')}
         </button>
         <button
-          onClick={handleClear}
+          onClick={() => setPoints([])}
           disabled={points.length === 0}
           className="flex items-center gap-2 px-4 py-2 bg-error/20 border border-error/50 text-error rounded-lg hover:bg-error/30 transition-colors disabled:opacity-50"
         >
