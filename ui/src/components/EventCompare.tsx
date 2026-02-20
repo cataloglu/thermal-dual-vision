@@ -28,9 +28,13 @@ export function EventCompare({ left, right, cameraNameById, onClose }: EventComp
   const { t } = useTranslation()
   const isRecent = (value: string) => Date.now() - new Date(value).getTime() < 30000
   useEffect(() => {
+    const previousOverflow = document.body.style.overflow
+    const previousTouchAction = document.body.style.touchAction
     document.body.style.overflow = 'hidden'
+    document.body.style.touchAction = 'none'
     return () => {
-      document.body.style.overflow = 'unset'
+      document.body.style.overflow = previousOverflow
+      document.body.style.touchAction = previousTouchAction
     }
   }, [])
 
@@ -46,16 +50,16 @@ export function EventCompare({ left, right, cameraNameById, onClose }: EventComp
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-surface1 border border-border rounded-lg max-w-6xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-surface1 border-b border-border p-6 flex items-center justify-between">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-sm">
+      <div className="bg-surface1 border border-border rounded-lg max-w-full sm:max-w-6xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-surface1 border-b border-border p-4 sm:p-6 flex items-center justify-between">
           <h2 className="text-2xl font-bold text-text">{t('compare')}</h2>
           <button onClick={onClose} className="p-2 hover:bg-surface2 rounded-lg transition-colors">
             <MdClose className="text-2xl text-muted" />
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 p-4 sm:p-6">
           {[left, right].map((event) => (
             <div key={event.id} className="space-y-3">
               <div className="bg-surface2 rounded-lg overflow-hidden">

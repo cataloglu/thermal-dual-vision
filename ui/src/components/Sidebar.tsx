@@ -14,7 +14,8 @@ import {
   MdRefresh,
   MdHub,
   MdDescription,
-  MdCameraAlt
+  MdCameraAlt,
+  MdClose
 } from 'react-icons/md'
 import { useWebSocket } from '../hooks/useWebSocket'
 import { api } from '../services/api'
@@ -22,9 +23,11 @@ import { safeGetItem, safeSetItem } from '../utils/safeStorage'
 
 interface SidebarProps {
   systemStatus?: 'ok' | 'degraded' | 'down'
+  mobileOpen?: boolean
+  onCloseMobile?: () => void
 }
 
-export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
+export function Sidebar({ systemStatus = 'ok', mobileOpen = false, onCloseMobile }: SidebarProps) {
   const { t, i18n } = useTranslation()
   const [version, setVersion] = useState<string>('')
   // WebSocket for real-time status (use relative path for proxy)
@@ -84,7 +87,11 @@ export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
   }
 
   return (
-    <aside className="w-60 bg-surface1 border-r border-border flex flex-col h-screen min-h-0">
+    <aside
+      className={`fixed inset-y-0 left-0 z-50 w-64 bg-surface1 border-r border-border flex flex-col min-h-0 transform transition-transform duration-200 md:static md:translate-x-0 md:w-60 md:z-auto ${
+        mobileOpen ? 'translate-x-0' : '-translate-x-full'
+      }`}
+    >
       {/* Logo & Title */}
       <div className="p-6 border-b border-border">
         <div className="flex items-center gap-3 mb-3">
@@ -93,6 +100,14 @@ export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
             <h1 className="text-lg font-bold text-text">Motion Detector</h1>
             <p className="text-xs text-muted">{version ? `v${version}` : '...'}</p>
           </div>
+          <button
+            type="button"
+            aria-label="Close menu"
+            className="md:hidden inline-flex items-center justify-center w-8 h-8 rounded-md bg-surface2 border border-border text-muted"
+            onClick={onCloseMobile}
+          >
+            <MdClose className="text-xl" />
+          </button>
           {/* System Status Dot */}
           <div className="relative">
             <div className={`w-3 h-3 rounded-full ${statusColors[systemStatus]}`}>
@@ -118,6 +133,7 @@ export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
                   : 'text-muted hover:bg-surface2 hover:text-text'
               }`
             }
+            onClick={onCloseMobile}
           >
             <item.icon className="text-xl" />
             <span className="font-medium">{item.label}</span>
@@ -137,6 +153,7 @@ export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
               if (!settingsExpanded) {
                 navigate('/settings')
               }
+              onCloseMobile?.()
             }}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
               location.pathname.startsWith('/settings')
@@ -155,7 +172,10 @@ export function Sidebar({ systemStatus = 'ok' }: SidebarProps) {
               {settingsSubItems.map((item) => (
                 <button
                   key={item.tab}
-                  onClick={() => navigate(`/settings?tab=${item.tab}`)}
+                  onClick={() => {
+                    navigate(`/settings?tab=${item.tab}`)
+                    onCloseMobile?.()
+                  }}
                   className={`w-full text-left px-4 py-2 text-sm rounded-lg transition-colors ${
                     activeSettingsTab === item.tab
                       ? 'bg-surface2 text-text border-l-2 border-accent'

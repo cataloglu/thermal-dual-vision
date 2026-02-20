@@ -78,12 +78,16 @@ export function EventDetail({ event, cameraName, initialTab, onClose, onDelete }
 
     document.addEventListener('keydown', handleEscape)
     document.addEventListener('mousedown', handleClickOutside)
+    const previousOverflow = document.body.style.overflow
+    const previousTouchAction = document.body.style.touchAction
     document.body.style.overflow = 'hidden'
+    document.body.style.touchAction = 'none'
 
     return () => {
       document.removeEventListener('keydown', handleEscape)
       document.removeEventListener('mousedown', handleClickOutside)
-      document.body.style.overflow = 'unset'
+      document.body.style.overflow = previousOverflow
+      document.body.style.touchAction = previousTouchAction
     }
   }, [onClose])
 
@@ -214,13 +218,13 @@ export function EventDetail({ event, cameraName, initialTab, onClose, onDelete }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-sm">
       <div
         ref={modalRef}
-        className="bg-surface1 border border-border rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+        className="bg-surface1 border border-border rounded-lg max-w-full sm:max-w-4xl w-full max-h-[90vh] overflow-y-auto"
       >
         {/* Header */}
-        <div className="sticky top-0 bg-surface1 border-b border-border p-6 flex items-center justify-between z-10">
+        <div className="sticky top-0 bg-surface1 border-b border-border p-4 sm:p-6 flex items-center justify-between z-10">
           <div>
             <h2 className="text-2xl font-bold text-text mb-1">
               {t('events')} {t('view')}
@@ -238,7 +242,7 @@ export function EventDetail({ event, cameraName, initialTab, onClose, onDelete }
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6">
+        <div className="p-4 sm:p-6 space-y-5 sm:space-y-6">
           {/* Tabs */}
           <div className="flex gap-2 border-b border-border">
             <button

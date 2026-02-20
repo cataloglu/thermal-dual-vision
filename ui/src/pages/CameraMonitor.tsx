@@ -99,7 +99,7 @@ function CameraCard({ cam, snapshotKey, t }: { cam: CameraStatusItem; snapshotKe
       !cam.enabled ? 'opacity-50 border-border' : 'border-border hover:border-accent/50'
     }`}>
       {/* Snapshot thumbnail */}
-      <div className="relative w-full h-40 bg-surface2 flex items-center justify-center overflow-hidden">
+      <div className="relative w-full h-32 sm:h-40 bg-surface2 flex items-center justify-center overflow-hidden">
         {cam.enabled ? (
           <SnapshotImage cameraId={cam.id} snapshotKey={snapshotKey} />
         ) : (
@@ -129,7 +129,7 @@ function CameraCard({ cam, snapshotKey, t }: { cam: CameraStatusItem; snapshotKe
       </div>
 
       {/* Info */}
-      <div className="p-4 flex flex-col gap-3 flex-1">
+      <div className="p-3 sm:p-4 flex flex-col gap-3 flex-1">
         {/* Name + type */}
         <div className="flex items-start justify-between gap-2">
           <div>
@@ -261,9 +261,9 @@ export function CameraMonitor() {
   const down = cameras.filter((c) => c.status === 'down').length
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-5 md:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-text">{t('cameraMonitor')}</h1>
           <p className="text-muted text-sm mt-1">{t('cameraMonitorDesc')}</p>
@@ -271,7 +271,7 @@ export function CameraMonitor() {
         <button
           onClick={handleManualRefresh}
           disabled={refreshing}
-          className="flex items-center gap-2 px-4 py-2 bg-surface2 border border-border rounded-lg hover:bg-accent hover:text-white hover:border-accent transition-colors text-text text-sm font-medium disabled:opacity-50"
+          className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-surface2 border border-border rounded-lg hover:bg-accent hover:text-white hover:border-accent transition-colors text-text text-sm font-medium disabled:opacity-50"
         >
           <MdRefresh className={`text-lg ${refreshing ? 'animate-spin' : ''}`} />
           {t('camMonRefresh')}
@@ -280,7 +280,7 @@ export function CameraMonitor() {
 
       {/* Summary bar */}
       {!loading && data && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <div className="bg-surface1 border border-border rounded-xl p-4 flex items-center gap-3">
             <div className="w-10 h-10 bg-surface2 rounded-lg flex items-center justify-center">
               <MdVideocam className="text-xl text-muted" />
