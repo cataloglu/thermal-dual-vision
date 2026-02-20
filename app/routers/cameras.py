@@ -311,9 +311,19 @@ async def stop_recording(camera_id: str, db: Session = Depends(get_session)) -> 
 
 @router.get("/api/cameras/{camera_id}/snapshot")
 async def get_camera_snapshot(camera_id: str, db: Session = Depends(get_session)) -> Response:
+    import cv2
     camera = camera_crud_service.get_camera(db, camera_id)
     if not camera:
         raise HTTPException(status_code=404, detail={"error": True, "code": "CAMERA_NOT_FOUND", "message": f"Camera not found: {camera_id}"})
+
+    # Fast path: grab latest frame from shared buffer (detector already pulling at 8fps)
+    frame = detector_worker.get_latest_frame(camera_id)
+    if frame is not None:
+        ret, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+        if ret:
+            return Response(content=buf.tobytes(), media_type="image/jpeg")
+
+    # Slow fallback: open new RTSP connection
     stream_urls = get_live_rtsp_urls(camera)
     if not stream_urls:
         raise HTTPException(status_code=400, detail={"error": True, "code": "STREAM_URL_MISSING", "message": "No RTSP URL configured for snapshot."})
