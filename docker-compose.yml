@@ -11,7 +11,7 @@ services:
     env_file:
       - .env
     environment:
-      - LOG_LEVEL=debug
+      - LOG_LEVEL=info
       - GO2RTC_URL=http://go2rtc:1984
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}

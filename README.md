@@ -121,6 +121,7 @@ docker-compose up -d
 ```
 
 ```bash
+pip install -r requirements-dev.txt
 pytest tests/ -v
 ```
 
