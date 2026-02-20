@@ -10,6 +10,7 @@ This service handles configuration file management including:
 - Default config generation
 - In-memory caching for performance
 """
+import copy
 import json
 import logging
 import os
@@ -239,13 +240,13 @@ class SettingsService:
         Returns:
             Merged dictionary
         """
-        result = base.copy()
+        result = copy.deepcopy(base)
         
         for key, value in update.items():
             if key in result and isinstance(result[key], dict) and isinstance(value, dict):
                 result[key] = self._deep_merge(result[key], value)
             else:
-                result[key] = value
+                result[key] = copy.deepcopy(value)
         
         return result
 
@@ -253,7 +254,7 @@ class SettingsService:
         """Normalize legacy config fields."""
         if not isinstance(data, dict):
             return data
-        result = data.copy()
+        result = copy.deepcopy(data)
         # Migrate thermal CLAHE tile size: 8x8 caused blockiness, 32x32 is smoother
         thermal = result.get("thermal")
         if isinstance(thermal, dict):

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../services/api'
 
 interface Event {
@@ -38,7 +38,14 @@ export function useEvents(params: UseEventsParams = {}) {
   const [page, setPage] = useState(params.page || 1)
   const [pageSize, setPageSize] = useState(params.pageSize || 20)
 
+  const abortRef = useRef<AbortController | null>(null)
+
   const fetchEvents = async () => {
+    // Cancel any in-flight request before starting a new one
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+
     try {
       setLoading(true)
       setError(null)
@@ -50,15 +57,20 @@ export function useEvents(params: UseEventsParams = {}) {
         date: params.date,
         confidence: params.minConfidence,
         rejected: params.rejected,
-      })
+      }, { signal: controller.signal })
 
-      setEvents(data.events)
-      setTotal(data.total)
+      if (!controller.signal.aborted) {
+        setEvents(data.events)
+        setTotal(data.total)
+      }
     } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return
       setError(err instanceof Error ? err.message : 'Failed to fetch events')
       console.error('Failed to fetch events:', err)
     } finally {
-      setLoading(false)
+      if (!controller.signal.aborted) {
+        setLoading(false)
+      }
     }
   }
 
@@ -73,6 +85,7 @@ export function useEvents(params: UseEventsParams = {}) {
 
   useEffect(() => {
     fetchEvents()
+    return () => { abortRef.current?.abort() }
   }, [page, pageSize, filterKey])
 
   const refresh = () => fetchEvents()

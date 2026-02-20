@@ -99,6 +99,8 @@ export const Settings: React.FC = () => {
   }, [activeTab, localSettings, saveSettings]);
 
   const handleReset = async () => {
+    const confirmed = window.confirm(t('resetDefaultsConfirm'));
+    if (!confirmed) return;
     try {
       await api.resetSettings();
       window.location.reload();

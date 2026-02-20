@@ -135,8 +135,9 @@ class EventService:
         
         if rejected_only is True:
             filters.append(Event.rejected_by_ai == True)
-        elif rejected_only is False or rejected_only is None:
+        elif rejected_only is False:
             filters.append(Event.rejected_by_ai == False)
+        # rejected_only is None → no filter (show all events)
         
         if filters:
             query = query.filter(and_(*filters))

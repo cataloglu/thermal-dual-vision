@@ -153,6 +153,7 @@ async def lifespan(app: FastAPI):
 
     await asyncio.sleep(2)
 
+    _local_worker = None
     try:
         config = settings_service.load_config()
         if hasattr(config, "performance") and config.performance.enable_metrics:
@@ -161,15 +162,16 @@ async def lifespan(app: FastAPI):
 
         worker_mode = getattr(getattr(config, "performance", None), "worker_mode", "threading") or "threading"
         if worker_mode == "multiprocessing":
-            detector_worker = get_mp_detector_worker()
+            _local_worker = get_mp_detector_worker()
             logger.info("Using multiprocessing detector worker (experimental)")
         else:
-            detector_worker = get_detector_worker()
+            _local_worker = get_detector_worker()
             logger.info("Using threading detector worker")
     except Exception as e:
         logger.warning(f"Failed to load config / start metrics: {e}")
-        detector_worker = get_detector_worker()
+        _local_worker = get_detector_worker()
         logger.info("Using threading detector worker (fallback)")
+    detector_worker = _local_worker
 
     # Publish the chosen worker back to app.dependencies so all routers
     # (live.py, system.py, …) see the correct instance instead of the

@@ -54,6 +54,7 @@ const joinApiUrl = (path: string) => {
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -172,15 +173,18 @@ export const testAiEvent = async (eventId: string) => {
 };
 
 // Events
-export const getEvents = async (params: {
-  page?: number;
-  page_size?: number;
-  camera_id?: string;
-  date?: string;
-  confidence?: number;
-  rejected?: boolean;
-}) => {
-  const response = await apiClient.get('events', { params });
+export const getEvents = async (
+  params: {
+    page?: number;
+    page_size?: number;
+    camera_id?: string;
+    date?: string;
+    confidence?: number;
+    rejected?: boolean;
+  },
+  options?: { signal?: AbortSignal }
+) => {
+  const response = await apiClient.get('events', { params, signal: options?.signal });
   return response.data;
 };
 

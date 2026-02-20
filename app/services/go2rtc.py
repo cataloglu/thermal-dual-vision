@@ -4,6 +4,8 @@ Manages camera streams in go2rtc configuration.
 """
 import os
 import logging
+import tempfile
+import threading
 import time
 from pathlib import Path
 from typing import Optional, Dict, Any
@@ -18,11 +20,10 @@ class Go2RTCService:
     
     def __init__(self):
         self.config_path = Path("go2rtc.yaml")
-        # Environment variable kullan (Docker için)
-        # Use 127.0.0.1 instead of localhost for HA addon compatibility
         self.api_url = os.getenv("GO2RTC_URL", "http://127.0.0.1:1984")
         self._last_check_ts = 0.0
         self._check_interval = float(os.getenv("GO2RTC_CHECK_INTERVAL", "10"))
+        self._config_lock = threading.Lock()
         self.enabled = self._check_availability()
         logger.info(f"go2rtc service initialized - URL: {self.api_url}, enabled: {self.enabled}")
 
@@ -69,8 +70,14 @@ class Go2RTCService:
         return {}
 
     def _write_config(self, config: Dict) -> None:
-        with open(self.config_path, 'w') as f:
-            yaml.dump(config, f, default_flow_style=False)
+        """Atomically write go2rtc YAML config (tmp → rename, lock-protected)."""
+        parent = self.config_path.parent
+        with tempfile.NamedTemporaryFile(
+            mode='w', suffix='.yaml', dir=parent, delete=False
+        ) as tmp:
+            yaml.dump(config, tmp, default_flow_style=False)
+            tmp_path = Path(tmp.name)
+        tmp_path.replace(self.config_path)
 
     def _resolve_default_stream_url(
         self,
@@ -138,44 +145,46 @@ class Go2RTCService:
         """Upsert camera streams in go2rtc config."""
         can_restart = self.refresh_enabled()
         try:
-            config = self._load_config()
-            streams = config.get("streams") or {}
-            if not isinstance(streams, dict):
-                streams = {}
+            with self._config_lock:
+                config = self._load_config()
+                streams = config.get("streams") or {}
+                if not isinstance(streams, dict):
+                    streams = {}
 
-            desired = self._build_camera_streams(
-                camera_id,
-                rtsp_url,
-                rtsp_url_color,
-                rtsp_url_thermal,
-                rtsp_url_detection=rtsp_url_detection,
-                default_url=default_url,
-            )
-            managed_keys = {camera_id, f"{camera_id}_color", f"{camera_id}_thermal", f"{camera_id}_detect"}
-            changed = False
+                desired = self._build_camera_streams(
+                    camera_id,
+                    rtsp_url,
+                    rtsp_url_color,
+                    rtsp_url_thermal,
+                    rtsp_url_detection=rtsp_url_detection,
+                    default_url=default_url,
+                )
+                managed_keys = {camera_id, f"{camera_id}_color", f"{camera_id}_thermal", f"{camera_id}_detect"}
+                changed = False
 
-            for key in list(streams.keys()):
-                if key in managed_keys and key not in desired:
-                    del streams[key]
-                    changed = True
+                for key in list(streams.keys()):
+                    if key in managed_keys and key not in desired:
+                        del streams[key]
+                        changed = True
 
-            for key, url in desired.items():
-                desired_entry = [url]
-                current = streams.get(key)
-                if isinstance(current, str):
-                    current_entry = [current]
-                else:
-                    current_entry = current
-                if current_entry != desired_entry:
-                    streams[key] = desired_entry
-                    changed = True
+                for key, url in desired.items():
+                    desired_entry = [url]
+                    current = streams.get(key)
+                    if isinstance(current, str):
+                        current_entry = [current]
+                    else:
+                        current_entry = current
+                    if current_entry != desired_entry:
+                        streams[key] = desired_entry
+                        changed = True
 
-            if changed:
-                config["streams"] = streams
-                self._write_config(config)
-                logger.info("go2rtc config updated for camera %s", camera_id)
-                if reload and can_restart:
-                    self._restart_go2rtc()
+                if changed:
+                    config["streams"] = streams
+                    self._write_config(config)
+                    logger.info("go2rtc config updated for camera %s", camera_id)
+
+            if changed and reload and can_restart:
+                self._restart_go2rtc()
             else:
                 logger.debug("go2rtc config already up to date for camera %s", camera_id)
 

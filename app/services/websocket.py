@@ -24,22 +24,13 @@ class WebSocketManager:
     def __init__(self):
         """Initialize WebSocket manager."""
         self.active_connections: List[WebSocket] = []
+        # Lock is created lazily inside the running event loop to avoid
+        # "no current event loop" errors when the manager is instantiated
+        # at module import time (outside async context).
         self._lock: asyncio.Lock | None = None
-        self._loop: asyncio.AbstractEventLoop | None = None
         logger.info("WebSocketManager initialized")
 
-    def _ensure_loop(self) -> None:
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            return
-        if self._loop is None:
-            self._loop = loop
-        if self._lock is None:
-            self._lock = asyncio.Lock()
-
     def _get_lock(self) -> asyncio.Lock:
-        self._ensure_loop()
         if self._lock is None:
             self._lock = asyncio.Lock()
         return self._lock

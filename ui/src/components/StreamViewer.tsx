@@ -173,12 +173,13 @@ export function StreamViewer({
         }
       }
 
-      setTimeout(() => {
+      const webrtcTimeoutId = setTimeout(() => {
         if (pc.connectionState !== 'connected' && !ac.signal.aborted) {
           updateDebug('webrtc_timeout')
           startSnapshot()
         }
       }, 15000)
+      ac.signal.addEventListener('abort', () => clearTimeout(webrtcTimeoutId))
     } catch (err) {
       if (!ac.signal.aborted) {
         updateDebug('webrtc_error')

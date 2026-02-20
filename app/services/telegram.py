@@ -95,7 +95,8 @@ class TelegramService:
                 logger.debug("Max messages per minute limit reached")
                 return False
             
-            # Create bot
+            # Create bot (session closed in finally to prevent HTTP connection leak)
+            bot: Bot | None = None
             bot = Bot(token=config.telegram.bot_token)
             
             # Format message
@@ -189,10 +190,16 @@ class TelegramService:
                 self._record_message_sent()
             
             return success
-            
+
         except Exception as e:
             logger.error(f"Telegram notification failed: {e}")
             return False
+        finally:
+            if bot is not None:
+                try:
+                    await bot.session.close()
+                except Exception:
+                    pass
     
     def _format_message(
         self,
@@ -212,24 +219,24 @@ class TelegramService:
         camera_name = camera.get('name', event.get('camera_id', 'Unknown')) if camera else event.get('camera_id', 'Unknown')
         timestamp = event.get('timestamp', 'Unknown')
         confidence = event.get('confidence', 0) * 100
-        summary = event.get('summary', 'Hareket algılandı')
-        
+        summary = event.get('summary', 'Motion detected')
+
         # Parse timestamp
         try:
             dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
-            time_str = dt.strftime('%d.%m.%Y %H:%M:%S')
-        except:
+            time_str = dt.strftime('%d.%m.%Y %H:%M:%S UTC')
+        except Exception:
             time_str = timestamp
-        
+
         # Format message
-        message = f"""🚨 <b>{camera_name} - Hareket Algılandı</b>
+        message = f"""🚨 <b>{camera_name} - Motion Detected</b>
 
-⏰ <b>Zaman:</b> {time_str}
-🎯 <b>Güven:</b> {confidence:.0f}%
+⏰ <b>Time:</b> {time_str}
+🎯 <b>Confidence:</b> {confidence:.0f}%
 
-📝 <b>Detay:</b>
+📝 <b>Summary:</b>
 {summary}"""
-        
+
         return message
 
     def _is_playable_mp4(self, mp4_path: Path) -> bool:

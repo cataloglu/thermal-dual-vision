@@ -294,6 +294,9 @@ def camera_detection_process(
     control_queue: mp.Queue,
     stop_event: mp.Event,
     frame_buffer_name: Optional[str] = None,
+    shm_write_index: Optional[mp.Value] = None,
+    shm_count: Optional[mp.Value] = None,
+    shm_lock: Optional[mp.Lock] = None,
 ):
     """
     Individual camera detection process.
@@ -384,6 +387,9 @@ def camera_detection_process(
                     'timestamps': timestamps_array,
                     'buffer_size': buffer_size,
                     'frame_shape': frame_shape,
+                    'write_index': shm_write_index,
+                    'count': shm_count,
+                    'lock': shm_lock,
                 }
                 process_logger.info(f"Attached to shared frame buffer with timestamps: {frame_buffer_name}")
             except Exception as e:
@@ -499,6 +505,7 @@ def camera_detection_process(
         event_start_time = None
         last_event_time = 0
         last_frame_time = 0
+        _last_buffer_time = 0.0
         last_success_time = time.time()
         failure_threshold = max(1, int(getattr(config.stream, "read_failure_threshold", 5)))
         failure_timeout = float(getattr(config.stream, "read_failure_timeout_seconds", 20.0))
@@ -602,6 +609,10 @@ def camera_detection_process(
                     command = control_queue.get_nowait()
                     if command == "stop":
                         break
+                    elif isinstance(command, dict) and command.get("type") == "update_zones":
+                        new_zones = command.get("zones", [])
+                        zones = new_zones
+                        process_logger.info("Zones updated for camera %s: %d zones", camera_id[:8], len(zones))
             except:
                 pass
 
@@ -664,37 +675,38 @@ def camera_detection_process(
                 height = int(frame.shape[0] * 1280 / frame.shape[1])
                 frame = cv2.resize(frame, (1280, height))
 
-            # Write frame to buffer ONLY if timestamp advanced (prevent same-frame duplicates!)
+            # Write frame to shared circular buffer at record_fps rate
             if frame_buffer:
                 try:
-                    # Check if enough time passed since last buffer write
-                    if not hasattr(camera_detection_process, f'_last_buffer_time_{camera_id}'):
-                        setattr(camera_detection_process, f'_last_buffer_time_{camera_id}', 0.0)
-                    
-                    last_buffer_time = getattr(camera_detection_process, f'_last_buffer_time_{camera_id}')
-                    time_since_last_buffer = current_time - last_buffer_time
+                    time_since_last_buffer = current_time - _last_buffer_time
                     buffer_interval = 1.0 / max(1, config.event.record_fps)
                     if time_since_last_buffer >= buffer_interval:
-                        # Resize to buffer shape if needed
                         buffer_shape = frame_buffer['frame_shape']
                         if frame.shape != buffer_shape:
                             frame_resized = cv2.resize(frame, (buffer_shape[1], buffer_shape[0]))
                         else:
                             frame_resized = frame
-                        
-                        # Write to circular buffer
-                        if not hasattr(camera_detection_process, f'_write_idx_{camera_id}'):
-                            setattr(camera_detection_process, f'_write_idx_{camera_id}', 0)
-                        
-                        write_idx = getattr(camera_detection_process, f'_write_idx_{camera_id}')
-                        
-                        # Write frame AND timestamp
-                        frame_buffer['frames'][write_idx] = frame_resized
-                        frame_buffer['timestamps'][write_idx] = current_time
-                        
-                        setattr(camera_detection_process, f'_write_idx_{camera_id}', (write_idx + 1) % frame_buffer['buffer_size'])
-                        setattr(camera_detection_process, f'_last_buffer_time_{camera_id}', current_time)
-                    
+
+                        buf_lock = frame_buffer.get('lock')
+                        buf_write_idx = frame_buffer.get('write_index')
+                        buf_count = frame_buffer.get('count')
+                        buf_size = frame_buffer['buffer_size']
+
+                        if buf_lock is not None and buf_write_idx is not None and buf_count is not None:
+                            with buf_lock:
+                                idx = buf_write_idx.value
+                                frame_buffer['frames'][idx] = frame_resized
+                                frame_buffer['timestamps'][idx] = current_time
+                                buf_write_idx.value = (idx + 1) % buf_size
+                                if buf_count.value < buf_size:
+                                    buf_count.value += 1
+                        else:
+                            # Fallback: write without shared index tracking
+                            idx = int(current_time * config.event.record_fps) % buf_size
+                            frame_buffer['frames'][idx] = frame_resized
+                            frame_buffer['timestamps'][idx] = current_time
+
+                        _last_buffer_time = current_time
                 except Exception as e:
                     process_logger.debug(f"Frame buffer write error: {e}")
             
@@ -945,9 +957,10 @@ class MultiprocessingDetectorWorker:
         # Event handler thread (in main process)
         self.event_handler_thread = None
 
-        # Per-event processing threads (one per detection event, parallel)
+        # Per-event processing threads — bounded pool prevents DB/thread exhaustion
         self._event_threads: List[threading.Thread] = []
         self._event_threads_lock = threading.Lock()
+        self._event_thread_semaphore = threading.Semaphore(8)  # max 8 concurrent event handlers
 
         logger.info("MultiprocessingDetectorWorker initialized")
 
@@ -1079,6 +1092,12 @@ class MultiprocessingDetectorWorker:
                     logger.error(f"Failed to terminate camera process: {camera_id}")
                     process.kill()
         
+        # Join event handler thread so shared memory is not freed while it's still running
+        if hasattr(self, "event_handler_thread") and self.event_handler_thread is not None:
+            self.event_handler_thread.join(timeout=5)
+            if self.event_handler_thread.is_alive():
+                logger.warning("Event handler thread did not stop in time")
+
         # Cleanup frame buffers
         for camera_id, frame_buffer in self.frame_buffers.items():
             try:
@@ -1160,10 +1179,17 @@ class MultiprocessingDetectorWorker:
             "zones": zones_payload,
         }
         
+        # Shared buffer primitives (None when buffer creation failed)
+        _fb = self.frame_buffers.get(camera.id)
+        shm_write_index = _fb.write_index if _fb else None
+        shm_count = _fb.count if _fb else None
+        shm_lock = _fb.lock if _fb else None
+
         # Create process
         process = mp.Process(
             target=camera_detection_process,
-            args=(camera.id, camera_config, event_queue, control_queue, stop_event, frame_buffer_name),
+            args=(camera.id, camera_config, event_queue, control_queue, stop_event,
+                  frame_buffer_name, shm_write_index, shm_count, shm_lock),
             daemon=False,  # Don't use daemon for clean shutdown
             name=f"detector-{camera.id}"
         )
@@ -1539,6 +1565,37 @@ class MultiprocessingDetectorWorker:
         finally:
             db.close()
 
+    def update_camera_zones(self, camera_id: str, zones: list) -> bool:
+        """Push a new zone list to the running detection process for camera_id."""
+        q = self.control_queues.get(camera_id)
+        if q is None:
+            return False
+        try:
+            q.put_nowait({"type": "update_zones", "zones": zones})
+            return True
+        except Exception as exc:
+            logger.warning("Failed to send zone update to %s: %s", camera_id, exc)
+            return False
+
+    def _restart_camera_process(self, camera_id: str, delay: float = 5.0) -> None:
+        """Restart a crashed camera detection process after a short delay."""
+        time.sleep(delay)
+        try:
+            from app.db.session import SessionLocal
+            db = SessionLocal()
+            try:
+                camera = db.query(Camera).filter(Camera.id == camera_id).first()
+                if not camera or not camera.enabled:
+                    return
+                logger.info("Restarting crashed camera process: %s", camera_id)
+                self.stop_camera_detection(camera_id)
+                self.start_camera_detection(camera)
+                logger.info("Camera process restarted: %s", camera_id)
+            finally:
+                db.close()
+        except Exception as exc:
+            logger.error("Failed to restart camera process %s: %s", camera_id, exc)
+
     def _event_handler_loop(self) -> None:
         """
         Event handler loop (runs in main process).
@@ -1564,11 +1621,14 @@ class MultiprocessingDetectorWorker:
                             event_type = event_data.get("type")
                             
                             if event_type == "detection":
-                                # Dispatch each detection to its own thread so the loop
-                                # never blocks on time.sleep(postbuffer) or media work.
+                                # Bounded dispatch: acquire semaphore before spawning to
+                                # cap concurrent event handlers and prevent DB exhaustion.
+                                def _bounded_handler(cam_id=camera_id, ev=event_data):
+                                    with self._event_thread_semaphore:
+                                        self._handle_detection_event(cam_id, ev)
+
                                 t = threading.Thread(
-                                    target=self._handle_detection_event,
-                                    args=(camera_id, event_data),
+                                    target=_bounded_handler,
                                     daemon=True,
                                     name=f"event-{camera_id[:8]}",
                                 )
@@ -1579,6 +1639,14 @@ class MultiprocessingDetectorWorker:
 
                             elif event_type == "error":
                                 logger.error(f"Error event from {camera_id}: {event_data.get('error')}")
+                                # Schedule restart of crashed camera process
+                                restart_t = threading.Thread(
+                                    target=self._restart_camera_process,
+                                    args=(camera_id,),
+                                    daemon=True,
+                                    name=f"restart-{camera_id[:8]}",
+                                )
+                                restart_t.start()
 
                             elif event_type == "status":
                                 # Handle status update

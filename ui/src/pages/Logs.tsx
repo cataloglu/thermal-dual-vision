@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api } from '../services/api'
 import { MdContentCopy, MdRefresh, MdDownload, MdDelete, MdPause, MdPlayArrow } from 'react-icons/md'
@@ -17,6 +17,15 @@ export function Logs() {
   const [copied, setCopied] = useState(false)
   const [clearing, setClearing] = useState(false)
   const logEndRef = useRef<HTMLDivElement>(null)
+  const logContainerRef = useRef<HTMLDivElement>(null)
+  const userScrolledRef = useRef(false)
+
+  const handleScroll = useCallback(() => {
+    const el = logContainerRef.current
+    if (!el) return
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40
+    userScrolledRef.current = !atBottom
+  }, [])
 
   const fetchLogs = async () => {
     try {
@@ -40,7 +49,9 @@ export function Logs() {
   }, [autoRefresh, logLineLimit])
 
   useEffect(() => {
-    logEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (!userScrolledRef.current) {
+      logEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
   }, [logs])
 
   const filteredLogs = filter
@@ -203,7 +214,7 @@ export function Logs() {
 
       {/* Log content - full height */}
       <div className="flex-1 min-h-0 bg-surface1 border border-border rounded-lg overflow-hidden">
-        <div className="h-full overflow-auto p-4 font-mono text-xs">
+        <div ref={logContainerRef} onScroll={handleScroll} className="h-full overflow-auto p-4 font-mono text-xs">
           {filteredLogs.length > 0 ? (
             <div className="space-y-1">
               {filteredLogs.map((line, idx) => {

@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 # Delay before trying to replace event MP4 from recording (segment must be closed: 60s + margin)
-RECORDING_MP4_DELAY_SEC = 58
+RECORDING_MP4_DELAY_SEC = 65  # > 60s segment duration to ensure segment is fully written
 
 import numpy as np
 from sqlalchemy.orm import Session

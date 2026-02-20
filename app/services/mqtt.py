@@ -98,7 +98,9 @@ class MqttService:
             
             self.client.on_connect = self._on_connect
             self.client.on_disconnect = self._on_disconnect
-            self.client.reconnect_delay_set(min_delay=1, max_delay=30)
+            # Do NOT call reconnect_delay_set — paho's built-in auto-reconnect
+            # conflicts with the manual _start_reconnect thread and causes
+            # duplicate HA discovery publishes. Manual reconnect handles retries.
             
             logger.info(f"Connecting to MQTT broker at {config.host}:{config.port}...")
             self.client.connect(config.host, config.port, 60)

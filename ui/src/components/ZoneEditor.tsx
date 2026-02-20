@@ -114,10 +114,11 @@ export function ZoneEditor({ snapshotUrl, initialPoints = [], onSave, onRefreshS
     drawCanvas()
   }, [drawCanvas])
 
-  // Load snapshot image
+  // Load snapshot image and trigger redraw once loaded
   useEffect(() => {
     if (!snapshotUrl) {
       imgRef.current = null
+      drawCanvas()
       return
     }
     setIsLoading(true)
@@ -125,10 +126,14 @@ export function ZoneEditor({ snapshotUrl, initialPoints = [], onSave, onRefreshS
     img.onload = () => {
       imgRef.current = img
       setIsLoading(false)
+      drawCanvas()
     }
-    img.onerror = () => setIsLoading(false)
+    img.onerror = () => {
+      setIsLoading(false)
+      drawCanvas()
+    }
     img.src = snapshotUrl
-  }, [snapshotUrl])
+  }, [snapshotUrl, drawCanvas])
 
   const getCanvasPos = (e: React.MouseEvent<HTMLCanvasElement>): Point => {
     const canvas = canvasRef.current!
@@ -160,7 +165,8 @@ export function ZoneEditor({ snapshotUrl, initialPoints = [], onSave, onRefreshS
       return
     }
 
-    setHoveredPoint(findPointAt(pos) ?? null as unknown as number)
+    const hitIdx = findPointAt(pos)
+    setHoveredPoint(hitIdx === -1 ? null : hitIdx)
   }
 
   const handleMouseUp = () => {

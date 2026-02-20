@@ -39,6 +39,7 @@ class RetentionWorker:
         """Initialize retention worker."""
         self.running = False
         self.thread: Optional[threading.Thread] = None
+        self._stop_event = threading.Event()
         self.settings_service = get_settings_service()
         
         logger.info("RetentionWorker initialized")
@@ -50,6 +51,7 @@ class RetentionWorker:
             return
         
         self.running = True
+        self._stop_event.clear()
         self.thread = threading.Thread(
             target=self._cleanup_loop,
             daemon=True,
@@ -65,6 +67,7 @@ class RetentionWorker:
             return
         
         self.running = False
+        self._stop_event.set()
         
         if self.thread:
             self.thread.join(timeout=5)
@@ -107,14 +110,14 @@ class RetentionWorker:
                 finally:
                     db.close()
                 
-                # Sleep for cleanup interval
+                # Sleep interruptibly so stop() takes effect immediately
                 sleep_hours = config.media.cleanup_interval_hours
                 logger.debug(f"Sleeping for {sleep_hours} hours until next cleanup")
-                time.sleep(sleep_hours * 3600)
+                self._stop_event.wait(timeout=sleep_hours * 3600)
                 
             except Exception as e:
                 logger.error(f"Cleanup loop error: {e}")
-                time.sleep(3600)  # Sleep 1 hour on error
+                self._stop_event.wait(timeout=3600)
     
     def cleanup_old_events(
         self,
@@ -141,12 +144,13 @@ class RetentionWorker:
         
         for event in old_events:
             try:
-                # Delete media files
-                self.delete_event_media(event.id)
-                
-                # Delete database record
+                # Delete DB record first so a crash leaves orphan files
+                # (harmless) rather than orphan DB rows (invisible ghost events).
                 db.delete(event)
                 db.commit()
+
+                # Files are now unreferenced — safe to remove
+                self.delete_event_media(event.id)
                 
                 deleted_count += 1
                 logger.debug(f"Deleted old event: {event.id} (age: {(datetime.utcnow() - event.timestamp).days} days)")
@@ -190,18 +194,16 @@ class RetentionWorker:
         
         for event in old_events:
             try:
-                # Delete media files
-                self.delete_event_media(event.id)
-                
-                # Delete database record
+                # Commit DB deletion first to avoid orphan DB rows on crash
                 db.delete(event)
                 db.commit()
+
+                # Files now unreferenced — safe to remove
+                self.delete_event_media(event.id)
                 
                 deleted_count += 1
                 
-                # Check disk usage again
                 disk_usage = self._get_disk_usage_percent()
-                
                 if disk_usage < disk_limit_percent:
                     logger.info(f"Disk usage now {disk_usage:.1f}%, below limit")
                     break

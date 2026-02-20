@@ -42,6 +42,7 @@ export const ZonesTab: React.FC = () => {
   }, [])
 
   useEffect(() => {
+    setZones([])  // Clear stale zones immediately when camera changes
     if (selectedCamera) {
       setSnapshotUrl(`${api.resolveApiPath(api.getCameraSnapshotUrl(selectedCamera))}?t=${Date.now()}`)
       api.getCameraZones(selectedCamera)

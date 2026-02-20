@@ -49,6 +49,16 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
   const [isConnected, setIsConnected] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Store callbacks in refs so they never trigger reconnect on parent re-render
+  const onEventRef = useRef(onEvent)
+  const onStatusRef = useRef(onStatus)
+  const onConnectRef = useRef(onConnect)
+  const onDisconnectRef = useRef(onDisconnect)
+  useEffect(() => { onEventRef.current = onEvent }, [onEvent])
+  useEffect(() => { onStatusRef.current = onStatus }, [onStatus])
+  useEffect(() => { onConnectRef.current = onConnect }, [onConnect])
+  useEffect(() => { onDisconnectRef.current = onDisconnect }, [onDisconnect])
+
   const resolveWsUrl = useCallback(() => {
     // Development overrides
     const envWsBase = import.meta.env.VITE_WS_URL as string | undefined
@@ -89,8 +99,8 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
         setError(null)
         reconnectAttemptsRef.current = 0
         
-        if (onConnect) {
-          onConnect()
+        if (onConnectRef.current) {
+          onConnectRef.current()
         }
 
         // Send ping every 15 seconds to keep connection alive (Ingress proxy timeout)
@@ -109,10 +119,10 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
         try {
           const message: WebSocketMessage = JSON.parse(event.data)
 
-          if (message.type === 'event' && onEvent) {
-            onEvent(message.data)
-          } else if (message.type === 'status' && onStatus) {
-            onStatus(message.data)
+          if (message.type === 'event' && onEventRef.current) {
+            onEventRef.current(message.data)
+          } else if (message.type === 'status' && onStatusRef.current) {
+            onStatusRef.current(message.data)
           }
         } catch (err) {
           // Silent
@@ -126,8 +136,8 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
       ws.onclose = () => {
         setIsConnected(false)
         
-        if (onDisconnect) {
-          onDisconnect()
+        if (onDisconnectRef.current) {
+          onDisconnectRef.current()
         }
 
         // Attempt to reconnect
@@ -150,15 +160,7 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
       console.error('Failed to create WebSocket:', err)
       setError('Failed to create WebSocket connection')
     }
-  }, [
-    resolveWsUrl,
-    onEvent,
-    onStatus,
-    onConnect,
-    onDisconnect,
-    reconnectInterval,
-    maxReconnectAttempts,
-  ])
+  }, [resolveWsUrl, reconnectInterval, maxReconnectAttempts])
 
   useEffect(() => {
     shouldReconnectRef.current = true

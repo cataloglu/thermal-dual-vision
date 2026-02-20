@@ -47,6 +47,7 @@ class ContinuousRecorder:
 
         self.processes: Dict[str, subprocess.Popen] = {}
         self.rtsp_urls: Dict[str, str] = {}
+        self._processes_lock = threading.Lock()
         self.running = False
         self._monitor_thread: Optional[threading.Thread] = None
 
@@ -83,13 +84,14 @@ class ContinuousRecorder:
     # ------------------------------------------------------------------
 
     def start_recording(self, camera_id: str, rtsp_url: str) -> bool:
-        if camera_id in self.processes:
-            proc = self.processes[camera_id]
-            if proc.poll() is None:
-                logger.debug("Recording already running for camera %s", camera_id)
-                return True
-            # Process died, clean up and restart
-            self._cleanup_process(camera_id)
+        with self._processes_lock:
+            if camera_id in self.processes:
+                proc = self.processes[camera_id]
+                if proc.poll() is None:
+                    logger.debug("Recording already running for camera %s", camera_id)
+                    return True
+                # Process died, clean up before restart (lock held)
+                self._cleanup_process_locked(camera_id)
 
         camera_dir = self.recording_dir / camera_id
         camera_dir.mkdir(parents=True, exist_ok=True)
@@ -118,7 +120,7 @@ class ContinuousRecorder:
 
         try:
             env = os.environ.copy()
-            env["TZ"] = "UTC"  # Segment filenames (strftime) use UTC for consistency with event timestamps
+            env["TZ"] = "UTC"
             process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.DEVNULL,
@@ -126,8 +128,9 @@ class ContinuousRecorder:
                 stdin=subprocess.DEVNULL,
                 env=env,
             )
-            self.processes[camera_id] = process
-            self.rtsp_urls[camera_id] = rtsp_url
+            with self._processes_lock:
+                self.processes[camera_id] = process
+                self.rtsp_urls[camera_id] = rtsp_url
             logger.info(
                 "Started continuous recording for camera %s (PID: %s)",
                 camera_id,
@@ -139,23 +142,26 @@ class ContinuousRecorder:
             return False
 
     def stop_recording(self, camera_id: str) -> None:
-        process = self.processes.pop(camera_id, None)
-        self.rtsp_urls.pop(camera_id, None)
+        with self._processes_lock:
+            process = self.processes.pop(camera_id, None)
+            self.rtsp_urls.pop(camera_id, None)
         if not process:
             return
         try:
             if process.poll() is None:
                 process.terminate()
-                process.wait(timeout=5)
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait()
         except Exception:
-            try:
-                process.kill()
-            except Exception:
-                pass
+            pass
         logger.info("Stopped continuous recording for camera %s", camera_id)
 
     def is_recording(self, camera_id: str) -> bool:
-        proc = self.processes.get(camera_id)
+        with self._processes_lock:
+            proc = self.processes.get(camera_id)
         return proc is not None and proc.poll() is None
 
     # ------------------------------------------------------------------
@@ -166,12 +172,12 @@ class ContinuousRecorder:
         last_buffer_cleanup = 0.0
         while self.running:
             try:
-                for camera_id in list(self.processes.keys()):
-                    proc = self.processes.get(camera_id)
-                    if proc is None:
-                        continue
+                with self._processes_lock:
+                    snapshot = list(self.processes.items())
+                for camera_id, proc in snapshot:
                     if proc.poll() is not None:
-                        url = self.rtsp_urls.get(camera_id)
+                        with self._processes_lock:
+                            url = self.rtsp_urls.get(camera_id)
                         if url:
                             logger.warning(
                                 "Recording process died for camera %s (rc=%s), restarting",
@@ -183,7 +189,6 @@ class ContinuousRecorder:
                         else:
                             self._cleanup_process(camera_id)
 
-                # Circular buffer: keep only last RECORDING_BUFFER_HOURS, every CLEANUP_INTERVAL_SEC
                 now = time.time()
                 if now - last_buffer_cleanup >= CLEANUP_INTERVAL_SEC:
                     last_buffer_cleanup = now
@@ -196,10 +201,25 @@ class ContinuousRecorder:
             time.sleep(10)
 
     def _cleanup_process(self, camera_id: str) -> None:
-        proc = self.processes.pop(camera_id, None)
+        """Remove and reap the process for camera_id (no lock held required)."""
+        with self._processes_lock:
+            proc = self.processes.pop(camera_id, None)
+            self.rtsp_urls.pop(camera_id, None)
         if proc and proc.poll() is None:
             try:
                 proc.kill()
+                proc.wait()
+            except Exception:
+                pass
+
+    def _cleanup_process_locked(self, camera_id: str) -> None:
+        """Like _cleanup_process but assumes _processes_lock is already held."""
+        proc = self.processes.pop(camera_id, None)
+        self.rtsp_urls.pop(camera_id, None)
+        if proc and proc.poll() is None:
+            try:
+                proc.kill()
+                proc.wait()
             except Exception:
                 pass
 

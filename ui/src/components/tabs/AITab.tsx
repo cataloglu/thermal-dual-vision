@@ -218,7 +218,7 @@ export const AITab: React.FC<AITabProps> = ({ config, onChange, onSave }) => {
                       setTestSuccess(true);
                       setLastTestedKey(apiKeyDraft);
                       onChange({ ...config, api_key: apiKeyDraft });
-                      onSave();
+                      // Do NOT auto-save; user must click Save explicitly
                     }
                   } catch (error: any) {
                     setTestResult({ success: false, message: error.message });

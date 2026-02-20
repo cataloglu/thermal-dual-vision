@@ -217,43 +217,43 @@ export function MqttTab({ config, onChange, onSave }: MqttTabProps) {
         <div className="bg-card p-6 rounded-lg border border-border">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-medium text-foreground">
-              📊 MQTT Monitoring (v2.2)
+              {t('mqttMonitoringTitle')}
             </h3>
             {mqttStatus && (
               <span className={`px-3 py-1 rounded-full text-sm font-medium ${
                 mqttStatus.connected 
-                  ? 'bg-green-500/20 text-green-500'
-                  : 'bg-red-500/20 text-red-500'
+                  ? 'bg-success/20 text-success'
+                  : 'bg-error/20 text-error'
               }`}>
-                {mqttStatus.connected ? '🟢 Connected' : '🔴 Disconnected'}
+                {mqttStatus.connected ? t('mqttConnected') : t('mqttDisconnected')}
               </span>
             )}
           </div>
 
           {statusLoading && !mqttStatus ? (
-            <div className="text-sm text-muted-foreground">Loading MQTT status...</div>
+            <div className="text-sm text-muted-foreground">{t('mqttStatusLoading')}</div>
           ) : mqttStatus ? (
             <div className="space-y-4">
               {/* Connection Info */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-background rounded-lg border border-border">
                 <div>
-                  <div className="text-xs text-muted-foreground mb-1">Broker</div>
+                  <div className="text-xs text-muted-foreground mb-1">{t('mqttBroker')}</div>
                   <div className="text-sm font-mono text-foreground">{mqttStatus.broker}</div>
                 </div>
                 <div>
-                  <div className="text-xs text-muted-foreground mb-1">Topic Prefix</div>
+                  <div className="text-xs text-muted-foreground mb-1">{t('mqttTopicPrefix')}</div>
                   <div className="text-sm font-mono text-foreground">{mqttStatus.topic_prefix}</div>
                 </div>
                 {mqttStatus.connected_at && (
                   <div>
-                    <div className="text-xs text-muted-foreground mb-1">Connected At</div>
+                    <div className="text-xs text-muted-foreground mb-1">{t('mqttConnectedAtLabel')}</div>
                     <div className="text-sm text-foreground">
                       {new Date(mqttStatus.connected_at).toLocaleString()}
                     </div>
                   </div>
                 )}
                 <div>
-                  <div className="text-xs text-muted-foreground mb-1">Messages Published</div>
+                  <div className="text-xs text-muted-foreground mb-1">{t('mqttMessagesPublished')}</div>
                   <div className="text-sm font-semibold text-foreground">{mqttStatus.publish_count}</div>
                 </div>
               </div>
@@ -261,7 +261,7 @@ export function MqttTab({ config, onChange, onSave }: MqttTabProps) {
               {/* Active Topics */}
               <div>
                 <h4 className="text-sm font-semibold text-foreground mb-2">
-                  Active Topics ({mqttStatus.active_topics.length})
+                  {t('mqttActiveTopicsCount', { count: mqttStatus.active_topics.length })}
                 </h4>
                 <div className="max-h-48 overflow-y-auto space-y-1 p-3 bg-background rounded-lg border border-border">
                   {mqttStatus.active_topics.length > 0 ? (
@@ -271,7 +271,7 @@ export function MqttTab({ config, onChange, onSave }: MqttTabProps) {
                       </div>
                     ))
                   ) : (
-                    <div className="text-xs text-muted-foreground">No topics published yet</div>
+                    <div className="text-xs text-muted-foreground">{t('mqttNoTopics')}</div>
                   )}
                 </div>
               </div>
@@ -279,7 +279,7 @@ export function MqttTab({ config, onChange, onSave }: MqttTabProps) {
               {/* Last Messages */}
               <div>
                 <h4 className="text-sm font-semibold text-foreground mb-2">
-                  Recent Messages (Last 10)
+                  {t('mqttRecentMessages')}
                 </h4>
                 <div className="max-h-64 overflow-y-auto space-y-2">
                   {Object.entries(mqttStatus.last_messages).length > 0 ? (
@@ -302,7 +302,7 @@ export function MqttTab({ config, onChange, onSave }: MqttTabProps) {
                     ))
                   ) : (
                     <div className="text-xs text-muted-foreground p-3 bg-background rounded-lg border border-border">
-                      No messages yet
+                      {t('mqttNoMessages')}
                     </div>
                   )}
                 </div>
@@ -310,16 +310,16 @@ export function MqttTab({ config, onChange, onSave }: MqttTabProps) {
 
               {/* Error Display */}
               {mqttStatus.last_error && (
-                <div className="p-3 bg-red-500/10 border border-red-500 rounded-lg">
-                  <div className="text-sm font-semibold text-red-500 mb-1">Last Error</div>
-                  <div className="text-xs text-red-400 font-mono">{mqttStatus.last_error}</div>
+                <div className="p-3 bg-error/10 border border-error rounded-lg">
+                  <div className="text-sm font-semibold text-error mb-1">{t('mqttLastError')}</div>
+                  <div className="text-xs text-error font-mono">{mqttStatus.last_error}</div>
                 </div>
               )}
 
               {/* HA Sensor List */}
               <div className="mt-6">
                 <h4 className="text-sm font-semibold text-foreground mb-2">
-                  🏠 Home Assistant Sensor'ları (Auto-Discovery)
+                  🏠 {t('mqttHaSensorsTitle')}
                 </h4>
                 <div className="p-4 bg-background rounded-lg border border-border">
                   <div className="space-y-2 text-xs">
@@ -335,18 +335,18 @@ export function MqttTab({ config, onChange, onSave }: MqttTabProps) {
                         </div>
                       ))
                     ) : (
-                      <div className="text-muted-foreground">No cameras configured</div>
+                      <div className="text-muted-foreground">{t('mqttNoCameras')}</div>
                     )}
                   </div>
                   <div className="mt-3 p-2 bg-info/10 border border-info rounded text-xs text-info">
-                    💡 Bu sensor'ları Home Assistant → Settings → Devices & Services → MQTT'de bulabilirsiniz
+                    💡 {t('mqttHaSensorsHint')}
                   </div>
                 </div>
               </div>
             </div>
           ) : (
             <div className="text-sm text-muted-foreground">
-              Enable MQTT to see monitoring info
+              {t('mqttEnableToMonitor')}
             </div>
           )}
         </div>

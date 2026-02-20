@@ -141,10 +141,10 @@ export function Dashboard() {
     const minutes = Math.floor((seconds % 3600) / 60)
     const secs = Math.floor(seconds % 60)
 
-    if (days > 0) return `${days}g ${hours}s ${minutes}d`
-    if (hours > 0) return `${hours}s ${minutes}d`
-    if (minutes > 0) return `${minutes}d ${secs}sn`
-    return `${secs}sn`
+    if (days > 0) return `${days}${t('uptimeDays')} ${hours}${t('uptimeHours')} ${minutes}${t('uptimeMinutes')}`
+    if (hours > 0) return `${hours}${t('uptimeHours')} ${minutes}${t('uptimeMinutes')}`
+    if (minutes > 0) return `${minutes}${t('uptimeMinutes')} ${secs}${t('uptimeSeconds')}`
+    return `${secs}${t('uptimeSeconds')}`
   }
 
   const aiReason = useMemo(() => {

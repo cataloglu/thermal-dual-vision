@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, useEffect } from 'react'
+import { useCallback, useMemo, useRef, useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { EventCard } from '../components/EventCard'
 import { EventDetail } from '../components/EventDetail'
@@ -60,14 +60,17 @@ export function Events() {
     rejected: showRejected ? true : undefined,
   })
 
-  const handleEvent = useCallback((data: any) => {
-    if (cameraFilter || dateFilter || confidenceFilter > 0) {
-      return
-    }
+  // handleEvent ref avoids WS reconnect when filters change (useWebSocket stores callbacks in refs)
+  const handleEventRef = useRef<(data: any) => void>(() => {})
+  handleEventRef.current = useCallback((data: any) => {
+    if (cameraFilter || dateFilter || confidenceFilter > 0) return
     prependEvent(data)
   }, [cameraFilter, dateFilter, confidenceFilter, prependEvent])
 
-  const wsOptions = useMemo(() => ({ onEvent: handleEvent }), [handleEvent])
+  const wsOptions = useMemo(() => ({
+    onEvent: (data: any) => handleEventRef.current(data),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [])  // stable reference — callback forwarded via ref
 
   useWebSocket('/api/ws/events', wsOptions)
 
@@ -145,7 +148,7 @@ export function Events() {
   const handleDeleteEvent = async (eventId: string) => {
     try {
       await api.deleteEvent(eventId)
-      toast.success('Event silindi')
+      toast.success(t('eventDeleted'))
       setSelectedEventId(null)
       // Refresh events list
       refresh()

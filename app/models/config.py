@@ -178,6 +178,17 @@ class ThermalConfig(BaseModel):
             raise ValueError("Size must have exactly 2 values [width, height]")
         if any(x <= 0 for x in v):
             raise ValueError("Size values must be positive")
+        # OpenCV requires odd kernel sizes for Gaussian blur
+        if cls.__name__ == "ThermalConfig":
+            pass  # validated by field name below
+        return v
+
+    @field_validator("gaussian_blur_kernel")
+    @classmethod
+    def validate_odd_kernel(cls, v: List[int]) -> List[int]:
+        """Gaussian blur kernel dimensions must be odd."""
+        if any(x % 2 == 0 for x in v):
+            raise ValueError("gaussian_blur_kernel values must be odd (e.g. [3,3], [5,5])")
         return v
 
 
@@ -510,6 +521,8 @@ class MqttConfig(BaseModel):
     )
     port: int = Field(
         default=1883,
+        ge=1,
+        le=65535,
         description="MQTT broker port"
     )
     username: Optional[str] = Field(

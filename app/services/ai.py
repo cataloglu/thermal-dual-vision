@@ -199,7 +199,8 @@ class AIService:
                         }
                     ],
                     max_tokens=config.ai.max_tokens,
-                    temperature=config.ai.temperature if config.ai.temperature is not None else 0.3
+                    temperature=config.ai.temperature if config.ai.temperature is not None else 0.3,
+                    timeout=60.0,
                 )
             finally:
                 await client.close()

@@ -779,26 +779,33 @@ class MediaWorker:
             img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             processed.append(img_rgb)
         
-        # Create GIF with optimization
-        imageio.mimsave(
-            output_path,
-            processed,
-            duration=self.GIF_DURATION,
-            loop=0,  # Infinite loop
-        )
+        # imageio v3 expects duration in milliseconds; v2 expected seconds.
+        # Using ms avoids the 2000 fps bug introduced by v3's changed convention.
+        gif_duration_ms = int(self.GIF_DURATION * 1000)
+
+        def _write_gif(path: str, frames_list) -> None:
+            """Write GIF atomically via a temp file."""
+            parent = os.path.dirname(os.path.abspath(path))
+            fd, tmp_path = tempfile.mkstemp(suffix=".gif", dir=parent)
+            os.close(fd)
+            try:
+                imageio.mimsave(tmp_path, frames_list, duration=gif_duration_ms, loop=0)
+                os.replace(tmp_path, path)
+            except Exception:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+                raise
+
+        _write_gif(output_path, processed)
         
         # Check size and reduce quality if needed
         size_mb = os.path.getsize(output_path) / 1024 / 1024
         if size_mb > self.GIF_MAX_SIZE_MB:
             logger.warning(f"GIF size {size_mb:.2f}MB > {self.GIF_MAX_SIZE_MB}MB, reducing quality")
-            # Re-create with lower quality (resize to smaller)
             processed_small = [cv2.resize(img, (480, 360)) for img in processed]
-            imageio.mimsave(
-                output_path,
-                processed_small,
-                duration=self.GIF_DURATION,
-                loop=0,
-            )
+            _write_gif(output_path, processed_small)
         
         logger.info(f"Timeline GIF created: {output_path} ({size_mb:.2f}MB)")
         return output_path

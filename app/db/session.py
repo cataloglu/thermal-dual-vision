@@ -6,7 +6,7 @@ This module handles database connection, session creation, and initialization.
 import logging
 from typing import Generator
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.db.models import Base
@@ -24,9 +24,19 @@ DATABASE_URL = f"sqlite:///{DATABASE_FILE}"
 # Create engine
 engine = create_engine(
     DATABASE_URL,
-    echo=False,  # Set to True for SQL query logging
-    connect_args={"check_same_thread": False},  # Needed for SQLite
+    echo=False,
+    connect_args={"check_same_thread": False},
 )
+
+
+@event.listens_for(engine, "connect")
+def _set_sqlite_pragma(dbapi_conn, _connection_record):
+    """Enable WAL mode and foreign key enforcement for every new connection."""
+    cursor = dbapi_conn.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.execute("PRAGMA synchronous=NORMAL")
+    cursor.close()
 
 # Create session factory
 SessionLocal = sessionmaker(

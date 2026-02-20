@@ -55,7 +55,7 @@ export const EventCard = memo(function EventCard({
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
-    return date.toLocaleString('tr-TR', {
+    return date.toLocaleString(undefined, {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',

@@ -28,13 +28,13 @@ export function EventDetail({ event, cameraName, initialTab, onClose, onDelete }
   const modalRef = useRef<HTMLDivElement>(null)
   const [displayEvent, setDisplayEvent] = useState(event)
   const isRecent = (value: string) => Date.now() - new Date(value).getTime() < 60000
-  const collagePending = !displayEvent.collage_url && isRecent(displayEvent.timestamp)
-  const mp4Pending = !displayEvent.mp4_url && isRecent(displayEvent.timestamp)
+  const mediaPending = (!displayEvent.collage_url || !displayEvent.mp4_url) && isRecent(displayEvent.timestamp)
 
   useEffect(() => { setDisplayEvent(event); setVideoError(false) }, [event])
 
   useEffect(() => {
-    if (!mp4Pending || !displayEvent.id) return
+    // Poll until BOTH collage and mp4 are available (or event is older than 60s)
+    if (!mediaPending || !displayEvent.id) return
     const poll = async () => {
       try {
         const res = await api.getEvent(displayEvent.id)
@@ -52,7 +52,7 @@ export function EventDetail({ event, cameraName, initialTab, onClose, onDelete }
     poll()
     const id = setInterval(poll, 3000)
     return () => clearInterval(id)
-  }, [mp4Pending, displayEvent.id])
+  }, [mediaPending, displayEvent.id])
   const [activeTab, setActiveTab] = useState<'collage' | 'video'>(
     initialTab ?? (displayEvent.mp4_url ? 'video' : 'collage')
   )
@@ -115,17 +115,48 @@ export function EventDetail({ event, cameraName, initialTab, onClose, onDelete }
     } catch {
       meta = {}
     }
-    meta[displayEvent.id] = { tags: nextTags, note: nextNote }
+
+    // Evict entries with no data to prevent unbounded growth (quota protection)
+    const MAX_ENTRIES = 200
+    const keys = Object.keys(meta)
+    if (keys.length >= MAX_ENTRIES) {
+      // Remove entries that have no tags and no note first
+      for (const k of keys) {
+        if (meta[k].tags.length === 0 && !meta[k].note) {
+          delete meta[k]
+        }
+      }
+      // If still over limit, remove oldest keys (insertion order)
+      const remaining = Object.keys(meta)
+      if (remaining.length >= MAX_ENTRIES) {
+        remaining.slice(0, remaining.length - MAX_ENTRIES + 1).forEach((k) => delete meta[k])
+      }
+    }
+
+    if (nextTags.length === 0 && !nextNote) {
+      delete meta[displayEvent.id]
+    } else {
+      meta[displayEvent.id] = { tags: nextTags, note: nextNote }
+    }
+
     try {
       localStorage.setItem('event_meta', JSON.stringify(meta))
     } catch {
-      // ignore storage errors
+      // Quota exceeded — clear stale empty entries and retry once
+      try {
+        Object.keys(meta).forEach((k) => {
+          if (meta[k].tags.length === 0 && !meta[k].note) delete meta[k]
+        })
+        localStorage.setItem('event_meta', JSON.stringify(meta))
+      } catch {
+        // give up silently
+      }
     }
   }
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
-    return date.toLocaleString('tr-TR', {
+    return date.toLocaleString(undefined, {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',

@@ -56,6 +56,7 @@ const STATUS_CONFIG = {
 function SnapshotImage({ cameraId, snapshotKey }: { cameraId: string; snapshotKey: number }) {
   const [errored, setErrored] = useState(false)
   const [loading, setLoading] = useState(true)
+  const { t } = useTranslation()
   const url = `${api.getCameraSnapshotUrl(cameraId)}?t=${snapshotKey}`
 
   useEffect(() => {
@@ -67,7 +68,7 @@ function SnapshotImage({ cameraId, snapshotKey }: { cameraId: string; snapshotKe
     return (
       <div className="w-full h-full flex flex-col items-center justify-center text-muted gap-2">
         <MdBrokenImage className="text-3xl" />
-        <span className="text-xs">Snapshot yok</span>
+        <span className="text-xs">{t('camMonNoSnapshot')}</span>
       </div>
     )
   }
@@ -134,7 +135,7 @@ function CameraCard({ cam, snapshotKey, t }: { cam: CameraStatusItem; snapshotKe
           <div>
             <h3 className="text-text font-semibold text-sm leading-tight">{cam.name}</h3>
             <span className="text-muted text-xs uppercase tracking-wide mt-0.5 block">
-              {cam.type === 'dual' ? 'Thermal + Renk' : cam.type === 'thermal' ? 'Thermal' : 'Renk'}
+              {cam.type === 'dual' ? t('camMonTypeDual') : cam.type === 'thermal' ? t('camMonTypeThermal') : t('camMonTypeColor')}
             </span>
           </div>
           <Link

@@ -1,9 +1,10 @@
 import logging
+import os
 from datetime import datetime
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
@@ -217,12 +218,55 @@ async def get_event_gif(event_id: str) -> FileResponse:
 
 
 @router.get("/api/events/{event_id}/timelapse.mp4")
-async def get_event_mp4(event_id: str) -> FileResponse:
+async def get_event_mp4(event_id: str, request: Request) -> Response:
     try:
         media_path = media_service.get_media_path(event_id, "mp4")
         if not media_path or not media_path.exists():
             raise HTTPException(status_code=404, detail={"error": True, "code": "MEDIA_NOT_FOUND", "message": f"MP4 not found for event {event_id}"})
-        return FileResponse(path=str(media_path), media_type="video/mp4", filename=f"event-{event_id}-timelapse.mp4", content_disposition_type="inline", headers={"Accept-Ranges": "bytes"})
+
+        file_size = os.path.getsize(media_path)
+        range_header = request.headers.get("Range")
+
+        if range_header and range_header.startswith("bytes="):
+            try:
+                ranges = range_header[6:].split("-")
+                start = int(ranges[0]) if ranges[0] else 0
+                end = int(ranges[1]) if len(ranges) > 1 and ranges[1] else file_size - 1
+                end = min(end, file_size - 1)
+                chunk_size = end - start + 1
+
+                def _iter_file():
+                    with open(media_path, "rb") as f:
+                        f.seek(start)
+                        remaining = chunk_size
+                        while remaining > 0:
+                            data = f.read(min(65536, remaining))
+                            if not data:
+                                break
+                            remaining -= len(data)
+                            yield data
+
+                return StreamingResponse(
+                    _iter_file(),
+                    status_code=206,
+                    media_type="video/mp4",
+                    headers={
+                        "Content-Range": f"bytes {start}-{end}/{file_size}",
+                        "Accept-Ranges": "bytes",
+                        "Content-Length": str(chunk_size),
+                        "Content-Disposition": f'inline; filename="event-{event_id}-timelapse.mp4"',
+                    },
+                )
+            except (ValueError, IndexError):
+                pass  # Fall through to full response
+
+        return FileResponse(
+            path=str(media_path),
+            media_type="video/mp4",
+            filename=f"event-{event_id}-timelapse.mp4",
+            content_disposition_type="inline",
+            headers={"Accept-Ranges": "bytes", "Content-Length": str(file_size)},
+        )
     except HTTPException:
         raise
     except Exception as e:
