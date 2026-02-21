@@ -535,6 +535,38 @@ def camera_detection_process(
                 if _point_in_polygon(x, y, polygon):
                     return True
             return False
+
+        def _detection_matches_zones(det: Dict, polygons: List[List[List[float]]], width: int, height: int) -> bool:
+            x1, y1, x2, y2 = det["bbox"]
+            x1 = max(0.0, min(float(x1), float(width - 1)))
+            y1 = max(0.0, min(float(y1), float(height - 1)))
+            x2 = max(0.0, min(float(x2), float(width - 1)))
+            y2 = max(0.0, min(float(y2), float(height - 1)))
+            if x2 < x1:
+                x1, x2 = x2, x1
+            if y2 < y1:
+                y1, y2 = y2, y1
+
+            primary_points = [
+                ((x1 + x2) * 0.5, y2),
+                (x1 + (x2 - x1) * 0.25, y2),
+                (x1 + (x2 - x1) * 0.75, y2),
+                ((x1 + x2) * 0.5, (y1 + y2) * 0.5),
+            ]
+            for px, py in primary_points:
+                if _is_point_in_any_zone(px / width, py / height, polygons):
+                    return True
+
+            inside_count = 0
+            for gx in (0.2, 0.5, 0.8):
+                for gy in (0.2, 0.5, 0.8):
+                    px = x1 + (x2 - x1) * gx
+                    py = y1 + (y2 - y1) * gy
+                    if _is_point_in_any_zone(px / width, py / height, polygons):
+                        inside_count += 1
+                        if inside_count >= 2:
+                            return True
+            return False
         
         # Get detection parameters
         detection_source = camera_config.get("detection_source") or camera_config.get("type", "thermal")
@@ -805,10 +837,7 @@ def camera_detection_process(
                 height, width = frame.shape[:2]
                 filtered = []
                 for det in detections:
-                    x1, y1, x2, y2 = det["bbox"]
-                    cx = (x1 + x2) / 2.0 / max(width, 1)
-                    cy = (y1 + y2) / 2.0 / max(height, 1)
-                    if _is_point_in_any_zone(cx, cy, zones):
+                    if _detection_matches_zones(det, zones, width=max(width, 1), height=max(height, 1)):
                         filtered.append(det)
                 
                 detections = filtered

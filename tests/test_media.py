@@ -2,7 +2,7 @@
 Unit tests for media generation.
 
 Tests cover:
-- Collage generation (5 frames)
+- Collage generation (6 frames)
 - GIF generation (10 frames with progress bar)
 - MP4 generation (720p with detection boxes)
 - Parallel generation
@@ -57,7 +57,7 @@ def test_detections():
 
 
 def test_collage_generation(media_worker, test_frames):
-    """Test collage generation with 5 frames."""
+    """Test collage generation with 6 frames."""
     with tempfile.TemporaryDirectory() as tmpdir:
         output_path = os.path.join(tmpdir, "collage.jpg")
         
@@ -80,8 +80,8 @@ def test_collage_generation(media_worker, test_frames):
         assert size_kb < 2000  # Less than 2MB
 
 
-def test_collage_5_frames(media_worker, test_frames):
-    """Test that collage uses exactly 5 frames."""
+def test_collage_6_frames(media_worker, test_frames):
+    """Test that collage uses exactly 6 frames."""
     with tempfile.TemporaryDirectory() as tmpdir:
         output_path = os.path.join(tmpdir, "collage.jpg")
         

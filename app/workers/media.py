@@ -40,6 +40,11 @@ def _local_time_str(utc_dt: datetime) -> str:
     """Convert a UTC datetime to local wall-clock time string (HH:MM:SS)."""
     return datetime.fromtimestamp(utc_dt.timestamp()).strftime("%H:%M:%S")
 
+def _local_time_ms_from_epoch(epoch_s: float) -> str:
+    """Convert epoch seconds to local wall-clock time string with milliseconds."""
+    dt = datetime.fromtimestamp(epoch_s)
+    return dt.strftime("%H:%M:%S.") + f"{int(dt.microsecond / 1000):03d}"
+
 
 class MediaWorker:
     """Worker for event media generation."""
@@ -48,7 +53,7 @@ class MediaWorker:
     MEDIA_DIR = DATA_DIR / "media"
     
     # Collage settings
-    COLLAGE_FRAMES = 5
+    COLLAGE_FRAMES = 6
     COLLAGE_FRAME_SIZE = (640, 480)
     COLLAGE_GRID = (3, 2)  # 3 columns, 2 rows
     COLLAGE_QUALITY = 90
@@ -468,9 +473,9 @@ class MediaWorker:
         confidence: float = 0.0,
     ) -> str:
         """
-        Create 5-frame collage grid.
+        Create 6-frame collage grid.
         
-        Layout: 3x2 grid (5 frames + 1 empty)
+        Layout: 3x2 grid (6 frames)
         Resolution: 1920x960 (640x480 per frame)
         
         Args:
@@ -521,34 +526,29 @@ class MediaWorker:
         if timestamps and len(timestamps) == total:
             center_ts = timestamps[best_idx]
             target_times = [
-                center_ts - 2.0,
-                center_ts - 1.0,
-                center_ts,
-                center_ts + 1.0,
-                center_ts + 2.0,
+                center_ts - 0.75,
+                center_ts - 0.45,
+                center_ts - 0.15,
+                center_ts + 0.15,
+                center_ts + 0.45,
+                center_ts + 0.75,
             ]
             unused = set(range(total))
             indices = []
             for slot, target in enumerate(target_times):
                 if not unused:
                     break
-                if slot == 2 and best_idx in unused:
-                    closest = best_idx
-                else:
-                    closest = min(unused, key=lambda i: abs(timestamps[i] - target))
+                closest = min(unused, key=lambda i: abs(timestamps[i] - target))
                 indices.append(closest)
                 unused.remove(closest)
         else:
             unused = set(range(total))
-            target_indices = [best_idx - 2, best_idx - 1, best_idx, best_idx + 1, best_idx + 2]
+            target_indices = [best_idx - 3, best_idx - 2, best_idx - 1, best_idx + 1, best_idx + 2, best_idx + 3]
             indices = []
-            for slot, target in enumerate(target_indices):
+            for target in target_indices:
                 if not unused:
                     break
-                if slot == 2 and best_idx in unused:
-                    closest = best_idx
-                else:
-                    closest = _pick_closest_index(unused, target)
+                closest = _pick_closest_index(unused, target)
                 if closest is None:
                     break
                 indices.append(closest)
@@ -578,9 +578,13 @@ class MediaWorker:
                 2,
             )
 
-        # Select 5 evenly distributed frames
+        # Select 6 dense timeline frames
         selected_indices = list(indices)
         selected = [frames[i] for i in selected_indices]
+        event_slot = min(
+            range(len(selected_indices)),
+            key=lambda i: abs(selected_indices[i] - best_idx),
+        )
         
         # Resize all frames
         resized = []
@@ -617,20 +621,31 @@ class MediaWorker:
             # Add frame number badge (1-5)
             _draw_badge(img, str(idx + 1))
             
-            # Add timestamp on first frame (local wall-clock time)
-            if idx == 0 and timestamp:
+            # Add frame timestamp with millisecond precision.
+            if timestamps and frame_idx is not None and frame_idx < len(timestamps):
+                frame_time_text = _local_time_ms_from_epoch(float(timestamps[frame_idx]))
+                cv2.putText(
+                    img,
+                    frame_time_text,
+                    (10, 72),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.56,
+                    self.COLOR_WHITE,
+                    2
+                )
+            elif idx == 0 and timestamp:
                 cv2.putText(
                     img,
                     _local_time_str(timestamp),
-                    (10, 70),
+                    (10, 72),
                     cv2.FONT_HERSHEY_SIMPLEX,
-                    0.6,
+                    0.56,
                     self.COLOR_WHITE,
                     2
                 )
             
-            # Add confidence on event frame (middle frame #3)
-            if idx == 2:
+            # Add confidence on best-match event frame.
+            if idx == event_slot:
                 cv2.putText(
                     img,
                     f"{confidence:.0%}",

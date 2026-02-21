@@ -1626,10 +1626,7 @@ class DetectorWorker:
         height, width = frame_shape[:2]
         filtered = []
         for det in detections:
-            x1, y1, x2, y2 = det["bbox"]
-            cx = (x1 + x2) / 2.0 / width
-            cy = (y1 + y2) / 2.0 / height
-            if self._is_point_in_any_zone(cx, cy, zones):
+            if self._detection_matches_zones(det, zones, width=max(width, 1), height=max(height, 1)):
                 filtered.append(det)
         return filtered
 
@@ -1662,6 +1659,47 @@ class DetectorWorker:
         for zone in zones:
             if self._point_in_polygon(x, y, zone["polygon"]):
                 return True
+        return False
+
+    def _detection_matches_zones(
+        self,
+        detection: Dict[str, Any],
+        zones: List[Dict[str, Any]],
+        width: int,
+        height: int,
+    ) -> bool:
+        """Match a person bbox to zones using foot-priority + sampled overlap."""
+        x1, y1, x2, y2 = detection["bbox"]
+        x1 = max(0.0, min(float(x1), float(width - 1)))
+        y1 = max(0.0, min(float(y1), float(height - 1)))
+        x2 = max(0.0, min(float(x2), float(width - 1)))
+        y2 = max(0.0, min(float(y2), float(height - 1)))
+        if x2 < x1:
+            x1, x2 = x2, x1
+        if y2 < y1:
+            y1, y2 = y2, y1
+
+        # Person/contact points first: catches crossings at zone boundaries.
+        primary_points = [
+            ((x1 + x2) * 0.5, y2),                # foot center
+            (x1 + (x2 - x1) * 0.25, y2),          # left foot
+            (x1 + (x2 - x1) * 0.75, y2),          # right foot
+            ((x1 + x2) * 0.5, (y1 + y2) * 0.5),   # bbox center
+        ]
+        for px, py in primary_points:
+            if self._is_point_in_any_zone(px / width, py / height, zones):
+                return True
+
+        # Fallback: coarse overlap check using 3x3 sampled points.
+        inside_count = 0
+        for gx in (0.2, 0.5, 0.8):
+            for gy in (0.2, 0.5, 0.8):
+                px = x1 + (x2 - x1) * gx
+                py = y1 + (y2 - y1) * gy
+                if self._is_point_in_any_zone(px / width, py / height, zones):
+                    inside_count += 1
+                    if inside_count >= 2:
+                        return True
         return False
 
     def _point_in_polygon(self, x: float, y: float, polygon: List[List[float]]) -> bool:
