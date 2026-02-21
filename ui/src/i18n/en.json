@@ -271,7 +271,7 @@
   "aiIntegrationDesc": "Configure OpenAI integration for event summaries (optional).",
   "aiIntegrationNoteTitle": "AI integration is optional. The system works without AI.",
   "aiIntegrationNoteDesc": "AI only adds summaries to events; it does not filter detections.",
-  "aiPromptPreviewDefault": "THERMAL (default): Turkish, describe based on heat, no color guess. \"X people detected...\" / \"No human detected.\" If unclear: \"Likely false alarm.\" One sentence.\n\nCOLOR (default): Turkish. Count person/vehicle/animal and describe briefly. \"X people detected...\" / \"No human detected.\" If unclear: \"Likely false alarm.\" One sentence.",
+  "aiPromptPreviewDefault": "THERMAL (default): 6-frame collage (~0.3s spacing, ~1.5s total), with millisecond timestamps. Compares frames and checks start/middle/end movement continuity. Does not decide from a single frame. One sentence output: \"Kamerada X kişi tespit edildi.\" / \"Kamerada insan tespit edilmedi (no human).\" / \"Muhtemel yanlış alarm.\"\n\nCOLOR (default): 6-frame collage (~0.3s spacing, ~1.5s total), with millisecond timestamps. Compares frames and checks start/middle/end movement continuity. Does not decide from a single frame. One sentence output: \"Kamerada X kişi tespit edildi.\" / \"Kamerada insan tespit edilmedi (no human).\" / \"Muhtemel yanlış alarm.\"",
   "aiApiKeyLabel": "OpenAI API key (starts with sk-)",
   "aiApiKeyRequired": "API key is required",
   "aiApiKeyPlaceholder": "sk-...",

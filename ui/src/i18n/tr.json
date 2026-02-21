@@ -271,7 +271,7 @@
   "aiIntegrationDesc": "Event özetleri için OpenAI entegrasyonunu yapılandırın (opsiyonel).",
   "aiIntegrationNoteTitle": "AI entegrasyonu opsiyoneldir. Sistem AI olmadan da çalışır.",
   "aiIntegrationNoteDesc": "AI sadece event'lere açıklama ekler, filtreleme yapmaz.",
-  "aiPromptPreviewDefault": "TERMAL (varsayılan): Türkçe, renk uydurma, ısıya göre anlat. \"Kamerada X kişi tespit edildi...\" / \"Kamerada insan tespit edilmedi.\" Belirgin hedef yoksa \"Muhtemel yanlış alarm.\" Tek cümle.\n\nCOLOR (varsayılan): Türkçe. İnsan/araç/hayvan say ve kısaca tarif et. \"Kamerada X kişi tespit edildi...\" / \"Kamerada insan tespit edilmedi.\" Belirgin hedef yoksa \"Muhtemel yanlış alarm.\" Tek cümle.",
+  "aiPromptPreviewDefault": "TERMAL (varsayılan): 6 karelik kolaj (~0.3 sn aralık, toplam ~1.5 sn), milisaniye zaman damgalı. Kareleri karşılaştırmalı analiz eder; başlangıç-orta-bitiş hareket akışına bakar. Tek kareye göre karar vermez. Sonuç tek cümle: \"Kamerada X kişi tespit edildi.\" / \"Kamerada insan tespit edilmedi (no human).\" / \"Muhtemel yanlış alarm.\"\n\nCOLOR (varsayılan): 6 karelik kolaj (~0.3 sn aralık, toplam ~1.5 sn), milisaniye zaman damgalı. Kareleri karşılaştırmalı analiz eder; başlangıç-orta-bitiş hareket akışına bakar. Tek kareye göre karar vermez. Sonuç tek cümle: \"Kamerada X kişi tespit edildi.\" / \"Kamerada insan tespit edilmedi (no human).\" / \"Muhtemel yanlış alarm.\"",
   "aiApiKeyLabel": "OpenAI API anahtarı (sk- ile başlar)",
   "aiApiKeyRequired": "API anahtarı gerekli",
   "aiApiKeyPlaceholder": "sk-...",
