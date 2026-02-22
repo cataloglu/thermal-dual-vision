@@ -907,12 +907,12 @@ def camera_detection_process(
                 _log_gate("no_detections")
                 continue
             
-            # Check temporal consistency
+            # Check temporal consistency (tuned for short walk-through scenarios)
             temporal_pass = inference_service.check_temporal_consistency(
                 detections,
                 list(detection_history)[:-1],  # Exclude current
-                min_consecutive_frames=3,
-                max_gap_frames=1,
+                min_consecutive_frames=2,
+                max_gap_frames=2,
             )
             
             if not temporal_pass:
@@ -1348,6 +1348,10 @@ class MultiprocessingDetectorWorker:
         if not buf:
             return None
         return buf.get_latest_frame_by_timestamp()
+
+    @staticmethod
+    def _has_bbox_detections(detections: List[Optional[Dict]]) -> bool:
+        return any(isinstance(det, dict) and det.get("bbox") for det in detections)
     
     def _handle_detection_event(self, camera_id: str, event_data: dict) -> None:
         """Process a single detection event in its own thread (parallel per camera)."""
@@ -1504,6 +1508,19 @@ class MultiprocessingDetectorWorker:
                         else:
                             event_frame_idx = len(frames) // 2
                         detections_list[event_frame_idx] = {"bbox": bbox, "confidence": confidence}
+
+                    if not self._has_bbox_detections(detections_list):
+                        event.rejected_by_ai = bool(ai_required)
+                        event.summary = "No person detection in media window"
+                        event.ai_enabled = bool(config.ai.enabled)
+                        if not event.ai_reason:
+                            event.ai_reason = "no_person_detections"
+                        db.commit()
+                        logger.warning(
+                            "Skipping media generation for event %s (no person detection in media window)",
+                            event.id,
+                        )
+                        return
 
                     ai_confirmed = True
                     if ai_required:

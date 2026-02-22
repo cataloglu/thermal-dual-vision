@@ -745,14 +745,14 @@ class DetectorWorker:
                     continue
 
                 # Check temporal consistency (only when we have detections)
-                # IMPROVED: Stricter validation to reduce false positives by 80%
-                # - min_consecutive_frames: 1 → 3 (require detection in at least 3 frames)
-                # - max_gap_frames: 2 → 1 (tolerate max 1 frame gap)
+                # Tuned for short walk-through scenarios:
+                # - require fewer consecutive frames
+                # - allow small gaps
                 if not self.inference_service.check_temporal_consistency(
                     detections,
                     list(self.detection_history[camera_id])[:-1],  # Exclude current
-                    min_consecutive_frames=3,  # Improved from 1
-                    max_gap_frames=1,          # Improved from 2
+                    min_consecutive_frames=2,
+                    max_gap_frames=2,
                 ):
                     self.event_start_time[camera_id] = None
                     _log_gate("temporal_consistency_failed")
@@ -1902,6 +1902,10 @@ class DetectorWorker:
                 aligned.append(None)
         return aligned
 
+    @staticmethod
+    def _has_bbox_detections(detections: List[Optional[Dict]]) -> bool:
+        return any(isinstance(det, dict) and det.get("bbox") for det in detections)
+
     def _start_media_generation(self, camera: Camera, event_id: str, config) -> None:
         postbuffer_seconds = float(getattr(config.event, "postbuffer_seconds", 0.0))
         ai_required = self._ai_requires_confirmation(config)
@@ -1918,6 +1922,21 @@ class DetectorWorker:
                 )
                 return
             with session_scope() as db:
+                if not self._has_bbox_detections(detections):
+                    event = db.query(Event).filter(Event.id == event_id).first()
+                    if event:
+                        event.rejected_by_ai = bool(ai_required)
+                        event.summary = "No person detection in media window"
+                        event.ai_enabled = bool(config.ai.enabled)
+                        if not event.ai_reason:
+                            event.ai_reason = "no_person_detections"
+                        db.commit()
+                    logger.warning(
+                        "Skipping media generation for event %s (no person detection in media window)",
+                        event_id,
+                    )
+                    return
+
                 mp4_frames = video_frames if video_frames else frames
                 mp4_timestamps = video_timestamps if video_frames else timestamps
                 mp4_detections = (

@@ -102,10 +102,68 @@ export const Settings: React.FC = () => {
     const confirmed = window.confirm(t('resetDefaultsConfirm'));
     if (!confirmed) return;
     try {
-      await api.resetSettings();
-      window.location.reload();
+      const defaults = await api.getDefaultSettings();
+      const updates: Partial<SettingsType> = {};
+      const targetTab = normalizedTab;
+
+      switch (targetTab) {
+        case 'camera_settings':
+          updates.detection = defaults.detection;
+          updates.motion = defaults.motion;
+          updates.thermal = defaults.thermal;
+          updates.stream = defaults.stream;
+          updates.performance = defaults.performance;
+          break;
+        case 'events':
+          updates.event = defaults.event;
+          break;
+        case 'media':
+          updates.media = defaults.media;
+          break;
+        case 'ai':
+          updates.ai = defaults.ai;
+          break;
+        case 'telegram':
+          updates.telegram = defaults.telegram;
+          break;
+        case 'mqtt':
+          updates.mqtt = defaults.mqtt;
+          break;
+        case 'appearance':
+          updates.appearance = defaults.appearance;
+          break;
+        default:
+          // Cameras/Zones tabs do not map to a settings section reset.
+          return;
+      }
+
+      const saved = await saveSettings(updates);
+      if (saved) {
+        setLocalSettings(saved);
+        setIsDirty(false);
+      }
     } catch (error) {
       console.error('Failed to reset settings:', error);
+    }
+  };
+
+  const handleFactoryReset = async () => {
+    const confirmed = window.confirm(t('factoryResetConfirm'));
+    if (!confirmed) return;
+
+    const typed = window.prompt(t('factoryResetTypeToConfirm'), '');
+    if ((typed || '').trim().toUpperCase() !== 'FACTORY') {
+      window.alert(t('factoryResetCancelled'));
+      return;
+    }
+
+    try {
+      const saved = await api.resetSettings();
+      setLocalSettings(saved);
+      setIsDirty(false);
+      window.location.reload();
+    } catch (error) {
+      console.error('Failed to factory reset settings:', error);
     }
   };
 
@@ -244,6 +302,12 @@ export const Settings: React.FC = () => {
             className="px-4 py-2 bg-error text-white rounded-lg hover:bg-error/90 transition-colors"
           >
             {t('resetDefaults')}
+          </button>
+          <button
+            onClick={handleFactoryReset}
+            className="px-4 py-2 border border-error text-error rounded-lg hover:bg-error/10 transition-colors"
+          >
+            {t('factoryReset')}
           </button>
         </div>
 

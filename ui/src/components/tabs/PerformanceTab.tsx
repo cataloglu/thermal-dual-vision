@@ -30,7 +30,7 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
   const isCustomAspect = preset === 'custom'
 
   const applyPreset = async (presetId: 'eco' | 'balanced' | 'quality' | 'frigate') => {
-    const base = { detection: settings.detection, motion: settings.motion, thermal: settings.thermal, stream: settings.stream, event: settings.event }
+    const base = { detection: settings.detection, motion: settings.motion, thermal: settings.thermal, stream: settings.stream }
     const presets: Record<string, Partial<Settings>> = {
       eco: {
         detection: {
@@ -52,15 +52,6 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
           max_reconnect_attempts: 10,
           read_failure_threshold: 5,
           read_failure_timeout_seconds: 20,
-        },
-        event: {
-          ...base.event,
-          prebuffer_seconds: 3,
-          postbuffer_seconds: 8,
-          record_fps: 8,
-          frame_interval: 3,
-          min_event_duration: 1.5,
-          cooldown_seconds: 10,
         },
       },
       balanced: {
@@ -84,15 +75,6 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
           read_failure_threshold: 5,
           read_failure_timeout_seconds: 15,
         },
-        event: {
-          ...base.event,
-          prebuffer_seconds: 5,
-          postbuffer_seconds: 15,
-          record_fps: 10,
-          frame_interval: 2,
-          min_event_duration: 1.0,
-          cooldown_seconds: 7,
-        },
       },
       frigate: {
         detection: {
@@ -115,15 +97,6 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
           read_failure_threshold: 3,
           read_failure_timeout_seconds: 10,
         },
-        event: {
-          ...base.event,
-          prebuffer_seconds: 7,
-          postbuffer_seconds: 20,
-          record_fps: 12,
-          frame_interval: 1,
-          min_event_duration: 0.5,
-          cooldown_seconds: 5,
-        },
       },
       quality: {
         detection: {
@@ -145,15 +118,6 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
           max_reconnect_attempts: 15,
           read_failure_threshold: 4,
           read_failure_timeout_seconds: 15,
-        },
-        event: {
-          ...base.event,
-          prebuffer_seconds: 5,
-          postbuffer_seconds: 20,
-          record_fps: 12,
-          frame_interval: 1,
-          min_event_duration: 1.0,
-          cooldown_seconds: 5,
         },
       },
     }

@@ -6,6 +6,16 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.10] - 2026-02-22
+
+### Düzeltmeler
+
+- Settings ekranındaki `Reset Defaults` akışı sayfa-bazlı hale getirildi; global reset çağrısı kaldırıldı.
+- Ayarlar ekranına ikinci onaylı `Factory Default (Full Reset)` butonu eklendi (`FACTORY` yazma onayı).
+- Detection/Performance presetlerinin `event` ayarlarını istemeden ezmesi engellendi.
+- İnsan tespiti yokken sahte collage/media üretimini kesen koruma her iki worker moduna da eklendi.
+- Kısa geçişlerde kaçırmayı azaltmak için temporal consistency ayarı `2/2` olarak güncellendi.
+
 ## [4.0.9] - 2026-02-22
 
 ### Düzeltmeler
