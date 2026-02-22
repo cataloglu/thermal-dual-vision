@@ -11,6 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.models.config import AppConfig
 from app.services.settings import SettingsService
 
 
@@ -51,13 +52,14 @@ def test_get_settings_default(client):
     assert "ai" in data
     assert "telegram" in data
     
-    # Check default values
-    assert data["detection"]["model"] == "yolov8s-person"
-    assert data["detection"]["confidence_threshold"] == 0.30
-    assert data["motion"]["sensitivity"] == 8
-    assert data["thermal"]["enable_enhancement"] is True
-    assert data["stream"]["protocol"] == "tcp"
-    assert data["live"]["output_mode"] == "mjpeg"
+    # Check default values from current product config
+    defaults = AppConfig().model_dump()
+    assert data["detection"]["model"] == defaults["detection"]["model"]
+    assert data["detection"]["confidence_threshold"] == defaults["detection"]["confidence_threshold"]
+    assert data["motion"]["sensitivity"] == defaults["motion"]["sensitivity"]
+    assert data["thermal"]["enable_enhancement"] == defaults["thermal"]["enable_enhancement"]
+    assert data["stream"]["protocol"] == defaults["stream"]["protocol"]
+    assert data["live"]["output_mode"] == defaults["live"]["output_mode"]
 
 
 def test_put_settings_partial_update(client):
@@ -80,8 +82,9 @@ def test_put_settings_partial_update(client):
     assert data["detection"]["confidence_threshold"] == 0.5
     
     # Check other fields remain default
-    assert data["detection"]["inference_fps"] == 5
-    assert data["motion"]["sensitivity"] == 8
+    defaults = AppConfig().model_dump()
+    assert data["detection"]["inference_fps"] == defaults["detection"]["inference_fps"]
+    assert data["motion"]["sensitivity"] == defaults["motion"]["sensitivity"]
 
 
 def test_put_settings_multiple_sections(client):

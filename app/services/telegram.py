@@ -59,6 +59,7 @@ class TelegramService:
         Returns:
             True if sent successfully, False otherwise
         """
+        bot: Bot | None = None
         try:
             # Load config
             config = self.settings_service.load_config()
@@ -96,7 +97,6 @@ class TelegramService:
                 return False
             
             # Create bot (session closed in finally to prevent HTTP connection leak)
-            bot: Bot | None = None
             bot = Bot(token=config.telegram.bot_token)
             
             # Format message

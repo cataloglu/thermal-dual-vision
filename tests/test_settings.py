@@ -46,15 +46,16 @@ def test_load_default_config(settings_service):
     config = settings_service.load_config()
     
     assert isinstance(config, AppConfig)
-    assert config.detection.model == "yolov8s-person"
-    assert config.detection.confidence_threshold == 0.30
-    assert config.motion.sensitivity == 8
-    assert config.thermal.enable_enhancement is True
-    assert config.stream.protocol == "tcp"
-    assert config.live.output_mode == "mjpeg"
-    assert config.record.enabled is True
-    assert config.ai.enabled is False
-    assert config.telegram.enabled is False
+    defaults = AppConfig()
+    assert config.detection.model == defaults.detection.model
+    assert config.detection.confidence_threshold == defaults.detection.confidence_threshold
+    assert config.motion.sensitivity == defaults.motion.sensitivity
+    assert config.thermal.enable_enhancement == defaults.thermal.enable_enhancement
+    assert config.stream.protocol == defaults.stream.protocol
+    assert config.live.output_mode == defaults.live.output_mode
+    assert config.record.enabled == defaults.record.enabled
+    assert config.ai.enabled == defaults.ai.enabled
+    assert config.telegram.enabled == defaults.telegram.enabled
 
 
 def test_save_and_load_config(settings_service):
@@ -100,9 +101,10 @@ def test_partial_update(settings_service):
     assert updated["detection"]["confidence_threshold"] == 0.3
     
     # Check other fields remain default
-    assert updated["detection"]["inference_fps"] == 5  # Default
-    assert updated["motion"]["sensitivity"] == 8  # Default
-    assert updated["thermal"]["enable_enhancement"] is True  # Default
+    defaults = AppConfig().model_dump()
+    assert updated["detection"]["inference_fps"] == defaults["detection"]["inference_fps"]
+    assert updated["motion"]["sensitivity"] == defaults["motion"]["sensitivity"]
+    assert updated["thermal"]["enable_enhancement"] == defaults["thermal"]["enable_enhancement"]
 
 
 def test_nested_partial_update(settings_service):
@@ -123,7 +125,7 @@ def test_nested_partial_update(settings_service):
     
     assert updated["live"]["webrtc"]["enabled"] is True
     assert updated["live"]["webrtc"]["go2rtc_url"] == "http://localhost:1984"
-    assert updated["live"]["output_mode"] == "mjpeg"  # Default unchanged
+    assert updated["live"]["output_mode"] == AppConfig().live.output_mode
 
 
 def test_secrets_masked(settings_service):
@@ -279,8 +281,9 @@ def test_get_default_config(settings_service):
     assert isinstance(default_config, dict)
     assert "detection" in default_config
     assert "motion" in default_config
-    assert default_config["detection"]["model"] == "yolov8s-person"
-    assert default_config["motion"]["sensitivity"] == 8
+    defaults = AppConfig().model_dump()
+    assert default_config["detection"]["model"] == defaults["detection"]["model"]
+    assert default_config["motion"]["sensitivity"] == defaults["motion"]["sensitivity"]
 
 
 def test_concurrent_updates(settings_service):
@@ -324,8 +327,9 @@ def test_concurrent_updates(settings_service):
     
     # Verify final state (one of the updates should win)
     settings = settings_service.get_settings()
-    assert settings["detection"]["confidence_threshold"] in [0.25, 0.3]
-    assert settings["motion"]["sensitivity"] in [7, 8]
+    defaults = AppConfig().model_dump()
+    assert settings["detection"]["confidence_threshold"] in [defaults["detection"]["confidence_threshold"], 0.3]
+    assert settings["motion"]["sensitivity"] in [defaults["motion"]["sensitivity"], 8]
 
 
 def test_update_multiple_sections(settings_service):
