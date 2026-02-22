@@ -112,7 +112,7 @@ class MotionConfig(BaseModel):
         description="auto: global adaptive threshold per camera, manual: fixed global threshold"
     )
     auto_profile: Literal["low", "normal", "high"] = Field(
-        default="normal",
+        default="low",
         description="Global auto aggressiveness profile"
     )
     algorithm: Literal["frame_diff", "mog2", "knn"] = Field(
@@ -120,7 +120,7 @@ class MotionConfig(BaseModel):
         description="Algorithm: frame_diff (simple), mog2/knn (stable, fewer false alarms from shadows)"
     )
     sensitivity: int = Field(
-        default=8,
+        default=4,
         ge=1,
         le=10,
         description="Motion sensitivity (1-10 scale)"
@@ -131,7 +131,7 @@ class MotionConfig(BaseModel):
         description="Minimum pixel area for motion"
     )
     cooldown_seconds: int = Field(
-        default=6,
+        default=3,
         ge=0,
         description="Minimum time between motion detections"
     )
@@ -142,13 +142,13 @@ class MotionConfig(BaseModel):
         description="Learning period for auto mode"
     )
     auto_update_seconds: int = Field(
-        default=10,
+        default=20,
         ge=2,
         le=120,
         description="How often auto threshold is recalculated"
     )
     auto_min_area_floor: int = Field(
-        default=40,
+        default=120,
         ge=0,
         description="Lower bound for auto min_area"
     )
@@ -352,7 +352,7 @@ class EventConfig(BaseModel):
         description="Frame capture interval"
     )
     min_event_duration: float = Field(
-        default=1.0,
+        default=1.5,
         ge=0.0,
         description="Minimum sustained detection in seconds (higher = fewer false alarms)"
     )

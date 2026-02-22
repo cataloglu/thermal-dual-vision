@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.5] - 2026-02-22
+
+### İyileştirmeler
+
+- Product varsayılanları stabilize edildi: motion her zaman global auto modunda çalışır.
+- False alarm azaltımı için `auto_profile=low`, `sensitivity=4`, `cooldown=3`, `auto_min_area_floor>=120` politikası sabitlendi.
+- UI tarafında manual motion modu kapatıldı; üretim davranışı tek ve tutarlı hale getirildi.
+
 ## [4.0.4] - 2026-02-21
 
 ### İyileştirmeler

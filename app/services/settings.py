@@ -273,10 +273,12 @@ class SettingsService:
         # Migrate motion defaults: align with tuned prefilter values
         motion = result.get("motion")
         if isinstance(motion, dict):
-            if motion.get("mode") not in {"auto", "manual"}:
-                motion["mode"] = "auto"
+            # Product policy: always run adaptive global auto motion.
+            motion["mode"] = "auto"
             if motion.get("auto_profile") not in {"low", "normal", "high"}:
-                motion["auto_profile"] = "normal"
+                motion["auto_profile"] = "low"
+            else:
+                motion["auto_profile"] = "low"
             try:
                 sensitivity = int(motion.get("sensitivity", 0))
                 min_area = int(motion.get("min_area", 0))
@@ -287,7 +289,16 @@ class SettingsService:
                 motion["sensitivity"] = 8
                 motion["min_area"] = 450
                 motion["cooldown_seconds"] = 6
-            floor = int(motion.get("auto_min_area_floor", 40) or 40)
+            # Stable defaults to reduce motion spam on production installs.
+            motion["algorithm"] = "mog2"
+            motion["sensitivity"] = 4
+            motion["min_area"] = 250
+            motion["cooldown_seconds"] = 3
+            motion["auto_update_seconds"] = 20
+            motion["auto_min_area_floor"] = max(120, int(motion.get("auto_min_area_floor", 120) or 120))
+            motion["auto_warmup_seconds"] = max(30, int(motion.get("auto_warmup_seconds", 45) or 45))
+
+            floor = int(motion.get("auto_min_area_floor", 120) or 120)
             ceil = int(motion.get("auto_min_area_ceiling", 2500) or 2500)
             if floor > ceil:
                 floor, ceil = ceil, floor
@@ -322,8 +333,11 @@ class SettingsService:
             if event.get("cooldown_seconds") is None:
                 legacy_cooldown = event.get("cooldown")
                 event["cooldown_seconds"] = legacy_cooldown if legacy_cooldown is not None else 7
-            if event.get("min_event_duration") in (1.0, 1.2, 1.5):
-                event["min_event_duration"] = 1.0
+            # Production defaults to suppress short noise bursts.
+            if float(event.get("min_event_duration", 0) or 0) < 1.5:
+                event["min_event_duration"] = 1.5
+            if int(event.get("cooldown_seconds", 0) or 0) < 3:
+                event["cooldown_seconds"] = 3
             # prebuffer < 5 caused ~3 sec event videos (too few frames)
             pb = event.get("prebuffer_seconds")
             if pb is not None and float(pb) < 5.0:
@@ -331,6 +345,11 @@ class SettingsService:
             # Product policy: postbuffer is fixed at 2s (hidden from UI).
             event["postbuffer_seconds"] = 2.0
             result["event"] = event
+        performance = result.get("performance")
+        if isinstance(performance, dict):
+            # Product policy: keep stable worker mode.
+            performance["worker_mode"] = "threading"
+            result["performance"] = performance
         record = result.get("record")
         if isinstance(record, dict):
             result["record"] = {"enabled": True}  # Sabit, parametre yok

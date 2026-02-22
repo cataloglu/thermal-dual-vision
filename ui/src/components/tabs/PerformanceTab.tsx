@@ -300,39 +300,27 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
             <h5 className="text-sm font-semibold text-text border-b border-border pb-1">{t('perfSectionMotion')}</h5>
             <div>
               <label className="text-xs text-muted block mb-1">Mode</label>
+              <div className="w-full px-3 py-2 bg-surface1 border border-border rounded-lg text-text text-sm">
+                Auto (global adaptive)
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-muted block mb-1">Auto Profile</label>
               <select
-                value={settings.motion.mode ?? 'auto'}
+                value={settings.motion.auto_profile ?? 'low'}
                 onChange={(e) =>
                   onChange({
                     ...settings,
-                    motion: { ...settings.motion, mode: e.target.value as 'auto' | 'manual' },
+                    motion: { ...settings.motion, mode: 'auto', auto_profile: e.target.value as 'low' | 'normal' | 'high' },
                   })
                 }
                 className="w-full px-3 py-2 bg-surface1 border border-border rounded-lg text-text text-sm"
               >
-                <option value="auto">Auto (global adaptive)</option>
-                <option value="manual">Manual (fixed)</option>
+                <option value="low">Low (en az fake alarm)</option>
+                <option value="normal">Normal</option>
+                <option value="high">High (daha hassas)</option>
               </select>
             </div>
-            {(settings.motion.mode ?? 'auto') === 'auto' && (
-              <div>
-                <label className="text-xs text-muted block mb-1">Auto Profile</label>
-                <select
-                  value={settings.motion.auto_profile ?? 'normal'}
-                  onChange={(e) =>
-                    onChange({
-                      ...settings,
-                      motion: { ...settings.motion, auto_profile: e.target.value as 'low' | 'normal' | 'high' },
-                    })
-                  }
-                  className="w-full px-3 py-2 bg-surface1 border border-border rounded-lg text-text text-sm"
-                >
-                  <option value="low">Low (en az fake alarm)</option>
-                  <option value="normal">Normal (onerilen)</option>
-                  <option value="high">High (daha hassas)</option>
-                </select>
-              </div>
-            )}
             <select
               value={settings.motion.algorithm ?? 'mog2'}
               onChange={(e) => onChange({ ...settings, motion: { ...settings.motion, algorithm: e.target.value as 'frame_diff' | 'mog2' | 'knn' } })}
@@ -352,7 +340,7 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
                 value={settings.motion.sensitivity}
                 onChange={(e) => onChange({ ...settings, motion: { ...settings.motion, sensitivity: parseInt(e.target.value) || 1 } })}
                 className="w-full px-3 py-1.5 bg-surface1 border border-border rounded text-text text-sm disabled:opacity-60"
-                disabled={(settings.motion.mode ?? 'auto') === 'auto'}
+                disabled
               />
             </div>
             <div>
@@ -363,7 +351,7 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
                 value={settings.motion.min_area}
                 onChange={(e) => onChange({ ...settings, motion: { ...settings.motion, min_area: parseInt(e.target.value) || 0 } })}
                 className="w-full px-3 py-1.5 bg-surface1 border border-border rounded text-text text-sm disabled:opacity-60"
-                disabled={(settings.motion.mode ?? 'auto') === 'auto'}
+                disabled
               />
             </div>
             <div>
@@ -374,14 +362,12 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
                 value={settings.motion.cooldown_seconds}
                 onChange={(e) => onChange({ ...settings, motion: { ...settings.motion, cooldown_seconds: parseInt(e.target.value) || 0 } })}
                 className="w-full px-3 py-1.5 bg-surface1 border border-border rounded text-text text-sm disabled:opacity-60"
-                disabled={(settings.motion.mode ?? 'auto') === 'auto'}
+                disabled
               />
             </div>
-            {(settings.motion.mode ?? 'auto') === 'auto' && (
-              <p className="text-xs text-muted">
-                Auto modda esik kamera bazinda otomatik ogrenilir. Bu alandaki manuel degerler kullanilmaz.
-              </p>
-            )}
+            <p className="text-xs text-muted">
+              Product modunda manual motion kapali. Esikler kamera bazinda otomatik ogrenilir.
+            </p>
 
             {/* Thermal - compact */}
             <h5 className="text-sm font-semibold text-text border-b border-border pb-1 mt-4">{t('perfSectionThermal')}</h5>
