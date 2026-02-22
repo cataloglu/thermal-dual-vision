@@ -6,6 +6,15 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.11] - 2026-02-22
+
+### Düzeltmeler
+
+- CI backend test hattı stabilize edildi (`pytest-asyncio` eklendi, test çalıştırma komutu iyileştirildi).
+- `LogsService.get_logs()` tail sırası/boş satır davranışı düzeltildi; log testleri ve API çıktısı tutarlı hale geldi.
+- Telegram bildirim akışında erken dönüşlerde oluşan `UnboundLocalError` giderildi (`bot` cleanup güvenli hale getirildi).
+- Settings testleri güncel product defaultlarıyla hizalandı; eski sabit beklenti kaynaklı kırılmalar kaldırıldı.
+
 ## [4.0.10] - 2026-02-22
 
 ### Düzeltmeler
