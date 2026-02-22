@@ -107,7 +107,14 @@ class MotionPreset(BaseModel):
 
 class MotionConfig(BaseModel):
     """Motion detection configuration (pre-filter for person detection)."""
-    
+    mode: Literal["auto", "manual"] = Field(
+        default="auto",
+        description="auto: global adaptive threshold per camera, manual: fixed global threshold"
+    )
+    auto_profile: Literal["low", "normal", "high"] = Field(
+        default="normal",
+        description="Global auto aggressiveness profile"
+    )
     algorithm: Literal["frame_diff", "mog2", "knn"] = Field(
         default="mog2",
         description="Algorithm: frame_diff (simple), mog2/knn (stable, fewer false alarms from shadows)"
@@ -127,6 +134,34 @@ class MotionConfig(BaseModel):
         default=6,
         ge=0,
         description="Minimum time between motion detections"
+    )
+    auto_warmup_seconds: int = Field(
+        default=45,
+        ge=10,
+        le=600,
+        description="Learning period for auto mode"
+    )
+    auto_update_seconds: int = Field(
+        default=10,
+        ge=2,
+        le=120,
+        description="How often auto threshold is recalculated"
+    )
+    auto_min_area_floor: int = Field(
+        default=40,
+        ge=0,
+        description="Lower bound for auto min_area"
+    )
+    auto_min_area_ceiling: int = Field(
+        default=2500,
+        ge=1,
+        description="Upper bound for auto min_area"
+    )
+    auto_multiplier: float = Field(
+        default=1.6,
+        ge=1.0,
+        le=5.0,
+        description="Safety multiplier applied to learned noise percentile"
     )
     presets: dict[str, MotionPreset] = Field(
         default_factory=lambda: {
@@ -294,7 +329,7 @@ class EventConfig(BaseModel):
         description="Seconds of frames to keep before motion"
     )
     postbuffer_seconds: float = Field(
-        default=5.0,
+        default=2.0,
         ge=0.0,
         le=60.0,
         description="Seconds of frames to keep after motion"

@@ -644,7 +644,7 @@ class MediaWorker:
                     2
                 )
             
-            # Add confidence on best-match event frame.
+            # Add confidence and explicit event highlight on best-match frame.
             if idx == event_slot:
                 cv2.putText(
                     img,
@@ -654,6 +654,22 @@ class MediaWorker:
                     0.7,
                     self.COLOR_ACCENT,
                     2
+                )
+                cv2.putText(
+                    img,
+                    "EVENT",
+                    (10, 432),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.62,
+                    self.COLOR_ACCENT,
+                    2,
+                )
+                cv2.rectangle(
+                    img,
+                    (2, 2),
+                    (self.COLLAGE_FRAME_SIZE[0] - 3, self.COLLAGE_FRAME_SIZE[1] - 3),
+                    self.COLOR_ACCENT,
+                    3,
                 )
             
             resized.append(img)

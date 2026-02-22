@@ -103,7 +103,7 @@ Event trigger and buffer configuration.
 |---|---|---|---|
 | `cooldown_seconds` | int ≥ 0 | `7` | Minimum seconds between events per camera. Prevents rapid-fire duplicates |
 | `prebuffer_seconds` | float 0–60 | `5.0` | Seconds of video before detection to include in the timelapse |
-| `postbuffer_seconds` | float 0–60 | `5.0` | Seconds of video after detection to include in the timelapse |
+| `postbuffer_seconds` | float 0–60 | `2.0` | Seconds of video after detection to include in the timelapse |
 | `record_fps` | int 1–30 | `10` | Frame rate for the event video buffer |
 | `frame_buffer_size` | int ≥ 1 | `10` | Number of frames kept for collage generation |
 | `frame_interval` | int ≥ 1 | `2` | Frame capture interval for collage |

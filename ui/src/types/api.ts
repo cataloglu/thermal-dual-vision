@@ -20,10 +20,17 @@ export interface DetectionConfig {
 }
 
 export interface MotionConfig {
+  mode?: 'auto' | 'manual';
+  auto_profile?: 'low' | 'normal' | 'high';
   algorithm?: 'frame_diff' | 'mog2' | 'knn';
   sensitivity: number;
   min_area: number;
   cooldown_seconds: number;
+  auto_warmup_seconds?: number;
+  auto_update_seconds?: number;
+  auto_min_area_floor?: number;
+  auto_min_area_ceiling?: number;
+  auto_multiplier?: number;
   presets: {
     thermal_recommended: {
       sensitivity: number;

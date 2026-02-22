@@ -592,6 +592,13 @@ def camera_detection_process(
                 motion_config["roi"] = camera_motion["roi"]
         else:
             motion_config = {**base_motion, **camera_motion}
+        if str(base_motion.get("mode", "auto")).lower() == "auto":
+            # In global auto mode, keep camera-level enable/roi only.
+            motion_config = dict(base_motion)
+            if "enabled" in camera_motion:
+                motion_config["enabled"] = camera_motion["enabled"]
+            if "roi" in camera_motion:
+                motion_config["roi"] = camera_motion["roi"]
 
         zones = camera_config.get("zones", [])
         motion_enabled = motion_config.get("enabled", True) is not False
@@ -622,6 +629,11 @@ def camera_detection_process(
         last_motion_log = 0.0
         last_motion_state = None
         last_motion_time = 0.0
+        auto_motion_mode = str(motion_config.get("mode", "auto")).lower() == "auto"
+        auto_motion_history: deque[float] = deque(maxlen=600)
+        auto_started_at = time.time()
+        auto_last_calc = 0.0
+        auto_learned_min_area: Optional[int] = None
         gate_log_interval = 30.0
         last_gate_log = 0.0
         
@@ -763,12 +775,56 @@ def camera_detection_process(
             motion_area = 0
             motion_min_area_eff = 0
             if motion_enabled:
+                motion_min_area_request = motion_min_area
+                if auto_motion_mode:
+                    profile = str(motion_config.get("auto_profile", "normal")).lower()
+                    profile_map = {
+                        "low": {"multiplier": 2.2, "floor_boost": 1.35, "update_mul": 1.5},
+                        "normal": {"multiplier": 1.6, "floor_boost": 1.0, "update_mul": 1.0},
+                        "high": {"multiplier": 1.25, "floor_boost": 0.8, "update_mul": 0.7},
+                    }
+                    profile_cfg = profile_map.get(profile, profile_map["normal"])
+                    floor = max(0, int(motion_config.get("auto_min_area_floor", 40)))
+                    ceiling = max(floor + 1, int(motion_config.get("auto_min_area_ceiling", 2500)))
+                    multiplier = max(1.0, float(motion_config.get("auto_multiplier", 1.6)) * float(profile_cfg["multiplier"]))
+                    warmup_seconds = max(5, int(motion_config.get("auto_warmup_seconds", 45)))
+                    update_seconds = max(2, int(int(motion_config.get("auto_update_seconds", 10)) * float(profile_cfg["update_mul"])))
+                    floor = int(max(0, floor * float(profile_cfg["floor_boost"])))
+                    if current_time - auto_started_at < warmup_seconds:
+                        motion_min_area_request = max(motion_min_area, floor)
+                    else:
+                        if auto_learned_min_area is not None:
+                            motion_min_area_request = max(floor, min(ceiling, auto_learned_min_area))
+                        else:
+                            motion_min_area_request = max(motion_min_area, floor)
+
                 motion_detected, _, motion_area, motion_min_area_eff = motion_service.detect_motion(
                     camera_id=camera_id,
                     frame=frame,
-                    min_area=motion_min_area,
+                    min_area=motion_min_area_request,
                     sensitivity=motion_sensitivity,
                 )
+                if auto_motion_mode:
+                    auto_motion_history.append(float(motion_area))
+                    profile = str(motion_config.get("auto_profile", "normal")).lower()
+                    profile_map = {
+                        "low": {"multiplier": 2.2, "floor_boost": 1.35, "update_mul": 1.5},
+                        "normal": {"multiplier": 1.6, "floor_boost": 1.0, "update_mul": 1.0},
+                        "high": {"multiplier": 1.25, "floor_boost": 0.8, "update_mul": 0.7},
+                    }
+                    profile_cfg = profile_map.get(profile, profile_map["normal"])
+                    floor = max(0, int(motion_config.get("auto_min_area_floor", 40)))
+                    ceiling = max(floor + 1, int(motion_config.get("auto_min_area_ceiling", 2500)))
+                    multiplier = max(1.0, float(motion_config.get("auto_multiplier", 1.6)) * float(profile_cfg["multiplier"]))
+                    update_seconds = max(2, int(int(motion_config.get("auto_update_seconds", 10)) * float(profile_cfg["update_mul"])))
+                    floor = int(max(0, floor * float(profile_cfg["floor_boost"])))
+                    if len(auto_motion_history) >= 30 and (
+                        auto_learned_min_area is None or (current_time - auto_last_calc) >= update_seconds
+                    ):
+                        percentile = max(85.0, min(98.0, 84.0 + (motion_sensitivity * 1.4)))
+                        noise_p = float(np.percentile(np.array(auto_motion_history, dtype=np.float32), percentile))
+                        auto_learned_min_area = max(floor, min(ceiling, int(noise_p * multiplier)))
+                        auto_last_calc = current_time
                 if motion_detected:
                     last_motion_time = current_time
                     motion_active = True
@@ -1351,7 +1407,7 @@ class MultiprocessingDetectorWorker:
                 return
 
             try:
-                postbuffer_seconds = float(getattr(config.event, "postbuffer_seconds", 5.0))
+                postbuffer_seconds = float(getattr(config.event, "postbuffer_seconds", 2.0))
                 if postbuffer_seconds > 0:
                     time.sleep(postbuffer_seconds)
 
@@ -1382,7 +1438,7 @@ class MultiprocessingDetectorWorker:
                     event_time = time.time()
 
                 prebuffer_seconds = float(getattr(config.event, "prebuffer_seconds", 5.0))
-                postbuffer_seconds = float(getattr(config.event, "postbuffer_seconds", 5.0))
+                postbuffer_seconds = float(getattr(config.event, "postbuffer_seconds", 2.0))
                 start_time = event_time - prebuffer_seconds
                 end_time = event_time + postbuffer_seconds
 
@@ -1436,9 +1492,108 @@ class MultiprocessingDetectorWorker:
 
                     bbox = event_data.get("bbox")
                     detections_list = [None] * len(frames)
-                    if bbox and len(frames) >= 3:
-                        mid = len(frames) // 2
-                        detections_list[mid] = {"bbox": bbox, "confidence": confidence}
+                    if bbox and len(frames) > 0:
+                        # Map detection to the frame nearest to actual event time.
+                        # Using fixed middle index can hide the box in collage when
+                        # event timing drifts a little inside pre/post buffer.
+                        if frame_timestamps:
+                            event_frame_idx = min(
+                                range(len(frame_timestamps)),
+                                key=lambda i: abs(frame_timestamps[i] - event_time),
+                            )
+                        else:
+                            event_frame_idx = len(frames) // 2
+                        detections_list[event_frame_idx] = {"bbox": bbox, "confidence": confidence}
+
+                    ai_confirmed = True
+                    if ai_required:
+                        try:
+                            # AI decision from collage first; notify immediately if confirmed.
+                            from app.workers.media import get_media_worker as _get_mw
+                            _mw = _get_mw()
+                            _ai_collage_path = media_service.MEDIA_DIR / event.id / "collage_ai.jpg"
+                            ai_collage_to_use = None
+                            try:
+                                _mw.create_collage(
+                                    frames,
+                                    None,  # No boxes: AI judges independently
+                                    frame_timestamps,
+                                    str(_ai_collage_path),
+                                    camera_name,
+                                    event.timestamp,
+                                    event.confidence,
+                                )
+                                if _ai_collage_path.exists():
+                                    ai_collage_to_use = _ai_collage_path
+                            except Exception:
+                                ai_collage_to_use = None
+
+                            if ai_collage_to_use and ai_collage_to_use.exists():
+                                from app.services.time_utils import get_detection_source
+                                detection_source = get_detection_source(
+                                    camera_obj.detection_source.value if hasattr(camera_obj, "detection_source") and camera_obj.detection_source else "thermal"
+                                )
+                                summary = _async_runner.run(ai_service.analyze_event(
+                                    {
+                                        "id": event.id,
+                                        "camera_id": event.camera_id,
+                                        "timestamp": event.timestamp.isoformat() + "Z",
+                                        "confidence": event.confidence,
+                                    },
+                                    collage_path=str(ai_collage_to_use),
+                                    camera={
+                                        "id": camera_obj.id,
+                                        "name": camera_name,
+                                        "type": (camera_obj.type.value if hasattr(camera_obj, "type") and camera_obj.type else None),
+                                        "detection_source": detection_source,
+                                    },
+                                    confidence=event.confidence,
+                                ))
+                                event.summary = summary
+                                event.ai_enabled = True
+                                event.ai_reason = None
+                                ai_confirmed = _is_ai_confirmed(summary)
+                                event.rejected_by_ai = not ai_confirmed
+                                db.commit()
+                            else:
+                                logger.warning(f"Event {event.id}: no collage for AI analysis")
+                                ai_confirmed = False
+                        except Exception as e:
+                            logger.error(f"AI analysis failed for event {event.id}: {e}")
+                            ai_confirmed = False
+                        finally:
+                            try:
+                                if '_ai_collage_path' in locals() and _ai_collage_path.exists():
+                                    _ai_collage_path.unlink()
+                            except Exception:
+                                pass
+
+                    db.refresh(event)
+                    if ai_confirmed:
+                        mqtt_service.publish_event({
+                            "id": event.id,
+                            "camera_id": event.camera_id,
+                            "timestamp": event.timestamp.isoformat() + "Z",
+                            "confidence": event.confidence,
+                            "event_type": event.event_type,
+                            "summary": event.summary,
+                            "person_count": person_count,
+                            "ai_required": ai_required,
+                            "ai_confirmed": ai_confirmed,
+                            "ai_enabled": bool(event.ai_enabled),
+                            "ai_reason": event.ai_reason,
+                        }, person_detected=True)
+                        try:
+                            websocket_manager.broadcast_event_sync({
+                                "id": event.id,
+                                "camera_id": camera_id,
+                                "timestamp": event.timestamp.isoformat() + "Z",
+                                "confidence": confidence,
+                                "person_count": person_count,
+                                "summary": event.summary,
+                            })
+                        except Exception:
+                            pass
 
                     try:
                         media_urls = media_service.generate_event_media(
@@ -1455,95 +1610,7 @@ class MultiprocessingDetectorWorker:
                             mp4_real_time=False,
                         )
                         logger.info(f"Media generated for event {event.id}")
-
-                        if ai_required:
-                            try:
-                                # Generate a clean collage (no bounding boxes) for AI independent analysis
-                                from app.workers.media import get_media_worker as _get_mw
-                                _mw = _get_mw()
-                                _ai_collage_path = media_service.MEDIA_DIR / event.id / "collage_ai.jpg"
-                                try:
-                                    _mw.create_collage(
-                                        frames,
-                                        None,  # No boxes: AI judges independently
-                                        frame_timestamps,
-                                        str(_ai_collage_path),
-                                        camera_name,
-                                        event.timestamp,
-                                        event.confidence,
-                                    )
-                                    ai_collage_to_use = _ai_collage_path if _ai_collage_path.exists() else media_service.get_media_path(event.id, "collage")
-                                except Exception:
-                                    ai_collage_to_use = media_service.get_media_path(event.id, "collage")
-
-                                if ai_collage_to_use and ai_collage_to_use.exists():
-                                    from app.services.time_utils import get_detection_source
-                                    detection_source = get_detection_source(
-                                        camera_obj.detection_source.value if hasattr(camera_obj, "detection_source") and camera_obj.detection_source else "thermal"
-                                    )
-                                    summary = _async_runner.run(ai_service.analyze_event(
-                                        {
-                                            "id": event.id,
-                                            "camera_id": event.camera_id,
-                                            "timestamp": event.timestamp.isoformat() + "Z",
-                                            "confidence": event.confidence,
-                                        },
-                                        collage_path=str(ai_collage_to_use),
-                                        camera={
-                                            "id": camera_obj.id,
-                                            "name": camera_name,
-                                            "type": (camera_obj.type.value if hasattr(camera_obj, "type") and camera_obj.type else None),
-                                            "detection_source": detection_source,
-                                        },
-                                        confidence=event.confidence,
-                                    ))
-                                    # Clean up temporary AI collage
-                                    try:
-                                        if _ai_collage_path.exists():
-                                            _ai_collage_path.unlink()
-                                    except Exception:
-                                        pass
-                                    event.summary = summary
-                                    event.ai_enabled = True
-                                    event.ai_reason = None
-                                    if not _is_ai_confirmed(summary):
-                                        logger.info(f"Event {event.id} rejected by AI, keeping for review (media already created)")
-                                        event.rejected_by_ai = True
-                                    else:
-                                        event.rejected_by_ai = False
-                                    db.commit()
-                                else:
-                                    logger.warning(f"Event {event.id}: no collage for AI analysis")
-                            except Exception as e:
-                                logger.error(f"AI analysis failed for event {event.id}: {e}")
-
-                        db.refresh(event)
-                        ai_confirmed = _is_ai_confirmed(event.summary) if ai_required else True
                         if ai_confirmed:
-                            mqtt_service.publish_event({
-                                "id": event.id,
-                                "camera_id": event.camera_id,
-                                "timestamp": event.timestamp.isoformat() + "Z",
-                                "confidence": event.confidence,
-                                "event_type": event.event_type,
-                                "summary": event.summary,
-                                "person_count": person_count,
-                                "ai_required": ai_required,
-                                "ai_confirmed": ai_confirmed,
-                                "ai_enabled": bool(event.ai_enabled),
-                                "ai_reason": event.ai_reason,
-                            }, person_detected=True)
-                            try:
-                                websocket_manager.broadcast_event_sync({
-                                    "id": event.id,
-                                    "camera_id": camera_id,
-                                    "timestamp": event.timestamp.isoformat() + "Z",
-                                    "confidence": confidence,
-                                    "person_count": person_count,
-                                    "summary": event.summary,
-                                })
-                            except Exception:
-                                pass
                             try:
                                 from app.services.telegram import get_telegram_service
                                 telegram = get_telegram_service()

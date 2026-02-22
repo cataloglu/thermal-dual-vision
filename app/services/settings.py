@@ -273,6 +273,10 @@ class SettingsService:
         # Migrate motion defaults: align with tuned prefilter values
         motion = result.get("motion")
         if isinstance(motion, dict):
+            if motion.get("mode") not in {"auto", "manual"}:
+                motion["mode"] = "auto"
+            if motion.get("auto_profile") not in {"low", "normal", "high"}:
+                motion["auto_profile"] = "normal"
             try:
                 sensitivity = int(motion.get("sensitivity", 0))
                 min_area = int(motion.get("min_area", 0))
@@ -283,6 +287,12 @@ class SettingsService:
                 motion["sensitivity"] = 8
                 motion["min_area"] = 450
                 motion["cooldown_seconds"] = 6
+            floor = int(motion.get("auto_min_area_floor", 40) or 40)
+            ceil = int(motion.get("auto_min_area_ceiling", 2500) or 2500)
+            if floor > ceil:
+                floor, ceil = ceil, floor
+            motion["auto_min_area_floor"] = max(0, floor)
+            motion["auto_min_area_ceiling"] = max(1, ceil)
             presets = motion.get("presets")
             if isinstance(presets, dict):
                 thermal = presets.get("thermal_recommended")
@@ -318,9 +328,8 @@ class SettingsService:
             pb = event.get("prebuffer_seconds")
             if pb is not None and float(pb) < 5.0:
                 event["prebuffer_seconds"] = 5.0
-            pob = event.get("postbuffer_seconds")
-            if pob is not None and float(pob) < 3.0:
-                event["postbuffer_seconds"] = 3.0
+            # Product policy: postbuffer is fixed at 2s (hidden from UI).
+            event["postbuffer_seconds"] = 2.0
             result["event"] = event
         record = result.get("record")
         if isinstance(record, dict):

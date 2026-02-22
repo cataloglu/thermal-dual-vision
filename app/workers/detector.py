@@ -1481,6 +1481,14 @@ class DetectorWorker:
         else:
             motion_settings = {**base_motion, **camera_motion}
 
+        if str(base_motion.get("mode", "auto")).lower() == "auto":
+            # In global auto mode, keep camera-level enable/roi only.
+            motion_settings = dict(base_motion)
+            if "enabled" in camera_motion:
+                motion_settings["enabled"] = camera_motion["enabled"]
+            if "roi" in camera_motion:
+                motion_settings["roi"] = camera_motion["roi"]
+
         state = self.motion_state[camera.id]
         if motion_settings.get("enabled", True) is False:
             if not state.get("motion_disabled_logged"):
@@ -1493,6 +1501,7 @@ class DetectorWorker:
         state.pop("motion_disabled_logged", None)
 
         algorithm = motion_settings.get("algorithm", "mog2")
+        mode = str(motion_settings.get("mode", getattr(config.motion, "mode", "auto"))).lower()
         sensitivity = int(motion_settings.get("sensitivity", config.motion.sensitivity))
         min_area = int(
             motion_settings.get("min_area", motion_settings.get("threshold", config.motion.min_area))
@@ -1531,6 +1540,50 @@ class DetectorWorker:
             )
         else:
             motion_area = self._motion_area_frame_diff(gray, sensitivity, state)
+
+        if mode == "auto":
+            profile = str(motion_settings.get("auto_profile", getattr(config.motion, "auto_profile", "normal"))).lower()
+            profile_map = {
+                "low": {"multiplier": 2.2, "floor_boost": 1.35, "update_mul": 1.5},
+                "normal": {"multiplier": 1.6, "floor_boost": 1.0, "update_mul": 1.0},
+                "high": {"multiplier": 1.25, "floor_boost": 0.8, "update_mul": 0.7},
+            }
+            profile_cfg = profile_map.get(profile, profile_map["normal"])
+            floor = int(motion_settings.get("auto_min_area_floor", getattr(config.motion, "auto_min_area_floor", 40)))
+            ceiling = int(motion_settings.get("auto_min_area_ceiling", getattr(config.motion, "auto_min_area_ceiling", 2500)))
+            multiplier = float(motion_settings.get("auto_multiplier", getattr(config.motion, "auto_multiplier", 1.6)))
+            multiplier *= float(profile_cfg["multiplier"])
+            warmup_seconds = int(motion_settings.get("auto_warmup_seconds", getattr(config.motion, "auto_warmup_seconds", 45)))
+            update_seconds = int(motion_settings.get("auto_update_seconds", getattr(config.motion, "auto_update_seconds", 10)))
+            floor = max(0, floor)
+            ceiling = max(floor + 1, ceiling)
+            multiplier = max(1.0, multiplier)
+            floor = int(max(0, floor * float(profile_cfg["floor_boost"])))
+            update_seconds = int(max(2, update_seconds * float(profile_cfg["update_mul"])))
+            state.setdefault("auto_started_at", now)
+            history = state.setdefault("auto_motion_history", deque(maxlen=600))
+            history.append(float(motion_area))
+
+            recalc = False
+            last_calc = float(state.get("auto_last_calc", 0.0))
+            if "auto_learned_min_area" not in state:
+                recalc = True
+            elif now - last_calc >= max(2, update_seconds):
+                recalc = True
+
+            if recalc and len(history) >= 30:
+                percentile = max(85.0, min(98.0, 84.0 + (sensitivity * 1.4)))
+                noise_p = float(np.percentile(np.array(history, dtype=np.float32), percentile))
+                learned = int(noise_p * multiplier)
+                learned = max(floor, min(ceiling, learned))
+                state["auto_learned_min_area"] = learned
+                state["auto_last_calc"] = now
+
+            if now - float(state.get("auto_started_at", now)) < max(5, warmup_seconds):
+                min_area = max(min_area, floor)
+            else:
+                learned = int(state.get("auto_learned_min_area", min_area))
+                min_area = max(floor, min(ceiling, learned))
 
         prebuffer_seconds = float(getattr(config.event, "prebuffer_seconds", 0.0))
         motion_detected = motion_area >= min_area
@@ -1867,7 +1920,26 @@ class DetectorWorker:
                     event.summary = summary
                     event.ai_enabled = True
                     event.ai_reason = None
+                    event.rejected_by_ai = False
                     db.commit()
+
+                    # Publish immediately after AI-confirmed collage decision.
+                    # Video generation can continue in background.
+                    try:
+                        self.mqtt_service.publish_event({
+                            "id": event.id,
+                            "camera_id": event.camera_id,
+                            "timestamp": event.timestamp.isoformat() + "Z",
+                            "confidence": event.confidence,
+                            "event_type": event.event_type,
+                            "summary": event.summary,
+                            "ai_enabled": bool(event.ai_enabled),
+                            "ai_required": True,
+                            "ai_confirmed": True,
+                            "ai_reason": event.ai_reason,
+                        }, person_detected=True)
+                    except Exception as e:
+                        logger.error("MQTT immediate publish failed: %s", e)
 
                 self.media_service.generate_event_media(
                     db=db,
@@ -1920,21 +1992,22 @@ class DetectorWorker:
                     ai_confirmed = True if not ai_required else self._is_ai_confirmed(event.summary)
 
                     # Re-publish to MQTT with summary and AI confirmation gate
-                    try:
-                        self.mqtt_service.publish_event({
-                            "id": event.id,
-                            "camera_id": event.camera_id,
-                            "timestamp": event.timestamp.isoformat() + "Z",
-                            "confidence": event.confidence,
-                            "event_type": event.event_type,
-                            "summary": event.summary,
-                            "ai_enabled": bool(event.ai_enabled),
-                            "ai_required": ai_required,
-                            "ai_confirmed": ai_confirmed,
-                            "ai_reason": event.ai_reason,
-                        }, person_detected=ai_confirmed)
-                    except Exception as e:
-                        logger.error("MQTT update failed: %s", e)
+                    if not ai_required:
+                        try:
+                            self.mqtt_service.publish_event({
+                                "id": event.id,
+                                "camera_id": event.camera_id,
+                                "timestamp": event.timestamp.isoformat() + "Z",
+                                "confidence": event.confidence,
+                                "event_type": event.event_type,
+                                "summary": event.summary,
+                                "ai_enabled": bool(event.ai_enabled),
+                                "ai_required": ai_required,
+                                "ai_confirmed": ai_confirmed,
+                                "ai_reason": event.ai_reason,
+                            }, person_detected=ai_confirmed)
+                        except Exception as e:
+                            logger.error("MQTT update failed: %s", e)
 
                     try:
                         if ai_confirmed:

@@ -55,21 +55,6 @@ export const EventsTab: React.FC<EventsTabProps> = ({ config, onChange, onSave }
 
         <div>
           <label className="block text-sm font-medium text-text mb-2">
-            {t('postbufferSeconds')} ({t('seconds')})
-          </label>
-          <input
-            type="number"
-            min="0"
-            max="30"
-            step="0.5"
-            value={config.postbuffer_seconds}
-            onChange={(e) => onChange({ ...config, postbuffer_seconds: parseFloat(e.target.value) || 0 })}
-            className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-text mb-2">
             {t('recordFps')}
           </label>
           <input

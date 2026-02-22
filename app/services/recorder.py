@@ -277,6 +277,41 @@ class ContinuousRecorder:
             ffmpeg, files, start_time, end_time, output_path, speed_factor
         )
 
+    def _probe_clip(self, path: str) -> Tuple[float, int]:
+        """Return (duration_seconds, frame_count) for a clip."""
+        ffprobe = shutil.which("ffprobe")
+        if not ffprobe:
+            return 0.0, 0
+        cmd = [
+            ffprobe,
+            "-v", "error",
+            "-select_streams", "v:0",
+            "-show_entries", "stream=duration,nb_frames",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            path,
+        ]
+        try:
+            out = subprocess.check_output(cmd, timeout=10).decode("utf-8", errors="ignore").strip().splitlines()
+            duration = float(out[0]) if len(out) > 0 and out[0] else 0.0
+            frames = int(out[1]) if len(out) > 1 and out[1].isdigit() else 0
+            return duration, frames
+        except Exception:
+            return 0.0, 0
+
+    def _is_valid_clip(self, path: str, min_duration_s: float = 2.0, min_frames: int = 20) -> bool:
+        """Reject tiny clips that are usually empty/single-frame outputs."""
+        duration, frames = self._probe_clip(path)
+        if duration <= 0 or frames <= 0:
+            return False
+        if duration < min_duration_s or frames < min_frames:
+            logger.warning(
+                "Extracted clip too short/small (duration=%.2fs, frames=%d) — rejecting",
+                duration,
+                frames,
+            )
+            return False
+        return True
+
     def extract_frames(
         self,
         camera_id: str,
@@ -367,7 +402,9 @@ class ContinuousRecorder:
                     "-i", str(recording),
                     "-ss", f"{offset:.2f}",
                     "-t", f"{duration:.2f}",
-                    "-filter:v", f"setpts={pts}*PTS",
+                    "-filter:v", f"setpts={pts}*PTS,mpdecimate",
+                    "-vsync", "vfr",
+                    "-fps_mode", "vfr",
                     "-an",
                     "-c:v", "libx264",
                     "-preset", "medium",
@@ -389,6 +426,8 @@ class ContinuousRecorder:
                         actual_size,
                         output_path,
                     )
+                    return False
+                if not self._is_valid_clip(tmp_path):
                     return False
                 os.replace(tmp_path, output_path)
                 tmp_path = None
@@ -465,7 +504,9 @@ class ContinuousRecorder:
                     "-i", concat_path,
                     "-ss", f"{offset:.2f}",
                     "-t", f"{duration:.2f}",
-                    "-filter:v", f"setpts={pts}*PTS",
+                    "-filter:v", f"setpts={pts}*PTS,mpdecimate",
+                    "-vsync", "vfr",
+                    "-fps_mode", "vfr",
                     "-an",
                     "-c:v", "libx264",
                     "-preset", "medium",
@@ -484,6 +525,8 @@ class ContinuousRecorder:
                         "likely an empty container; keeping existing file.",
                         actual_size,
                     )
+                    return False
+                if not self._is_valid_clip(tmp_path):
                     return False
                 os.replace(tmp_path, output_path)
                 tmp_path = None

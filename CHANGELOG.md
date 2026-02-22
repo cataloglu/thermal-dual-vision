@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.4] - 2026-02-21
+
+### İyileştirmeler
+
+- AI onay akışı hızlandırıldı: Collage analizi sonrası AI onay verirse MQTT bildirimi video beklemeden hemen yayınlanır.
+- MP4 üretimi arka planda devam eder; event bildirimi medya üretimi nedeniyle gecikmez.
+- `postbuffer_seconds` ürün politikası olarak `2.0s` sabitlendi ve UI'dan kaldırıldı.
+
 ## [3.10.97] - 2026-02-20
 
 ### Düzeltmeler (Bug Fix Sprint)

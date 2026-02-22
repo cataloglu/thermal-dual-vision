@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 from app.db.models import Event
 from app.services.recorder import get_continuous_recorder
 from app.services.settings import get_settings_service
+from app.services.video_analyzer import analyze_video
 from app.workers.media import get_media_worker
 from app.utils.paths import DATA_DIR
 
@@ -31,6 +32,8 @@ logger = logging.getLogger(__name__)
 
 MEDIA_MAX_CONCURRENCY = max(1, int(os.getenv("MEDIA_MAX_CONCURRENCY", "2")))
 _MEDIA_SEMAPHORE = threading.BoundedSemaphore(MEDIA_MAX_CONCURRENCY)
+MIN_VALID_MP4_DURATION_SEC = 2.0
+MAX_VALID_DUPLICATE_PERCENT = 85.0
 
 
 @contextmanager
@@ -175,13 +178,44 @@ class MediaService:
         collage_path = str(event_dir / "collage.jpg")
         gif_path = str(event_dir / "preview.gif")
         mp4_path = str(event_dir / "timelapse.mp4")
+
+        def _mp4_is_usable(path: str) -> tuple[bool, str]:
+            if not os.path.exists(path):
+                return False, "missing"
+            try:
+                result = analyze_video(path)
+                if not result:
+                    return False, "analyzer_failed"
+                duration = float(result.get("analysis", {}).get("actual_duration", 0.0) or 0.0)
+                dup_pct = float(result.get("analysis", {}).get("duplicate_percentage", 0.0) or 0.0)
+                if duration < MIN_VALID_MP4_DURATION_SEC:
+                    return False, f"too_short:{duration:.2f}s"
+                if dup_pct > MAX_VALID_DUPLICATE_PERCENT:
+                    return False, f"duplicate:{dup_pct:.1f}%"
+                return True, "ok"
+            except Exception as exc:
+                return False, f"validate_error:{exc}"
+
+        def _try_recording_regen(expand_seconds: float = 8.0) -> bool:
+            try:
+                recorder = get_continuous_recorder()
+                return recorder.extract_clip(
+                    event.camera_id,
+                    start_utc - timedelta(seconds=expand_seconds),
+                    end_utc + timedelta(seconds=expand_seconds),
+                    mp4_path,
+                    speed_factor=speed_factor,
+                )
+            except Exception as exc:
+                logger.warning("Recording regen failed for %s: %s", event_id, exc)
+                return False
         
         with _media_slot(event_id):
             # MP4: prefer continuous recording, fallback to frames when recording unavailable
             mp4_from_recording = False
             speed_factor = 4.0
             prebuffer = 5.0
-            postbuffer = 5.0
+            postbuffer = 2.0
             # event.timestamp is naive UTC from detector
             utc_dt = event.timestamp.replace(tzinfo=timezone.utc) if event.timestamp.tzinfo is None else event.timestamp.astimezone(timezone.utc)
             event_utc = utc_dt.replace(tzinfo=None)
@@ -190,7 +224,7 @@ class MediaService:
             try:
                 config = get_settings_service().load_config()
                 prebuffer = float(getattr(config.event, "prebuffer_seconds", 5.0))
-                postbuffer = float(getattr(config.event, "postbuffer_seconds", 5.0))
+                postbuffer = float(getattr(config.event, "postbuffer_seconds", 2.0))
                 speed_factor = max(1.0, min(10.0, float(getattr(config.telegram, "video_speed", 2) or 2)))
                 start_utc = event_utc - timedelta(seconds=prebuffer)
                 end_utc = event_utc + timedelta(seconds=postbuffer)
@@ -280,25 +314,34 @@ class MediaService:
                         if label == "collage":
                             errors.append(exc)
                         elif label == "mp4" and not mp4_from_recording:
-                            # Fallback: create minimal MP4 from first frame (ensure video always exists)
-                            try:
-                                first = mp4_source_frames[0]
-                                if first is not None and hasattr(first, "shape") and len(first.shape) >= 2:
-                                    dup_count = 30  # ~3s at 10fps
-                                    if mp4_source_timestamps and len(mp4_source_timestamps) > 1:
-                                        span = mp4_source_timestamps[-1] - mp4_source_timestamps[0]
-                                        dup_count = max(15, min(120, int(10 * span)))
-                                    self.media_worker.create_minimal_mp4(
-                                        [first] * dup_count,
-                                        mp4_path,
-                                        camera_name,
-                                        event.timestamp,
-                                    )
-                                    logger.info("Event %s: MP4 fallback (minimal) created", event_id)
-                            except Exception as fallback_exc:
-                                logger.warning("MP4 fallback also failed for %s: %s", event_id, fallback_exc)
+                            # Do not create pathological single-frame fallback MP4.
+                            # Try recording-based regeneration immediately.
+                            if _try_recording_regen(expand_seconds=10.0):
+                                logger.info("Event %s: MP4 regenerated from recording after frame encode failure", event_id)
+                            else:
+                                logger.warning("Event %s: MP4 frame encode failed and recording regen unavailable", event_id)
             if errors:
                 raise errors[0]
+
+            # Final MP4 quality gate for stability: reject tiny/duplicate-heavy clips.
+            if os.path.exists(mp4_path):
+                ok, reason = _mp4_is_usable(mp4_path)
+                if not ok:
+                    logger.warning("Event %s MP4 rejected by quality gate: %s", event_id, reason)
+                    # One more regeneration attempt from recording with a wider range.
+                    if _try_recording_regen(expand_seconds=12.0):
+                        ok2, reason2 = _mp4_is_usable(mp4_path)
+                        if not ok2:
+                            logger.warning("Event %s regenerated MP4 still invalid: %s", event_id, reason2)
+                            try:
+                                os.remove(mp4_path)
+                            except OSError:
+                                pass
+                    else:
+                        try:
+                            os.remove(mp4_path)
+                        except OSError:
+                            pass
             
             # Save URLs to database WITHOUT prefix (prefix added at runtime in main.py)
             event.collage_url = f"/api/events/{event_id}/collage" if os.path.exists(collage_path) else None

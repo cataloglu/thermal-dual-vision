@@ -41,7 +41,7 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
           confidence_threshold: 0.50,
           thermal_confidence_threshold: 0.55,
         },
-        motion: { ...base.motion, algorithm: 'frame_diff', sensitivity: 7, min_area: 600, cooldown_seconds: 8 },
+        motion: { ...base.motion, mode: 'auto', auto_profile: 'low', algorithm: 'frame_diff', sensitivity: 7, min_area: 600, cooldown_seconds: 8 },
         thermal: { ...base.thermal, enable_enhancement: false },
         stream: {
           ...base.stream,
@@ -72,7 +72,7 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
           confidence_threshold: 0.50,
           thermal_confidence_threshold: 0.55,
         },
-        motion: { ...base.motion, algorithm: 'mog2', sensitivity: 8, min_area: 450, cooldown_seconds: 6 },
+        motion: { ...base.motion, mode: 'auto', auto_profile: 'normal', algorithm: 'mog2', sensitivity: 8, min_area: 450, cooldown_seconds: 6 },
         thermal: { ...base.thermal, enable_enhancement: true, enhancement_method: 'clahe', clahe_clip_limit: 2.0 },
         stream: {
           ...base.stream,
@@ -103,7 +103,7 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
           confidence_threshold: 0.45,
           thermal_confidence_threshold: 0.50,
         },
-        motion: { ...base.motion, algorithm: 'mog2', sensitivity: 6, min_area: 250, cooldown_seconds: 4 },
+        motion: { ...base.motion, mode: 'auto', auto_profile: 'high', algorithm: 'mog2', sensitivity: 6, min_area: 250, cooldown_seconds: 4 },
         thermal: { ...base.thermal, enable_enhancement: true, enhancement_method: 'clahe', clahe_clip_limit: 2.5 },
         stream: {
           ...base.stream,
@@ -134,7 +134,7 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
           confidence_threshold: 0.55,
           thermal_confidence_threshold: 0.60,
         },
-        motion: { ...base.motion, algorithm: 'mog2', sensitivity: 9, min_area: 350, cooldown_seconds: 5 },
+        motion: { ...base.motion, mode: 'auto', auto_profile: 'normal', algorithm: 'mog2', sensitivity: 9, min_area: 350, cooldown_seconds: 5 },
         thermal: { ...base.thermal, enable_enhancement: true, enhancement_method: 'clahe', clahe_clip_limit: 2.5 },
         stream: {
           ...base.stream,
@@ -298,6 +298,41 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
           {/* Motion */}
           <div className="space-y-3 p-4 rounded-lg bg-surface1/50">
             <h5 className="text-sm font-semibold text-text border-b border-border pb-1">{t('perfSectionMotion')}</h5>
+            <div>
+              <label className="text-xs text-muted block mb-1">Mode</label>
+              <select
+                value={settings.motion.mode ?? 'auto'}
+                onChange={(e) =>
+                  onChange({
+                    ...settings,
+                    motion: { ...settings.motion, mode: e.target.value as 'auto' | 'manual' },
+                  })
+                }
+                className="w-full px-3 py-2 bg-surface1 border border-border rounded-lg text-text text-sm"
+              >
+                <option value="auto">Auto (global adaptive)</option>
+                <option value="manual">Manual (fixed)</option>
+              </select>
+            </div>
+            {(settings.motion.mode ?? 'auto') === 'auto' && (
+              <div>
+                <label className="text-xs text-muted block mb-1">Auto Profile</label>
+                <select
+                  value={settings.motion.auto_profile ?? 'normal'}
+                  onChange={(e) =>
+                    onChange({
+                      ...settings,
+                      motion: { ...settings.motion, auto_profile: e.target.value as 'low' | 'normal' | 'high' },
+                    })
+                  }
+                  className="w-full px-3 py-2 bg-surface1 border border-border rounded-lg text-text text-sm"
+                >
+                  <option value="low">Low (en az fake alarm)</option>
+                  <option value="normal">Normal (onerilen)</option>
+                  <option value="high">High (daha hassas)</option>
+                </select>
+              </div>
+            )}
             <select
               value={settings.motion.algorithm ?? 'mog2'}
               onChange={(e) => onChange({ ...settings, motion: { ...settings.motion, algorithm: e.target.value as 'frame_diff' | 'mog2' | 'knn' } })}
@@ -310,16 +345,43 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
             <p className="text-xs text-muted">{algHint}</p>
             <div>
               <label className="text-xs text-muted">{t('motionSensitivityLabel', { value: settings.motion.sensitivity })}</label>
-              <input type="number" min={1} max={10} value={settings.motion.sensitivity} onChange={(e) => onChange({ ...settings, motion: { ...settings.motion, sensitivity: parseInt(e.target.value) || 1 } })} className="w-full px-3 py-1.5 bg-surface1 border border-border rounded text-text text-sm" />
+              <input
+                type="number"
+                min={1}
+                max={10}
+                value={settings.motion.sensitivity}
+                onChange={(e) => onChange({ ...settings, motion: { ...settings.motion, sensitivity: parseInt(e.target.value) || 1 } })}
+                className="w-full px-3 py-1.5 bg-surface1 border border-border rounded text-text text-sm disabled:opacity-60"
+                disabled={(settings.motion.mode ?? 'auto') === 'auto'}
+              />
             </div>
             <div>
               <label className="text-xs text-muted">{t('motionMinAreaLabel')}</label>
-              <input type="number" min={0} value={settings.motion.min_area} onChange={(e) => onChange({ ...settings, motion: { ...settings.motion, min_area: parseInt(e.target.value) || 0 } })} className="w-full px-3 py-1.5 bg-surface1 border border-border rounded text-text text-sm" />
+              <input
+                type="number"
+                min={0}
+                value={settings.motion.min_area}
+                onChange={(e) => onChange({ ...settings, motion: { ...settings.motion, min_area: parseInt(e.target.value) || 0 } })}
+                className="w-full px-3 py-1.5 bg-surface1 border border-border rounded text-text text-sm disabled:opacity-60"
+                disabled={(settings.motion.mode ?? 'auto') === 'auto'}
+              />
             </div>
             <div>
               <label className="text-xs text-muted">{t('motionCooldownLabel')}</label>
-              <input type="number" min={0} value={settings.motion.cooldown_seconds} onChange={(e) => onChange({ ...settings, motion: { ...settings.motion, cooldown_seconds: parseInt(e.target.value) || 0 } })} className="w-full px-3 py-1.5 bg-surface1 border border-border rounded text-text text-sm" />
+              <input
+                type="number"
+                min={0}
+                value={settings.motion.cooldown_seconds}
+                onChange={(e) => onChange({ ...settings, motion: { ...settings.motion, cooldown_seconds: parseInt(e.target.value) || 0 } })}
+                className="w-full px-3 py-1.5 bg-surface1 border border-border rounded text-text text-sm disabled:opacity-60"
+                disabled={(settings.motion.mode ?? 'auto') === 'auto'}
+              />
             </div>
+            {(settings.motion.mode ?? 'auto') === 'auto' && (
+              <p className="text-xs text-muted">
+                Auto modda esik kamera bazinda otomatik ogrenilir. Bu alandaki manuel degerler kullanilmaz.
+              </p>
+            )}
 
             {/* Thermal - compact */}
             <h5 className="text-sm font-semibold text-text border-b border-border pb-1 mt-4">{t('perfSectionThermal')}</h5>
