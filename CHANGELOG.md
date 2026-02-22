@@ -6,6 +6,16 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.9] - 2026-02-22
+
+### Düzeltmeler
+
+- Collage event vurgusunda tam-kare mavi çerçeve kaldırıldı; işaretleme yalnızca kişi bbox alanına çekildi.
+- `min_event_duration` kullanıcı kontrolüne geri alındı; zorunlu `1.5s` clamp kaldırıldı.
+- Event cooldown varsayılanı `60s` olarak güncellendi; kullanıcı değişikliği korunur.
+- Settings update akışında kullanıcı ayarlarını ezen sanitize kuralları kaldırıldı; yalnızca eksik/geçersiz alanlar normalize edilir.
+- Save sırasında `***REDACTED***` değerlerinin gerçek secret üzerine yazılmasını engelleyen koruma eklendi.
+
 ## [4.0.8] - 2026-02-22
 
 ### Düzeltmeler

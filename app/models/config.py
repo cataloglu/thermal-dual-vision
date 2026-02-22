@@ -318,7 +318,7 @@ class EventConfig(BaseModel):
     """Event generation configuration."""
     
     cooldown_seconds: int = Field(
-        default=7,
+        default=60,
         ge=0,
         description="Minimum time between events (higher = fewer rapid false alarms)"
     )
@@ -352,7 +352,7 @@ class EventConfig(BaseModel):
         description="Frame capture interval"
     )
     min_event_duration: float = Field(
-        default=1.5,
+        default=0.5,
         ge=0.0,
         description="Minimum sustained detection in seconds (higher = fewer false alarms)"
     )

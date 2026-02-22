@@ -106,7 +106,6 @@ class SettingsService:
             try:
                 with open(self.CONFIG_FILE, "r", encoding="utf-8") as f:
                     raw_data = json.load(f)
-
                 data = self._sanitize_config_dict(raw_data)
                 self._config = AppConfig(**data)
                 if data != raw_data:
@@ -129,7 +128,7 @@ class SettingsService:
             except Exception as e:
                 logger.error(f"Unexpected error loading config: {e}")
                 raise
-    
+
     def save_config(self, config: AppConfig) -> None:
         """
         Save configuration to config.json and invalidate cache.
@@ -159,12 +158,16 @@ class SettingsService:
         try:
             # Convert to dict and write to file
             config_dict = config.model_dump()
+            # Safety guard: never persist masked secrets to disk.
+            # If incoming config contains "***REDACTED***", keep the last known real value.
+            current_dict = self._config.model_dump() if self._config is not None else {}
+            config_dict = self._restore_masked_secrets(current_dict, config_dict)
             
             # Write to temp file first, then rename (atomic operation)
             temp_file = self.CONFIG_FILE.with_suffix(".tmp")
             with open(temp_file, "w", encoding="utf-8") as f:
                 json.dump(config_dict, f, indent=2, ensure_ascii=False)
-            
+
             # Atomic rename
             temp_file.replace(self.CONFIG_FILE)
             
@@ -270,91 +273,30 @@ class SettingsService:
             if detection.get("thermal_confidence_threshold") in (0.25, 0.45):
                 detection["thermal_confidence_threshold"] = 0.35  # Thermal needs lower threshold
             result["detection"] = detection
-        # Migrate motion defaults: align with tuned prefilter values
+        # Motion: keep user values, only normalize invalid legacy enums/ranges.
         motion = result.get("motion")
         if isinstance(motion, dict):
-            # Product policy: always run adaptive global auto motion.
-            motion["mode"] = "auto"
+            if motion.get("mode") not in {"auto", "manual"}:
+                motion["mode"] = "auto"
             if motion.get("auto_profile") not in {"low", "normal", "high"}:
-                motion["auto_profile"] = "low"
-            else:
-                motion["auto_profile"] = "low"
-            try:
-                sensitivity = int(motion.get("sensitivity", 0))
-                min_area = int(motion.get("min_area", 0))
-                cooldown = int(motion.get("cooldown_seconds", 0))
-            except Exception:
-                sensitivity = min_area = cooldown = None
-            if sensitivity == 7 and min_area == 500 and cooldown == 5:
-                motion["sensitivity"] = 8
-                motion["min_area"] = 450
-                motion["cooldown_seconds"] = 6
-            # Stable defaults to reduce motion spam on production installs.
-            motion["algorithm"] = "mog2"
-            motion["sensitivity"] = 4
-            motion["min_area"] = 250
-            motion["cooldown_seconds"] = 3
-            motion["auto_update_seconds"] = 20
-            motion["auto_multiplier"] = 1.0
-            motion["auto_min_area_floor"] = max(120, int(motion.get("auto_min_area_floor", 120) or 120))
-            motion["auto_warmup_seconds"] = max(30, int(motion.get("auto_warmup_seconds", 45) or 45))
-            motion["auto_min_area_ceiling"] = min(1800, int(motion.get("auto_min_area_ceiling", 1800) or 1800))
+                motion["auto_profile"] = "normal"
 
-            floor = int(motion.get("auto_min_area_floor", 120) or 120)
-            ceil = int(motion.get("auto_min_area_ceiling", 1800) or 1800)
+            floor = int(motion.get("auto_min_area_floor", 40) or 40)
+            ceil = int(motion.get("auto_min_area_ceiling", 2500) or 2500)
             if floor > ceil:
                 floor, ceil = ceil, floor
             motion["auto_min_area_floor"] = max(0, floor)
             motion["auto_min_area_ceiling"] = max(1, ceil)
-            presets = motion.get("presets")
-            if isinstance(presets, dict):
-                thermal = presets.get("thermal_recommended")
-                if isinstance(thermal, dict):
-                    try:
-                        t_sens = int(thermal.get("sensitivity", 0))
-                        t_area = int(thermal.get("min_area", 0))
-                        t_cd = int(thermal.get("cooldown_seconds", 0))
-                    except Exception:
-                        t_sens = t_area = t_cd = None
-                    if t_sens == 8 and t_area == 450 and t_cd == 4:
-                        thermal.update({"sensitivity": 9, "min_area": 350, "cooldown_seconds": 6})
-                color = presets.get("color_recommended")
-                if isinstance(color, dict):
-                    try:
-                        c_sens = int(color.get("sensitivity", 0))
-                        c_area = int(color.get("min_area", 0))
-                        c_cd = int(color.get("cooldown_seconds", 0))
-                    except Exception:
-                        c_sens = c_area = c_cd = None
-                    if c_sens == 7 and c_area == 500 and c_cd == 5:
-                        color.update({"sensitivity": 8, "min_area": 400, "cooldown_seconds": 6})
             result["motion"] = motion
-        # Migrate event: ensure cooldown_seconds exists (do not override user value)
+        # Event: migrate only missing legacy fields, do not override user values.
         event = result.get("event")
         if isinstance(event, dict):
             if event.get("cooldown_seconds") is None:
                 legacy_cooldown = event.get("cooldown")
-                event["cooldown_seconds"] = legacy_cooldown if legacy_cooldown is not None else 7
-            # Production defaults to suppress short noise bursts.
-            if float(event.get("min_event_duration", 0) or 0) < 1.5:
-                event["min_event_duration"] = 1.5
-            if int(event.get("cooldown_seconds", 0) or 0) < 3:
-                event["cooldown_seconds"] = 3
-            # prebuffer < 5 caused ~3 sec event videos (too few frames)
-            pb = event.get("prebuffer_seconds")
-            if pb is not None and float(pb) < 5.0:
-                event["prebuffer_seconds"] = 5.0
-            # Product policy: postbuffer is fixed at 2s (hidden from UI).
-            event["postbuffer_seconds"] = 2.0
+                event["cooldown_seconds"] = legacy_cooldown if legacy_cooldown is not None else 60
+            if event.get("min_event_duration") is None:
+                event["min_event_duration"] = 0.5
             result["event"] = event
-        performance = result.get("performance")
-        if isinstance(performance, dict):
-            # Product policy: keep stable worker mode.
-            performance["worker_mode"] = "threading"
-            result["performance"] = performance
-        record = result.get("record")
-        if isinstance(record, dict):
-            result["record"] = {"enabled": True}  # Sabit, parametre yok
         return result
 
     def _restore_masked_secrets(self, current: Any, merged: Any) -> Any:

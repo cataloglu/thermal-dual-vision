@@ -664,13 +664,23 @@ class MediaWorker:
                     self.COLOR_ACCENT,
                     2,
                 )
-                cv2.rectangle(
-                    img,
-                    (2, 2),
-                    (self.COLLAGE_FRAME_SIZE[0] - 3, self.COLLAGE_FRAME_SIZE[1] - 3),
-                    self.COLOR_ACCENT,
-                    3,
-                )
+                # Important: never highlight the whole frame.
+                # Event marker should point to the detected person area only.
+                if detections and frame_idx is not None and frame_idx < len(detections):
+                    event_det = detections[frame_idx]
+                    if event_det and event_det.get("bbox"):
+                        x1, y1, x2, y2 = event_det["bbox"]
+                        scale_x = self.COLLAGE_FRAME_SIZE[0] / frame.shape[1]
+                        scale_y = self.COLLAGE_FRAME_SIZE[1] / frame.shape[0]
+                        x1 = int(x1 * scale_x)
+                        y1 = int(y1 * scale_y)
+                        x2 = int(x2 * scale_x)
+                        y2 = int(y2 * scale_y)
+                        x1 = max(0, min(x1, self.COLLAGE_FRAME_SIZE[0] - 1))
+                        y1 = max(0, min(y1, self.COLLAGE_FRAME_SIZE[1] - 1))
+                        x2 = max(0, min(x2, self.COLLAGE_FRAME_SIZE[0] - 1))
+                        y2 = max(0, min(y2, self.COLLAGE_FRAME_SIZE[1] - 1))
+                        cv2.rectangle(img, (x1, y1), (x2, y2), self.COLOR_ACCENT, 3)
             
             resized.append(img)
         

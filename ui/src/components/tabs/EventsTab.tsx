@@ -103,11 +103,11 @@ export const EventsTab: React.FC<EventsTabProps> = ({ config, onChange, onSave }
           </label>
           <input
             type="number"
-            min="0.5"
+            min="0.1"
             max="10"
-            step="0.5"
+            step="0.1"
             value={config.min_event_duration}
-            onChange={(e) => onChange({ ...config, min_event_duration: parseFloat(e.target.value) || 1.0 })}
+            onChange={(e) => onChange({ ...config, min_event_duration: parseFloat(e.target.value) || 0.5 })}
             className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent"
           />
         </div>
