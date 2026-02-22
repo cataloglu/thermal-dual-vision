@@ -11,6 +11,7 @@ This worker handles YOLOv8 person detection pipeline including:
 import logging
 import math
 import os
+import copy
 import threading
 import time
 import asyncio
@@ -18,6 +19,7 @@ import shutil
 import subprocess
 from collections import defaultdict, deque
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from typing import Dict, List, Optional, Tuple, Any
 
 import cv2
@@ -141,13 +143,14 @@ class DetectorWorker:
             # Start detection threads for enabled cameras
             # Legacy: empty/null stream_roles => run detection (backward compat)
             with session_scope() as db:
+                db.expire_on_commit = False
                 cameras = db.query(Camera).filter(Camera.enabled.is_(True)).all()
                 started = 0
                 for camera in cameras:
                     roles = camera.stream_roles if isinstance(camera.stream_roles, list) else []
                     if roles and "detect" not in roles:
                         continue  # Explicitly excludes detect
-                    self.start_camera_detection(camera)
+                    self.start_camera_detection(self._camera_snapshot(camera))
                     started += 1
                 logger.info("DetectorWorker camera threads started: %s", started)
             
@@ -243,36 +246,56 @@ class DetectorWorker:
         self.frame_counters[camera_id] = 0
         self.detection_history[camera_id].clear()
 
-    def start_camera_detection(self, camera: Camera) -> None:
+    def _camera_snapshot(self, camera: Camera) -> SimpleNamespace:
+        """Create a detached camera snapshot safe for worker threads."""
+        return SimpleNamespace(
+            id=camera.id,
+            name=camera.name,
+            type=camera.type,
+            detection_source=camera.detection_source,
+            rtsp_url=camera.rtsp_url,
+            rtsp_url_thermal=camera.rtsp_url_thermal,
+            rtsp_url_color=camera.rtsp_url_color,
+            rtsp_url_detection=camera.rtsp_url_detection,
+            motion_config=copy.deepcopy(camera.motion_config) if isinstance(camera.motion_config, dict) else camera.motion_config,
+            zones=copy.deepcopy(camera.zones) if isinstance(camera.zones, list) else camera.zones,
+            stream_roles=list(camera.stream_roles) if isinstance(camera.stream_roles, list) else camera.stream_roles,
+            enabled=bool(camera.enabled),
+        )
+
+    def start_camera_detection(self, camera: Any) -> None:
         """
         Start detection thread for a camera.
         
         Args:
-            camera: Camera model instance
+            camera: Camera snapshot/model instance
         """
-        if camera.id in self.threads:
-            logger.warning(f"Detection thread already running for camera {camera.id}")
+        camera_snapshot = self._camera_snapshot(camera) if isinstance(camera, Camera) else camera
+        camera_id = camera_snapshot.id
+
+        if camera_id in self.threads:
+            logger.warning(f"Detection thread already running for camera {camera_id}")
             return
         
         stop_event = threading.Event()
-        self.camera_stop_events[camera.id] = stop_event
+        self.camera_stop_events[camera_id] = stop_event
         thread = threading.Thread(
             target=self._detection_loop,
-            args=(camera, stop_event),
+            args=(camera_snapshot, stop_event),
             daemon=True,
-            name=f"detector-{camera.id}"
+            name=f"detector-{camera_id}"
         )
         thread.start()
-        self.threads[camera.id] = thread
+        self.threads[camera_id] = thread
         
-        logger.info(f"Started detection thread for camera {camera.id}")
+        logger.info(f"Started detection thread for camera {camera_id}")
     
-    def _detection_loop(self, camera: Camera, stop_event: threading.Event) -> None:
+    def _detection_loop(self, camera: Any, stop_event: threading.Event) -> None:
         """
         Main detection loop for a camera.
         
         Args:
-            camera: Camera model instance
+            camera: Camera snapshot/model instance
         """
         camera_id = camera.id
         cap = None

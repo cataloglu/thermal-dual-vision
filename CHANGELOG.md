@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.6] - 2026-02-22
+
+### Düzeltmeler
+
+- Threading detector başlangıcında görülen `Camera ... is not bound to a Session` hatası giderildi.
+- Kamera ORM nesneleri thread başlatmadan önce güvenli snapshot nesnelerine çevrildi.
+- Başlangıçta detection loop'un kamera bazında düşmesi engellendi; threading modda stabilite artırıldı.
+
 ## [4.0.5] - 2026-02-22
 
 ### İyileştirmeler
