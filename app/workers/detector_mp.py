@@ -779,9 +779,9 @@ def camera_detection_process(
                 if auto_motion_mode:
                     profile = str(motion_config.get("auto_profile", "normal")).lower()
                     profile_map = {
-                        "low": {"multiplier": 2.2, "floor_boost": 1.35, "update_mul": 1.5},
-                        "normal": {"multiplier": 1.6, "floor_boost": 1.0, "update_mul": 1.0},
-                        "high": {"multiplier": 1.25, "floor_boost": 0.8, "update_mul": 0.7},
+                        "low": {"multiplier": 1.25, "floor_boost": 1.20, "update_mul": 1.30},
+                        "normal": {"multiplier": 1.00, "floor_boost": 1.00, "update_mul": 1.00},
+                        "high": {"multiplier": 0.80, "floor_boost": 0.85, "update_mul": 0.80},
                     }
                     profile_cfg = profile_map.get(profile, profile_map["normal"])
                     floor = max(0, int(motion_config.get("auto_min_area_floor", 40)))
@@ -808,9 +808,9 @@ def camera_detection_process(
                     auto_motion_history.append(float(motion_area))
                     profile = str(motion_config.get("auto_profile", "normal")).lower()
                     profile_map = {
-                        "low": {"multiplier": 2.2, "floor_boost": 1.35, "update_mul": 1.5},
-                        "normal": {"multiplier": 1.6, "floor_boost": 1.0, "update_mul": 1.0},
-                        "high": {"multiplier": 1.25, "floor_boost": 0.8, "update_mul": 0.7},
+                        "low": {"multiplier": 1.25, "floor_boost": 1.20, "update_mul": 1.30},
+                        "normal": {"multiplier": 1.00, "floor_boost": 1.00, "update_mul": 1.00},
+                        "high": {"multiplier": 0.80, "floor_boost": 0.85, "update_mul": 0.80},
                     }
                     profile_cfg = profile_map.get(profile, profile_map["normal"])
                     floor = max(0, int(motion_config.get("auto_min_area_floor", 40)))

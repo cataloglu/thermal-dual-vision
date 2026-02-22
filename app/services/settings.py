@@ -295,11 +295,13 @@ class SettingsService:
             motion["min_area"] = 250
             motion["cooldown_seconds"] = 3
             motion["auto_update_seconds"] = 20
+            motion["auto_multiplier"] = 1.0
             motion["auto_min_area_floor"] = max(120, int(motion.get("auto_min_area_floor", 120) or 120))
             motion["auto_warmup_seconds"] = max(30, int(motion.get("auto_warmup_seconds", 45) or 45))
+            motion["auto_min_area_ceiling"] = min(1800, int(motion.get("auto_min_area_ceiling", 1800) or 1800))
 
             floor = int(motion.get("auto_min_area_floor", 120) or 120)
-            ceil = int(motion.get("auto_min_area_ceiling", 2500) or 2500)
+            ceil = int(motion.get("auto_min_area_ceiling", 1800) or 1800)
             if floor > ceil:
                 floor, ceil = ceil, floor
             motion["auto_min_area_floor"] = max(0, floor)

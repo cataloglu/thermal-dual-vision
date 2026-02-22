@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.7] - 2026-02-22
+
+### Düzeltmeler
+
+- Auto motion eşikleme yeniden ayarlandı; `min_area` değerinin sık sık tavana (`2500`) vurması azaltıldı.
+- Ürün varsayılanları güncellendi: `auto_multiplier=1.0`, `auto_min_area_ceiling=1800`.
+- Threading modda `stream_stale` gate daha toleranslı hale getirildi; kısa frame gecikmelerinde gereksiz reconnect azaltıldı.
+
 ## [4.0.6] - 2026-02-22
 
 ### Düzeltmeler

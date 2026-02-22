@@ -153,12 +153,12 @@ class MotionConfig(BaseModel):
         description="Lower bound for auto min_area"
     )
     auto_min_area_ceiling: int = Field(
-        default=2500,
+        default=1800,
         ge=1,
         description="Upper bound for auto min_area"
     )
     auto_multiplier: float = Field(
-        default=1.6,
+        default=1.0,
         ge=1.0,
         le=5.0,
         description="Safety multiplier applied to learned noise percentile"

@@ -620,7 +620,12 @@ class DetectorWorker:
                         self.last_gate_log[camera_id] = current_time
 
                 frame_age = self._get_last_frame_age(camera_id, current_time)
-                if frame_age is not None and frame_age > max(2.0, frame_delay * 2):
+                stale_threshold = max(
+                    2.0,
+                    frame_delay * 2,
+                    min(5.0, max(2.5, float(getattr(config.stream, "read_failure_timeout_seconds", 8.0)) * 0.35)),
+                )
+                if frame_age is not None and frame_age > stale_threshold:
                     self._update_camera_status(camera_id, CameraStatus.RETRYING, None)
                     self.event_start_time[camera_id] = None
                     _log_gate(f"stream_stale age={frame_age:.1f}s")
@@ -1567,9 +1572,9 @@ class DetectorWorker:
         if mode == "auto":
             profile = str(motion_settings.get("auto_profile", getattr(config.motion, "auto_profile", "normal"))).lower()
             profile_map = {
-                "low": {"multiplier": 2.2, "floor_boost": 1.35, "update_mul": 1.5},
-                "normal": {"multiplier": 1.6, "floor_boost": 1.0, "update_mul": 1.0},
-                "high": {"multiplier": 1.25, "floor_boost": 0.8, "update_mul": 0.7},
+                "low": {"multiplier": 1.25, "floor_boost": 1.20, "update_mul": 1.30},
+                "normal": {"multiplier": 1.00, "floor_boost": 1.00, "update_mul": 1.00},
+                "high": {"multiplier": 0.80, "floor_boost": 0.85, "update_mul": 0.80},
             }
             profile_cfg = profile_map.get(profile, profile_map["normal"])
             floor = int(motion_settings.get("auto_min_area_floor", getattr(config.motion, "auto_min_area_floor", 40)))
