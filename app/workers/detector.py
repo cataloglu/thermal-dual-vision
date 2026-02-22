@@ -110,6 +110,8 @@ class DetectorWorker:
         self.ffmpeg_error_lock = threading.Lock()
         self.last_detection_log: Dict[str, float] = {}
         self.last_gate_log: Dict[str, float] = {}
+        self.stale_gate_hits: Dict[str, int] = defaultdict(int)
+        self.last_reconnect_ts: Dict[str, float] = {}
         self.stream_stats: Dict[str, Dict[str, Any]] = defaultdict(dict)
         self.stream_stats_lock = threading.Lock()
         
@@ -191,6 +193,8 @@ class DetectorWorker:
         self.codec_cache.clear()
         self.latest_frames.clear()
         self.latest_frame_locks.clear()
+        self.stale_gate_hits.clear()
+        self.last_reconnect_ts.clear()
         logger.info("DetectorWorker stopped")
     
     def stop_camera_detection(self, camera_id: str) -> None:
@@ -225,6 +229,8 @@ class DetectorWorker:
         self.latest_frame_locks.pop(camera_id, None)
         self.last_detection_log.pop(camera_id, None)
         self.last_gate_log.pop(camera_id, None)
+        self.stale_gate_hits.pop(camera_id, None)
+        self.last_reconnect_ts.pop(camera_id, None)
         with self.stream_stats_lock:
             self.stream_stats.pop(camera_id, None)
 
@@ -476,7 +482,12 @@ class DetectorWorker:
                                     last_frame_age = self._get_last_frame_age(camera_id, now)
                                     is_stale = last_frame_age is None or last_frame_age >= failure_timeout
                                     if is_stale:
-                                        logger.warning("Reconnecting camera %s after read failures", camera_id)
+                                        reconnect_cooldown = 8.0
+                                        last_reconnect = float(self.last_reconnect_ts.get(camera_id, 0.0))
+                                        if now - last_reconnect < reconnect_cooldown:
+                                            time.sleep(0.2)
+                                            continue
+                                        logger.info("Reconnecting camera %s after read failures", camera_id)
                                         if active_backend == "ffmpeg":
                                             self._stop_ffmpeg_capture(ffmpeg_proc)
                                             ffmpeg_proc = None
@@ -493,6 +504,7 @@ class DetectorWorker:
                                             reconnect_increment=1,
                                             last_reconnect_reason="read_failures",
                                         )
+                                        self.last_reconnect_ts[camera_id] = now
                                         if config.stream.reconnect_delay_seconds:
                                             time.sleep(config.stream.reconnect_delay_seconds)
                                 time.sleep(0.2)
@@ -626,11 +638,16 @@ class DetectorWorker:
                     min(5.0, max(2.5, float(getattr(config.stream, "read_failure_timeout_seconds", 8.0)) * 0.35)),
                 )
                 if frame_age is not None and frame_age > stale_threshold:
+                    self.stale_gate_hits[camera_id] = int(self.stale_gate_hits.get(camera_id, 0)) + 1
+                    if self.stale_gate_hits[camera_id] < 3:
+                        time.sleep(0.1)
+                        continue
                     self._update_camera_status(camera_id, CameraStatus.RETRYING, None)
                     self.event_start_time[camera_id] = None
                     _log_gate(f"stream_stale age={frame_age:.1f}s")
                     time.sleep(0.2)
                     continue
+                self.stale_gate_hits[camera_id] = 0
 
                 prebuffer_seconds = float(getattr(config.event, "prebuffer_seconds", 0.0))
                 postbuffer_seconds = float(getattr(config.event, "postbuffer_seconds", 0.0))
@@ -1155,7 +1172,7 @@ class DetectorWorker:
 
             self._start_ffmpeg_stderr_reader(process, camera_id)
             if is_reconnect:
-                logger.warning("Reconnected camera %s (ffmpeg backend)", camera_id)
+                logger.info("Reconnected camera %s (ffmpeg backend)", camera_id)
             else:
                 logger.info("Opened camera %s with ffmpeg backend", camera_id)
             return process

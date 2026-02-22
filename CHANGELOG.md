@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.8] - 2026-02-22
+
+### Düzeltmeler
+
+- Threading detector için `stream_stale` gate debounce eklendi; anlık spike'larda yanlış stale tetiklemesi azaltıldı.
+- Reconnect döngüsüne cooldown eklendi; kısa sürede art arda reconnect engellendi.
+- Geçici toparlanma reconnect logları `warning` yerine `info` seviyesine çekildi.
+
 ## [4.0.7] - 2026-02-22
 
 ### Düzeltmeler
