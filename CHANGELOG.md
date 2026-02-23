@@ -6,6 +6,15 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.19] - 2026-02-24
+
+### Düzeltmeler
+
+- Thermal motion gate sertleştirildi: warmup süresi eklendi (varsayılan 25s), erken false-active tetiklemeleri azaltıldı.
+- Thermal min area için güvenli taban eklendi (`thermal_min_area_floor`, varsayılan 260).
+- Thermal persistence güçlendirildi (varsayılan pencere 4, gerekli pozitif 3) ve küçük blob etkisi azaltıldı.
+- NUC hold süresi artırıldı (varsayılan 2.0s) ve thermal sahnede ani global değişimlerden sonra kısa süreli yanlış tetikler bastırıldı.
+
 ## [4.0.18] - 2026-02-24
 
 ### Düzeltmeler

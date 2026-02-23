@@ -1736,6 +1736,8 @@ class DetectorWorker:
         effective_algorithm = algorithm
 
         if is_thermal_motion:
+            thermal_floor = int(motion_settings.get("thermal_min_area_floor", 260))
+            min_area = max(min_area, max(80, thermal_floor))
             motion_area = self._motion_area_thermal_iir(
                 gray=gray,
                 sensitivity=sensitivity,
@@ -1891,16 +1893,20 @@ class DetectorWorker:
 
         bg = state.get("thermal_bg")
         noise_var = state.get("thermal_noise_var")
+        warmup_seconds = float(motion_settings.get("thermal_warmup_seconds", 25.0))
+        warmup_until = float(state.get("thermal_warmup_until", 0.0))
         if bg is None or noise_var is None or bg.shape != gray_centered.shape:
             state["thermal_bg"] = gray_centered.copy()
             state["thermal_noise_var"] = np.full_like(gray_centered, 16.0, dtype=np.float32)
             state["thermal_prev_gray"] = gray.copy()
-            state["thermal_persist"] = deque(maxlen=3)
+            persist_window = int(motion_settings.get("thermal_persistence_window", 4))
+            state["thermal_persist"] = deque(maxlen=max(3, persist_window))
             state["thermal_hold_until"] = 0.0
+            state["thermal_warmup_until"] = now + max(5.0, warmup_seconds)
             return 0
 
         prev_gray = state.get("thermal_prev_gray")
-        nuc_hold_seconds = float(motion_settings.get("thermal_nuc_hold_seconds", 1.5))
+        nuc_hold_seconds = float(motion_settings.get("thermal_nuc_hold_seconds", 2.0))
         if prev_gray is not None and prev_gray.shape == gray.shape:
             frame_jump = cv2.absdiff(prev_gray, gray)
             jump_ratio = float(np.mean(frame_jump > int(motion_settings.get("thermal_nuc_jump_threshold", 18))))
@@ -1944,18 +1950,27 @@ class DetectorWorker:
         raw_mask = cv2.morphologyEx(raw_mask, cv2.MORPH_CLOSE, kernel, iterations=1)
 
         num_labels, _, stats, _ = cv2.connectedComponentsWithStats(raw_mask, connectivity=8)
-        min_blob = max(6, int(min_area * 0.08))
+        min_blob = max(8, int(min_area * float(motion_settings.get("thermal_min_blob_ratio", 0.12))))
         motion_area = 0
         for idx in range(1, num_labels):
             area = int(stats[idx, cv2.CC_STAT_AREA])
             if area >= min_blob:
                 motion_area += area
 
-        persist = state.setdefault("thermal_persist", deque(maxlen=3))
+        persist_window = int(motion_settings.get("thermal_persistence_window", 4))
+        persist_required = int(motion_settings.get("thermal_persistence_required", 3))
+        persist_required = max(2, min(persist_required, max(3, persist_window)))
+        persist = state.setdefault("thermal_persist", deque(maxlen=max(3, persist_window)))
         persist.append(motion_area >= min_area)
-        persisted_motion = sum(1 for flag in persist if flag) >= 2
+        persisted_motion = sum(1 for flag in persist if flag) >= persist_required
         hold_until = float(state.get("thermal_hold_until", 0.0))
         if now < hold_until:
+            persisted_motion = False
+            motion_area = 0
+        if warmup_until == 0.0:
+            state["thermal_warmup_until"] = now + max(5.0, warmup_seconds)
+            warmup_until = float(state.get("thermal_warmup_until", 0.0))
+        if now < warmup_until:
             persisted_motion = False
             motion_area = 0
 
