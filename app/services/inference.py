@@ -24,6 +24,7 @@ class InferenceService:
     from app.utils.paths import DATA_DIR
     MODELS_DIR = DATA_DIR / "models"
     PERSON_CLASS_ID = 0  # COCO class ID for person
+    PERSON_CLASS_ALIASES = {"person", "human", "people"}
     
     # Preprocessing configuration
     INFERENCE_SIZE = (640, 640)
@@ -484,6 +485,12 @@ class InferenceService:
         
         for result in results:
             boxes = result.boxes
+            names_map = getattr(result, "names", None) or getattr(self.model, "names", None)
+            single_class_model = False
+            if isinstance(names_map, dict):
+                single_class_model = len(names_map) == 1
+            elif isinstance(names_map, (list, tuple)):
+                single_class_model = len(names_map) == 1
             
             if boxes is None or len(boxes) == 0:
                 continue
@@ -491,9 +498,24 @@ class InferenceService:
             for box in boxes:
                 # Get class ID
                 class_id = int(box.cls[0])
-                
-                # Filter: person only (class_id = 0)
-                if class_id != self.PERSON_CLASS_ID:
+                class_name = ""
+                if isinstance(names_map, dict):
+                    class_name = str(names_map.get(class_id, "")).strip().lower()
+                elif isinstance(names_map, (list, tuple)) and 0 <= class_id < len(names_map):
+                    class_name = str(names_map[class_id]).strip().lower()
+
+                # Person-only filter with robust fallback:
+                # - Prefer class label when available
+                # - Fall back to COCO person class id=0
+                # - If model is single-class, accept it as person (person-only exports may remap ids)
+                is_person = False
+                if class_name:
+                    is_person = class_name in self.PERSON_CLASS_ALIASES
+                elif class_id == self.PERSON_CLASS_ID:
+                    is_person = True
+                if not is_person and single_class_model:
+                    is_person = True
+                if not is_person:
                     continue
                 
                 # Get bbox coordinates
@@ -506,7 +528,7 @@ class InferenceService:
                     "bbox": [int(x1), int(y1), int(x2), int(y2)],
                     "confidence": confidence,
                     "class_id": class_id,
-                    "class_name": "person",
+                    "class_name": class_name or "person",
                 })
         
         return detections

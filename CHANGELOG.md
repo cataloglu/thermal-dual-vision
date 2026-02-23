@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.15] - 2026-02-23
+
+### Düzeltmeler
+
+- Inference person filtresi model sınıf etiketine göre dayanıklı hale getirildi (sadece `class_id=0` varsayımına bağımlılık azaltıldı).
+- Tek sınıflı person modellerde class-id sapması olsa da tespitin düşmemesi için single-class fallback eklendi.
+- Bu sayede `DETECT_PIPELINE raw=0` paternindeki model-sınıf eşleme kaynaklı kaçırmalar azaltıldı.
+
 ## [4.0.14] - 2026-02-23
 
 ### Düzeltmeler
