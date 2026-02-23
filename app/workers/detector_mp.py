@@ -724,6 +724,7 @@ def camera_detection_process(
         last_gate_log = 0.0
         last_relaxed_infer_time = 0.0
         last_pipeline_log = 0.0
+        last_fallback_log = 0.0
         thermal_motion_state: Dict[str, Any] = {}
         
         process_logger.info(f"Detection parameters [{cam_name}]: source={detection_source}, fps={config.detection.inference_fps}, zones={len(zones)}")
@@ -992,9 +993,10 @@ def camera_detection_process(
             
             # Run YOLO inference
             confidence_threshold = float(config.detection.confidence_threshold)
-            thermal_floor = float(getattr(config.detection, "thermal_confidence_threshold", confidence_threshold))
             if detection_source == "thermal":
-                confidence_threshold = max(confidence_threshold, thermal_floor)
+                thermal_floor = float(getattr(config.detection, "thermal_confidence_threshold", 0.35))
+                thermal_cap = float(getattr(config.detection, "thermal_confidence_cap", 0.38))
+                confidence_threshold = min(max(0.25, thermal_floor), max(0.28, thermal_cap))
             
             detections_raw = inference_service.infer(
                 preprocessed,
@@ -1062,16 +1064,20 @@ def camera_detection_process(
                                 len(high_res_detections),
                             )
                     elif max(base_res) < 800 and backend == "openvino":
-                        process_logger.debug(
-                            "DETECT [%s] thermal_highres_fallback skipped backend=openvino",
-                            cam_name,
-                        )
+                        if current_time - last_fallback_log >= 10.0:
+                            process_logger.debug(
+                                "DETECT [%s] thermal_highres_fallback skipped backend=openvino",
+                                cam_name,
+                            )
+                            last_fallback_log = current_time
                 if len(detections_raw) == 0:
-                    process_logger.debug(
-                        "DETECT [%s] fallback_exhausted conf=%.2f",
-                        cam_name,
-                        confidence_threshold,
-                    )
+                    if current_time - last_fallback_log >= 10.0:
+                        process_logger.debug(
+                            "DETECT [%s] fallback_exhausted conf=%.2f",
+                            cam_name,
+                            confidence_threshold,
+                        )
+                        last_fallback_log = current_time
             
             # Filter by aspect ratio
             ar_min, ar_max = config.detection.get_effective_aspect_ratio_bounds()

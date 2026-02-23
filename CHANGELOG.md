@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.18] - 2026-02-24
+
+### Düzeltmeler
+
+- Thermal detection başlangıç confidence eşiği güvenli aralığa çekildi (0.25-0.38), `conf=0.50` kilitlenmesi giderildi.
+- OpenVINO ortamında thermal fallback debug log spam’i azaltıldı (10s throttling).
+- `fallback_exhausted` ve `thermal_highres_fallback skipped` satırları artık logu boğmayacak şekilde sınırlı yazdırılıyor.
+
 ## [4.0.17] - 2026-02-24
 
 ### Düzeltmeler

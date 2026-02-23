@@ -111,6 +111,7 @@ class DetectorWorker:
         self.last_detection_log: Dict[str, float] = {}
         self.last_detection_pipeline_log: Dict[str, float] = {}
         self.last_gate_log: Dict[str, float] = {}
+        self.last_fallback_log: Dict[str, float] = {}
         self.no_detection_streak: Dict[str, int] = defaultdict(int)
         self.last_relaxed_infer_time: Dict[str, float] = {}
         self.stale_gate_hits: Dict[str, int] = defaultdict(int)
@@ -233,6 +234,7 @@ class DetectorWorker:
         self.last_detection_log.pop(camera_id, None)
         self.last_detection_pipeline_log.pop(camera_id, None)
         self.last_gate_log.pop(camera_id, None)
+        self.last_fallback_log.pop(camera_id, None)
         self.no_detection_streak.pop(camera_id, None)
         self.last_relaxed_infer_time.pop(camera_id, None)
         self.stale_gate_hits.pop(camera_id, None)
@@ -692,9 +694,10 @@ class DetectorWorker:
                 
                 # Run inference (with metrics)
                 confidence_threshold = float(config.detection.confidence_threshold)
-                thermal_floor = float(getattr(config.detection, "thermal_confidence_threshold", confidence_threshold))
                 if detection_source == "thermal":
-                    confidence_threshold = max(confidence_threshold, thermal_floor)
+                    thermal_floor = float(getattr(config.detection, "thermal_confidence_threshold", 0.35))
+                    thermal_cap = float(getattr(config.detection, "thermal_confidence_cap", 0.38))
+                    confidence_threshold = min(max(0.25, thermal_floor), max(0.28, thermal_cap))
                 t0 = time.perf_counter()
                 detections_raw = self.inference_service.infer(
                     preprocessed,
@@ -769,16 +772,22 @@ class DetectorWorker:
                                     len(high_res_detections),
                                 )
                         elif max(base_res) < 800 and backend == "openvino":
-                            logger.debug(
-                                "DETECT camera=%s thermal_highres_fallback skipped backend=openvino",
-                                camera_id,
-                            )
+                            last_fb = float(self.last_fallback_log.get(camera_id, 0.0))
+                            if current_time - last_fb >= 10.0:
+                                logger.debug(
+                                    "DETECT camera=%s thermal_highres_fallback skipped backend=openvino",
+                                    camera_id,
+                                )
+                                self.last_fallback_log[camera_id] = current_time
                     if len(detections_raw) == 0:
-                        logger.debug(
-                            "DETECT camera=%s fallback_exhausted conf=%.2f",
-                            camera_id,
-                            confidence_threshold,
-                        )
+                        last_fb = float(self.last_fallback_log.get(camera_id, 0.0))
+                        if current_time - last_fb >= 10.0:
+                            logger.debug(
+                                "DETECT camera=%s fallback_exhausted conf=%.2f",
+                                camera_id,
+                                confidence_threshold,
+                            )
+                            self.last_fallback_log[camera_id] = current_time
                 inference_latency = time.perf_counter() - t0
                 model_name = getattr(config.detection, "model", "yolov8n-person") or "yolov8n-person"
                 try:
