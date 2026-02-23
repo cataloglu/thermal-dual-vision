@@ -569,6 +569,91 @@ def camera_detection_process(
                             return True
             return False
         
+        def _thermal_motion_area_iir(
+            gray: np.ndarray,
+            sensitivity: int,
+            min_area: int,
+            state: Dict[str, Any],
+            now_ts: float,
+        ) -> int:
+            """Thermal-specific motion: drift compensation + controlled IIR + adaptive threshold."""
+            gray_f = gray.astype(np.float32)
+            gray_mean = float(np.mean(gray_f))
+            gray_centered = gray_f - gray_mean
+
+            bg = state.get("thermal_bg")
+            noise_var = state.get("thermal_noise_var")
+            if bg is None or noise_var is None or bg.shape != gray_centered.shape:
+                state["thermal_bg"] = gray_centered.copy()
+                state["thermal_noise_var"] = np.full_like(gray_centered, 16.0, dtype=np.float32)
+                state["thermal_prev_gray"] = gray.copy()
+                state["thermal_persist"] = deque(maxlen=3)
+                state["thermal_hold_until"] = 0.0
+                return 0
+
+            prev_gray = state.get("thermal_prev_gray")
+            nuc_hold_seconds = float(motion_config.get("thermal_nuc_hold_seconds", 1.5))
+            if prev_gray is not None and prev_gray.shape == gray.shape:
+                frame_jump = cv2.absdiff(prev_gray, gray)
+                jump_ratio = float(np.mean(frame_jump > int(motion_config.get("thermal_nuc_jump_threshold", 18))))
+                mean_shift = abs(float(np.mean(gray)) - float(np.mean(prev_gray)))
+                if jump_ratio >= float(motion_config.get("thermal_nuc_jump_ratio", 0.70)) and mean_shift >= float(
+                    motion_config.get("thermal_nuc_mean_shift", 8.0)
+                ):
+                    state["thermal_hold_until"] = now_ts + max(0.5, nuc_hold_seconds)
+            state["thermal_prev_gray"] = gray.copy()
+
+            alpha = float(motion_config.get("thermal_bg_alpha", 0.985))
+            beta = float(motion_config.get("thermal_noise_beta", 0.990))
+            alpha = min(0.9995, max(0.90, alpha))
+            beta = min(0.9995, max(0.90, beta))
+
+            k1_default = max(1.6, 3.0 - (sensitivity * 0.12))
+            k1 = float(motion_config.get("thermal_k1", k1_default))
+            k2 = float(motion_config.get("thermal_k2", k1 + 1.0))
+            if k2 <= k1:
+                k2 = k1 + 0.5
+            noise_floor = float(motion_config.get("thermal_noise_floor", 2.5))
+
+            residual = gray_centered - bg
+            sigma = np.sqrt(np.maximum(noise_var, 1.0))
+            update_thresh = k1 * sigma
+            detect_thresh = (k2 * sigma) + noise_floor
+
+            abs_residual = np.abs(residual)
+            update_mask = abs_residual < update_thresh
+            not_update = ~update_mask
+
+            bg[update_mask] = (alpha * bg[update_mask]) + ((1.0 - alpha) * gray_centered[update_mask])
+            noise_var[update_mask] = (beta * noise_var[update_mask]) + ((1.0 - beta) * (residual[update_mask] ** 2))
+            noise_var[not_update] = np.minimum(noise_var[not_update] * 1.002, 1600.0)
+
+            raw_mask = (abs_residual > detect_thresh).astype(np.uint8) * 255
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+            raw_mask = cv2.morphologyEx(raw_mask, cv2.MORPH_OPEN, kernel, iterations=1)
+            raw_mask = cv2.morphologyEx(raw_mask, cv2.MORPH_CLOSE, kernel, iterations=1)
+
+            num_labels, _, stats, _ = cv2.connectedComponentsWithStats(raw_mask, connectivity=8)
+            min_blob = max(6, int(min_area * 0.08))
+            motion_area_local = 0
+            for idx in range(1, num_labels):
+                area = int(stats[idx, cv2.CC_STAT_AREA])
+                if area >= min_blob:
+                    motion_area_local += area
+
+            persist = state.setdefault("thermal_persist", deque(maxlen=3))
+            persist.append(motion_area_local >= min_area)
+            persisted_motion = sum(1 for flag in persist if flag) >= 2
+            hold_until = float(state.get("thermal_hold_until", 0.0))
+            if now_ts < hold_until:
+                persisted_motion = False
+                motion_area_local = 0
+
+            state["thermal_bg"] = bg
+            state["thermal_noise_var"] = noise_var
+            state["thermal_motion_persisted"] = persisted_motion
+            return motion_area_local if persisted_motion else 0
+
         # Get detection parameters
         detection_source = camera_config.get("detection_source") or camera_config.get("type", "thermal")
         frame_delay = 1.0 / config.detection.inference_fps
@@ -639,6 +724,7 @@ def camera_detection_process(
         last_gate_log = 0.0
         last_relaxed_infer_time = 0.0
         last_pipeline_log = 0.0
+        thermal_motion_state: Dict[str, Any] = {}
         
         process_logger.info(f"Detection parameters [{cam_name}]: source={detection_source}, fps={config.detection.inference_fps}, zones={len(zones)}")
         process_logger.info(
@@ -779,6 +865,12 @@ def camera_detection_process(
             motion_min_area_eff = 0
             if motion_enabled:
                 motion_min_area_request = motion_min_area
+                camera_type = camera_config.get("type")
+                is_thermal_motion = (
+                    camera_type == "thermal"
+                    or detection_source == "thermal"
+                    or str(motion_config.get("pipeline", "")).lower() == "thermal_iir"
+                )
                 if auto_motion_mode:
                     profile = str(motion_config.get("auto_profile", "normal")).lower()
                     profile_map = {
@@ -801,12 +893,37 @@ def camera_detection_process(
                         else:
                             motion_min_area_request = max(motion_min_area, floor)
 
-                motion_detected, _, motion_area, motion_min_area_eff = motion_service.detect_motion(
-                    camera_id=camera_id,
-                    frame=frame,
-                    min_area=motion_min_area_request,
-                    sensitivity=motion_sensitivity,
-                )
+                if is_thermal_motion:
+                    if len(frame.shape) == 3:
+                        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                    else:
+                        gray = frame.copy()
+                    motion_width = 480
+                    original_h, original_w = gray.shape[:2]
+                    if original_w > motion_width:
+                        scale = motion_width / float(original_w)
+                        target_h = max(1, int(original_h * scale))
+                        gray = cv2.resize(gray, (motion_width, target_h))
+                        motion_min_area_request = max(1, int(motion_min_area_request * scale * scale))
+                    gray = cv2.GaussianBlur(gray, (3, 3), 0)
+                    motion_area = _thermal_motion_area_iir(
+                        gray=gray,
+                        sensitivity=motion_sensitivity,
+                        min_area=max(1, motion_min_area_request),
+                        state=thermal_motion_state,
+                        now_ts=current_time,
+                    )
+                    motion_min_area_eff = motion_min_area_request
+                    motion_detected = motion_area >= motion_min_area_request
+                    motion_algo = "thermal_iir"
+                else:
+                    motion_detected, _, motion_area, motion_min_area_eff = motion_service.detect_motion(
+                        camera_id=camera_id,
+                        frame=frame,
+                        min_area=motion_min_area_request,
+                        sensitivity=motion_sensitivity,
+                    )
+                    motion_algo = str(motion_config.get("algorithm", "mog2"))
                 if auto_motion_mode:
                     auto_motion_history.append(float(motion_area))
                     profile = str(motion_config.get("auto_profile", "normal")).lower()
@@ -837,23 +954,25 @@ def camera_detection_process(
                     motion_active = False
                 if last_motion_state is None or motion_active != last_motion_state:
                     process_logger.info(
-                        "Motion filter [%s]: %s (area=%d, min=%d, sensitivity=%d)",
+                        "Motion filter [%s]: %s (area=%d, min=%d, sensitivity=%d, algo=%s)",
                         cam_name,
                         "active" if motion_active else "idle",
                         motion_area,
                         motion_min_area_eff,
                         motion_sensitivity,
+                        motion_algo,
                     )
                     last_motion_state = motion_active
                     last_motion_log = current_time
                 elif current_time - last_motion_log >= motion_log_interval:
                     process_logger.debug(
-                        "Motion filter [%s]: %s (area=%d, min=%d, sensitivity=%d)",
+                        "Motion filter [%s]: %s (area=%d, min=%d, sensitivity=%d, algo=%s)",
                         cam_name,
                         "active" if motion_active else "idle",
                         motion_area,
                         motion_min_area_eff,
                         motion_sensitivity,
+                        motion_algo,
                     )
                     last_motion_log = current_time
             

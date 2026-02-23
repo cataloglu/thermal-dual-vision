@@ -6,6 +6,15 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.16] - 2026-02-23
+
+### Düzeltmeler
+
+- Thermal kameralar için motion pipeline ayrıştırıldı: global-mean compensation + kontrollü IIR background + adaptif eşikleme (k1/k2).
+- Thermal motion kararına 2/3 temporal persistence ve morphology + connected-components tabanlı blob toplama eklendi.
+- Thermal NUC/reset benzeri ani global sıçramalarda kısa süreli motion gate hold (varsayılan ~1.5s) eklendi.
+- Color kamera akışı korunarak sadece thermal motion stratejisi değiştirildi.
+
 ## [4.0.15] - 2026-02-23
 
 ### Düzeltmeler

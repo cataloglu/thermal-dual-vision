@@ -1713,10 +1713,25 @@ class DetectorWorker:
             min_area = max(1, int(min_area * scale * scale))
         gray = cv2.GaussianBlur(gray, (3, 3), 0)
 
-        if algorithm in ("mog2", "knn"):
-            motion_area = self._motion_area_background_subtractor(
-                camera.id, gray, algorithm, sensitivity, state
+        camera_type = getattr(getattr(camera, "type", None), "value", getattr(camera, "type", None))
+        is_thermal_motion = (
+            camera_type == "thermal"
+            or str(motion_settings.get("pipeline", "")).lower() == "thermal_iir"
+        )
+        effective_algorithm = algorithm
+
+        if is_thermal_motion:
+            motion_area = self._motion_area_thermal_iir(
+                gray=gray,
+                sensitivity=sensitivity,
+                min_area=max(1, min_area),
+                state=state,
+                motion_settings=motion_settings,
+                now=now,
             )
+            effective_algorithm = "thermal_iir"
+        elif algorithm in ("mog2", "knn"):
+            motion_area = self._motion_area_background_subtractor(camera.id, gray, algorithm, sensitivity, state)
         else:
             motion_area = self._motion_area_frame_diff(gray, sensitivity, state)
 
@@ -1787,7 +1802,7 @@ class DetectorWorker:
                 motion_area,
                 min_area,
                 sensitivity,
-                algorithm,
+                effective_algorithm,
             )
             state["last_motion_logged_state"] = motion_active
             state["last_motion_log"] = now
@@ -1799,7 +1814,7 @@ class DetectorWorker:
                 motion_area,
                 min_area,
                 sensitivity,
-                algorithm,
+                effective_algorithm,
             )
             state["last_motion_log"] = now
 
@@ -1844,6 +1859,96 @@ class DetectorWorker:
         # 0=background, 127=shadow (MOG2/KNN), 255=foreground; count only foreground
         motion_area = int(np.sum(fg_mask == 255))
         return motion_area
+
+    def _motion_area_thermal_iir(
+        self,
+        gray: np.ndarray,
+        sensitivity: int,
+        min_area: int,
+        state: Dict[str, Any],
+        motion_settings: Dict[str, Any],
+        now: float,
+    ) -> int:
+        """Thermal-specific motion: drift compensation + controlled IIR + adaptive threshold."""
+        gray_f = gray.astype(np.float32)
+        gray_mean = float(np.mean(gray_f))
+        gray_centered = gray_f - gray_mean
+
+        bg = state.get("thermal_bg")
+        noise_var = state.get("thermal_noise_var")
+        if bg is None or noise_var is None or bg.shape != gray_centered.shape:
+            state["thermal_bg"] = gray_centered.copy()
+            state["thermal_noise_var"] = np.full_like(gray_centered, 16.0, dtype=np.float32)
+            state["thermal_prev_gray"] = gray.copy()
+            state["thermal_persist"] = deque(maxlen=3)
+            state["thermal_hold_until"] = 0.0
+            return 0
+
+        prev_gray = state.get("thermal_prev_gray")
+        nuc_hold_seconds = float(motion_settings.get("thermal_nuc_hold_seconds", 1.5))
+        if prev_gray is not None and prev_gray.shape == gray.shape:
+            frame_jump = cv2.absdiff(prev_gray, gray)
+            jump_ratio = float(np.mean(frame_jump > int(motion_settings.get("thermal_nuc_jump_threshold", 18))))
+            mean_shift = abs(float(np.mean(gray)) - float(np.mean(prev_gray)))
+            if jump_ratio >= float(motion_settings.get("thermal_nuc_jump_ratio", 0.70)) and mean_shift >= float(
+                motion_settings.get("thermal_nuc_mean_shift", 8.0)
+            ):
+                state["thermal_hold_until"] = now + max(0.5, nuc_hold_seconds)
+        state["thermal_prev_gray"] = gray.copy()
+
+        alpha = float(motion_settings.get("thermal_bg_alpha", 0.985))
+        beta = float(motion_settings.get("thermal_noise_beta", 0.990))
+        alpha = min(0.9995, max(0.90, alpha))
+        beta = min(0.9995, max(0.90, beta))
+
+        k1_default = max(1.6, 3.0 - (sensitivity * 0.12))
+        k1 = float(motion_settings.get("thermal_k1", k1_default))
+        k2 = float(motion_settings.get("thermal_k2", k1 + 1.0))
+        if k2 <= k1:
+            k2 = k1 + 0.5
+        noise_floor = float(motion_settings.get("thermal_noise_floor", 2.5))
+
+        residual = gray_centered - bg
+        sigma = np.sqrt(np.maximum(noise_var, 1.0))
+        update_thresh = k1 * sigma
+        detect_thresh = (k2 * sigma) + noise_floor
+
+        abs_residual = np.abs(residual)
+        update_mask = abs_residual < update_thresh
+        not_update = ~update_mask
+
+        # Controlled IIR update: freeze foreground-like pixels.
+        bg[update_mask] = (alpha * bg[update_mask]) + ((1.0 - alpha) * gray_centered[update_mask])
+        noise_var[update_mask] = (beta * noise_var[update_mask]) + ((1.0 - beta) * (residual[update_mask] ** 2))
+        # Gentle decay for frozen pixels to avoid stale over-estimation.
+        noise_var[not_update] = np.minimum(noise_var[not_update] * 1.002, 1600.0)
+
+        raw_mask = (abs_residual > detect_thresh).astype(np.uint8) * 255
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        raw_mask = cv2.morphologyEx(raw_mask, cv2.MORPH_OPEN, kernel, iterations=1)
+        raw_mask = cv2.morphologyEx(raw_mask, cv2.MORPH_CLOSE, kernel, iterations=1)
+
+        num_labels, _, stats, _ = cv2.connectedComponentsWithStats(raw_mask, connectivity=8)
+        min_blob = max(6, int(min_area * 0.08))
+        motion_area = 0
+        for idx in range(1, num_labels):
+            area = int(stats[idx, cv2.CC_STAT_AREA])
+            if area >= min_blob:
+                motion_area += area
+
+        persist = state.setdefault("thermal_persist", deque(maxlen=3))
+        persist.append(motion_area >= min_area)
+        persisted_motion = sum(1 for flag in persist if flag) >= 2
+        hold_until = float(state.get("thermal_hold_until", 0.0))
+        if now < hold_until:
+            persisted_motion = False
+            motion_area = 0
+
+        state["thermal_bg"] = bg
+        state["thermal_noise_var"] = noise_var
+        state["thermal_motion_persisted"] = persisted_motion
+        state["thermal_motion_area_raw"] = motion_area
+        return motion_area if persisted_motion else 0
 
     def _filter_detections_by_zones(
         self,
