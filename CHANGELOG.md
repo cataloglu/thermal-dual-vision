@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.17] - 2026-02-24
+
+### Düzeltmeler
+
+- OpenVINO backend ile thermal high-resolution fallback (832x832) çakışması giderildi.
+- OpenVINO aktifken `thermal_highres_fallback` güvenli şekilde atlanıyor; inference loop çökmesi engellendi.
+- Thread/process dedektör yollarında aynı koruma uygulanarak kamera thread restart döngüsü kesildi.
+
 ## [4.0.16] - 2026-02-23
 
 ### Düzeltmeler

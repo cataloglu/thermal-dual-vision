@@ -1044,7 +1044,8 @@ def camera_detection_process(
                         )
                 if detection_source == "thermal" and len(detections_raw) == 0:
                     base_res = tuple(config.detection.inference_resolution)
-                    if max(base_res) < 800:
+                    backend = str(getattr(inference_service, "active_backend", "unknown")).lower()
+                    if max(base_res) < 800 and backend != "openvino":
                         high_res = (832, 832)
                         high_res_detections = inference_service.infer(
                             preprocessed,
@@ -1060,6 +1061,11 @@ def camera_detection_process(
                                 high_res[1],
                                 len(high_res_detections),
                             )
+                    elif max(base_res) < 800 and backend == "openvino":
+                        process_logger.debug(
+                            "DETECT [%s] thermal_highres_fallback skipped backend=openvino",
+                            cam_name,
+                        )
                 if len(detections_raw) == 0:
                     process_logger.debug(
                         "DETECT [%s] fallback_exhausted conf=%.2f",

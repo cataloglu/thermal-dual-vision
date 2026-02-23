@@ -41,6 +41,7 @@ class InferenceService:
         self.model: Optional[YOLO] = None
         self.model_name: Optional[str] = None
         self._inference_device: Optional[str] = None  # e.g. "intel:gpu" for OpenVINO iGPU
+        self.active_backend: str = "unknown"
 
         # Ensure models directory exists
         self.MODELS_DIR.mkdir(parents=True, exist_ok=True)
@@ -104,6 +105,7 @@ class InferenceService:
         try:
             backend = self._get_backend()
             self._inference_device = None
+            self.active_backend = "unknown"
             logger.info("Loading YOLO model: %s (backend=%s)", model_name, backend)
 
             tensorrt_path = self.MODELS_DIR / f"{model_name}.engine"
@@ -115,6 +117,7 @@ class InferenceService:
             if backend == "auto":
                 backend = self._resolve_auto_backend(tensorrt_path, onnx_path)
                 logger.info("Auto-selected inference backend: %s", backend)
+            self.active_backend = backend
 
             # OpenVINO (Intel iGPU / NPU / CPU) - Scrypted tarzı parametrik
             if backend == "openvino":
@@ -195,6 +198,7 @@ class InferenceService:
             
         except Exception as e:
             logger.error(f"Failed to load model {model_name}: {e}")
+            self.active_backend = "unknown"
             raise
     
     def _export_optimized_model(self, model_name: str) -> None:

@@ -751,7 +751,8 @@ class DetectorWorker:
                     # Extra fallback for thermal misses: one high-resolution retry.
                     if detection_source == "thermal" and len(detections_raw) == 0:
                         base_res = tuple(config.detection.inference_resolution)
-                        if max(base_res) < 800:
+                        backend = str(getattr(self.inference_service, "active_backend", "unknown")).lower()
+                        if max(base_res) < 800 and backend != "openvino":
                             high_res = (832, 832)
                             high_res_detections = self.inference_service.infer(
                                 preprocessed,
@@ -767,6 +768,11 @@ class DetectorWorker:
                                     high_res[1],
                                     len(high_res_detections),
                                 )
+                        elif max(base_res) < 800 and backend == "openvino":
+                            logger.debug(
+                                "DETECT camera=%s thermal_highres_fallback skipped backend=openvino",
+                                camera_id,
+                            )
                     if len(detections_raw) == 0:
                         logger.debug(
                             "DETECT camera=%s fallback_exhausted conf=%.2f",
