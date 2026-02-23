@@ -748,6 +748,31 @@ class DetectorWorker:
                                 camera_id,
                                 len(plain_detections),
                             )
+                    # Extra fallback for thermal misses: one high-resolution retry.
+                    if detection_source == "thermal" and len(detections_raw) == 0:
+                        base_res = tuple(config.detection.inference_resolution)
+                        if max(base_res) < 800:
+                            high_res = (832, 832)
+                            high_res_detections = self.inference_service.infer(
+                                preprocessed,
+                                confidence_threshold=max(0.22, relaxed_threshold - 0.08),
+                                inference_resolution=high_res,
+                            )
+                            if high_res_detections:
+                                detections_raw = high_res_detections
+                                logger.debug(
+                                    "DETECT camera=%s thermal_highres_fallback res=%sx%s recovered=%s",
+                                    camera_id,
+                                    high_res[0],
+                                    high_res[1],
+                                    len(high_res_detections),
+                                )
+                    if len(detections_raw) == 0:
+                        logger.debug(
+                            "DETECT camera=%s fallback_exhausted conf=%.2f",
+                            camera_id,
+                            confidence_threshold,
+                        )
                 inference_latency = time.perf_counter() - t0
                 model_name = getattr(config.detection, "model", "yolov8n-person") or "yolov8n-person"
                 try:

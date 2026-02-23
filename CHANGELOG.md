@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.13] - 2026-02-23
+
+### Düzeltmeler
+
+- Thermal sahnelerde `count=0` kaçırmalarını azaltmak için yüksek çözünürlükte ek inference fallback eklendi (`thermal_highres_fallback`, 832x832).
+- Tüm fallback katmanları başarısız olduğunda net tanı için `fallback_exhausted` logu eklendi.
+- Thermal kaçırma zinciri (relaxed/plain/highres) threading ve multiprocessing modlarında eşitlendi.
+
 ## [4.0.12] - 2026-02-23
 
 ### Düzeltmeler

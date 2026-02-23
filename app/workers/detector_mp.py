@@ -923,6 +923,30 @@ def camera_detection_process(
                             cam_name,
                             len(plain_detections),
                         )
+                if detection_source == "thermal" and len(detections_raw) == 0:
+                    base_res = tuple(config.detection.inference_resolution)
+                    if max(base_res) < 800:
+                        high_res = (832, 832)
+                        high_res_detections = inference_service.infer(
+                            preprocessed,
+                            confidence_threshold=max(0.22, relaxed_threshold - 0.08),
+                            inference_resolution=high_res,
+                        )
+                        if high_res_detections:
+                            detections_raw = high_res_detections
+                            process_logger.debug(
+                                "DETECT [%s] thermal_highres_fallback res=%sx%s recovered=%s",
+                                cam_name,
+                                high_res[0],
+                                high_res[1],
+                                len(high_res_detections),
+                            )
+                if len(detections_raw) == 0:
+                    process_logger.debug(
+                        "DETECT [%s] fallback_exhausted conf=%.2f",
+                        cam_name,
+                        confidence_threshold,
+                    )
             
             # Filter by aspect ratio
             ar_min, ar_max = config.detection.get_effective_aspect_ratio_bounds()
