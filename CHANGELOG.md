@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.23] - 2026-02-24
+
+### Düzeltmeler
+
+- Thermal event zincirine bbox kalite filtresi eklendi: düşük güven (`conf`), çok küçük alan oranı ve çok kısa bbox yüksekliği olan adaylar event öncesi eleniyor.
+- Thermal için temporal tutarlılık şartı sıkılaştırıldı (`3 frame`, `max gap=1`) ve tek-kare yüksek güvenli `temporal_recovered` bypass’ı thermal path’te kapatıldı.
+- Amaç: özellikle sabit sahnede ve parazitli ısı bloblarında fake person event üretimini düşürmek; color kamera davranışı korunmuştur.
+
 ## [4.0.22] - 2026-02-24
 
 ### Düzeltmeler

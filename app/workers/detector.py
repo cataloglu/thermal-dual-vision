@@ -886,6 +886,26 @@ class DetectorWorker:
                             camera_id,
                             len(detections),
                         )
+                if detection_source == "thermal" and len(detections) > 0:
+                    frame_h, frame_w = frame.shape[:2]
+                    frame_area = float(max(frame_h * frame_w, 1))
+                    min_area_ratio = 0.0030
+                    min_height_ratio = 0.10
+                    conf_floor = max(0.28, confidence_threshold)
+                    filtered_thermal: List[Dict] = []
+                    for det in detections:
+                        x1, y1, x2, y2 = det["bbox"]
+                        w = max(0, x2 - x1)
+                        h = max(0, y2 - y1)
+                        area_ratio = (w * h) / frame_area
+                        height_ratio = h / float(max(frame_h, 1))
+                        conf = float(det.get("confidence", 0.0))
+                        if conf < conf_floor:
+                            continue
+                        if area_ratio < min_area_ratio or height_ratio < min_height_ratio:
+                            continue
+                        filtered_thermal.append(det)
+                    detections = filtered_thermal
                 
                 # Update frame buffer for media generation
                 self._update_frame_buffer(
@@ -943,17 +963,19 @@ class DetectorWorker:
                 # Tuned for short walk-through scenarios:
                 # - require fewer consecutive frames
                 # - allow small gaps
+                temporal_min_frames = 3 if detection_source == "thermal" else 2
+                temporal_max_gap = 1 if detection_source == "thermal" else 2
                 temporal_pass = self.inference_service.check_temporal_consistency(
                     detections,
                     list(self.detection_history[camera_id])[:-1],  # Exclude current
-                    min_consecutive_frames=2,
-                    max_gap_frames=2,
+                    min_consecutive_frames=temporal_min_frames,
+                    max_gap_frames=temporal_max_gap,
                 )
                 if not temporal_pass:
                     best_conf = max((d.get("confidence", 0.0) for d in detections), default=0.0)
                     # Recovery path: allow a confident single-frame person hit
                     # after brief no-detection streaks to reduce missed walk-throughs.
-                    if best_conf >= max(confidence_threshold, 0.50):
+                    if detection_source != "thermal" and best_conf >= max(confidence_threshold, 0.50):
                         temporal_pass = True
                         logger.debug(
                             "EVENT_GATE camera=%s reason=temporal_recovered best_conf=%.2f",
