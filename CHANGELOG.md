@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.25] - 2026-02-24
+
+### Düzeltmeler
+
+- Thermal `class_agnostic_diag` adımı tamamen kaldırıldı; `car/traffic light/train` gibi yanlış sınıf tanı log spam’i ve gereksiz ek inference yükü azaltıldı.
+- Thermal motion gate’e histerezis eklendi (`active` ve `idle` için ayrı eşik); sınır değerde `active ↔ idle` zıplaması azaltıldı.
+- Bu sayede loglar daha temiz, motion kararı daha stabil hale getirildi; OpenVINO ortamında gereksiz fallback gürültüsü de dolaylı olarak düştü.
+
 ## [4.0.24] - 2026-02-24
 
 ### Düzeltmeler

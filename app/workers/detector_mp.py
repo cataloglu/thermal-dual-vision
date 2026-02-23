@@ -971,6 +971,14 @@ def camera_detection_process(
                 if is_thermal_motion and current_time < thermal_gate_warmup_until:
                     motion_area = 0
                     motion_detected = False
+                if is_thermal_motion:
+                    active_factor = float(motion_config.get("thermal_active_hysteresis", 1.08))
+                    idle_factor = float(motion_config.get("thermal_idle_hysteresis", 0.92))
+                    active_factor = max(1.0, active_factor)
+                    idle_factor = max(0.5, min(1.0, idle_factor))
+                    on_threshold = int(max(1, motion_min_area_request * active_factor))
+                    off_threshold = int(max(1, motion_min_area_request * idle_factor))
+                    motion_detected = motion_area >= (off_threshold if motion_active else on_threshold)
                 if motion_detected:
                     last_motion_time = current_time
                     motion_active = True
@@ -1112,29 +1120,10 @@ def camera_detection_process(
                     and len(detections_raw) == 0
                     and (current_time - last_relaxed_infer_time) >= 1.0
                 ):
-                    class_agnostic = inference_service.infer_all_classes(
-                        frame,
-                        confidence_threshold=0.18,
-                        inference_resolution=tuple(config.detection.inference_resolution),
-                    )
-                    last_relaxed_infer_time = current_time
-                    if class_agnostic:
-                        class_counts: Dict[str, int] = {}
-                        for det in class_agnostic:
-                            cls_name = str(det.get("class_name", "unknown")).strip() or "unknown"
-                            class_counts[cls_name] = class_counts.get(cls_name, 0) + 1
-                        top_classes = sorted(
-                            class_counts.items(),
-                            key=lambda item: item[1],
-                            reverse=True,
-                        )[:4]
-                        class_diag_summary = ",".join(f"{name}:{count}" for name, count in top_classes)
-                        process_logger.debug(
-                            "DETECT [%s] class_agnostic_diag boxes=%s classes=%s",
-                            cam_name,
-                            len(class_agnostic),
-                            class_diag_summary or "n/a",
-                        )
+                    # Diagnostics-only all-class fallback was too noisy on thermal
+                    # (common static mislabels: car/traffic-light/train). Keep
+                    # pipeline lean and rely on person-only path + gate logs.
+                    pass
                 if detection_source == "thermal" and len(detections_raw) == 0:
                     base_res = tuple(config.detection.inference_resolution)
                     backend = str(getattr(inference_service, "active_backend", "unknown")).lower()
