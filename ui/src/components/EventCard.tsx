@@ -10,6 +10,7 @@ interface EventCardProps {
   timestamp: string
   confidence: number
   summary: string | null
+  rejectedByAi?: boolean
   collageUrl: string | null
   mp4Url: string | null
   selected?: boolean
@@ -24,6 +25,7 @@ export const EventCard = memo(function EventCard({
   timestamp,
   confidence,
   summary,
+  rejectedByAi = false,
   collageUrl,
   mp4Url,
   selected = false,
@@ -34,7 +36,17 @@ export const EventCard = memo(function EventCard({
   const cameraLabel = cameraName || cameraId
   const isRecent = (value: string) => Date.now() - new Date(value).getTime() < 60000
   const collagePending = !collageUrl && isRecent(timestamp)
+  const hasNoHumanSummary = (summary ?? '').toLowerCase().includes('no human')
+    || (summary ?? '').toLowerCase().includes('muhtemel yanlış alarm')
+  const hideConfidenceBadge = rejectedByAi || hasNoHumanSummary
   const getConfidenceBadge = () => {
+    if (hideConfidenceBadge) {
+      return (
+        <span className="px-3 py-1 rounded-full text-sm font-medium bg-gray-500/20 text-gray-400">
+          N/A
+        </span>
+      )
+    }
     const percentage = Math.round(confidence * 100)
     let colorClass = 'bg-gray-500/20 text-gray-500'
     

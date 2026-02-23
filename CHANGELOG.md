@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.24] - 2026-02-24
+
+### Düzeltmeler
+
+- Events sayfasında `Confirmed` sekmesi artık yalnızca AI-reject olmayan kayıtları getiriyor; önceki davranışta filtre boş kaldığı için `Rejected` kayıtlar da görünebiliyordu.
+- Event kartında `no human`/`Muhtemel yanlış alarm` özetli veya AI-reject kayıtlar için confidence yüzdesi gizlenip `N/A` gösteriliyor; yanlış yönlendiren yüzde görünümü kaldırıldı.
+- Bu sayede listede “insan tespit edilmedi” özetiyle birlikte yüzde confidence görünme tutarsızlığı giderildi.
+
 ## [4.0.23] - 2026-02-24
 
 ### Düzeltmeler

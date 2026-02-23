@@ -169,6 +169,15 @@ export function EventDetail({ event, cameraName, initialTab, onClose, onDelete }
   }
 
   const getConfidenceBadge = () => {
+    const summaryText = (displayEvent.summary ?? '').toLowerCase()
+    const hideConfidence = summaryText.includes('no human') || summaryText.includes('muhtemel yanlış alarm')
+    if (hideConfidence) {
+      return (
+        <span className="px-3 py-1 rounded-full text-sm font-medium bg-gray-500/20 text-gray-400">
+          N/A
+        </span>
+      )
+    }
     const percentage = Math.round(displayEvent.confidence * 100)
     let colorClass = 'bg-gray-500/20 text-gray-500'
     

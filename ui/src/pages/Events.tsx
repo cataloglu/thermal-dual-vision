@@ -58,7 +58,8 @@ export function Events() {
     cameraId: debouncedCameraFilter || undefined,
     date: debouncedDateFilter || undefined,
     minConfidence: debouncedConfidenceFilter > 0 ? debouncedConfidenceFilter / 100 : undefined,
-    rejected: showRejected ? true : undefined,
+    // Confirmed tab must explicitly exclude AI-rejected events.
+    rejected: showRejected ? true : false,
   })
 
   // handleEvent ref avoids WS reconnect when filters change (useWebSocket stores callbacks in refs)
@@ -555,6 +556,7 @@ export function Events() {
               timestamp={event.timestamp}
               confidence={event.confidence}
               summary={event.summary}
+              rejectedByAi={Boolean(event.rejected_by_ai)}
               collageUrl={event.collage_url}
               mp4Url={event.mp4_url}
               selected={selectedIds.has(event.id)}
