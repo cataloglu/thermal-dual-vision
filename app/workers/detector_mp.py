@@ -1032,6 +1032,7 @@ def camera_detection_process(
             # returns empty under active motion.
             if len(detections_raw) == 0:
                 relaxed_threshold = max(0.30, confidence_threshold - 0.15)
+                class_diag_summary = ""
                 if relaxed_threshold < confidence_threshold and (current_time - last_relaxed_infer_time) >= 1.0:
                     relaxed_detections = inference_service.infer(
                         preprocessed,
@@ -1087,6 +1088,58 @@ def camera_detection_process(
                             cam_name,
                             len(raw_detections),
                         )
+                if (
+                    detection_source == "thermal"
+                    and len(detections_raw) == 0
+                    and (current_time - last_relaxed_infer_time) >= 1.0
+                ):
+                    thermal_pseudo = inference_service.preprocess_thermal_pseudocolor(frame)
+                    pseudo_detections = inference_service.infer(
+                        thermal_pseudo,
+                        confidence_threshold=max(0.20, relaxed_threshold - 0.10),
+                        inference_resolution=tuple(config.detection.inference_resolution),
+                    )
+                    last_relaxed_infer_time = current_time
+                    if pseudo_detections:
+                        detections_raw = pseudo_detections
+                        process_logger.debug(
+                            "DETECT [%s] thermal_pseudocolor_fallback recovered=%s",
+                            cam_name,
+                            len(pseudo_detections),
+                        )
+                if (
+                    detection_source == "thermal"
+                    and len(detections_raw) == 0
+                    and (current_time - last_relaxed_infer_time) >= 1.0
+                ):
+                    class_agnostic = inference_service.infer_all_classes(
+                        frame,
+                        confidence_threshold=0.18,
+                        inference_resolution=tuple(config.detection.inference_resolution),
+                    )
+                    last_relaxed_infer_time = current_time
+                    if class_agnostic:
+                        class_counts: Dict[str, int] = {}
+                        for det in class_agnostic:
+                            cls_name = str(det.get("class_name", "unknown")).strip() or "unknown"
+                            class_counts[cls_name] = class_counts.get(cls_name, 0) + 1
+                        top_classes = sorted(
+                            class_counts.items(),
+                            key=lambda item: item[1],
+                            reverse=True,
+                        )[:4]
+                        class_diag_summary = ",".join(f"{name}:{count}" for name, count in top_classes)
+                        detections_raw = []
+                        for det in class_agnostic:
+                            promoted = dict(det)
+                            promoted["class_name"] = "person_candidate"
+                            detections_raw.append(promoted)
+                        process_logger.debug(
+                            "DETECT [%s] class_agnostic_recovery recovered=%s classes=%s",
+                            cam_name,
+                            len(detections_raw),
+                            class_diag_summary or "n/a",
+                        )
                 if detection_source == "thermal" and len(detections_raw) == 0:
                     base_res = tuple(config.detection.inference_resolution)
                     backend = str(getattr(inference_service, "active_backend", "unknown")).lower()
@@ -1116,9 +1169,10 @@ def camera_detection_process(
                 if len(detections_raw) == 0:
                     if current_time - last_fallback_log >= 10.0:
                         process_logger.debug(
-                            "DETECT [%s] fallback_exhausted conf=%.2f",
+                            "DETECT [%s] fallback_exhausted conf=%.2f class_diag=%s",
                             cam_name,
                             confidence_threshold,
+                            class_diag_summary or "none",
                         )
                         last_fallback_log = current_time
             

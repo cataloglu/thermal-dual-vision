@@ -6,6 +6,15 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.21] - 2026-02-24
+
+### Düzeltmeler
+
+- Thermal `raw=0` senaryosu için yeni `thermal_pseudocolor_fallback` eklendi (dinamik aralık + colormap), düşük kontrast sahnelerde modelin bbox üretme ihtimali artırıldı.
+- Thermal fallback zincirine `class_agnostic_recovery` adımı eklendi; person filtresi öncesi çıkan kutular geçici `person_candidate` olarak AR+zone hattına alınarak class-map kaynaklı kaçırmalar azaltıldı.
+- Kök neden teşhisi için fallback sonu loglarına sınıf dağılım özeti eklendi (`class_diag`), modelin obje görüp görmediği sahada daha net ayrıştırılabilir hale getirildi.
+- Aynı recovery/diagnostic zinciri hem threading hem multiprocessing worker modlarında eşitlendi.
+
 ## [4.0.20] - 2026-02-24
 
 ### Düzeltmeler

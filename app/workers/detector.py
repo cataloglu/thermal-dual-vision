@@ -708,6 +708,7 @@ class DetectorWorker:
                 # relaxed retry to recover borderline thermal/person hits.
                 if len(detections_raw) == 0:
                     relaxed_threshold = max(0.30, confidence_threshold - 0.15)
+                    class_diag_summary = ""
                     last_relaxed = float(self.last_relaxed_infer_time.get(camera_id, 0.0))
                     if (
                         relaxed_threshold < confidence_threshold
@@ -769,6 +770,58 @@ class DetectorWorker:
                                 camera_id,
                                 len(raw_detections),
                             )
+                    if (
+                        detection_source == "thermal"
+                        and len(detections_raw) == 0
+                        and current_time - last_relaxed >= 1.0
+                    ):
+                        thermal_pseudo = self.inference_service.preprocess_thermal_pseudocolor(frame)
+                        pseudo_detections = self.inference_service.infer(
+                            thermal_pseudo,
+                            confidence_threshold=max(0.20, relaxed_threshold - 0.10),
+                            inference_resolution=tuple(config.detection.inference_resolution),
+                        )
+                        self.last_relaxed_infer_time[camera_id] = current_time
+                        if pseudo_detections:
+                            detections_raw = pseudo_detections
+                            logger.debug(
+                                "DETECT camera=%s thermal_pseudocolor_fallback recovered=%s",
+                                camera_id,
+                                len(pseudo_detections),
+                            )
+                    if (
+                        detection_source == "thermal"
+                        and len(detections_raw) == 0
+                        and current_time - last_relaxed >= 1.0
+                    ):
+                        class_agnostic = self.inference_service.infer_all_classes(
+                            frame,
+                            confidence_threshold=0.18,
+                            inference_resolution=tuple(config.detection.inference_resolution),
+                        )
+                        self.last_relaxed_infer_time[camera_id] = current_time
+                        if class_agnostic:
+                            class_counts: Dict[str, int] = {}
+                            for det in class_agnostic:
+                                cls_name = str(det.get("class_name", "unknown")).strip() or "unknown"
+                                class_counts[cls_name] = class_counts.get(cls_name, 0) + 1
+                            top_classes = sorted(
+                                class_counts.items(),
+                                key=lambda item: item[1],
+                                reverse=True,
+                            )[:4]
+                            class_diag_summary = ",".join(f"{name}:{count}" for name, count in top_classes)
+                            detections_raw = []
+                            for det in class_agnostic:
+                                promoted = dict(det)
+                                promoted["class_name"] = "person_candidate"
+                                detections_raw.append(promoted)
+                            logger.debug(
+                                "DETECT camera=%s class_agnostic_recovery recovered=%s classes=%s",
+                                camera_id,
+                                len(detections_raw),
+                                class_diag_summary or "n/a",
+                            )
                     # Extra fallback for thermal misses: one high-resolution retry.
                     if detection_source == "thermal" and len(detections_raw) == 0:
                         base_res = tuple(config.detection.inference_resolution)
@@ -801,9 +854,10 @@ class DetectorWorker:
                         last_fb = float(self.last_fallback_log.get(camera_id, 0.0))
                         if current_time - last_fb >= 10.0:
                             logger.debug(
-                                "DETECT camera=%s fallback_exhausted conf=%.2f",
+                                "DETECT camera=%s fallback_exhausted conf=%.2f class_diag=%s",
                                 camera_id,
                                 confidence_threshold,
+                                class_diag_summary or "none",
                             )
                             self.last_fallback_log[camera_id] = current_time
                 inference_latency = time.perf_counter() - t0

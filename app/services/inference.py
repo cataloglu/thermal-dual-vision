@@ -453,6 +453,22 @@ class InferenceService:
             Resized frame ready for inference
         """
         return frame
+
+    def preprocess_thermal_pseudocolor(self, frame: np.ndarray) -> np.ndarray:
+        """
+        Create pseudo-color thermal frame for RGB-trained detectors.
+
+        Some RGB-pretrained models miss low-contrast grayscale thermal input.
+        This fallback expands dynamic range and applies a perceptual colormap.
+        """
+        if len(frame.shape) == 3:
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = frame
+        normalized = cv2.normalize(gray, None, 0, 255, cv2.NORM_MINMAX)
+        normalized = normalized.astype(np.uint8)
+        pseudo = cv2.applyColorMap(normalized, cv2.COLORMAP_TURBO)
+        return cv2.GaussianBlur(pseudo, self.GAUSSIAN_KERNEL, 0)
     
     def infer(
         self,
@@ -535,6 +551,53 @@ class InferenceService:
                     "class_name": class_name or "person",
                 })
         
+        return detections
+
+    def infer_all_classes(
+        self,
+        frame: np.ndarray,
+        confidence_threshold: float = 0.25,
+        inference_resolution: Optional[Tuple[int, int]] = None,
+    ) -> List[Dict]:
+        """
+        Run inference without person-only filtering.
+
+        Used as a thermal fallback diagnostic/recovery path when person mapping fails.
+        """
+        if self.model is None:
+            raise RuntimeError("Model not loaded. Call load_model() first.")
+
+        inference_args = {"conf": confidence_threshold, "verbose": False}
+        if inference_resolution and len(inference_resolution) == 2:
+            inference_args["imgsz"] = list(inference_resolution)
+        if self._inference_device:
+            inference_args["device"] = self._inference_device
+
+        results = self.model(frame, **inference_args)
+        detections: List[Dict] = []
+
+        for result in results:
+            boxes = result.boxes
+            names_map = getattr(result, "names", None) or getattr(self.model, "names", None)
+            if boxes is None or len(boxes) == 0:
+                continue
+            for box in boxes:
+                class_id = int(box.cls[0])
+                class_name = ""
+                if isinstance(names_map, dict):
+                    class_name = str(names_map.get(class_id, "")).strip().lower()
+                elif isinstance(names_map, (list, tuple)) and 0 <= class_id < len(names_map):
+                    class_name = str(names_map[class_id]).strip().lower()
+                x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
+                confidence = float(box.conf[0])
+                detections.append(
+                    {
+                        "bbox": [int(x1), int(y1), int(x2), int(y2)],
+                        "confidence": confidence,
+                        "class_id": class_id,
+                        "class_name": class_name or "unknown",
+                    }
+                )
         return detections
     
     def filter_by_aspect_ratio(
