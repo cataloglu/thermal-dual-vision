@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.14] - 2026-02-23
+
+### Düzeltmeler
+
+- `ffprobe` çözünürlük tespitinde RTSP transport ayarı stream config ile hizalandı (`-rtsp_transport tcp/udp`).
+- `ffprobe` çıktısı dayanıklı parse edilecek şekilde güncellendi; tanı satırları (ör. `461 Unsupported transport`) yüzünden `int()` parse hatası engellendi.
+- Başlangıç loglarında gereksiz `ffprobe failed ... invalid literal ...` gürültüsü azaltıldı.
+
 ## [4.0.13] - 2026-02-23
 
 ### Düzeltmeler

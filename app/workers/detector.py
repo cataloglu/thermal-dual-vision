@@ -1166,10 +1166,13 @@ class DetectorWorker:
     ) -> Optional[Tuple[int, int]]:
         ffprobe = shutil.which("ffprobe")
         if ffprobe:
+            transport = getattr(config.stream, "protocol", "tcp")
             cmd = [
                 ffprobe,
                 "-v",
                 "error",
+                "-rtsp_transport",
+                transport,
                 "-select_streams",
                 "v:0",
                 "-show_entries",
@@ -1185,8 +1188,14 @@ class DetectorWorker:
                     timeout=10,
                 ).decode("utf-8", errors="ignore").strip()
                 if output:
-                    parts = output.split(",")
-                    if len(parts) >= 2:
+                    # ffprobe may include diagnostic lines mixed with CSV output.
+                    # Parse robustly by scanning lines for a valid "w,h" pair.
+                    for line in reversed(output.splitlines()):
+                        parts = [p.strip() for p in line.split(",")]
+                        if len(parts) < 2:
+                            continue
+                        if not (parts[0].isdigit() and parts[1].isdigit()):
+                            continue
                         width = int(parts[0])
                         height = int(parts[1])
                         if width > 0 and height > 0:
