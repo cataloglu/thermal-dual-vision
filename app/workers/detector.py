@@ -695,8 +695,8 @@ class DetectorWorker:
                 # Run inference (with metrics)
                 confidence_threshold = float(config.detection.confidence_threshold)
                 if detection_source == "thermal":
-                    thermal_floor = float(getattr(config.detection, "thermal_confidence_threshold", 0.35))
-                    thermal_cap = float(getattr(config.detection, "thermal_confidence_cap", 0.38))
+                    thermal_floor = float(getattr(config.detection, "thermal_confidence_threshold", 0.30))
+                    thermal_cap = float(getattr(config.detection, "thermal_confidence_cap", 0.30))
                     confidence_threshold = min(max(0.25, thermal_floor), max(0.28, thermal_cap))
                 t0 = time.perf_counter()
                 detections_raw = self.inference_service.infer(
@@ -750,6 +750,24 @@ class DetectorWorker:
                                 "DETECT camera=%s thermal_plain_fallback recovered=%s",
                                 camera_id,
                                 len(plain_detections),
+                            )
+                    if (
+                        detection_source == "thermal"
+                        and len(detections_raw) == 0
+                        and current_time - last_relaxed >= 1.0
+                    ):
+                        raw_detections = self.inference_service.infer(
+                            frame,
+                            confidence_threshold=0.20,
+                            inference_resolution=tuple(config.detection.inference_resolution),
+                        )
+                        self.last_relaxed_infer_time[camera_id] = current_time
+                        if raw_detections:
+                            detections_raw = raw_detections
+                            logger.debug(
+                                "DETECT camera=%s thermal_raw_fallback recovered=%s",
+                                camera_id,
+                                len(raw_detections),
                             )
                     # Extra fallback for thermal misses: one high-resolution retry.
                     if detection_source == "thermal" and len(detections_raw) == 0:
@@ -1735,9 +1753,11 @@ class DetectorWorker:
         )
         effective_algorithm = algorithm
 
+        thermal_floor = int(motion_settings.get("thermal_min_area_floor", 260)) if is_thermal_motion else 0
         if is_thermal_motion:
-            thermal_floor = int(motion_settings.get("thermal_min_area_floor", 260))
             min_area = max(min_area, max(80, thermal_floor))
+            gate_warmup_seconds = float(motion_settings.get("thermal_warmup_seconds", 25.0))
+            state.setdefault("thermal_motion_gate_warmup_until", now + max(5.0, gate_warmup_seconds))
             motion_area = self._motion_area_thermal_iir(
                 gray=gray,
                 sensitivity=sensitivity,
@@ -1795,8 +1815,12 @@ class DetectorWorker:
             else:
                 learned = int(state.get("auto_learned_min_area", min_area))
                 min_area = max(floor, min(ceiling, learned))
+            if is_thermal_motion:
+                min_area = max(min_area, max(80, thermal_floor))
 
         prebuffer_seconds = float(getattr(config.event, "prebuffer_seconds", 0.0))
+        if is_thermal_motion and now < float(state.get("thermal_motion_gate_warmup_until", 0.0)):
+            motion_area = 0
         motion_detected = motion_area >= min_area
         if motion_detected:
             if not motion_active:

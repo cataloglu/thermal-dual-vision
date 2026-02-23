@@ -738,6 +738,7 @@ def camera_detection_process(
         last_relaxed_infer_time = 0.0
         last_pipeline_log = 0.0
         last_fallback_log = 0.0
+        thermal_gate_warmup_until = 0.0
         thermal_motion_state: Dict[str, Any] = {}
         
         process_logger.info(f"Detection parameters [{cam_name}]: source={detection_source}, fps={config.detection.inference_fps}, zones={len(zones)}")
@@ -910,6 +911,10 @@ def camera_detection_process(
                 if is_thermal_motion:
                     thermal_floor = int(motion_config.get("thermal_min_area_floor", 260))
                     motion_min_area_request = max(motion_min_area_request, max(80, thermal_floor))
+                    if thermal_gate_warmup_until <= 0.0:
+                        thermal_gate_warmup_until = current_time + max(
+                            5.0, float(motion_config.get("thermal_warmup_seconds", 25.0))
+                        )
                     if len(frame.shape) == 3:
                         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
                     else:
@@ -961,6 +966,11 @@ def camera_detection_process(
                         noise_p = float(np.percentile(np.array(auto_motion_history, dtype=np.float32), percentile))
                         auto_learned_min_area = max(floor, min(ceiling, int(noise_p * multiplier)))
                         auto_last_calc = current_time
+                    if is_thermal_motion:
+                        motion_min_area_request = max(motion_min_area_request, max(80, thermal_floor))
+                if is_thermal_motion and current_time < thermal_gate_warmup_until:
+                    motion_area = 0
+                    motion_detected = False
                 if motion_detected:
                     last_motion_time = current_time
                     motion_active = True
@@ -1009,8 +1019,8 @@ def camera_detection_process(
             # Run YOLO inference
             confidence_threshold = float(config.detection.confidence_threshold)
             if detection_source == "thermal":
-                thermal_floor = float(getattr(config.detection, "thermal_confidence_threshold", 0.35))
-                thermal_cap = float(getattr(config.detection, "thermal_confidence_cap", 0.38))
+                thermal_floor = float(getattr(config.detection, "thermal_confidence_threshold", 0.30))
+                thermal_cap = float(getattr(config.detection, "thermal_confidence_cap", 0.30))
                 confidence_threshold = min(max(0.25, thermal_floor), max(0.28, thermal_cap))
             
             detections_raw = inference_service.infer(
@@ -1058,6 +1068,24 @@ def camera_detection_process(
                             "DETECT [%s] thermal_plain_fallback recovered=%s",
                             cam_name,
                             len(plain_detections),
+                        )
+                if (
+                    detection_source == "thermal"
+                    and len(detections_raw) == 0
+                    and (current_time - last_relaxed_infer_time) >= 1.0
+                ):
+                    raw_detections = inference_service.infer(
+                        frame,
+                        confidence_threshold=0.20,
+                        inference_resolution=tuple(config.detection.inference_resolution),
+                    )
+                    last_relaxed_infer_time = current_time
+                    if raw_detections:
+                        detections_raw = raw_detections
+                        process_logger.debug(
+                            "DETECT [%s] thermal_raw_fallback recovered=%s",
+                            cam_name,
+                            len(raw_detections),
                         )
                 if detection_source == "thermal" and len(detections_raw) == 0:
                     base_res = tuple(config.detection.inference_resolution)

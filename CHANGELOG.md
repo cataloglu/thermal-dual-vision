@@ -6,6 +6,15 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.20] - 2026-02-24
+
+### Düzeltmeler
+
+- Thermal auto-motion modunda `min_area` tabanının ezilmesi giderildi; thermal floor artık auto öğrenme sonrası da zorunlu uygulanıyor.
+- Thermal motion gate warmup üst seviyede enforce edilerek başlangıçta erken active geçişleri daha sıkı bastırıldı.
+- Thermal detection için ek `thermal_raw_fallback` eklendi (ham frame + düşük conf), enhancer kaynaklı kör noktalarda ek kurtarma adımı sağlandı.
+- Thermal başlangıç confidence aralığı daha agresif kurtarma için güncellendi (varsayılan cap 0.30).
+
 ## [4.0.19] - 2026-02-24
 
 ### Düzeltmeler
