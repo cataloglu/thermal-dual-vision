@@ -5,6 +5,7 @@ Handles OpenAI Vision API integration for event analysis.
 """
 import base64
 import logging
+import re
 from pathlib import Path
 from typing import Dict, Any, Optional
 from openai import AsyncOpenAI
@@ -52,13 +53,15 @@ def _build_thermal_prompt(confidence: float = 1.0) -> str:
         "- İnsan sadece tek bir karede belirsiz görünüyorsa belirsiz kabul et.\n"
         "- İnsan en az İKİ AYRI KAREDE tutarlı şekilde görünüyorsa gerçek insan kabul et.\n"
         "- Kararı tek kareye göre verme; zamansal tutarlılığı zorunlu tut.\n"
+        "- Aynı kişiyi farklı karelerde ASLA tekrar sayma.\n"
+        "- Bu kolajdan kişi sayısı tahmini yapma; sayısal adet (1/2/3/X) yazma.\n"
         "- Kare açıklaması, olay sıralaması veya hikâyeleştirme YAPMA.\n"
         "- SADECE TEK CÜMLE yaz.\n"
         "- Türkçe yaz.\n"
         "\n"
         "Çıktı:\n"
         "- En az iki ayrı karede insan varsa:\n"
-        "  \"Kamerada X kişi tespit edildi.\"\n"
+        "  \"Kamerada insan tespit edildi.\"\n"
         "- Hiçbir karede insan yoksa:\n"
         "  \"Kamerada insan tespit edilmedi (no human).\"\n"
         "- Sadece tek karede belirsiz ısı varsa:\n"
@@ -103,13 +106,15 @@ def _build_color_prompt(confidence: float = 1.0) -> str:
         "- İnsan sadece tek bir karede belirsiz görünüyorsa belirsiz kabul et.\n"
         "- İnsan en az İKİ AYRI KAREDE tutarlı şekilde görünüyorsa gerçek insan kabul et.\n"
         "- Kararı tek kareye göre verme; zamansal tutarlılığı zorunlu tut.\n"
+        "- Aynı kişiyi farklı karelerde ASLA tekrar sayma.\n"
+        "- Bu kolajdan kişi sayısı tahmini yapma; sayısal adet (1/2/3/X) yazma.\n"
         "- Kare açıklaması, olay sıralaması veya hikâyeleştirme YAPMA.\n"
         "- SADECE TEK CÜMLE yaz.\n"
         "- Türkçe yaz.\n"
         "\n"
         "Çıktı:\n"
         "- En az iki ayrı karede insan varsa:\n"
-        "  \"Kamerada X kişi tespit edildi.\"\n"
+        "  \"Kamerada insan tespit edildi.\"\n"
         "- Hiçbir karede insan yoksa:\n"
         "  \"Kamerada insan tespit edilmedi (no human).\"\n"
         "- Sadece tek karede belirsiz insan varsa:\n"
@@ -192,7 +197,10 @@ class AIService:
                     messages=[
                         {
                             "role": "system",
-                            "content": "Kısa ama detaylı bir güvenlik raporu üret."
+                            "content": (
+                                "Sadece verilen çıktı formatına uy. "
+                                "Kısa ve tek cümle yaz. Kişi sayısı üretme."
+                            )
                         },
                         {
                             "role": "user",
@@ -219,6 +227,9 @@ class AIService:
             
             # Extract summary
             summary = response.choices[0].message.content.strip()
+            # Guardrail: avoid hallucinated person counts from collage tiles.
+            if re.search(r"\b(\d+|x)\s*ki(?:s|ş)i\s+tespit\s+edildi\b", summary, flags=re.IGNORECASE):
+                summary = "Kamerada insan tespit edildi."
             logger.info(f"AI analysis complete: {len(summary)} chars")
             
             return summary

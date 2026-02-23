@@ -209,7 +209,7 @@ async def test_openai_api_call(mock_openai_class, ai_service, test_event, test_c
     mock_response = Mock()
     mock_response.choices = [Mock()]
     mock_response.choices[0].message = Mock()
-    mock_response.choices[0].message.content = "1 kişi tespit edildi. Ön kapıda bekliyor. Tehdit: Düşük"
+    mock_response.choices[0].message.content = "1 kişi tespit edildi."
     mock_client.chat.completions.create.return_value = mock_response
     mock_openai_class.return_value = mock_client
     
@@ -217,8 +217,7 @@ async def test_openai_api_call(mock_openai_class, ai_service, test_event, test_c
         result = await ai_service.analyze_event(test_event, test_image, test_camera)
         
         assert result is not None
-        assert "1 kişi" in result
-        assert "Düşük" in result
+        assert "insan tespit edildi" in result.lower()
         
         # Verify API was called
         mock_client.chat.completions.create.assert_called_once()

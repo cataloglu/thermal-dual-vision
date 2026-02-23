@@ -6,6 +6,19 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.12] - 2026-02-23
+
+### Düzeltmeler
+
+- AI çıktısı kişi adedi uydurmasını engellemek için prompt ve sonuç guardrail'leri sertleştirildi (çıktı `insan tespit edildi/edilmedi` formatına sabitlendi).
+- MP4 quality gate başarısız olsa bile var olan event MP4'ünün silinmemesi sağlandı (collage var ama MP4 yok durumu azaltıldı).
+- Kısa dedektör dalgalanmaları için `no_detections_grace` ve tek-kare güvenli toparlama için `temporal_recovered` akışı eklendi.
+- Thermal/person kaçırmalarını azaltmak için motion aktifken `count=0` durumunda ikinci kademe inference fallback eklendi (`relaxed_threshold`).
+- Thermal akışta güçlendirme kaynaklı kaçırmaları yakalamak için enhancement kapalı alternatif preprocess fallback eklendi (`thermal_plain_fallback`).
+- Aspect ratio filtresinin thermal bbox'ları fazla elemesi durumuna geniş aralık fallback eklendi (`thermal_ar_fallback`).
+- Kök neden analizi için detector pipeline kırılım logları eklendi (`DETECT_PIPELINE raw/ar/zone/raw_best_conf`).
+- Aynı iyileştirmeler threading ve multiprocessing worker modlarında paralel olarak uygulandı.
+
 ## [4.0.11] - 2026-02-22
 
 ### Düzeltmeler

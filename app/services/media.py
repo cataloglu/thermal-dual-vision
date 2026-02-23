@@ -328,20 +328,24 @@ class MediaService:
                 ok, reason = _mp4_is_usable(mp4_path)
                 if not ok:
                     logger.warning("Event %s MP4 rejected by quality gate: %s", event_id, reason)
+                    had_existing_mp4 = os.path.exists(mp4_path)
                     # One more regeneration attempt from recording with a wider range.
                     if _try_recording_regen(expand_seconds=12.0):
                         ok2, reason2 = _mp4_is_usable(mp4_path)
                         if not ok2:
                             logger.warning("Event %s regenerated MP4 still invalid: %s", event_id, reason2)
-                            try:
-                                os.remove(mp4_path)
-                            except OSError:
-                                pass
+                            if had_existing_mp4:
+                                logger.warning(
+                                    "Event %s keeping existing MP4 despite quality issues (reason=%s)",
+                                    event_id,
+                                    reason2,
+                                )
                     else:
-                        try:
-                            os.remove(mp4_path)
-                        except OSError:
-                            pass
+                        if had_existing_mp4:
+                            logger.warning(
+                                "Event %s keeping existing MP4 because recording regen unavailable",
+                                event_id,
+                            )
             
             # Save URLs to database WITHOUT prefix (prefix added at runtime in main.py)
             event.collage_url = f"/api/events/{event_id}/collage" if os.path.exists(collage_path) else None

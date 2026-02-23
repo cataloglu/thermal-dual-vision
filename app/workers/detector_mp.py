@@ -509,6 +509,7 @@ def camera_detection_process(
         event_start_time = None
         last_event_time = 0
         last_frame_time = 0
+        no_detection_streak = 0
         _last_buffer_time = 0.0
         last_success_time = time.time()
         failure_threshold = max(1, int(getattr(config.stream, "read_failure_threshold", 5)))
@@ -636,6 +637,8 @@ def camera_detection_process(
         auto_learned_min_area: Optional[int] = None
         gate_log_interval = 30.0
         last_gate_log = 0.0
+        last_relaxed_infer_time = 0.0
+        last_pipeline_log = 0.0
         
         process_logger.info(f"Detection parameters [{cam_name}]: source={detection_source}, fps={config.detection.inference_fps}, zones={len(zones)}")
         process_logger.info(
@@ -874,19 +877,72 @@ def camera_detection_process(
             if detection_source == "thermal":
                 confidence_threshold = max(confidence_threshold, thermal_floor)
             
-            detections = inference_service.infer(
+            detections_raw = inference_service.infer(
                 preprocessed,
                 confidence_threshold=confidence_threshold,
                 inference_resolution=tuple(config.detection.inference_resolution),
             )
+            # Limited relaxed retry: recover borderline hits when strict threshold
+            # returns empty under active motion.
+            if len(detections_raw) == 0:
+                relaxed_threshold = max(0.30, confidence_threshold - 0.15)
+                if relaxed_threshold < confidence_threshold and (current_time - last_relaxed_infer_time) >= 1.0:
+                    relaxed_detections = inference_service.infer(
+                        preprocessed,
+                        confidence_threshold=relaxed_threshold,
+                        inference_resolution=tuple(config.detection.inference_resolution),
+                    )
+                    last_relaxed_infer_time = current_time
+                    if relaxed_detections:
+                        detections_raw = relaxed_detections
+                        process_logger.debug(
+                            "DETECT [%s] relaxed_threshold=%.2f recovered=%s",
+                            cam_name,
+                            relaxed_threshold,
+                            len(relaxed_detections),
+                        )
+                if (
+                    detection_source == "thermal"
+                    and len(detections_raw) == 0
+                    and (current_time - last_relaxed_infer_time) >= 1.0
+                ):
+                    thermal_plain = inference_service.preprocess_thermal(
+                        frame,
+                        enable_enhancement=False,
+                    )
+                    plain_detections = inference_service.infer(
+                        thermal_plain,
+                        confidence_threshold=max(0.25, relaxed_threshold - 0.05),
+                        inference_resolution=tuple(config.detection.inference_resolution),
+                    )
+                    last_relaxed_infer_time = current_time
+                    if plain_detections:
+                        detections_raw = plain_detections
+                        process_logger.debug(
+                            "DETECT [%s] thermal_plain_fallback recovered=%s",
+                            cam_name,
+                            len(plain_detections),
+                        )
             
             # Filter by aspect ratio
             ar_min, ar_max = config.detection.get_effective_aspect_ratio_bounds()
             detections = inference_service.filter_by_aspect_ratio(
-                detections,
+                detections_raw,
                 min_ratio=ar_min,
                 max_ratio=ar_max,
             )
+            if detection_source == "thermal" and len(detections) == 0 and len(detections_raw) > 0:
+                detections = inference_service.filter_by_aspect_ratio(
+                    detections_raw,
+                    min_ratio=0.12,
+                    max_ratio=1.80,
+                )
+                if detections:
+                    process_logger.debug(
+                        "DETECT [%s] thermal_ar_fallback recovered=%s",
+                        cam_name,
+                        len(detections),
+                    )
             
             # Filter by zones (if configured)
             if zones:
@@ -897,15 +953,32 @@ def camera_detection_process(
                         filtered.append(det)
                 
                 detections = filtered
+
+            if current_time - last_pipeline_log >= 10.0:
+                raw_best_conf = max((d.get("confidence", 0.0) for d in detections_raw), default=0.0)
+                process_logger.debug(
+                    "DETECT_PIPELINE [%s] raw=%s final=%s raw_best_conf=%.2f",
+                    cam_name,
+                    len(detections_raw),
+                    len(detections),
+                    raw_best_conf,
+                )
+                last_pipeline_log = current_time
             
             # Update detection history
             detection_history.append(detections)
             
             # Check if person detected
             if len(detections) == 0:
+                no_detection_streak += 1
+                # Tolerate short detector dropouts to avoid transient misses.
+                if no_detection_streak <= 2:
+                    _log_gate(f"no_detections_grace streak={no_detection_streak}")
+                    continue
                 event_start_time = None
                 _log_gate("no_detections")
                 continue
+            no_detection_streak = 0
             
             # Check temporal consistency (tuned for short walk-through scenarios)
             temporal_pass = inference_service.check_temporal_consistency(
@@ -915,6 +988,15 @@ def camera_detection_process(
                 max_gap_frames=2,
             )
             
+            if not temporal_pass:
+                best_conf = max((d.get("confidence", 0.0) for d in detections), default=0.0)
+                if best_conf >= max(confidence_threshold, 0.50):
+                    temporal_pass = True
+                    process_logger.debug(
+                        "EVENT_GATE [%s]: temporal_recovered best_conf=%.2f",
+                        cam_name,
+                        best_conf,
+                    )
             if not temporal_pass:
                 event_start_time = None
                 _log_gate("temporal_consistency_failed")

@@ -109,7 +109,10 @@ class DetectorWorker:
         self.ffmpeg_last_errors: Dict[str, deque] = defaultdict(lambda: deque(maxlen=3))
         self.ffmpeg_error_lock = threading.Lock()
         self.last_detection_log: Dict[str, float] = {}
+        self.last_detection_pipeline_log: Dict[str, float] = {}
         self.last_gate_log: Dict[str, float] = {}
+        self.no_detection_streak: Dict[str, int] = defaultdict(int)
+        self.last_relaxed_infer_time: Dict[str, float] = {}
         self.stale_gate_hits: Dict[str, int] = defaultdict(int)
         self.last_reconnect_ts: Dict[str, float] = {}
         self.stream_stats: Dict[str, Dict[str, Any]] = defaultdict(dict)
@@ -228,7 +231,10 @@ class DetectorWorker:
         self.latest_frames.pop(camera_id, None)
         self.latest_frame_locks.pop(camera_id, None)
         self.last_detection_log.pop(camera_id, None)
+        self.last_detection_pipeline_log.pop(camera_id, None)
         self.last_gate_log.pop(camera_id, None)
+        self.no_detection_streak.pop(camera_id, None)
+        self.last_relaxed_infer_time.pop(camera_id, None)
         self.stale_gate_hits.pop(camera_id, None)
         self.last_reconnect_ts.pop(camera_id, None)
         with self.stream_stats_lock:
@@ -690,11 +696,58 @@ class DetectorWorker:
                 if detection_source == "thermal":
                     confidence_threshold = max(confidence_threshold, thermal_floor)
                 t0 = time.perf_counter()
-                detections = self.inference_service.infer(
+                detections_raw = self.inference_service.infer(
                     preprocessed,
                     confidence_threshold=confidence_threshold,
                     inference_resolution=tuple(config.detection.inference_resolution),
                 )
+                # If strict threshold misses while motion is active, run a limited
+                # relaxed retry to recover borderline thermal/person hits.
+                if len(detections_raw) == 0:
+                    relaxed_threshold = max(0.30, confidence_threshold - 0.15)
+                    last_relaxed = float(self.last_relaxed_infer_time.get(camera_id, 0.0))
+                    if (
+                        relaxed_threshold < confidence_threshold
+                        and current_time - last_relaxed >= 1.0
+                    ):
+                        relaxed_detections = self.inference_service.infer(
+                            preprocessed,
+                            confidence_threshold=relaxed_threshold,
+                            inference_resolution=tuple(config.detection.inference_resolution),
+                        )
+                        self.last_relaxed_infer_time[camera_id] = current_time
+                        if relaxed_detections:
+                            detections_raw = relaxed_detections
+                            logger.debug(
+                                "DETECT camera=%s relaxed_threshold=%.2f recovered=%s",
+                                camera_id,
+                                relaxed_threshold,
+                                len(relaxed_detections),
+                            )
+                    # Thermal fallback: retry once with non-enhanced preprocessing.
+                    # Some thermal scenes lose person edges after strong enhancement.
+                    if (
+                        detection_source == "thermal"
+                        and len(detections_raw) == 0
+                        and current_time - last_relaxed >= 1.0
+                    ):
+                        thermal_plain = self.inference_service.preprocess_thermal(
+                            frame,
+                            enable_enhancement=False,
+                        )
+                        plain_detections = self.inference_service.infer(
+                            thermal_plain,
+                            confidence_threshold=max(0.25, relaxed_threshold - 0.05),
+                            inference_resolution=tuple(config.detection.inference_resolution),
+                        )
+                        self.last_relaxed_infer_time[camera_id] = current_time
+                        if plain_detections:
+                            detections_raw = plain_detections
+                            logger.debug(
+                                "DETECT camera=%s thermal_plain_fallback recovered=%s",
+                                camera_id,
+                                len(plain_detections),
+                            )
                 inference_latency = time.perf_counter() - t0
                 model_name = getattr(config.detection, "model", "yolov8n-person") or "yolov8n-person"
                 try:
@@ -707,10 +760,25 @@ class DetectorWorker:
                 # Filter by aspect ratio (preset or custom)
                 ar_min, ar_max = config.detection.get_effective_aspect_ratio_bounds()
                 detections = self.inference_service.filter_by_aspect_ratio(
-                    detections,
+                    detections_raw,
                     min_ratio=ar_min,
                     max_ratio=ar_max,
                 )
+                # Thermal blobs can be wider/noisier than standard person bbox.
+                # If strict AR filter drops all raw thermal detections, retry with
+                # wider bounds to avoid hard false negatives.
+                if detection_source == "thermal" and len(detections) == 0 and len(detections_raw) > 0:
+                    detections = self.inference_service.filter_by_aspect_ratio(
+                        detections_raw,
+                        min_ratio=0.12,
+                        max_ratio=1.80,
+                    )
+                    if detections:
+                        logger.debug(
+                            "DETECT camera=%s thermal_ar_fallback recovered=%s",
+                            camera_id,
+                            len(detections),
+                        )
                 
                 # Update frame buffer for media generation
                 self._update_frame_buffer(
@@ -722,7 +790,20 @@ class DetectorWorker:
                 )
 
                 # Update detection history
+                detections_after_ar = len(detections)
                 detections = self._filter_detections_by_zones(camera, detections, frame.shape)
+                last_pipe_log = self.last_detection_pipeline_log.get(camera_id, 0.0)
+                if current_time - last_pipe_log >= 10.0:
+                    raw_best_conf = max((d.get("confidence", 0.0) for d in detections_raw), default=0.0)
+                    logger.debug(
+                        "DETECT_PIPELINE camera=%s raw=%s ar=%s zone=%s raw_best_conf=%.2f",
+                        camera_id,
+                        len(detections_raw),
+                        detections_after_ar,
+                        len(detections),
+                        raw_best_conf,
+                    )
+                    self.last_detection_pipeline_log[camera_id] = current_time
                 self.detection_history[camera_id].append(detections)
 
                 # Detection log: when person found throttle to 10s; empty every 60s (reduces log noise)
@@ -740,20 +821,39 @@ class DetectorWorker:
 
                 # Check if person detected
                 if len(detections) == 0:
+                    # Tolerate short detector dropouts (1-2 cycles) to avoid
+                    # killing events on transient model misses.
+                    self.no_detection_streak[camera_id] += 1
+                    if self.no_detection_streak[camera_id] <= 2:
+                        _log_gate(f"no_detections_grace streak={self.no_detection_streak[camera_id]}")
+                        continue
                     self.event_start_time[camera_id] = None
                     _log_gate("no_detections")
                     continue
+                self.no_detection_streak[camera_id] = 0
 
                 # Check temporal consistency (only when we have detections)
                 # Tuned for short walk-through scenarios:
                 # - require fewer consecutive frames
                 # - allow small gaps
-                if not self.inference_service.check_temporal_consistency(
+                temporal_pass = self.inference_service.check_temporal_consistency(
                     detections,
                     list(self.detection_history[camera_id])[:-1],  # Exclude current
                     min_consecutive_frames=2,
                     max_gap_frames=2,
-                ):
+                )
+                if not temporal_pass:
+                    best_conf = max((d.get("confidence", 0.0) for d in detections), default=0.0)
+                    # Recovery path: allow a confident single-frame person hit
+                    # after brief no-detection streaks to reduce missed walk-throughs.
+                    if best_conf >= max(confidence_threshold, 0.50):
+                        temporal_pass = True
+                        logger.debug(
+                            "EVENT_GATE camera=%s reason=temporal_recovered best_conf=%.2f",
+                            camera_id,
+                            best_conf,
+                        )
+                if not temporal_pass:
                     self.event_start_time[camera_id] = None
                     _log_gate("temporal_consistency_failed")
                     continue
