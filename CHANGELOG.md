@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.22] - 2026-02-24
+
+### Düzeltmeler
+
+- `4.0.21` ile gelen thermal `class_agnostic_recovery` adımının fake alarm üretmesine neden olan candidate-promote davranışı geri çekildi.
+- Class-agnostic adım artık yalnızca tanı amaçlı çalışıyor (`class_agnostic_diag`): sınıf dağılımını logluyor fakat event zincirine detection enjekte etmiyor.
+- Böylece thermal `raw=0` kök neden analizi korunurken sahte kişi event spam’i engellendi.
+
 ## [4.0.21] - 2026-02-24
 
 ### Düzeltmeler

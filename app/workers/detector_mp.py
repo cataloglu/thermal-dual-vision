@@ -1129,15 +1129,10 @@ def camera_detection_process(
                             reverse=True,
                         )[:4]
                         class_diag_summary = ",".join(f"{name}:{count}" for name, count in top_classes)
-                        detections_raw = []
-                        for det in class_agnostic:
-                            promoted = dict(det)
-                            promoted["class_name"] = "person_candidate"
-                            detections_raw.append(promoted)
                         process_logger.debug(
-                            "DETECT [%s] class_agnostic_recovery recovered=%s classes=%s",
+                            "DETECT [%s] class_agnostic_diag boxes=%s classes=%s",
                             cam_name,
-                            len(detections_raw),
+                            len(class_agnostic),
                             class_diag_summary or "n/a",
                         )
                 if detection_source == "thermal" and len(detections_raw) == 0:

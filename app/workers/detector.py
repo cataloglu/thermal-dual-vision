@@ -811,15 +811,10 @@ class DetectorWorker:
                                 reverse=True,
                             )[:4]
                             class_diag_summary = ",".join(f"{name}:{count}" for name, count in top_classes)
-                            detections_raw = []
-                            for det in class_agnostic:
-                                promoted = dict(det)
-                                promoted["class_name"] = "person_candidate"
-                                detections_raw.append(promoted)
                             logger.debug(
-                                "DETECT camera=%s class_agnostic_recovery recovered=%s classes=%s",
+                                "DETECT camera=%s class_agnostic_diag boxes=%s classes=%s",
                                 camera_id,
-                                len(detections_raw),
+                                len(class_agnostic),
                                 class_diag_summary or "n/a",
                             )
                     # Extra fallback for thermal misses: one high-resolution retry.
