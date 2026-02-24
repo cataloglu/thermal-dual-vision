@@ -145,7 +145,7 @@ class CameraService:
                 try:
                     if 'cap' in locals():
                         cap.release()
-                except:
+                except Exception:
                     pass
                 
                 # If not last attempt, wait before retry

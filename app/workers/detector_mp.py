@@ -59,7 +59,17 @@ class _AsyncRunner:
         asyncio.run_coroutine_threadsafe(coro, self._loop)
 
 
-_async_runner = _AsyncRunner()
+_async_runner: Optional[_AsyncRunner] = None
+_async_runner_lock = threading.Lock()
+
+
+def _get_async_runner() -> _AsyncRunner:
+    global _async_runner
+    if _async_runner is None:
+        with _async_runner_lock:
+            if _async_runner is None:
+                _async_runner = _AsyncRunner()
+    return _async_runner
 
 
 def _ai_requires_confirmation(config) -> bool:
@@ -765,7 +775,7 @@ def camera_detection_process(
                         new_zones = command.get("zones", [])
                         zones = new_zones
                         process_logger.info("Zones updated for camera %s: %d zones", camera_id[:8], len(zones))
-            except:
+            except Exception:
                 pass
 
             # Ensure capture is available
@@ -1382,7 +1392,7 @@ def camera_detection_process(
                 "error": str(e),
                 "timestamp": _utc_now_naive().isoformat()
             })
-        except:
+        except Exception:
             pass
 
 
@@ -1525,7 +1535,7 @@ class MultiprocessingDetectorWorker:
             # Send stop command via control queue
             try:
                 self.control_queues[camera_id].put_nowait("stop")
-            except:
+            except Exception:
                 pass
         
         # Wait for processes to finish (with timeout)
@@ -1671,7 +1681,7 @@ class MultiprocessingDetectorWorker:
         # Send stop command
         try:
             self.control_queues[camera_id].put_nowait("stop")
-        except:
+        except Exception:
             pass
         
         # Wait for process
@@ -1916,7 +1926,7 @@ class MultiprocessingDetectorWorker:
                                 detection_source = get_detection_source(
                                     camera_obj.detection_source.value if hasattr(camera_obj, "detection_source") and camera_obj.detection_source else "thermal"
                                 )
-                                summary = _async_runner.run(ai_service.analyze_event(
+                                summary = _get_async_runner().run(ai_service.analyze_event(
                                     {
                                         "id": event.id,
                                         "camera_id": event.camera_id,
@@ -1999,7 +2009,7 @@ class MultiprocessingDetectorWorker:
                                 telegram = get_telegram_service()
                                 collage_path_obj = media_service.get_media_path(event.id, "collage")
                                 mp4_path_obj = media_service.get_media_path(event.id, "mp4")
-                                _async_runner.submit(telegram.send_event_notification(
+                                _get_async_runner().submit(telegram.send_event_notification(
                                     event={
                                         "id": event.id,
                                         "camera_id": event.camera_id,
