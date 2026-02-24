@@ -1743,9 +1743,19 @@ class DetectorWorker:
         if not summary:
             return False
         text = summary.lower()
+        # Be conservative: if both positive and negative cues appear in the
+        # same response, treat it as rejected to avoid false alarms.
         if any(marker in text for marker in AI_NEGATIVE_MARKERS):
             return False
         return any(marker in text for marker in AI_POSITIVE_MARKERS)
+
+    def _event_is_ai_confirmed(self, event: Event, ai_required: bool) -> bool:
+        """Single source of truth for downstream notify/publish gating."""
+        if not ai_required:
+            return True
+        if getattr(event, "rejected_by_ai", False):
+            return False
+        return self._is_ai_confirmed(getattr(event, "summary", None))
 
     def _is_motion_active(self, camera: Camera, frame: np.ndarray, config) -> bool:
         base_motion = config.motion.model_dump()
@@ -2435,7 +2445,7 @@ class DetectorWorker:
                             event.ai_reason = "no_api_key" if not has_key else "analysis_failed"
                         db.commit()
 
-                    ai_confirmed = True if not ai_required else self._is_ai_confirmed(event.summary)
+                    ai_confirmed = self._event_is_ai_confirmed(event, ai_required)
 
                     # Re-publish to MQTT with summary and AI confirmation gate
                     if not ai_required:
@@ -2455,8 +2465,8 @@ class DetectorWorker:
                         except Exception as e:
                             logger.error("MQTT update failed: %s", e)
 
-                    try:
-                        if ai_confirmed:
+                    if ai_confirmed:
+                        try:
                             asyncio.run(
                                 self.telegram_service.send_event_notification(
                                     event={
@@ -2472,9 +2482,8 @@ class DetectorWorker:
                                     gif_path=gif_path,
                                 )
                             )
-                    except RuntimeError:
-                        loop = asyncio.new_event_loop()
-                        if ai_confirmed:
+                        except RuntimeError:
+                            loop = asyncio.new_event_loop()
                             loop.run_until_complete(
                                 self.telegram_service.send_event_notification(
                                     event={
@@ -2490,7 +2499,14 @@ class DetectorWorker:
                                     gif_path=gif_path,
                                 )
                             )
-                        loop.close()
+                            loop.close()
+                    else:
+                        logger.info(
+                            "Event %s notification suppressed (ai_rejected=%s, ai_required=%s)",
+                            event.id,
+                            bool(getattr(event, "rejected_by_ai", False)),
+                            ai_required,
+                        )
         threading.Thread(
             target=_run_media,
             daemon=True,

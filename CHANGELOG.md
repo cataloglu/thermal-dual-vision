@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.29] - 2026-02-24
+
+### Düzeltmeler
+
+- AI kararına göre bildirim/otomasyon akışı tek noktadan güvenli hale getirildi: `rejected_by_ai=true` olan event’lerde Telegram bildirimi ve AI-confirmed akışları kesin olarak bastırılıyor.
+- AI metinlerinde pozitif/negatif ifadeler karışık geldiğinde (çelişkili yanıt) güvenli davranış uygulanıyor; event onayı yerine reject tercih edilerek fake alarm riski azaltılıyor.
+- Event medya üretimi sonrası publish/notify adımlarında AI onay kontrolü merkezi yardımcı fonksiyon üzerinden yapılıyor; farklı kod yollarındaki tutarsızlıklar giderildi.
+
 ## [4.0.28] - 2026-02-24
 
 ### Düzeltmeler
