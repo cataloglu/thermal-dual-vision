@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.27] - 2026-02-24
+
+### Düzeltmeler
+
+- Thermal person tespitinde aspect-ratio filtresi genişletildi (`0.08-2.50`): thermal’da modelin ürettiği daha “blob” bbox’lar `ar=0` ile tamamen elenmesin.
+- Fake alarm riskini artırmamak için mevcut thermal bbox kalite filtresi + daha sıkı temporal gate aynen korunuyor; sadece AR yüzünden gereksiz drop azaltıldı.
+- Threading ve multiprocessing worker yollarında aynı davranış uygulanmıştır.
+
 ## [4.0.26] - 2026-02-24
 
 ### Düzeltmeler

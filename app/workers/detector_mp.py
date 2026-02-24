@@ -1161,24 +1161,19 @@ def camera_detection_process(
                         last_fallback_log = current_time
             
             # Filter by aspect ratio
-            ar_min, ar_max = config.detection.get_effective_aspect_ratio_bounds()
+            #
+            # Thermal boxes can be "blob-like" and violate strict person AR presets.
+            # Use a wider default for thermal and rely on subsequent quality+temporal
+            # gates to prevent fake alarms.
+            if detection_source == "thermal":
+                ar_min, ar_max = (0.08, 2.50)
+            else:
+                ar_min, ar_max = config.detection.get_effective_aspect_ratio_bounds()
             detections = inference_service.filter_by_aspect_ratio(
                 detections_raw,
                 min_ratio=ar_min,
                 max_ratio=ar_max,
             )
-            if detection_source == "thermal" and len(detections) == 0 and len(detections_raw) > 0:
-                detections = inference_service.filter_by_aspect_ratio(
-                    detections_raw,
-                    min_ratio=0.12,
-                    max_ratio=1.80,
-                )
-                if detections:
-                    process_logger.debug(
-                        "DETECT [%s] thermal_ar_fallback recovered=%s",
-                        cam_name,
-                        len(detections),
-                    )
             if detection_source == "thermal" and len(detections) > 0:
                 frame_h, frame_w = frame.shape[:2]
                 frame_area = float(max(frame_h * frame_w, 1))
