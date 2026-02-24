@@ -96,14 +96,13 @@ def session_scope() -> Generator[Session, None, None]:
 def _migrate_add_rtsp_url_detection() -> None:
     """Add rtsp_url_detection (substream) column to cameras if missing."""
     from sqlalchemy import text
-    with engine.connect() as conn:
+    with engine.begin() as conn:
         try:
             row = conn.execute(text(
                 "SELECT COUNT(*) FROM pragma_table_info('cameras') WHERE name='rtsp_url_detection'"
             )).scalar()
             if row == 0:
                 conn.execute(text("ALTER TABLE cameras ADD COLUMN rtsp_url_detection VARCHAR(500)"))
-                conn.commit()
                 logger.info("Migration: added rtsp_url_detection to cameras")
             _MIGRATION_STATUS["rtsp_url_detection"] = {"ok": True, "error": ""}
         except Exception as e:
@@ -114,7 +113,7 @@ def _migrate_add_rtsp_url_detection() -> None:
 def _migrate_add_rejected_by_ai() -> None:
     """Add rejected_by_ai column to events if missing (SQLite)."""
     from sqlalchemy import text
-    with engine.connect() as conn:
+    with engine.begin() as conn:
         try:
             row = conn.execute(text(
                 "SELECT COUNT(*) FROM pragma_table_info('events') WHERE name='rejected_by_ai'"
@@ -123,7 +122,6 @@ def _migrate_add_rejected_by_ai() -> None:
                 conn.execute(text(
                     "ALTER TABLE events ADD COLUMN rejected_by_ai BOOLEAN DEFAULT 0 NOT NULL"
                 ))
-                conn.commit()
                 logger.info("Migration: added rejected_by_ai to events")
             _MIGRATION_STATUS["rejected_by_ai"] = {"ok": True, "error": ""}
         except Exception as e:
@@ -134,7 +132,7 @@ def _migrate_add_rejected_by_ai() -> None:
 def _migrate_add_person_count() -> None:
     """Add person_count column to events if missing (SQLite)."""
     from sqlalchemy import text
-    with engine.connect() as conn:
+    with engine.begin() as conn:
         try:
             row = conn.execute(text(
                 "SELECT COUNT(*) FROM pragma_table_info('events') WHERE name='person_count'"
@@ -143,7 +141,6 @@ def _migrate_add_person_count() -> None:
                 conn.execute(text(
                     "ALTER TABLE events ADD COLUMN person_count INTEGER DEFAULT 1 NOT NULL"
                 ))
-                conn.commit()
                 logger.info("Migration: added person_count to events")
             _MIGRATION_STATUS["person_count"] = {"ok": True, "error": ""}
         except Exception as e:
