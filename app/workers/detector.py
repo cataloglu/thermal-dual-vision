@@ -854,19 +854,30 @@ class DetectorWorker:
                     ar_min, ar_max = (0.08, 2.50)
                 else:
                     ar_min, ar_max = config.detection.get_effective_aspect_ratio_bounds()
-                detections = self.inference_service.filter_by_aspect_ratio(
+                detections_ar = self.inference_service.filter_by_aspect_ratio(
                     detections_raw,
                     min_ratio=ar_min,
                     max_ratio=ar_max,
                 )
-                if detection_source == "thermal" and len(detections) > 0:
+                detections = detections_ar
+                detections_after_ar = len(detections_ar)
+                thermal_drop_conf = 0
+                thermal_drop_area = 0
+                thermal_drop_height = 0
+                thermal_conf_floor = max(0.20, min(confidence_threshold, 0.26))
+                thermal_min_area_ratio = 0.0018
+                thermal_min_height_ratio = 0.06
+                if detection_source == "thermal" and detections_after_ar > 0:
                     frame_h, frame_w = frame.shape[:2]
                     frame_area = float(max(frame_h * frame_w, 1))
-                    min_area_ratio = 0.0030
-                    min_height_ratio = 0.10
-                    conf_floor = max(0.28, confidence_threshold)
+                    # Thermal confidence tends to be lower; keep floors aligned
+                    # with the actual inference thresholds to avoid dropping
+                    # fallback recoveries (e.g., 0.20-0.25 conf hits).
+                    min_area_ratio = thermal_min_area_ratio
+                    min_height_ratio = thermal_min_height_ratio
+                    conf_floor = thermal_conf_floor
                     filtered_thermal: List[Dict] = []
-                    for det in detections:
+                    for det in detections_ar:
                         x1, y1, x2, y2 = det["bbox"]
                         w = max(0, x2 - x1)
                         h = max(0, y2 - y1)
@@ -874,8 +885,13 @@ class DetectorWorker:
                         height_ratio = h / float(max(frame_h, 1))
                         conf = float(det.get("confidence", 0.0))
                         if conf < conf_floor:
+                            thermal_drop_conf += 1
                             continue
-                        if area_ratio < min_area_ratio or height_ratio < min_height_ratio:
+                        if area_ratio < min_area_ratio:
+                            thermal_drop_area += 1
+                            continue
+                        if height_ratio < min_height_ratio:
+                            thermal_drop_height += 1
                             continue
                         filtered_thermal.append(det)
                     detections = filtered_thermal
@@ -890,19 +906,36 @@ class DetectorWorker:
                 )
 
                 # Update detection history
-                detections_after_ar = len(detections)
+                detections_after_qual = len(detections)
                 detections = self._filter_detections_by_zones(camera, detections, frame.shape)
                 last_pipe_log = self.last_detection_pipeline_log.get(camera_id, 0.0)
                 if current_time - last_pipe_log >= 10.0:
                     raw_best_conf = max((d.get("confidence", 0.0) for d in detections_raw), default=0.0)
-                    logger.debug(
-                        "DETECT_PIPELINE camera=%s raw=%s ar=%s zone=%s raw_best_conf=%.2f",
-                        camera_id,
-                        len(detections_raw),
-                        detections_after_ar,
-                        len(detections),
-                        raw_best_conf,
-                    )
+                    if detection_source == "thermal":
+                        logger.debug(
+                            "DETECT_PIPELINE camera=%s raw=%s ar=%s qual=%s zone=%s raw_best_conf=%.2f qual_drop=conf:%s area:%s h:%s qual_floor=%.2f qual_min_area=%.4f qual_min_h=%.2f",
+                            camera_id,
+                            len(detections_raw),
+                            detections_after_ar,
+                            detections_after_qual,
+                            len(detections),
+                            raw_best_conf,
+                            thermal_drop_conf,
+                            thermal_drop_area,
+                            thermal_drop_height,
+                            thermal_conf_floor,
+                            thermal_min_area_ratio,
+                            thermal_min_height_ratio,
+                        )
+                    else:
+                        logger.debug(
+                            "DETECT_PIPELINE camera=%s raw=%s ar=%s zone=%s raw_best_conf=%.2f",
+                            camera_id,
+                            len(detections_raw),
+                            detections_after_ar,
+                            len(detections),
+                            raw_best_conf,
+                        )
                     self.last_detection_pipeline_log[camera_id] = current_time
                 self.detection_history[camera_id].append(detections)
 

@@ -627,16 +627,23 @@ class InferenceService:
         
         for det in detections:
             x1, y1, x2, y2 = det["bbox"]
-            width = x2 - x1
-            height = y2 - y1
+            # Be defensive: some backends/exports can occasionally produce
+            # inverted coordinates. Normalize so downstream filters behave.
+            x1n = int(min(x1, x2))
+            x2n = int(max(x1, x2))
+            y1n = int(min(y1, y2))
+            y2n = int(max(y1, y2))
+            width = x2n - x1n
+            height = y2n - y1n
             
-            if height == 0:
+            if width <= 0 or height <= 0:
                 continue
             
             ratio = width / height
             
             # Check if ratio is in person range
             if min_ratio <= ratio <= max_ratio:
+                det["bbox"] = [x1n, y1n, x2n, y2n]
                 det["aspect_ratio"] = ratio
                 filtered.append(det)
             else:

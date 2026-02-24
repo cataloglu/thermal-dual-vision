@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.28] - 2026-02-24
+
+### Düzeltmeler
+
+- Thermal pipeline’da `raw=1` iken `ar=0`/`zone=0` görünmesinin gerçek nedenini ayırmak için `DETECT_PIPELINE` logu genişletildi: `ar` sonrası (`ar`), kalite sonrası (`qual`) ve zone sonrası (`zone`) ayrı raporlanıyor; ayrıca thermal kalite filtre drop sayıları loglanıyor.
+- Thermal bbox kalite filtre eşikleri daha gerçekçi hale getirildi (özellikle düşük `conf` ile gelen fallback recoveries gereksiz yere elenmesin diye).
+- Aspect-ratio filtresi içinde bbox koordinatları normalize edildi (ters bbox durumunda `width/height` negatif olup yanlış elenmesin).
+
 ## [4.0.27] - 2026-02-24
 
 ### Düzeltmeler
