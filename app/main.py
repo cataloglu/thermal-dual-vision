@@ -20,10 +20,10 @@ from app.db.session import get_session, session_scope, get_migration_status
 from app.version import __version__
 from app.workers.detector_mp import get_mp_detector_worker
 from app.workers.detector import get_detector_worker
+import app.dependencies as deps
 from app.dependencies import (
     settings_service,
     camera_crud_service,
-    detector_worker,
     websocket_manager,
     telegram_service,
     go2rtc_service,
@@ -69,7 +69,9 @@ def _resolve_uvicorn_log_level(raw: str) -> str:
     return "info"
 
 
-log_dir = Path("logs")
+from app.utils.paths import LOGS_DIR
+
+log_dir = LOGS_DIR
 log_dir.mkdir(parents=True, exist_ok=True)
 log_file = log_dir / "app.log"
 _IS_TEST = "pytest" in sys.modules
@@ -162,19 +164,18 @@ async def lifespan(app: FastAPI):
             logger.info(f"Metrics server started on port {config.performance.metrics_port}")
 
         worker_mode = getattr(getattr(config, "performance", None), "worker_mode", "threading") or "threading"
-        global detector_worker
         if worker_mode == "multiprocessing":
-            detector_worker = get_mp_detector_worker()
+            deps.detector_worker = get_mp_detector_worker()
             logger.info("Using multiprocessing detector worker (experimental)")
         else:
-            detector_worker = get_detector_worker()
+            deps.detector_worker = get_detector_worker()
             logger.info("Using threading detector worker")
     except Exception as e:
         logger.warning(f"Failed to load config / start metrics: {e}")
-        detector_worker = get_detector_worker()
+        deps.detector_worker = get_detector_worker()
         logger.info("Using threading detector worker (fallback)")
 
-    detector_worker.start()
+    deps.detector_worker.start()
     logger.info("Detector worker started")
 
     continuous_recorder.start()
@@ -202,7 +203,7 @@ async def lifespan(app: FastAPI):
         logger.info("Shutting down Smart Motion Detector v2")
         mqtt_service.stop()
         logger.info("MQTT service stopped")
-        detector_worker.stop()
+        deps.detector_worker.stop()
         logger.info("Detector worker stopped")
         continuous_recorder.stop()
         logger.info("Continuous recording stopped")
@@ -283,7 +284,7 @@ async def health():
         ai_enabled = False
         ai_reason = "not_configured"
 
-    pipeline_status = "ok" if detector_worker.running else "down"
+    pipeline_status = "ok" if deps.detector_worker.running else "down"
     telegram_status = "ok" if telegram_service.is_enabled() else "disabled"
     try:
         mqtt_cfg = settings_service.load_config().mqtt
