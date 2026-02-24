@@ -239,24 +239,28 @@ class DetectorWorker:
         self.last_relaxed_infer_time.pop(camera_id, None)
         self.stale_gate_hits.pop(camera_id, None)
         self.last_reconnect_ts.pop(camera_id, None)
+        self.ffmpeg_frame_shapes.pop(camera_id, None)
+        with self.ffmpeg_error_lock:
+            self.ffmpeg_last_errors.pop(camera_id, None)
         with self.stream_stats_lock:
             self.stream_stats.pop(camera_id, None)
 
     def _reset_motion_buffers(self, camera_id: str, prebuffer_seconds: float) -> None:
-        lock = self.frame_buffer_locks[camera_id]
-        with lock:
-            buffer = self.frame_buffers.get(camera_id)
-            if buffer is not None and prebuffer_seconds > 0:
-                cutoff = time.time() - prebuffer_seconds
-                trimmed = deque((item for item in buffer if item[2] >= cutoff), maxlen=buffer.maxlen)
-                self.frame_buffers[camera_id] = trimmed
+        # Always acquire frame lock before video lock to prevent deadlock
+        frame_lock = self.frame_buffer_locks[camera_id]
         video_lock = self.video_buffer_locks[camera_id]
-        with video_lock:
-            buffer = self.video_buffers.get(camera_id)
-            if buffer is not None and prebuffer_seconds > 0:
-                cutoff = time.time() - prebuffer_seconds
-                trimmed = deque((item for item in buffer if item[1] >= cutoff), maxlen=buffer.maxlen)
-                self.video_buffers[camera_id] = trimmed
+        with frame_lock:
+            with video_lock:
+                buffer = self.frame_buffers.get(camera_id)
+                if buffer is not None and prebuffer_seconds > 0:
+                    cutoff = time.time() - prebuffer_seconds
+                    trimmed = deque((item for item in buffer if item[2] >= cutoff), maxlen=buffer.maxlen)
+                    self.frame_buffers[camera_id] = trimmed
+                vbuffer = self.video_buffers.get(camera_id)
+                if vbuffer is not None and prebuffer_seconds > 0:
+                    cutoff = time.time() - prebuffer_seconds
+                    trimmed = deque((item for item in vbuffer if item[1] >= cutoff), maxlen=vbuffer.maxlen)
+                    self.video_buffers[camera_id] = trimmed
         self.frame_counters[camera_id] = 0
         self.detection_history[camera_id].clear()
 
