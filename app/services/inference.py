@@ -529,10 +529,13 @@ class InferenceService:
                 # - Fall back to COCO person class id=0
                 # - If model is single-class, accept it as person (person-only exports may remap ids)
                 is_person = False
-                if class_name:
-                    is_person = class_name in self.PERSON_CLASS_ALIASES
-                elif class_id == self.PERSON_CLASS_ID:
+                # Always treat COCO class_id=0 as person, even if names metadata is wrong/misaligned.
+                # Some exports/backends can produce incorrect `names` maps which would otherwise
+                # cause valid person detections to be filtered out.
+                if class_id == self.PERSON_CLASS_ID:
                     is_person = True
+                elif class_name:
+                    is_person = class_name in self.PERSON_CLASS_ALIASES
                 if not is_person and single_class_model:
                     is_person = True
                 if not is_person:

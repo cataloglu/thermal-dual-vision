@@ -6,6 +6,13 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.26] - 2026-02-24
+
+### Düzeltmeler
+
+- Person filtresi sağlamlaştırıldı: `class_id=0` (COCO person) artık `names` metadata hatalı olsa bile her durumda person kabul ediliyor.
+- Bu özellikle OpenVINO/export senaryolarında `names_map` kayması yüzünden `person` kutularının “traffic light/car” gibi görünen etiketlerle elenip `DETECT_PIPELINE raw=0` üretmesini engeller.
+
 ## [4.0.25] - 2026-02-24
 
 ### Düzeltmeler
