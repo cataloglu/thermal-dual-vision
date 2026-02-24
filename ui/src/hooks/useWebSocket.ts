@@ -44,6 +44,7 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
 
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const reconnectAttemptsRef = useRef(0)
   const shouldReconnectRef = useRef(true)
   const socketNonceRef = useRef(0)
@@ -108,15 +109,14 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
         }
 
         // Send ping every 15 seconds to keep connection alive (Ingress proxy timeout)
-        const pingInterval = setInterval(() => {
+        if (pingIntervalRef.current) {
+          clearInterval(pingIntervalRef.current)
+        }
+        pingIntervalRef.current = setInterval(() => {
           if (ws.readyState === WebSocket.OPEN) {
             ws.send('ping')
           }
         }, 15000)
-
-        ws.addEventListener('close', () => {
-          clearInterval(pingInterval)
-        })
       }
 
       ws.onmessage = (event) => {
@@ -176,6 +176,10 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
     return () => {
       // Cleanup
       shouldReconnectRef.current = false
+      if (pingIntervalRef.current) {
+        clearInterval(pingIntervalRef.current)
+        pingIntervalRef.current = null
+      }
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current)
       }
