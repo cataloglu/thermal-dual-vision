@@ -699,9 +699,8 @@ class DetectorWorker:
                 # Run inference (with metrics)
                 confidence_threshold = float(config.detection.confidence_threshold)
                 if detection_source == "thermal":
-                    thermal_floor = float(getattr(config.detection, "thermal_confidence_threshold", 0.30))
-                    thermal_cap = float(getattr(config.detection, "thermal_confidence_cap", 0.30))
-                    confidence_threshold = min(max(0.25, thermal_floor), max(0.28, thermal_cap))
+                    thermal_conf = float(getattr(config.detection, "thermal_confidence_threshold", confidence_threshold))
+                    confidence_threshold = max(0.25, thermal_conf)
                 t0 = time.perf_counter()
                 detections_raw = self.inference_service.infer(
                     preprocessed,
@@ -710,8 +709,10 @@ class DetectorWorker:
                 )
                 # If strict threshold misses while motion is active, run a limited
                 # relaxed retry to recover borderline thermal/person hits.
+                # Floor: never go below 65% of the configured threshold.
                 if len(detections_raw) == 0:
-                    relaxed_threshold = max(0.30, confidence_threshold - 0.15)
+                    fallback_floor = max(0.30, confidence_threshold * 0.65)
+                    relaxed_threshold = max(fallback_floor, confidence_threshold - 0.10)
                     class_diag_summary = ""
                     last_relaxed = float(self.last_relaxed_infer_time.get(camera_id, 0.0))
                     if (
@@ -745,7 +746,7 @@ class DetectorWorker:
                         )
                         plain_detections = self.inference_service.infer(
                             thermal_plain,
-                            confidence_threshold=max(0.25, relaxed_threshold - 0.05),
+                            confidence_threshold=fallback_floor,
                             inference_resolution=tuple(config.detection.inference_resolution),
                         )
                         self.last_relaxed_infer_time[camera_id] = current_time
@@ -756,52 +757,6 @@ class DetectorWorker:
                                 camera_id,
                                 len(plain_detections),
                             )
-                    if (
-                        detection_source == "thermal"
-                        and len(detections_raw) == 0
-                        and current_time - last_relaxed >= 1.0
-                    ):
-                        raw_detections = self.inference_service.infer(
-                            frame,
-                            confidence_threshold=0.20,
-                            inference_resolution=tuple(config.detection.inference_resolution),
-                        )
-                        self.last_relaxed_infer_time[camera_id] = current_time
-                        if raw_detections:
-                            detections_raw = raw_detections
-                            logger.debug(
-                                "DETECT camera=%s thermal_raw_fallback recovered=%s",
-                                camera_id,
-                                len(raw_detections),
-                            )
-                    if (
-                        detection_source == "thermal"
-                        and len(detections_raw) == 0
-                        and current_time - last_relaxed >= 1.0
-                    ):
-                        thermal_pseudo = self.inference_service.preprocess_thermal_pseudocolor(frame)
-                        pseudo_detections = self.inference_service.infer(
-                            thermal_pseudo,
-                            confidence_threshold=max(0.20, relaxed_threshold - 0.10),
-                            inference_resolution=tuple(config.detection.inference_resolution),
-                        )
-                        self.last_relaxed_infer_time[camera_id] = current_time
-                        if pseudo_detections:
-                            detections_raw = pseudo_detections
-                            logger.debug(
-                                "DETECT camera=%s thermal_pseudocolor_fallback recovered=%s",
-                                camera_id,
-                                len(pseudo_detections),
-                            )
-                    if (
-                        detection_source == "thermal"
-                        and len(detections_raw) == 0
-                        and current_time - last_relaxed >= 1.0
-                    ):
-                        # Diagnostics-only all-class fallback was too noisy on thermal
-                        # (common static mislabels: car/traffic-light/train). Keep
-                        # pipeline lean and rely on person-only path + gate logs.
-                        pass
                     # Extra fallback for thermal misses: one high-resolution retry.
                     if detection_source == "thermal" and len(detections_raw) == 0:
                         base_res = tuple(config.detection.inference_resolution)
@@ -810,7 +765,7 @@ class DetectorWorker:
                             high_res = (832, 832)
                             high_res_detections = self.inference_service.infer(
                                 preprocessed,
-                                confidence_threshold=max(0.22, relaxed_threshold - 0.08),
+                                confidence_threshold=fallback_floor,
                                 inference_resolution=high_res,
                             )
                             if high_res_detections:
@@ -868,7 +823,7 @@ class DetectorWorker:
                 thermal_drop_conf = 0
                 thermal_drop_area = 0
                 thermal_drop_height = 0
-                thermal_conf_floor = max(0.20, min(confidence_threshold, 0.26))
+                thermal_conf_floor = max(0.25, confidence_threshold * 0.75)
                 thermal_min_area_ratio = 0.0018
                 thermal_min_height_ratio = 0.06
                 if detection_source == "thermal" and detections_after_ar > 0:
