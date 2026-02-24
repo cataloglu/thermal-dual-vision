@@ -6,7 +6,7 @@ All models include validation rules and default values.
 """
 import re
 from typing import List, Literal, Optional, Tuple
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class DetectionConfig(BaseModel):
@@ -79,14 +79,11 @@ class DetectionConfig(BaseModel):
             raise ValueError("Resolution values must be positive")
         return v
 
-    @field_validator("aspect_ratio_max")
-    @classmethod
-    def validate_aspect_ratio(cls, v: float, info) -> float:
-        values = info.data
-        min_ratio = values.get("aspect_ratio_min")
-        if min_ratio is not None and v < min_ratio:
+    @model_validator(mode="after")
+    def validate_aspect_ratio_range(self) -> "DetectionConfig":
+        if self.aspect_ratio_max < self.aspect_ratio_min:
             raise ValueError("aspect_ratio_max must be >= aspect_ratio_min")
-        return v
+        return self
 
     def get_effective_aspect_ratio_bounds(self) -> Tuple[float, float]:
         """Return (min_ratio, max_ratio) from preset or custom values."""
