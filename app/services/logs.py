@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import List
 from collections import deque
 
+from app.utils.paths import LOGS_DIR
 from app.utils.rtsp import redact_rtsp_urls_in_text
 
 logger = logging.getLogger(__name__)
@@ -23,8 +24,7 @@ class LogsService:
     - Tail functionality
     """
     
-    # Default log file path (can be configured)
-    LOG_FILE = Path("logs/app.log")
+    LOG_FILE = LOGS_DIR / "app.log"
     
     def __init__(self, log_file: Path = None):
         """
