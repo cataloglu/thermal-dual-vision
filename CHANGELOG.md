@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.32] - 2026-02-25
+
+### Düzeltmeler
+
+- **Termal kameralarda fallback zinciri tamamen kaldırıldı**: Relaxed, plain ve highres fallback'ler termal'de sadece false positive üretiyordu. Artık termal kameralar yalnızca kullanıcının ayarladığı `thermal_confidence_threshold` ile çalışıyor — bulamazsa bulmamış demek.
+- **Quality floor = confidence_threshold**: Termal tespit quality floor'u artık threshold'un kendisi. Alt threshold'lu tespit quality filter'ı geçemiyor.
+- **Color kameralarda fallback korundu**: Relaxed retry sadece color/dual kameraları etkiliyor.
+
 ## [4.0.31] - 2026-02-25
 
 ### Düzeltmeler

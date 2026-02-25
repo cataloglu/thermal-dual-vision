@@ -707,12 +707,11 @@ class DetectorWorker:
                     confidence_threshold=confidence_threshold,
                     inference_resolution=tuple(config.detection.inference_resolution),
                 )
-                # If strict threshold misses while motion is active, run a limited
-                # relaxed retry to recover borderline thermal/person hits.
-                # Floor: never go below 80% of the configured threshold.
-                if len(detections_raw) == 0:
-                    fallback_floor = max(0.35, confidence_threshold * 0.80)
-                    relaxed_threshold = max(fallback_floor, confidence_threshold - 0.05)
+                # Relaxed retry for color cameras only.
+                # Thermal cameras: no fallback — the configured threshold is final.
+                # Thermal fallbacks produced too many false positives in production.
+                if len(detections_raw) == 0 and detection_source != "thermal":
+                    relaxed_threshold = max(0.35, confidence_threshold - 0.10)
                     class_diag_summary = ""
                     last_relaxed = float(self.last_relaxed_infer_time.get(camera_id, 0.0))
                     if (
@@ -733,68 +732,6 @@ class DetectorWorker:
                                 relaxed_threshold,
                                 len(relaxed_detections),
                             )
-                    # Thermal fallback: retry once with non-enhanced preprocessing.
-                    # Some thermal scenes lose person edges after strong enhancement.
-                    if (
-                        detection_source == "thermal"
-                        and len(detections_raw) == 0
-                        and current_time - last_relaxed >= 1.0
-                    ):
-                        thermal_plain = self.inference_service.preprocess_thermal(
-                            frame,
-                            enable_enhancement=False,
-                        )
-                        plain_detections = self.inference_service.infer(
-                            thermal_plain,
-                            confidence_threshold=fallback_floor,
-                            inference_resolution=tuple(config.detection.inference_resolution),
-                        )
-                        self.last_relaxed_infer_time[camera_id] = current_time
-                        if plain_detections:
-                            detections_raw = plain_detections
-                            logger.debug(
-                                "DETECT camera=%s thermal_plain_fallback recovered=%s",
-                                camera_id,
-                                len(plain_detections),
-                            )
-                    # Extra fallback for thermal misses: one high-resolution retry.
-                    if detection_source == "thermal" and len(detections_raw) == 0:
-                        base_res = tuple(config.detection.inference_resolution)
-                        backend = str(getattr(self.inference_service, "active_backend", "unknown")).lower()
-                        if max(base_res) < 800 and backend != "openvino":
-                            high_res = (832, 832)
-                            high_res_detections = self.inference_service.infer(
-                                preprocessed,
-                                confidence_threshold=fallback_floor,
-                                inference_resolution=high_res,
-                            )
-                            if high_res_detections:
-                                detections_raw = high_res_detections
-                                logger.debug(
-                                    "DETECT camera=%s thermal_highres_fallback res=%sx%s recovered=%s",
-                                    camera_id,
-                                    high_res[0],
-                                    high_res[1],
-                                    len(high_res_detections),
-                                )
-                        elif max(base_res) < 800 and backend == "openvino":
-                            last_fb = float(self.last_fallback_log.get(camera_id, 0.0))
-                            if current_time - last_fb >= 10.0:
-                                logger.debug(
-                                    "DETECT camera=%s thermal_highres_fallback skipped backend=openvino",
-                                    camera_id,
-                                )
-                                self.last_fallback_log[camera_id] = current_time
-                    if len(detections_raw) == 0:
-                        last_fb = float(self.last_fallback_log.get(camera_id, 0.0))
-                        if current_time - last_fb >= 10.0:
-                            logger.debug(
-                                "DETECT camera=%s fallback_exhausted conf=%.2f class_diag=%s",
-                                camera_id,
-                                confidence_threshold,
-                                class_diag_summary or "none",
-                            )
-                            self.last_fallback_log[camera_id] = current_time
                 inference_latency = time.perf_counter() - t0
                 model_name = getattr(config.detection, "model", "yolov8n-person") or "yolov8n-person"
                 try:
@@ -823,7 +760,7 @@ class DetectorWorker:
                 thermal_drop_conf = 0
                 thermal_drop_area = 0
                 thermal_drop_height = 0
-                thermal_conf_floor = max(0.30, confidence_threshold * 0.85)
+                thermal_conf_floor = confidence_threshold
                 thermal_min_area_ratio = 0.0018
                 thermal_min_height_ratio = 0.06
                 if detection_source == "thermal" and detections_after_ar > 0:

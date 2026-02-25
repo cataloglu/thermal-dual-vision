@@ -1045,12 +1045,10 @@ def camera_detection_process(
                 confidence_threshold=confidence_threshold,
                 inference_resolution=tuple(config.detection.inference_resolution),
             )
-            # Limited relaxed retry: recover borderline hits when strict threshold
-            # returns empty under active motion.
-            # Floor: never go below 80% of the configured threshold.
-            if len(detections_raw) == 0:
-                fallback_floor = max(0.35, confidence_threshold * 0.80)
-                relaxed_threshold = max(fallback_floor, confidence_threshold - 0.05)
+            # Relaxed retry for color cameras only.
+            # Thermal cameras: no fallback — the configured threshold is final.
+            if len(detections_raw) == 0 and detection_source != "thermal":
+                relaxed_threshold = max(0.35, confidence_threshold - 0.10)
                 class_diag_summary = ""
                 if relaxed_threshold < confidence_threshold and (current_time - last_relaxed_infer_time) >= 1.0:
                     relaxed_detections = inference_service.infer(
@@ -1067,63 +1065,6 @@ def camera_detection_process(
                             relaxed_threshold,
                             len(relaxed_detections),
                         )
-                if (
-                    detection_source == "thermal"
-                    and len(detections_raw) == 0
-                    and (current_time - last_relaxed_infer_time) >= 1.0
-                ):
-                    thermal_plain = inference_service.preprocess_thermal(
-                        frame,
-                        enable_enhancement=False,
-                    )
-                    plain_detections = inference_service.infer(
-                        thermal_plain,
-                        confidence_threshold=fallback_floor,
-                        inference_resolution=tuple(config.detection.inference_resolution),
-                    )
-                    last_relaxed_infer_time = current_time
-                    if plain_detections:
-                        detections_raw = plain_detections
-                        process_logger.debug(
-                            "DETECT [%s] thermal_plain_fallback recovered=%s",
-                            cam_name,
-                            len(plain_detections),
-                        )
-                if detection_source == "thermal" and len(detections_raw) == 0:
-                    base_res = tuple(config.detection.inference_resolution)
-                    backend = str(getattr(inference_service, "active_backend", "unknown")).lower()
-                    if max(base_res) < 800 and backend != "openvino":
-                        high_res = (832, 832)
-                        high_res_detections = inference_service.infer(
-                            preprocessed,
-                            confidence_threshold=fallback_floor,
-                            inference_resolution=high_res,
-                        )
-                        if high_res_detections:
-                            detections_raw = high_res_detections
-                            process_logger.debug(
-                                "DETECT [%s] thermal_highres_fallback res=%sx%s recovered=%s",
-                                cam_name,
-                                high_res[0],
-                                high_res[1],
-                                len(high_res_detections),
-                            )
-                    elif max(base_res) < 800 and backend == "openvino":
-                        if current_time - last_fallback_log >= 10.0:
-                            process_logger.debug(
-                                "DETECT [%s] thermal_highres_fallback skipped backend=openvino",
-                                cam_name,
-                            )
-                            last_fallback_log = current_time
-                if len(detections_raw) == 0:
-                    if current_time - last_fallback_log >= 10.0:
-                        process_logger.debug(
-                            "DETECT [%s] fallback_exhausted conf=%.2f class_diag=%s",
-                            cam_name,
-                            confidence_threshold,
-                            class_diag_summary or "none",
-                        )
-                        last_fallback_log = current_time
             
             # Filter by aspect ratio
             #
@@ -1144,7 +1085,7 @@ def camera_detection_process(
             thermal_drop_conf = 0
             thermal_drop_area = 0
             thermal_drop_height = 0
-            thermal_conf_floor = max(0.30, confidence_threshold * 0.85)
+            thermal_conf_floor = confidence_threshold
             thermal_min_area_ratio = 0.0018
             thermal_min_height_ratio = 0.06
             if detection_source == "thermal" and detections_after_ar > 0:
