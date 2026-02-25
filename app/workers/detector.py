@@ -692,15 +692,15 @@ class DetectorWorker:
                     )
                     continue
 
-                # Thermal inference suppression: if YOLO returned empty 15+ times
-                # in a row, skip inference until motion area increases significantly
-                # (indicating new/different movement, not just thermal noise).
-                if detection_source == "thermal":
+                # Thermal inference suppression: if YOLO returned empty N times
+                # in a row, skip inference until motion area increases significantly.
+                if detection_source == "thermal" and getattr(config.motion, "thermal_suppression_enabled", True):
+                    wakeup_ratio = float(getattr(config.motion, "thermal_suppression_wakeup_ratio", 2.5))
                     suppressed_ts = self.suppressed_until.get(camera_id, 0.0)
                     if current_time < suppressed_ts:
                         current_area = self.motion_state.get(camera_id, {}).get("thermal_motion_area_raw", 0)
                         prev_area = self.last_motion_area.get(camera_id, 0)
-                        if current_area > prev_area * 2.5 and current_area > 5000:
+                        if current_area > prev_area * wakeup_ratio and current_area > 5000:
                             self.suppressed_until.pop(camera_id, None)
                             self.empty_inference_streak[camera_id] = 0
                         else:
@@ -888,16 +888,16 @@ class DetectorWorker:
                         _log_gate(f"no_detections_grace streak={self.no_detection_streak[camera_id]}")
                         continue
                     self.event_start_time[camera_id] = None
-                    # Thermal inference suppression: after 15 consecutive empty
-                    # YOLO results, pause inference for 30s to save CPU.
-                    if detection_source == "thermal":
+                    if detection_source == "thermal" and getattr(config.motion, "thermal_suppression_enabled", True):
+                        streak_limit = int(getattr(config.motion, "thermal_suppression_streak", 15))
+                        suppression_secs = int(getattr(config.motion, "thermal_suppression_duration", 30))
                         self.empty_inference_streak[camera_id] = self.empty_inference_streak.get(camera_id, 0) + 1
-                        if self.empty_inference_streak[camera_id] >= 15:
-                            self.suppressed_until[camera_id] = current_time + 30.0
+                        if self.empty_inference_streak[camera_id] >= streak_limit:
+                            self.suppressed_until[camera_id] = current_time + float(suppression_secs)
                             self.empty_inference_streak[camera_id] = 0
-                            logger.debug(
-                                "DETECT camera=%s inference_suppressed for 30s (15 consecutive empty results)",
-                                camera_id,
+                            logger.info(
+                                "DETECT camera=%s inference_suppressed for %ds (%d consecutive empty results)",
+                                camera_id, suppression_secs, streak_limit,
                             )
                     _log_gate("no_detections")
                     continue

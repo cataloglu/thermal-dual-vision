@@ -31,6 +31,10 @@ export interface MotionConfig {
   auto_min_area_floor?: number;
   auto_min_area_ceiling?: number;
   auto_multiplier?: number;
+  thermal_suppression_enabled?: boolean;
+  thermal_suppression_streak?: number;
+  thermal_suppression_duration?: number;
+  thermal_suppression_wakeup_ratio?: number;
   presets: {
     thermal_recommended: {
       sensitivity: number;

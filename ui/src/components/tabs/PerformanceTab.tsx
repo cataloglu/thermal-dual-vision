@@ -333,6 +333,56 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
               Product modunda manual motion kapali. Esikler kamera bazinda otomatik ogrenilir.
             </p>
 
+            {/* Thermal Inference Suppression */}
+            <h5 className="text-sm font-semibold text-text border-b border-border pb-1 mt-4">{t('thermalSuppressionTitle')}</h5>
+            <p className="text-xs text-muted">{t('thermalSuppressionDesc')}</p>
+            <label className="flex items-center gap-2 text-sm text-text">
+              <input
+                type="checkbox"
+                checked={settings.motion.thermal_suppression_enabled ?? true}
+                onChange={(e) => onChange({ ...settings, motion: { ...settings.motion, thermal_suppression_enabled: e.target.checked } })}
+              />
+              {t('thermalSuppressionEnabled')}
+            </label>
+            {(settings.motion.thermal_suppression_enabled ?? true) && (
+              <div className="space-y-2 pl-2 border-l-2 border-border">
+                <div>
+                  <label className="text-xs text-muted block mb-1">{t('thermalSuppressionStreak')}</label>
+                  <input
+                    type="number"
+                    min={5}
+                    max={100}
+                    value={settings.motion.thermal_suppression_streak ?? 15}
+                    onChange={(e) => onChange({ ...settings, motion: { ...settings.motion, thermal_suppression_streak: parseInt(e.target.value) || 15 } })}
+                    className="w-full px-3 py-1.5 bg-surface1 border border-border rounded text-text text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted block mb-1">{t('thermalSuppressionDuration')}</label>
+                  <input
+                    type="number"
+                    min={5}
+                    max={300}
+                    value={settings.motion.thermal_suppression_duration ?? 30}
+                    onChange={(e) => onChange({ ...settings, motion: { ...settings.motion, thermal_suppression_duration: parseInt(e.target.value) || 30 } })}
+                    className="w-full px-3 py-1.5 bg-surface1 border border-border rounded text-text text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted block mb-1">{t('thermalSuppressionWakeup')}</label>
+                  <input
+                    type="number"
+                    min={1.5}
+                    max={10}
+                    step={0.5}
+                    value={settings.motion.thermal_suppression_wakeup_ratio ?? 2.5}
+                    onChange={(e) => onChange({ ...settings, motion: { ...settings.motion, thermal_suppression_wakeup_ratio: parseFloat(e.target.value) || 2.5 } })}
+                    className="w-full px-3 py-1.5 bg-surface1 border border-border rounded text-text text-sm"
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Thermal - compact */}
             <h5 className="text-sm font-semibold text-text border-b border-border pb-1 mt-4">{t('perfSectionThermal')}</h5>
             <label className="flex items-center gap-2 text-sm text-text">

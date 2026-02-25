@@ -160,6 +160,28 @@ class MotionConfig(BaseModel):
         le=5.0,
         description="Safety multiplier applied to learned noise percentile"
     )
+    thermal_suppression_enabled: bool = Field(
+        default=True,
+        description="Enable inference suppression when thermal noise triggers motion but YOLO finds nothing"
+    )
+    thermal_suppression_streak: int = Field(
+        default=15,
+        ge=5,
+        le=100,
+        description="How many consecutive empty YOLO results before suppressing inference"
+    )
+    thermal_suppression_duration: int = Field(
+        default=30,
+        ge=5,
+        le=300,
+        description="How long (seconds) inference is paused after suppression triggers"
+    )
+    thermal_suppression_wakeup_ratio: float = Field(
+        default=2.5,
+        ge=1.5,
+        le=10.0,
+        description="Motion area must increase by this factor to cancel suppression early"
+    )
     presets: dict[str, MotionPreset] = Field(
         default_factory=lambda: {
             "thermal_recommended": MotionPreset(

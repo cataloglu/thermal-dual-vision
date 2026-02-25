@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.34] - 2026-02-26
+
+### İyileştirmeler
+
+- **Termal inference suppression ayarları UI'a eklendi**: Kamera Ayarları → Hareket bölümünde yeni "Termal Inference Bastırma" paneli. Tüm parametreler (streak, süre, uyanma çarpanı) arayüzden ayarlanabilir.
+- **Config modeline 4 yeni alan**: `thermal_suppression_enabled`, `thermal_suppression_streak`, `thermal_suppression_duration`, `thermal_suppression_wakeup_ratio`
+- **TR/EN çevirileri eklendi**
+
 ## [4.0.33] - 2026-02-26
 
 ### İyileştirmeler
