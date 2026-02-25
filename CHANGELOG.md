@@ -6,6 +6,12 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.33] - 2026-02-26
+
+### İyileştirmeler
+
+- **Termal inference suppression**: YOLO art arda 15 kez boş sonuç döndürürse (`raw=0`), inference 30 saniye duraklatılır. Motion alanı belirgin şekilde artarsa (2.5x + >5000 area) suppression erken kalkar. Termal gürültüde gereksiz YOLO çalışmasını ~%70 azaltır, CPU tasarrufu sağlar.
+
 ## [4.0.32] - 2026-02-25
 
 ### Düzeltmeler
