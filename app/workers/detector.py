@@ -681,8 +681,6 @@ class DetectorWorker:
 
                 motion_active = self._is_motion_active(camera, frame, config)
                 if not motion_active:
-                    self.empty_inference_streak[camera_id] = 0
-                    self.suppressed_until.pop(camera_id, None)
                     self._update_frame_buffer(
                         camera_id=camera_id,
                         frame=frame,

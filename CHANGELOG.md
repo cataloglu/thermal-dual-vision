@@ -6,6 +6,12 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.35] - 2026-02-26
+
+### Düzeltmeler
+
+- **Suppression artık kalıcı**: Motion idle→active geçişi streak'i sıfırlamıyor. Streak sadece YOLO gerçekten bir şey bulduğunda sıfırlanıyor. Kamera bir kez suppressed olduktan sonra, termal gürültü motion'ı tekrar tetiklese bile YOLO çalışmıyor — 30s boyunca tam sessizlik.
+
 ## [4.0.34] - 2026-02-26
 
 ### İyileştirmeler
