@@ -709,10 +709,10 @@ class DetectorWorker:
                 )
                 # If strict threshold misses while motion is active, run a limited
                 # relaxed retry to recover borderline thermal/person hits.
-                # Floor: never go below 65% of the configured threshold.
+                # Floor: never go below 80% of the configured threshold.
                 if len(detections_raw) == 0:
-                    fallback_floor = max(0.30, confidence_threshold * 0.65)
-                    relaxed_threshold = max(fallback_floor, confidence_threshold - 0.10)
+                    fallback_floor = max(0.35, confidence_threshold * 0.80)
+                    relaxed_threshold = max(fallback_floor, confidence_threshold - 0.05)
                     class_diag_summary = ""
                     last_relaxed = float(self.last_relaxed_infer_time.get(camera_id, 0.0))
                     if (
@@ -823,7 +823,7 @@ class DetectorWorker:
                 thermal_drop_conf = 0
                 thermal_drop_area = 0
                 thermal_drop_height = 0
-                thermal_conf_floor = max(0.25, confidence_threshold * 0.75)
+                thermal_conf_floor = max(0.30, confidence_threshold * 0.85)
                 thermal_min_area_ratio = 0.0018
                 thermal_min_height_ratio = 0.06
                 if detection_source == "thermal" and detections_after_ar > 0:

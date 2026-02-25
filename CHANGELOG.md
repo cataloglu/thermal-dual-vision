@@ -6,6 +6,13 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.31] - 2026-02-25
+
+### Düzeltmeler
+
+- **Fallback threshold sıkılaştırıldı**: Relaxed threshold `conf - 0.10` → `conf - 0.05`, fallback floor `conf * 0.65` → `conf * 0.80`. Thermal'de 0.40-0.45 arası false positive'ler artık geçemiyor.
+- **Quality floor yükseltildi**: `conf * 0.75` → `conf * 0.85`. Örn. conf=0.50 için floor 0.38 → 0.43 oldu.
+
 ## [4.0.30] - 2026-02-25
 
 ### Düzeltmeler (Bug Fixes)
