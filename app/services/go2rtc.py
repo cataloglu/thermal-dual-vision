@@ -12,6 +12,8 @@ from typing import Optional, Dict, Any
 import yaml
 import httpx
 
+from app.utils.paths import BASE_DIR
+
 logger = logging.getLogger(__name__)
 
 
@@ -19,7 +21,7 @@ class Go2RTCService:
     """Service for go2rtc integration."""
     
     def __init__(self):
-        self.config_path = Path("go2rtc.yaml")
+        self.config_path = BASE_DIR / "go2rtc.yaml"
         self.api_url = os.getenv("GO2RTC_URL", "http://127.0.0.1:1984")
         self._last_check_ts = 0.0
         self._check_interval = float(os.getenv("GO2RTC_CHECK_INTERVAL", "10"))

@@ -6,6 +6,27 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.30] - 2026-02-25
+
+### Düzeltmeler (Bug Fixes)
+
+- **Termal false alarm sorunu çözüldü**: Kullanıcının ayarladığı `thermal_confidence_threshold` değeri yanlış `min/max` formülüyle eziliyordu (ör. 0.55 → 0.30'a düşürülüyordu). Artık kullanıcı ayarı doğrudan kullanılıyor.
+- **Quality floor artık dinamik**: Sabit 0.26 yerine `confidence_threshold * 0.75` olarak hesaplanıyor; düşük güvenilirlikli hayalet tespitler pipeline'a giremiyor.
+- **Fallback zinciri sadeleştirildi**: `thermal_raw_fallback` (0.20 sabit) ve `thermal_pseudocolor_fallback` kaldırıldı — termal kameralarda çok fazla false positive üretiyorlardı. Kalan fallback'ler `confidence_threshold * 0.65` tabanını kullanıyor.
+- **Multiprocessing worker aynı düzeltmeler**: Threading ve multiprocessing detector worker'ları aynı threshold/fallback mantığını kullanıyor.
+
+### Kod Kalitesi (Code Quality)
+
+- **Deadlock riski giderildi**: `_reset_motion_buffers` metodunda frame ve video lock'ları tutarlı sırayla alınarak olası deadlock önlendi.
+- **Memory leak düzeltildi**: Kamera silindiğinde `ffmpeg_frame_shapes` ve `ffmpeg_last_errors` dict'leri temizlenmiyor olması düzeltildi.
+- **detector_worker global reassign düzeltildi**: Multiprocessing moduna geçişte router'ların eski threading worker'ı görmesi sorunu `deps.detector_worker` üzerinden çözüldü.
+- **Bare `except:` → `except Exception:`**: 5 yerde `KeyboardInterrupt`/`SystemExit` yutulması engellendi.
+- **`_AsyncRunner` lazy init**: Multiprocessing modülü import edildiğinde gereksiz event loop thread'i başlatılması önlendi.
+- **WebSocket ping interval leak**: Component unmount'ta ping interval'in temizlenmeme edge case'i düzeltildi.
+- **Relative path → absolute path**: `go2rtc.yaml`, `logs/app.log` için `paths.py`'deki `BASE_DIR`/`LOGS_DIR` kullanıldı.
+- **Pydantic validator iyileştirmesi**: `aspect_ratio_max` validasyonu `field_validator`'dan `model_validator`'a taşındı (field sırasına bağımlılık kaldırıldı).
+- **SQLAlchemy migration pattern**: `engine.connect()` + manual `commit()` → `engine.begin()` ile proper transaction management.
+
 ## [4.0.29] - 2026-02-24
 
 ### Düzeltmeler
