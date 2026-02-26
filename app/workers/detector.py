@@ -879,10 +879,11 @@ class DetectorWorker:
 
                 # Check if person detected
                 if len(detections) == 0:
-                    # Tolerate short detector dropouts (1-2 cycles) to avoid
-                    # killing events on transient model misses.
+                    # Tolerate short detector dropouts to avoid killing events
+                    # on transient model misses. Thermal: no grace (0), color: 2.
+                    grace = 0 if detection_source == "thermal" else 2
                     self.no_detection_streak[camera_id] += 1
-                    if self.no_detection_streak[camera_id] <= 2:
+                    if self.no_detection_streak[camera_id] <= grace:
                         _log_gate(f"no_detections_grace streak={self.no_detection_streak[camera_id]}")
                         continue
                     self.event_start_time[camera_id] = None
@@ -903,11 +904,10 @@ class DetectorWorker:
                 self.empty_inference_streak[camera_id] = 0
 
                 # Check temporal consistency (only when we have detections)
-                # Tuned for short walk-through scenarios:
-                # - require fewer consecutive frames
-                # - allow small gaps
-                temporal_min_frames = 3 if detection_source == "thermal" else 2
-                temporal_max_gap = 1 if detection_source == "thermal" else 2
+                # Thermal needs stricter temporal gate: 5 consecutive frames
+                # to filter out transient ghost detections from thermal noise.
+                temporal_min_frames = 5 if detection_source == "thermal" else 2
+                temporal_max_gap = 0 if detection_source == "thermal" else 2
                 temporal_pass = self.inference_service.check_temporal_consistency(
                     detections,
                     list(self.detection_history[camera_id])[:-1],  # Exclude current
@@ -2254,14 +2254,10 @@ class DetectorWorker:
                 if not self._has_bbox_detections(detections):
                     event = db.query(Event).filter(Event.id == event_id).first()
                     if event:
-                        event.rejected_by_ai = bool(ai_required)
-                        event.summary = "No person detection in media window"
-                        event.ai_enabled = bool(config.ai.enabled)
-                        if not event.ai_reason:
-                            event.ai_reason = "no_person_detections"
+                        db.delete(event)
                         db.commit()
                     logger.warning(
-                        "Skipping media generation for event %s (no person detection in media window)",
+                        "Deleted phantom event %s (no bbox in media window — thermal ghost)",
                         event_id,
                     )
                     return

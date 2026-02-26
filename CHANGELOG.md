@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.36] - 2026-02-26
+
+### Düzeltmeler
+
+- **Termal temporal consistency sıkılaştırıldı**: 3→5 ardışık frame gerekli, gap toleransı 1→0. Termal gürültünün 2-3 frame'de aynı blob'u görmesi artık event oluşturmaz.
+- **Termal no-detection grace kaldırıldı**: Boş frame toleransı 2→0. Termal'de YOLO bulamazsa hemen pipeline kesilir, color'da 2 frame grace korunur.
+- **Phantom event temizliği**: Media buffer'da bbox yoksa event DB'den tamamen silinir (eskiden "rejected" olarak kalıyordu). Collage'sız hayalet event'ler artık hiç görünmez.
+
 ## [4.0.35] - 2026-02-26
 
 ### Düzeltmeler
