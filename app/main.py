@@ -106,10 +106,10 @@ def _debug_headers_enabled() -> bool:
 async def _wait_for_startup_readiness(timeout_seconds: float = 15.0) -> None:
     """Wait until critical startup dependencies are reachable."""
     deadline = time.monotonic() + timeout_seconds
+    db_ok = False
+    go2rtc_ok = False
+    mqtt_ready = False
     while time.monotonic() < deadline:
-        db_ok = False
-        go2rtc_ok = False
-        mqtt_ready = False
         try:
             with session_scope() as db:
                 db.query(Camera).count()
@@ -132,7 +132,16 @@ async def _wait_for_startup_readiness(timeout_seconds: float = 15.0) -> None:
             logger.info("Startup readiness checks passed")
             return
         await asyncio.sleep(0.5)
-    logger.warning("Startup readiness timeout reached; continuing with best effort")
+    # go2rtc may come up slightly later on some HA hosts; continue without noisy warning.
+    if db_ok and mqtt_ready and not go2rtc_ok:
+        logger.info("Startup readiness timeout: go2rtc not ready yet; continuing with best effort")
+        return
+    logger.warning(
+        "Startup readiness timeout reached; continuing with best effort (db_ok=%s go2rtc_ok=%s mqtt_ready=%s)",
+        db_ok,
+        go2rtc_ok,
+        mqtt_ready,
+    )
 
 
 # ---------------------------------------------------------------------------

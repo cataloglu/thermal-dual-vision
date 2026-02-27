@@ -380,6 +380,10 @@ class ContinuousRecorder:
 
         tmp_path = None
         try:
+            output_dir = os.path.dirname(output_path)
+            if not os.path.isdir(output_dir):
+                logger.debug("Extract clip skipped: output directory missing (%s)", output_dir)
+                return False
             tmp_fd, tmp_path = tempfile.mkstemp(
                 suffix=".mp4", prefix="extract_", dir=os.path.dirname(output_path)
             )
@@ -420,7 +424,7 @@ class ContinuousRecorder:
                 min_size = 4096  # 4 KB — any valid single-frame MP4 will exceed this
                 actual_size = os.path.getsize(tmp_path) if os.path.exists(tmp_path) else 0
                 if actual_size < min_size:
-                    logger.warning(
+                    logger.info(
                         "FFmpeg produced a suspiciously small clip (%d bytes) for %s — "
                         "likely an empty container; keeping existing file.",
                         actual_size,
@@ -472,6 +476,10 @@ class ContinuousRecorder:
                     f.write(f"file '{escaped}'\n")
             concat_fd = None  # ownership transferred
 
+            output_dir = os.path.dirname(output_path)
+            if not os.path.isdir(output_dir):
+                logger.debug("Multi-segment extract skipped: output directory missing (%s)", output_dir)
+                return False
             tmp_fd, tmp_path = tempfile.mkstemp(
                 suffix=".mp4", prefix="extract_", dir=os.path.dirname(output_path)
             )
@@ -520,7 +528,7 @@ class ContinuousRecorder:
                 min_size = 4096
                 actual_size = os.path.getsize(tmp_path) if os.path.exists(tmp_path) else 0
                 if actual_size < min_size:
-                    logger.warning(
+                    logger.info(
                         "FFmpeg concat produced a suspiciously small clip (%d bytes) — "
                         "likely an empty container; keeping existing file.",
                         actual_size,

@@ -68,6 +68,13 @@ def _replace_mp4_from_recording(
 ) -> None:
     """Background callback: try to replace event MP4 with recording clip once segment is closed."""
     try:
+        mp4_parent = Path(mp4_path).parent
+        if not mp4_parent.exists():
+            logger.debug(
+                "Delayed recording replace skipped: media directory missing (event likely deleted) path=%s",
+                mp4_path,
+            )
+            return
         recorder = get_continuous_recorder()
         if recorder.extract_clip(camera_id, start_utc, end_utc, mp4_path, speed_factor=speed_factor):
             logger.info(
@@ -329,9 +336,13 @@ class MediaService:
             if os.path.exists(mp4_path):
                 ok, reason = _mp4_is_usable(mp4_path)
                 if not ok:
-                    logger.warning("Event %s MP4 rejected by quality gate: %s", event_id, reason)
+                    is_duplicate_reason = "duplicate:" in reason
+                    if is_duplicate_reason:
+                        logger.info("Event %s MP4 rejected by quality gate: %s", event_id, reason)
+                    else:
+                        logger.warning("Event %s MP4 rejected by quality gate: %s", event_id, reason)
                     # Auto-delete phantom events with very high duplicate percentage
-                    if "duplicate:" in reason:
+                    if is_duplicate_reason:
                         try:
                             dup_val = float(reason.split("duplicate:")[1].rstrip("%"))
                             if dup_val >= 85.0:
@@ -340,7 +351,7 @@ class MediaService:
                                 import shutil
                                 if os.path.exists(str(event_dir)):
                                     shutil.rmtree(str(event_dir), ignore_errors=True)
-                                logger.warning(
+                                logger.info(
                                     "Deleted phantom event %s (MP4 duplicate:%.1f%% — no real movement)",
                                     event_id, dup_val,
                                 )
