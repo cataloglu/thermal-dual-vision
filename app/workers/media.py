@@ -578,22 +578,53 @@ class MediaWorker:
         except Exception:
             return None
 
-    def _crop_focus_on_bbox(
+    @staticmethod
+    def _bbox_to_frame_pixels(
+        frame: np.ndarray,
+        bbox: Tuple[float, float, float, float],
+    ) -> Optional[Tuple[float, float, float, float]]:
+        """Normalize bbox to frame pixel coordinates and clamp safely."""
+        h, w = frame.shape[:2]
+        x1, y1, x2, y2 = bbox
+
+        # Accept normalized bboxes (0..1) from alternative pipelines.
+        if (
+            0.0 <= x1 <= 1.0
+            and 0.0 <= y1 <= 1.0
+            and 0.0 <= x2 <= 1.0
+            and 0.0 <= y2 <= 1.0
+        ):
+            scale_x = float(max(w - 1, 1))
+            scale_y = float(max(h - 1, 1))
+            x1, x2 = x1 * scale_x, x2 * scale_x
+            y1, y2 = y1 * scale_y, y2 * scale_y
+
+        x1 = max(0.0, min(float(x1), float(w - 1)))
+        y1 = max(0.0, min(float(y1), float(h - 1)))
+        x2 = max(0.0, min(float(x2), float(w - 1)))
+        y2 = max(0.0, min(float(y2), float(h - 1)))
+        if x2 <= x1 or y2 <= y1:
+            return None
+        return x1, y1, x2, y2
+
+    def _crop_focus_on_bbox_with_meta(
         self,
         frame: np.ndarray,
         bbox: Tuple[float, float, float, float],
         target_size: Tuple[int, int],
         padding: float,
-    ) -> np.ndarray:
-        """Crop around detection bbox while preserving target aspect ratio."""
+    ) -> Tuple[np.ndarray, Optional[Tuple[int, int, int, int]]]:
+        """
+        Crop around detection bbox while preserving aspect ratio.
+
+        Returns:
+            crop image and bbox coordinates mapped into crop-space.
+        """
         h, w = frame.shape[:2]
-        x1, y1, x2, y2 = bbox
-        x1 = max(0.0, min(x1, float(w - 1)))
-        y1 = max(0.0, min(y1, float(h - 1)))
-        x2 = max(0.0, min(x2, float(w - 1)))
-        y2 = max(0.0, min(y2, float(h - 1)))
-        if x2 <= x1 or y2 <= y1:
-            return frame
+        normalized = self._bbox_to_frame_pixels(frame, bbox)
+        if normalized is None:
+            return frame, None
+        x1, y1, x2, y2 = normalized
 
         bw = max(8.0, x2 - x1)
         bh = max(8.0, y2 - y1)
@@ -631,8 +662,39 @@ class MediaWorker:
             yb = h
 
         if xb <= xa or yb <= ya:
-            return frame
-        return frame[ya:yb, xa:xb]
+            return frame, None
+
+        crop = frame[ya:yb, xa:xb]
+        crop_h_px, crop_w_px = crop.shape[:2]
+        bx1 = int(round(x1)) - xa
+        by1 = int(round(y1)) - ya
+        bx2 = int(round(x2)) - xa
+        by2 = int(round(y2)) - ya
+
+        bx1 = max(0, min(bx1, crop_w_px - 1))
+        by1 = max(0, min(by1, crop_h_px - 1))
+        bx2 = max(0, min(bx2, crop_w_px - 1))
+        by2 = max(0, min(by2, crop_h_px - 1))
+
+        if bx2 <= bx1 or by2 <= by1:
+            return crop, None
+        return crop, (bx1, by1, bx2, by2)
+
+    def _crop_focus_on_bbox(
+        self,
+        frame: np.ndarray,
+        bbox: Tuple[float, float, float, float],
+        target_size: Tuple[int, int],
+        padding: float,
+    ) -> np.ndarray:
+        """Crop around detection bbox while preserving target aspect ratio."""
+        crop, _ = self._crop_focus_on_bbox_with_meta(
+            frame=frame,
+            bbox=bbox,
+            target_size=target_size,
+            padding=padding,
+        )
+        return crop
 
     def _select_ai_collage_indices(
         self,
@@ -819,17 +881,40 @@ class MediaWorker:
         for tile_idx, frame_idx in enumerate(selected_indices):
             src = frames[frame_idx]
             focused = src
+            bbox_on_tile: Optional[Tuple[int, int, int, int]] = None
             if detections and frame_idx < len(detections):
                 bbox = self._bbox_or_none(detections[frame_idx])
                 if bbox is not None:
-                    focused = self._crop_focus_on_bbox(
-                        src,
-                        bbox,
+                    focused, bbox_in_focus = self._crop_focus_on_bbox_with_meta(
+                        frame=src,
+                        bbox=bbox,
                         target_size=self.AI_COLLAGE_FRAME_SIZE,
                         padding=self.AI_CROP_PADDING,
                     )
+                    if bbox_in_focus is not None:
+                        fx1, fy1, fx2, fy2 = bbox_in_focus
+                        scale_x = self.AI_COLLAGE_FRAME_SIZE[0] / float(max(focused.shape[1], 1))
+                        scale_y = self.AI_COLLAGE_FRAME_SIZE[1] / float(max(focused.shape[0], 1))
+                        tx1 = int(round(fx1 * scale_x))
+                        ty1 = int(round(fy1 * scale_y))
+                        tx2 = int(round(fx2 * scale_x))
+                        ty2 = int(round(fy2 * scale_y))
+                        tx1 = max(0, min(tx1, self.AI_COLLAGE_FRAME_SIZE[0] - 1))
+                        ty1 = max(0, min(ty1, self.AI_COLLAGE_FRAME_SIZE[1] - 1))
+                        tx2 = max(0, min(tx2, self.AI_COLLAGE_FRAME_SIZE[0] - 1))
+                        ty2 = max(0, min(ty2, self.AI_COLLAGE_FRAME_SIZE[1] - 1))
+                        if tx2 > tx1 and ty2 > ty1:
+                            bbox_on_tile = (tx1, ty1, tx2, ty2)
 
             img = cv2.resize(focused, self.AI_COLLAGE_FRAME_SIZE, interpolation=cv2.INTER_AREA)
+            if bbox_on_tile is not None:
+                cv2.rectangle(
+                    img,
+                    (bbox_on_tile[0], bbox_on_tile[1]),
+                    (bbox_on_tile[2], bbox_on_tile[3]),
+                    self.COLOR_ACCENT,
+                    2,
+                )
 
             cv2.putText(
                 img,
@@ -862,17 +947,30 @@ class MediaWorker:
                 )
 
             if tile_idx == event_slot:
-                cv2.rectangle(
-                    img,
-                    (2, 2),
-                    (self.AI_COLLAGE_FRAME_SIZE[0] - 3, self.AI_COLLAGE_FRAME_SIZE[1] - 3),
-                    self.COLOR_ACCENT,
-                    2,
-                )
+                label_x = self.AI_COLLAGE_FRAME_SIZE[0] - 70
+                label_y = 22
+                if bbox_on_tile is not None:
+                    cv2.rectangle(
+                        img,
+                        (bbox_on_tile[0], bbox_on_tile[1]),
+                        (bbox_on_tile[2], bbox_on_tile[3]),
+                        self.COLOR_ACCENT,
+                        3,
+                    )
+                    label_x = max(4, bbox_on_tile[0])
+                    label_y = max(20, bbox_on_tile[1] - 8)
+                else:
+                    cv2.circle(
+                        img,
+                        (self.AI_COLLAGE_FRAME_SIZE[0] - 16, 16),
+                        6,
+                        self.COLOR_ACCENT,
+                        -1,
+                    )
                 cv2.putText(
                     img,
                     f"{confidence:.0%}",
-                    (self.AI_COLLAGE_FRAME_SIZE[0] - 70, 22),
+                    (label_x, label_y),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.5,
                     self.COLOR_ACCENT,
