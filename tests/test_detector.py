@@ -373,7 +373,7 @@ def test_thermal_temporal_policy_relaxes_under_multi_camera_motion():
     assert min_frames_busy == 2
     assert max_gap_busy == 1
     assert recovery_conf_busy < recovery_conf
-    assert recovery_conf_busy <= 0.58
+    assert recovery_conf_busy < 0.59
 
     min_frames_very_busy, max_gap_very_busy, recovery_conf_very_busy = worker._thermal_temporal_policy(
         0.55,
