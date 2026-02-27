@@ -351,6 +351,18 @@ def test_count_active_motion_cameras_uses_motion_active_state():
     assert worker._count_active_motion_cameras() == 2
 
 
+def test_count_recent_motion_cameras_includes_recently_active_states():
+    """Recent motion timestamps should count as active for short adaptive windows."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    worker.motion_state = {
+        "cam-1": {"motion_active": False, "last_motion": 98.0},  # recent in 6s window
+        "cam-2": {"motion_active": False, "last_motion": 90.0},  # stale
+        "cam-3": {"motion_active": True, "last_motion": 10.0},
+    }
+    with patch("app.workers.detector.time.time", return_value=100.0):
+        assert worker._count_recent_motion_cameras(window_seconds=6.0) == 2
+
+
 def test_thermal_probe_interval_scales_with_camera_load():
     """Suppression probes should become faster when multiple cameras are active."""
     worker = DetectorWorker.__new__(DetectorWorker)
@@ -400,8 +412,8 @@ def test_thermal_suppression_policy_delays_suppression_under_load():
     """Suppression should trigger later and shorter under concurrent load."""
     worker = DetectorWorker.__new__(DetectorWorker)
     streak_single, secs_single = worker._thermal_suppression_policy(15, 30, active_motion_cameras=1)
-    assert streak_single == 15
-    assert secs_single == 30
+    assert streak_single >= 30
+    assert secs_single <= 15
 
     streak_busy, secs_busy = worker._thermal_suppression_policy(15, 30, active_motion_cameras=2)
     assert streak_busy >= 45

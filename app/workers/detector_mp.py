@@ -698,6 +698,17 @@ def camera_detection_process(
             gradual_floor = max(1200, int(min_wakeup_area * 0.7))
             return current_area >= gradual_floor and growth_delta >= min_delta
 
+        def _thermal_suppression_policy(base_streak: int, base_duration_secs: int) -> tuple[int, int]:
+            """
+            Recall-biased suppression defaults for process worker parity.
+
+            MP workers do not have global cross-camera motion state in-process,
+            so keep a safer baseline to avoid frequent suppress/resume loops.
+            """
+            streak = max(5, int(base_streak))
+            duration = max(5, int(base_duration_secs))
+            return max(streak * 2, 30), min(duration, 15)
+
         # Get detection parameters
         detection_source = camera_config.get("detection_source") or camera_config.get("type", "thermal")
         frame_delay = 1.0 / config.detection.inference_fps
@@ -1062,9 +1073,16 @@ def camera_detection_process(
             
             # Thermal inference suppression (parity with threading detector)
             suppression_active = False
+            thermal_suppression_streak = int(getattr(config.motion, "thermal_suppression_streak", 15))
+            thermal_suppression_secs = int(getattr(config.motion, "thermal_suppression_duration", 30))
+            if detection_source == "thermal" and getattr(config.motion, "thermal_suppression_enabled", True):
+                thermal_suppression_streak, thermal_suppression_secs = _thermal_suppression_policy(
+                    thermal_suppression_streak,
+                    thermal_suppression_secs,
+                )
             if detection_source == "thermal" and getattr(config.motion, "thermal_suppression_enabled", True):
                 wakeup_ratio = float(getattr(config.motion, "thermal_suppression_wakeup_ratio", 2.5))
-                suppression_secs = int(getattr(config.motion, "thermal_suppression_duration", 30))
+                suppression_secs = thermal_suppression_secs
                 current_area = int(thermal_motion_state.get("thermal_motion_area_raw", 0))
                 prev_area = last_motion_area
                 min_wakeup_area = max(1200, int(motion_config.get("min_area", 0) or 0) * 3)
@@ -1243,8 +1261,8 @@ def camera_detection_process(
                     continue
                 event_start_time = None
                 if detection_source == "thermal" and getattr(config.motion, "thermal_suppression_enabled", True):
-                    streak_limit = int(getattr(config.motion, "thermal_suppression_streak", 15))
-                    suppression_secs = int(getattr(config.motion, "thermal_suppression_duration", 30))
+                    streak_limit = thermal_suppression_streak
+                    suppression_secs = thermal_suppression_secs
                     empty_inference_streak += 1
                     if empty_inference_streak >= streak_limit:
                         suppressed_until = current_time + float(suppression_secs)

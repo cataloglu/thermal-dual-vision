@@ -290,6 +290,25 @@ class DetectorWorker:
         except Exception:
             return 0
 
+    def _count_recent_motion_cameras(self, window_seconds: float = 6.0) -> int:
+        """Count cameras with active/recent motion to smooth short state flickers."""
+        try:
+            now_ts = time.time()
+            window = max(0.5, float(window_seconds))
+            count = 0
+            for state in self.motion_state.values():
+                if not isinstance(state, dict):
+                    continue
+                if bool(state.get("motion_active", False)) or bool(state.get("active", False)):
+                    count += 1
+                    continue
+                last_motion = float(state.get("last_motion", 0.0) or 0.0)
+                if last_motion > 0.0 and (now_ts - last_motion) <= window:
+                    count += 1
+            return count
+        except Exception:
+            return 0
+
     @staticmethod
     def _thermal_probe_interval_seconds(
         suppression_secs: int,
@@ -354,7 +373,7 @@ class DetectorWorker:
             return max(streak * 4, 60), min(duration, 8)
         if active_motion_cameras >= 2:
             return max(streak * 3, 45), min(duration, 12)
-        return streak, duration
+        return max(streak * 2, 30), min(duration, 15)
 
     def _reset_motion_buffers(self, camera_id: str, prebuffer_seconds: float) -> None:
         # Always acquire frame lock before video lock to prevent deadlock
@@ -800,7 +819,7 @@ class DetectorWorker:
                 suppression_candidate_area = 0
                 suppression_candidate_prev = 0
                 suppression_candidate_ratio = 0.0
-                active_motion_cameras = self._count_active_motion_cameras()
+                active_motion_cameras = self._count_recent_motion_cameras(window_seconds=6.0)
                 thermal_suppression_streak = int(
                     getattr(config.motion, "thermal_suppression_streak", 15)
                 )
@@ -1991,7 +2010,7 @@ class DetectorWorker:
             camera_type == "thermal"
             or str(motion_settings.get("pipeline", "")).lower() == "thermal_iir"
         )
-        active_motion_cameras = self._count_active_motion_cameras() if is_thermal_motion else 0
+        active_motion_cameras = self._count_recent_motion_cameras(window_seconds=6.0) if is_thermal_motion else 0
         effective_algorithm = algorithm
 
         thermal_floor = int(motion_settings.get("thermal_min_area_floor", 260)) if is_thermal_motion else 0

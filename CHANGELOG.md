@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.50] - 2026-02-28
+
+### Düzeltmeler
+
+- **Thermal suppression tek kamerada da recall-odaklı yapıldı**: Varsayılan profil artık daha geç suppress eder (daha yüksek empty streak) ve daha kısa suppress tutar; `15 empty -> 30s` döngüsü yumuşatıldı.
+- **Aktif kamera sayımı kısa pencereyle stabilize edildi**: `motion_active` anlık flicker’ında yanlış düşük sayımı azaltmak için son hareket zamanı da (kısa pencere) adaptif hesapta dikkate alındı.
+- **Thread/MP parity güçlendirildi**: MP worker’da da aynı recall-biased suppression davranışı uygulanarak iki worker arasında davranış farkı azaltıldı.
+
 ## [4.0.49] - 2026-02-27
 
 ### Düzeltmeler
