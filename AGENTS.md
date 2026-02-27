@@ -23,6 +23,10 @@ Single-product Home Assistant add-on: Python 3.11 FastAPI backend + React 18 Typ
 - **Frontend lint**: `cd ui && npm run lint` (zero-warning policy)
 - **Frontend build**: `cd ui && npm run build` (runs `tsc` then `vite build`)
 - Config: `pytest.ini` at repo root
+- **UI testing policy (default)**:
+  - UI değişikliklerinde manuel fonksiyonel test yap (ekran akışını gerçekten çalıştır).
+  - Kullanıcı özellikle istemedikçe demo video/screenshot üretme.
+  - Sonuçları kısa metin + çalıştırılan komut çıktılarıyla raporla.
 
 ### Gotchas
 
