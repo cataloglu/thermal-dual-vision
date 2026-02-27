@@ -395,16 +395,24 @@ class DetectorWorker:
         When only one camera appears active, require either:
         - meaningful bbox travel over recent frames, OR
         - very strong confidence + strong motion area.
+
+        When multiple cameras have motion, do NOT bypass entirely: require minimum
+        confidence floor (0.65) to block low-conf thermal ghosts (0.52-0.64) that
+        survive temporal gate but show no visible human.
         """
+        current_dets = detection_frames[-1] if detection_frames else []
+        best_conf = max((float(det.get("confidence", 0.0)) for det in current_dets), default=0.0)
+        min_conf_floor = max(float(confidence_threshold) + 0.12, 0.65)
+
         if active_motion_cameras >= 2:
-            return True
+            if best_conf >= min_conf_floor:
+                return True
+            # Fall through to spread/strong check — do not bypass for low-conf ghosts
 
         spread = cls._thermal_bbox_center_spread(detection_frames=detection_frames, sample_frames=5)
         if spread >= 6.0:
             return True
 
-        current_dets = detection_frames[-1] if detection_frames else []
-        best_conf = max((float(det.get("confidence", 0.0)) for det in current_dets), default=0.0)
         strong_conf = max(float(confidence_threshold) + 0.25, 0.85)
         strong_motion = max(1600, int(base_min_area) * 4)
         return best_conf >= strong_conf and int(motion_area_now) >= strong_motion
