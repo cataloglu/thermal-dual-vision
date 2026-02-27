@@ -927,6 +927,14 @@ def camera_detection_process(
                     profile_cfg = profile_map.get(profile, profile_map["normal"])
                     floor = max(0, int(motion_config.get("auto_min_area_floor", 40)))
                     ceiling = max(floor + 1, int(motion_config.get("auto_min_area_ceiling", 2500)))
+                    if is_thermal_motion:
+                        thermal_ceiling = int(
+                            motion_config.get(
+                                "thermal_auto_min_area_ceiling",
+                                min(ceiling, 1500),
+                            )
+                        )
+                        ceiling = max(floor + 1, min(ceiling, thermal_ceiling))
                     multiplier = max(1.0, float(motion_config.get("auto_multiplier", 1.6)) * float(profile_cfg["multiplier"]))
                     warmup_seconds = max(5, int(motion_config.get("auto_warmup_seconds", 45)))
                     update_seconds = max(2, int(int(motion_config.get("auto_update_seconds", 10)) * float(profile_cfg["update_mul"])))
@@ -987,6 +995,14 @@ def camera_detection_process(
                     profile_cfg = profile_map.get(profile, profile_map["normal"])
                     floor = max(0, int(motion_config.get("auto_min_area_floor", 40)))
                     ceiling = max(floor + 1, int(motion_config.get("auto_min_area_ceiling", 2500)))
+                    if is_thermal_motion:
+                        thermal_ceiling = int(
+                            motion_config.get(
+                                "thermal_auto_min_area_ceiling",
+                                min(ceiling, 1500),
+                            )
+                        )
+                        ceiling = max(floor + 1, min(ceiling, thermal_ceiling))
                     multiplier = max(1.0, float(motion_config.get("auto_multiplier", 1.6)) * float(profile_cfg["multiplier"]))
                     update_seconds = max(2, int(int(motion_config.get("auto_update_seconds", 10)) * float(profile_cfg["update_mul"])))
                     floor = int(max(0, floor * float(profile_cfg["floor_boost"])))
@@ -1259,7 +1275,7 @@ def camera_detection_process(
                 best_conf = max((d.get("confidence", 0.0) for d in detections), default=0.0)
                 if detection_source == "thermal":
                     min_motion_area = max(1400, int(motion_min_area_eff) * 2)
-                    thermal_recovery_conf = max(confidence_threshold + 0.10, 0.65)
+                    thermal_recovery_conf = max(confidence_threshold + 0.05, 0.58)
                     if best_conf >= thermal_recovery_conf and motion_area >= min_motion_area:
                         temporal_pass = True
                         process_logger.debug(

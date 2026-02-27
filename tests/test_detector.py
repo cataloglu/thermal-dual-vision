@@ -348,6 +348,16 @@ def test_thermal_probe_interval_scales_with_camera_load():
     assert worker._thermal_probe_interval_seconds(6, active_motion_cameras=4) >= 0.8
 
 
+def test_thermal_auto_min_area_cap_scales_with_camera_load():
+    """Thermal auto min-area cap should drop as concurrent load increases."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    assert worker._thermal_auto_min_area_cap(1800, active_motion_cameras=1) == 1500
+    assert worker._thermal_auto_min_area_cap(1800, active_motion_cameras=2) == 1100
+    assert worker._thermal_auto_min_area_cap(1800, active_motion_cameras=4) == 900
+    # Never force a higher cap than configured.
+    assert worker._thermal_auto_min_area_cap(700, active_motion_cameras=4) == 700
+
+
 def test_thermal_temporal_policy_relaxes_under_multi_camera_motion():
     """Thermal temporal gate should relax slightly under concurrent camera load."""
     worker = DetectorWorker.__new__(DetectorWorker)
@@ -363,6 +373,15 @@ def test_thermal_temporal_policy_relaxes_under_multi_camera_motion():
     assert min_frames_busy == 2
     assert max_gap_busy == 1
     assert recovery_conf_busy < recovery_conf
+    assert recovery_conf_busy < 0.59
+
+    min_frames_very_busy, max_gap_very_busy, recovery_conf_very_busy = worker._thermal_temporal_policy(
+        0.55,
+        active_motion_cameras=4,
+    )
+    assert min_frames_very_busy == 2
+    assert max_gap_very_busy == 2
+    assert recovery_conf_very_busy <= recovery_conf_busy
 
 
 def test_detect_static_phantom_event_true():
