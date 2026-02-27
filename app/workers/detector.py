@@ -290,6 +290,25 @@ class DetectorWorker:
         except Exception:
             return 0
 
+    def _count_recent_motion_cameras(self, window_seconds: float = 6.0) -> int:
+        """Count cameras with active/recent motion to smooth short state flickers."""
+        try:
+            now_ts = time.time()
+            window = max(0.5, float(window_seconds))
+            count = 0
+            for state in self.motion_state.values():
+                if not isinstance(state, dict):
+                    continue
+                if bool(state.get("motion_active", False)) or bool(state.get("active", False)):
+                    count += 1
+                    continue
+                last_motion = float(state.get("last_motion", 0.0) or 0.0)
+                if last_motion > 0.0 and (now_ts - last_motion) <= window:
+                    count += 1
+            return count
+        except Exception:
+            return 0
+
     @staticmethod
     def _thermal_probe_interval_seconds(
         suppression_secs: int,
@@ -335,6 +354,80 @@ class DetectorWorker:
         if active_motion_cameras >= 2:
             return 2, 1, max(float(confidence_threshold) + 0.03, 0.52)
         return 3, 1, max(float(confidence_threshold) + 0.10, 0.65)
+
+    @staticmethod
+    def _thermal_bbox_center_spread(
+        detection_frames: List[List[Dict[str, Any]]],
+        sample_frames: int = 5,
+    ) -> float:
+        """Estimate center spread across recent thermal detections."""
+        if not detection_frames:
+            return 0.0
+        frames = detection_frames[-max(2, int(sample_frames)) :]
+        centers_x: List[float] = []
+        centers_y: List[float] = []
+        for frame_dets in frames:
+            dets_with_bbox = [
+                det for det in (frame_dets or []) if isinstance(det, dict) and det.get("bbox")
+            ]
+            if not dets_with_bbox:
+                continue
+            best_det = max(dets_with_bbox, key=lambda det: float(det.get("confidence", 0.0)))
+            x1, y1, x2, y2 = best_det["bbox"]
+            centers_x.append((float(x1) + float(x2)) / 2.0)
+            centers_y.append((float(y1) + float(y2)) / 2.0)
+        if len(centers_x) < 2:
+            return 0.0
+        return max(max(centers_x) - min(centers_x), max(centers_y) - min(centers_y))
+
+    @classmethod
+    def _passes_thermal_static_event_guard(
+        cls,
+        detection_frames: List[List[Dict[str, Any]]],
+        motion_area_now: int,
+        active_motion_cameras: int,
+        confidence_threshold: float,
+        base_min_area: int,
+    ) -> bool:
+        """
+        Block static thermal ghosts on idle scenes while preserving multi-cam recall.
+
+        When only one camera appears active, require either:
+        - meaningful bbox travel over recent frames, OR
+        - very strong confidence + strong motion area.
+        """
+        if active_motion_cameras >= 2:
+            return True
+
+        spread = cls._thermal_bbox_center_spread(detection_frames=detection_frames, sample_frames=5)
+        if spread >= 6.0:
+            return True
+
+        current_dets = detection_frames[-1] if detection_frames else []
+        best_conf = max((float(det.get("confidence", 0.0)) for det in current_dets), default=0.0)
+        strong_conf = max(float(confidence_threshold) + 0.25, 0.85)
+        strong_motion = max(1600, int(base_min_area) * 4)
+        return best_conf >= strong_conf and int(motion_area_now) >= strong_motion
+
+    @staticmethod
+    def _thermal_suppression_policy(
+        base_streak: int,
+        base_duration_secs: int,
+        active_motion_cameras: int,
+    ) -> Tuple[int, int]:
+        """
+        Adaptive suppression policy for thermal streams under concurrent load.
+
+        Multi-camera scenarios prioritize recall: require longer empty streaks
+        before suppressing, and keep suppression windows shorter.
+        """
+        streak = max(5, int(base_streak))
+        duration = max(5, int(base_duration_secs))
+        if active_motion_cameras >= 4:
+            return max(streak * 4, 60), min(duration, 8)
+        if active_motion_cameras >= 2:
+            return max(streak * 3, 45), min(duration, 12)
+        return max(streak * 2, 30), min(duration, 15)
 
     def _reset_motion_buffers(self, camera_id: str, prebuffer_seconds: float) -> None:
         # Always acquire frame lock before video lock to prevent deadlock
@@ -780,13 +873,30 @@ class DetectorWorker:
                 suppression_candidate_area = 0
                 suppression_candidate_prev = 0
                 suppression_candidate_ratio = 0.0
-                active_motion_cameras = self._count_active_motion_cameras()
+                active_motion_cameras = self._count_recent_motion_cameras(window_seconds=6.0)
+                thermal_suppression_streak = int(
+                    getattr(config.motion, "thermal_suppression_streak", 15)
+                )
+                thermal_suppression_secs = int(
+                    getattr(config.motion, "thermal_suppression_duration", 30)
+                )
+                if detection_source == "thermal" and getattr(
+                    config.motion, "thermal_suppression_enabled", True
+                ):
+                    (
+                        thermal_suppression_streak,
+                        thermal_suppression_secs,
+                    ) = self._thermal_suppression_policy(
+                        base_streak=thermal_suppression_streak,
+                        base_duration_secs=thermal_suppression_secs,
+                        active_motion_cameras=active_motion_cameras,
+                    )
 
                 # Thermal inference suppression: if YOLO returned empty N times
                 # in a row, skip inference until motion area increases significantly.
                 if detection_source == "thermal" and getattr(config.motion, "thermal_suppression_enabled", True):
                     wakeup_ratio = float(getattr(config.motion, "thermal_suppression_wakeup_ratio", 2.5))
-                    suppression_secs = int(getattr(config.motion, "thermal_suppression_duration", 30))
+                    suppression_secs = thermal_suppression_secs
                     suppressed_ts = self.suppressed_until.get(camera_id, 0.0)
                     current_area = int(self.motion_state.get(camera_id, {}).get("thermal_motion_area_raw", 0))
                     prev_area = int(self.last_motion_area.get(camera_id, current_area))
@@ -1034,8 +1144,8 @@ class DetectorWorker:
                         continue
                     self.event_start_time[camera_id] = None
                     if detection_source == "thermal" and getattr(config.motion, "thermal_suppression_enabled", True):
-                        streak_limit = int(getattr(config.motion, "thermal_suppression_streak", 15))
-                        suppression_secs = int(getattr(config.motion, "thermal_suppression_duration", 30))
+                        streak_limit = thermal_suppression_streak
+                        suppression_secs = thermal_suppression_secs
                         self.empty_inference_streak[camera_id] = self.empty_inference_streak.get(camera_id, 0) + 1
                         if self.empty_inference_streak[camera_id] >= streak_limit:
                             self.suppressed_until[camera_id] = current_time + float(suppression_secs)
@@ -1108,6 +1218,21 @@ class DetectorWorker:
                     self.event_start_time[camera_id] = None
                     _log_gate("temporal_consistency_failed")
                     continue
+
+                if detection_source == "thermal":
+                    motion_area_now = int(
+                        self.motion_state.get(camera_id, {}).get("thermal_motion_area_raw", 0)
+                    )
+                    if not self._passes_thermal_static_event_guard(
+                        detection_frames=list(self.detection_history[camera_id]),
+                        motion_area_now=motion_area_now,
+                        active_motion_cameras=active_motion_cameras,
+                        confidence_threshold=confidence_threshold,
+                        base_min_area=int(getattr(config.motion, "min_area", 0)),
+                    ):
+                        self.event_start_time[camera_id] = None
+                        _log_gate("thermal_static_guard")
+                        continue
 
                 # Enforce minimum event duration
                 start_time = self.event_start_time.get(camera_id)
@@ -1954,7 +2079,7 @@ class DetectorWorker:
             camera_type == "thermal"
             or str(motion_settings.get("pipeline", "")).lower() == "thermal_iir"
         )
-        active_motion_cameras = self._count_active_motion_cameras() if is_thermal_motion else 0
+        active_motion_cameras = self._count_recent_motion_cameras(window_seconds=6.0) if is_thermal_motion else 0
         effective_algorithm = algorithm
 
         thermal_floor = int(motion_settings.get("thermal_min_area_floor", 260)) if is_thermal_motion else 0

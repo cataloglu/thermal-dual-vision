@@ -6,6 +6,30 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.51] - 2026-02-28
+
+### Düzeltmeler
+
+- **Boş sahne false-positive guard eklendi (thermal)**: Event öncesi son frame’lerde bbox merkezi neredeyse sabitse event bloke edilir; hareketli iz veya güçlü conf+motion yoksa static ghost event oluşmaz.
+- **Suppression sonrası ghost spam azaltıldı**: Suppression/probe döngüsünden gelen statik thermal kutular için evente gitmeden ek güvenlik kapısı eklendi.
+- **Thread/MP parity güncellendi**: Aynı static-ghost guard multiprocessing worker tarafına da taşındı.
+
+## [4.0.50] - 2026-02-28
+
+### Düzeltmeler
+
+- **Thermal suppression tek kamerada da recall-odaklı yapıldı**: Varsayılan profil artık daha geç suppress eder (daha yüksek empty streak) ve daha kısa suppress tutar; `15 empty -> 30s` döngüsü yumuşatıldı.
+- **Aktif kamera sayımı kısa pencereyle stabilize edildi**: `motion_active` anlık flicker’ında yanlış düşük sayımı azaltmak için son hareket zamanı da (kısa pencere) adaptif hesapta dikkate alındı.
+- **Thread/MP parity güçlendirildi**: MP worker’da da aynı recall-biased suppression davranışı uygulanarak iki worker arasında davranış farkı azaltıldı.
+
+## [4.0.49] - 2026-02-27
+
+### Düzeltmeler
+
+- **Suppression tekrar tetikleme döngüsü gevşetildi**: Çoklu aktif kamerada thermal suppression artık daha geç devreye girer (daha yüksek empty streak) ve daha kısa sürer; sürekli `inference_suppressed` döngüsünün gerçek geçişleri bastırması azaltıldı.
+- **Aktif kamera sayımı düzeltmesi devreye alındı**: Adaptif suppression politikasının çoklu kamera yükünü gerçekten dikkate alması garanti altına alındı (`motion_active` state).
+- **Phantom/duplicate silme tarafı korunarak daha güvenli bırakıldı**: Orta confidence gerçek olayların tutulması korunur, sadece aşırı duplicate + çok düşük confidence olaylar silinir.
+
 ## [4.0.48] - 2026-02-27
 
 ### Düzeltmeler

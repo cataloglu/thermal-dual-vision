@@ -698,6 +698,62 @@ def camera_detection_process(
             gradual_floor = max(1200, int(min_wakeup_area * 0.7))
             return current_area >= gradual_floor and growth_delta >= min_delta
 
+        def _thermal_suppression_policy(base_streak: int, base_duration_secs: int) -> tuple[int, int]:
+            """
+            Recall-biased suppression defaults for process worker parity.
+
+            MP workers do not have global cross-camera motion state in-process,
+            so keep a safer baseline to avoid frequent suppress/resume loops.
+            """
+            streak = max(5, int(base_streak))
+            duration = max(5, int(base_duration_secs))
+            return max(streak * 2, 30), min(duration, 15)
+
+        def _thermal_bbox_center_spread(
+            detection_frames: List[List[Dict[str, Any]]],
+            sample_frames: int = 5,
+        ) -> float:
+            """Estimate bbox center spread across recent detections."""
+            if not detection_frames:
+                return 0.0
+            frames = detection_frames[-max(2, int(sample_frames)) :]
+            centers_x: List[float] = []
+            centers_y: List[float] = []
+            for frame_dets in frames:
+                dets_with_bbox = [
+                    det for det in (frame_dets or []) if isinstance(det, dict) and det.get("bbox")
+                ]
+                if not dets_with_bbox:
+                    continue
+                best_det = max(dets_with_bbox, key=lambda det: float(det.get("confidence", 0.0)))
+                x1, y1, x2, y2 = best_det["bbox"]
+                centers_x.append((float(x1) + float(x2)) / 2.0)
+                centers_y.append((float(y1) + float(y2)) / 2.0)
+            if len(centers_x) < 2:
+                return 0.0
+            return max(max(centers_x) - min(centers_x), max(centers_y) - min(centers_y))
+
+        def _passes_thermal_static_event_guard(
+            detection_frames: List[List[Dict[str, Any]]],
+            motion_area_now: int,
+            confidence_threshold: float,
+            base_min_area: int,
+        ) -> bool:
+            """
+            Drop static thermal ghosts in sparse scenes.
+
+            MP worker has no global active-camera state in-process, so this uses
+            a robust local heuristic: allow movement or strong confidence+motion.
+            """
+            spread = _thermal_bbox_center_spread(detection_frames=detection_frames, sample_frames=5)
+            if spread >= 6.0:
+                return True
+            current_dets = detection_frames[-1] if detection_frames else []
+            best_conf = max((float(det.get("confidence", 0.0)) for det in current_dets), default=0.0)
+            strong_conf = max(float(confidence_threshold) + 0.25, 0.85)
+            strong_motion = max(1600, int(base_min_area) * 4)
+            return best_conf >= strong_conf and int(motion_area_now) >= strong_motion
+
         # Get detection parameters
         detection_source = camera_config.get("detection_source") or camera_config.get("type", "thermal")
         frame_delay = 1.0 / config.detection.inference_fps
@@ -1062,9 +1118,16 @@ def camera_detection_process(
             
             # Thermal inference suppression (parity with threading detector)
             suppression_active = False
+            thermal_suppression_streak = int(getattr(config.motion, "thermal_suppression_streak", 15))
+            thermal_suppression_secs = int(getattr(config.motion, "thermal_suppression_duration", 30))
+            if detection_source == "thermal" and getattr(config.motion, "thermal_suppression_enabled", True):
+                thermal_suppression_streak, thermal_suppression_secs = _thermal_suppression_policy(
+                    thermal_suppression_streak,
+                    thermal_suppression_secs,
+                )
             if detection_source == "thermal" and getattr(config.motion, "thermal_suppression_enabled", True):
                 wakeup_ratio = float(getattr(config.motion, "thermal_suppression_wakeup_ratio", 2.5))
-                suppression_secs = int(getattr(config.motion, "thermal_suppression_duration", 30))
+                suppression_secs = thermal_suppression_secs
                 current_area = int(thermal_motion_state.get("thermal_motion_area_raw", 0))
                 prev_area = last_motion_area
                 min_wakeup_area = max(1200, int(motion_config.get("min_area", 0) or 0) * 3)
@@ -1243,8 +1306,8 @@ def camera_detection_process(
                     continue
                 event_start_time = None
                 if detection_source == "thermal" and getattr(config.motion, "thermal_suppression_enabled", True):
-                    streak_limit = int(getattr(config.motion, "thermal_suppression_streak", 15))
-                    suppression_secs = int(getattr(config.motion, "thermal_suppression_duration", 30))
+                    streak_limit = thermal_suppression_streak
+                    suppression_secs = thermal_suppression_secs
                     empty_inference_streak += 1
                     if empty_inference_streak >= streak_limit:
                         suppressed_until = current_time + float(suppression_secs)
@@ -1296,6 +1359,18 @@ def camera_detection_process(
                 _log_gate("temporal_consistency_failed")
                 continue
             
+            if detection_source == "thermal":
+                motion_area_now = int(thermal_motion_state.get("thermal_motion_area_raw", 0))
+                if not _passes_thermal_static_event_guard(
+                    detection_frames=list(detection_history),
+                    motion_area_now=motion_area_now,
+                    confidence_threshold=confidence_threshold,
+                    base_min_area=int(motion_config.get("min_area", 0) or 0),
+                ):
+                    event_start_time = None
+                    _log_gate("thermal_static_guard")
+                    continue
+
             # Enforce minimum event duration
             if event_start_time is None:
                 event_start_time = current_time

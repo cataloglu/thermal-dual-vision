@@ -351,6 +351,18 @@ def test_count_active_motion_cameras_uses_motion_active_state():
     assert worker._count_active_motion_cameras() == 2
 
 
+def test_count_recent_motion_cameras_includes_recently_active_states():
+    """Recent motion timestamps should count as active for short adaptive windows."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    worker.motion_state = {
+        "cam-1": {"motion_active": False, "last_motion": 98.0},  # recent in 6s window
+        "cam-2": {"motion_active": False, "last_motion": 90.0},  # stale
+        "cam-3": {"motion_active": True, "last_motion": 10.0},
+    }
+    with patch("app.workers.detector.time.time", return_value=100.0):
+        assert worker._count_recent_motion_cameras(window_seconds=6.0) == 2
+
+
 def test_thermal_probe_interval_scales_with_camera_load():
     """Suppression probes should become faster when multiple cameras are active."""
     worker = DetectorWorker.__new__(DetectorWorker)
@@ -394,6 +406,85 @@ def test_thermal_temporal_policy_relaxes_under_multi_camera_motion():
     assert min_frames_very_busy == 2
     assert max_gap_very_busy == 2
     assert recovery_conf_very_busy <= recovery_conf_busy
+
+
+def test_thermal_suppression_policy_delays_suppression_under_load():
+    """Suppression should trigger later and shorter under concurrent load."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    streak_single, secs_single = worker._thermal_suppression_policy(15, 30, active_motion_cameras=1)
+    assert streak_single >= 30
+    assert secs_single <= 15
+
+    streak_busy, secs_busy = worker._thermal_suppression_policy(15, 30, active_motion_cameras=2)
+    assert streak_busy >= 45
+    assert secs_busy <= 12
+
+    streak_very_busy, secs_very_busy = worker._thermal_suppression_policy(
+        15,
+        30,
+        active_motion_cameras=4,
+    )
+    assert streak_very_busy >= streak_busy
+    assert secs_very_busy <= secs_busy
+
+
+def test_thermal_bbox_center_spread_detects_motion_vs_static():
+    """Spread helper should separate moving and static bbox tracks."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    static_frames = [
+        [{"bbox": [100, 60, 160, 220], "confidence": 0.70}]
+        for _ in range(5)
+    ]
+    moving_frames = [
+        [{"bbox": [100 + (i * 8), 60, 160 + (i * 8), 220], "confidence": 0.70}]
+        for i in range(5)
+    ]
+    assert worker._thermal_bbox_center_spread(static_frames) == 0.0
+    assert worker._thermal_bbox_center_spread(moving_frames) >= 8.0
+
+
+def test_thermal_static_guard_blocks_static_weak_motion_on_idle_scene():
+    """Idle-scene static thermal boxes should require stronger evidence."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    static_frames = [
+        [{"bbox": [120, 70, 170, 230], "confidence": 0.72}]
+        for _ in range(5)
+    ]
+    assert worker._passes_thermal_static_event_guard(
+        detection_frames=static_frames,
+        motion_area_now=900,
+        active_motion_cameras=1,
+        confidence_threshold=0.55,
+        base_min_area=260,
+    ) is False
+
+
+def test_thermal_static_guard_allows_moving_track_or_multi_camera_load():
+    """Guard should allow moving tracks and stay relaxed on concurrent load."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    moving_frames = [
+        [{"bbox": [120 + (i * 9), 70, 170 + (i * 9), 230], "confidence": 0.62}]
+        for i in range(5)
+    ]
+    assert worker._passes_thermal_static_event_guard(
+        detection_frames=moving_frames,
+        motion_area_now=850,
+        active_motion_cameras=1,
+        confidence_threshold=0.55,
+        base_min_area=260,
+    ) is True
+
+    static_frames = [
+        [{"bbox": [120, 70, 170, 230], "confidence": 0.62}]
+        for _ in range(5)
+    ]
+    assert worker._passes_thermal_static_event_guard(
+        detection_frames=static_frames,
+        motion_area_now=850,
+        active_motion_cameras=3,
+        confidence_threshold=0.55,
+        base_min_area=260,
+    ) is True
 
 
 def test_detect_static_phantom_event_true():
