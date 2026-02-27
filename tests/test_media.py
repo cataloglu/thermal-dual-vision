@@ -350,3 +350,27 @@ def test_ai_collage_is_smaller_and_person_focused(media_worker):
         expected_w = media_worker.AI_COLLAGE_FRAME_SIZE[0] * media_worker.AI_COLLAGE_GRID[0]
         assert ai_img.shape[0] == expected_h
         assert ai_img.shape[1] == expected_w
+
+
+def test_select_ai_collage_indices_includes_pre_motion_context(media_worker):
+    """AI collage must include pre-motion frames before first detection."""
+    frames = [np.full((240, 320, 3), 15 + (i * 8), dtype=np.uint8) for i in range(12)]
+    timestamps = [1000.0 + (i * 0.2) for i in range(12)]
+    detections = [None] * 12
+    detections[6] = {"bbox": [150, 60, 180, 180], "confidence": 0.71}
+    detections[7] = {"bbox": [152, 62, 182, 182], "confidence": 0.87}
+    detections[8] = {"bbox": [155, 64, 185, 184], "confidence": 0.79}
+
+    indices = media_worker._select_ai_collage_indices(
+        frames=frames,
+        detections=detections,
+        timestamps=timestamps,
+        best_idx=7,
+    )
+
+    assert len(indices) == media_worker.AI_COLLAGE_FRAMES
+    assert indices == sorted(indices)
+    assert any(idx in indices for idx in [6, 7, 8])
+
+    pre_motion = [idx for idx in indices if idx < 6]
+    assert len(pre_motion) >= 2

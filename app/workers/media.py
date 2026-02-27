@@ -656,6 +656,11 @@ class MediaWorker:
         if not det_indices:
             return baseline
 
+        target_len = min(total, self.AI_COLLAGE_FRAMES)
+        first_det = min(det_indices)
+        last_det = max(det_indices)
+        has_valid_ts = bool(timestamps) and len(timestamps) == total
+
         blur_cache: Dict[int, float] = {}
 
         def _blur_cached(idx: int) -> float:
@@ -669,53 +674,105 @@ class MediaWorker:
                 return 0.0
             return float(det.get("confidence", 0.0) or 0.0)
 
-        det_sorted = sorted(
-            det_indices,
-            key=lambda i: (_det_conf(i), _blur_cached(i)),
-            reverse=True,
-        )
+        if best_idx not in det_indices:
+            best_det_idx = max(det_indices, key=lambda i: (_det_conf(i), _blur_cached(i)))
+        else:
+            best_det_idx = best_idx
 
         selected: List[int] = []
-        min_gap_sec = 0.18
-        has_valid_ts = bool(timestamps) and len(timestamps) == total
-        for idx in det_sorted:
-            if idx in selected:
-                continue
-            if has_valid_ts:
-                ts = float(timestamps[idx])
-                if any(abs(float(timestamps[j]) - ts) < min_gap_sec for j in selected):
-                    continue
+        used: set[int] = set()
+
+        def _append(idx: Optional[int]) -> None:
+            if idx is None:
+                return
+            if idx in used:
+                return
             selected.append(idx)
-            if len(selected) >= self.AI_COLLAGE_FRAMES:
-                break
+            used.add(idx)
 
-        for idx in det_sorted:
-            if len(selected) >= self.AI_COLLAGE_FRAMES:
-                break
-            if idx not in selected:
-                selected.append(idx)
+        def _pick_nearest(
+            candidates: List[int],
+            *,
+            target_idx: Optional[int] = None,
+            target_ts: Optional[float] = None,
+            prefer_bbox: Optional[bool] = None,
+        ) -> Optional[int]:
+            if not candidates:
+                return None
+            shortlist = candidates
+            if has_valid_ts and target_ts is not None:
+                shortlist = sorted(shortlist, key=lambda i: abs(float(timestamps[i]) - target_ts))[:10]
+            elif target_idx is not None:
+                shortlist = sorted(shortlist, key=lambda i: abs(i - target_idx))[:10]
 
+            def _score(idx: int) -> float:
+                score = min(_blur_cached(idx) / 140.0, 2.0) + (_det_conf(idx) * 1.8)
+                has_bbox = self._bbox_or_none(detections[idx] if idx < len(detections) else None) is not None
+                if prefer_bbox is True:
+                    score += 1.0 if has_bbox else -0.8
+                elif prefer_bbox is False:
+                    score += 0.8 if not has_bbox else -0.4
+                if has_valid_ts and target_ts is not None:
+                    dist = abs(float(timestamps[idx]) - target_ts)
+                    score += max(0.0, 1.2 - (dist / 0.8))
+                elif target_idx is not None:
+                    score += max(0.0, 1.0 - (abs(idx - target_idx) / 6.0))
+                return score
+
+            return max(shortlist, key=_score)
+
+        # 1) Force at least two pre-motion context frames so AI sees "before movement".
+        pre_candidates = [i for i in range(0, first_det) if i not in used]
+        if has_valid_ts:
+            first_ts = float(timestamps[first_det])
+            pre_targets = [first_ts - 1.0, first_ts - 0.45]
+            for target_ts in pre_targets:
+                pool = [i for i in pre_candidates if i not in used]
+                if not pool:
+                    break
+                _append(_pick_nearest(pool, target_ts=target_ts, prefer_bbox=False))
+        else:
+            for target_idx in [max(0, first_det - 5), max(0, first_det - 2)]:
+                pool = [i for i in pre_candidates if i not in used]
+                if not pool:
+                    break
+                _append(_pick_nearest(pool, target_idx=target_idx, prefer_bbox=False))
+
+        # 2) Core motion frames: onset, best detection, last detection.
+        for key_idx in (first_det, best_det_idx, last_det):
+            if key_idx not in used:
+                _append(key_idx)
+            else:
+                neighbor_pool = [i for i in det_indices if i not in used]
+                _append(_pick_nearest(neighbor_pool, target_idx=key_idx, prefer_bbox=True))
+
+        # 3) Add one post-motion frame when available.
+        post_candidates = [i for i in range(last_det + 1, total) if i not in used]
+        if post_candidates:
+            if has_valid_ts:
+                post_target_ts = float(timestamps[last_det]) + 0.45
+                _append(_pick_nearest(post_candidates, target_ts=post_target_ts, prefer_bbox=False))
+            else:
+                _append(_pick_nearest(post_candidates, target_idx=min(total - 1, last_det + 2), prefer_bbox=False))
+
+        # 4) Fill remaining from baseline, then nearest unused.
         for idx in baseline:
-            if len(selected) >= self.AI_COLLAGE_FRAMES:
+            if len(selected) >= target_len:
                 break
-            if idx not in selected:
-                selected.append(idx)
-
-        if len(selected) < min(total, self.AI_COLLAGE_FRAMES):
-            fillers = sorted(
-                [i for i in range(total) if i not in selected],
-                key=lambda i: abs(i - best_idx),
-            )
+            _append(idx)
+        if len(selected) < target_len:
+            fillers = [i for i in range(total) if i not in used]
+            fillers = sorted(fillers, key=lambda i: abs(i - best_det_idx))
             for idx in fillers:
-                selected.append(idx)
-                if len(selected) >= min(total, self.AI_COLLAGE_FRAMES):
+                _append(idx)
+                if len(selected) >= target_len:
                     break
 
         if has_valid_ts:
             selected.sort(key=lambda i: float(timestamps[i]))
         else:
             selected.sort()
-        return selected[: min(total, self.AI_COLLAGE_FRAMES)]
+        return selected[:target_len]
 
     def create_ai_collage(
         self,
