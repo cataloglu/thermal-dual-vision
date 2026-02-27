@@ -6,6 +6,15 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.39] - 2026-02-27
+
+### Düzeltmeler
+
+- **Thermal suppression kaçırma riski azaltıldı**: Suppression sırasında sadece ani area sıçramasına bağlı kalınmıyor; kademeli büyüme de erken wake-up sayılıyor ve periyodik probe inference ile gerçek insan girişleri suppression penceresinde kaçmıyor.
+- **Thermal temporal recovery güçlendirildi**: Threading ve multiprocessing worker'da yüksek güven + yeterli motion area şartında tek-frame thermal recovery açıldı; kısa dropout'larda gereksiz event kaçırma azaltıldı.
+- **Collage frame seçimi AI için iyileştirildi**: Seçim algoritması zaman yakınlığı + keskinlik + detection confidence skoruna taşındı; event merkez frame collage'a garanti dahil ediliyor.
+- **Preset + ayar sadeleştirme**: Performance presetleri artık thermal suppression ve thermal preprocessing detaylarını da set ediyor; ayrıca Kamera Ayarları'na "Thermal Quick Profiles" ve "Expert controls" eklendi.
+
 ## [4.0.38] - 2026-02-27
 
 ### Düzeltmeler

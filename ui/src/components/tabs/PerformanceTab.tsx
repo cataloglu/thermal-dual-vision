@@ -25,6 +25,7 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
   const [showAdvancedStream, setShowAdvancedStream] = useState(false)
   const [showAdvancedThermal, setShowAdvancedThermal] = useState(false)
   const [showAdvancedPerf, setShowAdvancedPerf] = useState(false)
+  const [showExpertControls, setShowExpertControls] = useState(false)
 
   const preset = settings.detection.aspect_ratio_preset ?? 'person'
   const isCustomAspect = preset === 'custom'
@@ -41,8 +42,27 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
           confidence_threshold: 0.50,
           thermal_confidence_threshold: 0.55,
         },
-        motion: { ...base.motion, mode: 'auto', auto_profile: 'low', algorithm: 'frame_diff', sensitivity: 7, min_area: 600, cooldown_seconds: 8 },
-        thermal: { ...base.thermal, enable_enhancement: false },
+        motion: {
+          ...base.motion,
+          mode: 'auto',
+          auto_profile: 'low',
+          algorithm: 'frame_diff',
+          sensitivity: 7,
+          min_area: 600,
+          cooldown_seconds: 8,
+          thermal_suppression_enabled: true,
+          thermal_suppression_streak: 8,
+          thermal_suppression_duration: 20,
+          thermal_suppression_wakeup_ratio: 1.8,
+        },
+        thermal: {
+          ...base.thermal,
+          enable_enhancement: false,
+          enhancement_method: 'none',
+          clahe_clip_limit: 2.0,
+          clahe_tile_size: [32, 32],
+          gaussian_blur_kernel: [3, 3],
+        },
         stream: {
           ...base.stream,
           protocol: 'tcp',
@@ -63,8 +83,27 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
           confidence_threshold: 0.50,
           thermal_confidence_threshold: 0.55,
         },
-        motion: { ...base.motion, mode: 'auto', auto_profile: 'normal', algorithm: 'mog2', sensitivity: 8, min_area: 450, cooldown_seconds: 6 },
-        thermal: { ...base.thermal, enable_enhancement: true, enhancement_method: 'clahe', clahe_clip_limit: 2.0 },
+        motion: {
+          ...base.motion,
+          mode: 'auto',
+          auto_profile: 'normal',
+          algorithm: 'mog2',
+          sensitivity: 8,
+          min_area: 450,
+          cooldown_seconds: 6,
+          thermal_suppression_enabled: true,
+          thermal_suppression_streak: 12,
+          thermal_suppression_duration: 18,
+          thermal_suppression_wakeup_ratio: 1.7,
+        },
+        thermal: {
+          ...base.thermal,
+          enable_enhancement: true,
+          enhancement_method: 'clahe',
+          clahe_clip_limit: 2.0,
+          clahe_tile_size: [32, 32],
+          gaussian_blur_kernel: [3, 3],
+        },
         stream: {
           ...base.stream,
           protocol: 'tcp',
@@ -85,8 +124,27 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
           confidence_threshold: 0.45,
           thermal_confidence_threshold: 0.50,
         },
-        motion: { ...base.motion, mode: 'auto', auto_profile: 'high', algorithm: 'mog2', sensitivity: 6, min_area: 250, cooldown_seconds: 4 },
-        thermal: { ...base.thermal, enable_enhancement: true, enhancement_method: 'clahe', clahe_clip_limit: 2.5 },
+        motion: {
+          ...base.motion,
+          mode: 'auto',
+          auto_profile: 'high',
+          algorithm: 'mog2',
+          sensitivity: 6,
+          min_area: 250,
+          cooldown_seconds: 4,
+          thermal_suppression_enabled: false,
+          thermal_suppression_streak: 10,
+          thermal_suppression_duration: 12,
+          thermal_suppression_wakeup_ratio: 1.6,
+        },
+        thermal: {
+          ...base.thermal,
+          enable_enhancement: true,
+          enhancement_method: 'clahe',
+          clahe_clip_limit: 2.3,
+          clahe_tile_size: [32, 32],
+          gaussian_blur_kernel: [3, 3],
+        },
         stream: {
           ...base.stream,
           protocol: 'tcp',
@@ -107,8 +165,27 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
           confidence_threshold: 0.55,
           thermal_confidence_threshold: 0.60,
         },
-        motion: { ...base.motion, mode: 'auto', auto_profile: 'normal', algorithm: 'mog2', sensitivity: 9, min_area: 350, cooldown_seconds: 5 },
-        thermal: { ...base.thermal, enable_enhancement: true, enhancement_method: 'clahe', clahe_clip_limit: 2.5 },
+        motion: {
+          ...base.motion,
+          mode: 'auto',
+          auto_profile: 'normal',
+          algorithm: 'mog2',
+          sensitivity: 9,
+          min_area: 350,
+          cooldown_seconds: 5,
+          thermal_suppression_enabled: false,
+          thermal_suppression_streak: 12,
+          thermal_suppression_duration: 10,
+          thermal_suppression_wakeup_ratio: 1.5,
+        },
+        thermal: {
+          ...base.thermal,
+          enable_enhancement: true,
+          enhancement_method: 'clahe',
+          clahe_clip_limit: 2.5,
+          clahe_tile_size: [32, 32],
+          gaussian_blur_kernel: [3, 3],
+        },
         stream: {
           ...base.stream,
           protocol: 'tcp',
@@ -122,6 +199,70 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
       },
     }
     const updates = presets[presetId] || presets.balanced
+    const next = { ...settings, ...updates } as Settings
+    onChange(next)
+    await onSave(updates)
+  }
+
+  const applyThermalQuickProfile = async (profile: 'stable' | 'balanced' | 'detect') => {
+    const base = { detection: settings.detection, motion: settings.motion, thermal: settings.thermal }
+    const profiles: Record<string, Partial<Settings>> = {
+      stable: {
+        detection: {
+          ...base.detection,
+          thermal_confidence_threshold: 0.62,
+        },
+        motion: {
+          ...base.motion,
+          thermal_suppression_enabled: true,
+          thermal_suppression_streak: 10,
+          thermal_suppression_duration: 30,
+          thermal_suppression_wakeup_ratio: 2.0,
+        },
+        thermal: {
+          ...base.thermal,
+          enable_enhancement: true,
+          enhancement_method: 'clahe',
+          clahe_clip_limit: 2.5,
+        },
+      },
+      balanced: {
+        detection: {
+          ...base.detection,
+          thermal_confidence_threshold: 0.55,
+        },
+        motion: {
+          ...base.motion,
+          thermal_suppression_enabled: true,
+          thermal_suppression_streak: 12,
+          thermal_suppression_duration: 18,
+          thermal_suppression_wakeup_ratio: 1.7,
+        },
+        thermal: {
+          ...base.thermal,
+          enable_enhancement: true,
+          enhancement_method: 'clahe',
+          clahe_clip_limit: 2.2,
+        },
+      },
+      detect: {
+        detection: {
+          ...base.detection,
+          thermal_confidence_threshold: 0.50,
+        },
+        motion: {
+          ...base.motion,
+          thermal_suppression_enabled: false,
+        },
+        thermal: {
+          ...base.thermal,
+          enable_enhancement: true,
+          enhancement_method: 'clahe',
+          clahe_clip_limit: 2.0,
+        },
+      },
+    }
+    const updates = profiles[profile] || profiles.balanced
     const next = { ...settings, ...updates } as Settings
     onChange(next)
     await onSave(updates)
@@ -173,9 +314,47 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
         </div>
       </div>
 
+      {/* Thermal quick profiles */}
+      <div className="bg-surface2 border border-border rounded-lg p-4">
+        <h4 className="text-sm font-semibold text-text mb-1">{t('thermalQuickProfilesTitle')}</h4>
+        <p className="text-xs text-muted mb-3">{t('thermalQuickProfilesDesc')}</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+          <button
+            type="button"
+            onClick={() => applyThermalQuickProfile('stable')}
+            className="p-3 rounded-lg border border-border bg-surface1 text-left hover:bg-surface1/80 transition-colors text-sm"
+          >
+            🧱 {t('thermalQuickProfileStable')}
+          </button>
+          <button
+            type="button"
+            onClick={() => applyThermalQuickProfile('balanced')}
+            className="p-3 rounded-lg border border-border bg-surface1 text-left hover:bg-surface1/80 transition-colors text-sm"
+          >
+            ⚖️ {t('thermalQuickProfileBalanced')}
+          </button>
+          <button
+            type="button"
+            onClick={() => applyThermalQuickProfile('detect')}
+            className="p-3 rounded-lg border border-border bg-surface1 text-left hover:bg-surface1/80 transition-colors text-sm"
+          >
+            🚶 {t('thermalQuickProfileDetect')}
+          </button>
+        </div>
+      </div>
+
       {/* Manual - 3 columns */}
       <div className="bg-surface2 border border-border rounded-lg p-6 space-y-4">
-        <h4 className="text-base font-semibold text-text">{t('perfManualTitle')}</h4>
+        <div className="flex items-center justify-between gap-3">
+          <h4 className="text-base font-semibold text-text">{t('perfManualTitle')}</h4>
+          <button
+            type="button"
+            onClick={() => setShowExpertControls(!showExpertControls)}
+            className="text-xs px-3 py-1.5 rounded-lg border border-border text-muted hover:text-text hover:bg-surface1/70"
+          >
+            {showExpertControls ? t('perfExpertToggleHide') : t('perfExpertToggleShow')}
+          </button>
+        </div>
         <div className="p-4 rounded-lg bg-surface1/50 border border-border">
           <label className="text-sm font-semibold text-text block mb-2">{t('perfInferenceBackend')}</label>
           <select
@@ -219,43 +398,51 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
               <input type="number" min={1} max={30} value={settings.detection.inference_fps} onChange={(e) => onChange({ ...settings, detection: { ...settings.detection, inference_fps: parseInt(e.target.value) || 1 } })} className="w-16 px-2 py-1.5 bg-surface1 border border-border rounded text-text text-sm" />
               <span className="text-xs text-muted">FPS (1 = en düşük CPU)</span>
             </div>
-            <div className="flex gap-2">
-              <input type="number" min={320} max={1920} value={settings.detection.inference_resolution[0]} onChange={(e) => onChange({ ...settings, detection: { ...settings.detection, inference_resolution: [parseInt(e.target.value) || 640, settings.detection.inference_resolution[1]] } })} className="flex-1 px-2 py-1.5 bg-surface1 border border-border rounded text-text text-sm" />
-              <span className="text-muted self-center">×</span>
-              <input type="number" min={320} max={1920} value={settings.detection.inference_resolution[1]} onChange={(e) => onChange({ ...settings, detection: { ...settings.detection, inference_resolution: [settings.detection.inference_resolution[0], parseInt(e.target.value) || 640] } })} className="flex-1 px-2 py-1.5 bg-surface1 border border-border rounded text-text text-sm" />
-            </div>
             <div>
-              <label className="text-xs text-muted">Confidence {settings.detection.confidence_threshold.toFixed(2)}</label>
-              <input type="range" min={0} max={1} step={0.05} value={settings.detection.confidence_threshold} onChange={(e) => onChange({ ...settings, detection: { ...settings.detection, confidence_threshold: parseFloat(e.target.value) } })} className="w-full" />
-            </div>
-            <div>
-              <label className="text-xs text-muted">Termal conf. {settings.detection.thermal_confidence_threshold.toFixed(2)}</label>
+              <label className="text-xs text-muted">{t('perfThermalConfidenceLabel')} {settings.detection.thermal_confidence_threshold.toFixed(2)}</label>
               <input type="range" min={0} max={1} step={0.05} value={settings.detection.thermal_confidence_threshold} onChange={(e) => onChange({ ...settings, detection: { ...settings.detection, thermal_confidence_threshold: parseFloat(e.target.value) } })} className="w-full" />
+              <p className="text-xs text-muted mt-1">{t('perfThermalConfidenceHint')}</p>
             </div>
-            <div>
-              <label className="text-xs text-muted">NMS {settings.detection.nms_iou_threshold.toFixed(2)}</label>
-              <input type="range" min={0} max={1} step={0.05} value={settings.detection.nms_iou_threshold} onChange={(e) => onChange({ ...settings, detection: { ...settings.detection, nms_iou_threshold: parseFloat(e.target.value) } })} className="w-full" />
-            </div>
-            <select
-              value={preset}
-              onChange={(e) => onChange({ ...settings, detection: { ...settings.detection, aspect_ratio_preset: e.target.value as 'person' | 'thermal_person' | 'custom' } })}
-              className="w-full px-3 py-1.5 bg-surface1 border border-border rounded text-text text-sm"
-            >
-              <option value="person">{t('aspectRatioPresetPerson')}</option>
-              <option value="thermal_person">{t('aspectRatioPresetThermalPerson')}</option>
-              <option value="custom">{t('aspectRatioPresetCustom')}</option>
-            </select>
-            {isCustomAspect && (
+
+            {showExpertControls ? (
               <>
-                <div>
-                  <label className="text-xs text-muted">Aspect min {settings.detection.aspect_ratio_min?.toFixed(2) || 0.3}</label>
-                  <input type="range" min={0.05} max={1} step={0.05} value={settings.detection.aspect_ratio_min || 0.3} onChange={(e) => onChange({ ...settings, detection: { ...settings.detection, aspect_ratio_min: parseFloat(e.target.value) } })} className="w-full" />
+                <div className="flex gap-2">
+                  <input type="number" min={320} max={1920} value={settings.detection.inference_resolution[0]} onChange={(e) => onChange({ ...settings, detection: { ...settings.detection, inference_resolution: [parseInt(e.target.value) || 640, settings.detection.inference_resolution[1]] } })} className="flex-1 px-2 py-1.5 bg-surface1 border border-border rounded text-text text-sm" />
+                  <span className="text-muted self-center">×</span>
+                  <input type="number" min={320} max={1920} value={settings.detection.inference_resolution[1]} onChange={(e) => onChange({ ...settings, detection: { ...settings.detection, inference_resolution: [settings.detection.inference_resolution[0], parseInt(e.target.value) || 640] } })} className="flex-1 px-2 py-1.5 bg-surface1 border border-border rounded text-text text-sm" />
                 </div>
                 <div>
-                  <label className="text-xs text-muted">Aspect max {settings.detection.aspect_ratio_max?.toFixed(2) || 3}</label>
-                  <input type="range" min={1} max={5} step={0.1} value={settings.detection.aspect_ratio_max || 3} onChange={(e) => onChange({ ...settings, detection: { ...settings.detection, aspect_ratio_max: parseFloat(e.target.value) } })} className="w-full" />
+                  <label className="text-xs text-muted">Confidence {settings.detection.confidence_threshold.toFixed(2)}</label>
+                  <input type="range" min={0} max={1} step={0.05} value={settings.detection.confidence_threshold} onChange={(e) => onChange({ ...settings, detection: { ...settings.detection, confidence_threshold: parseFloat(e.target.value) } })} className="w-full" />
                 </div>
+                <div>
+                  <label className="text-xs text-muted">NMS {settings.detection.nms_iou_threshold.toFixed(2)}</label>
+                  <input type="range" min={0} max={1} step={0.05} value={settings.detection.nms_iou_threshold} onChange={(e) => onChange({ ...settings, detection: { ...settings.detection, nms_iou_threshold: parseFloat(e.target.value) } })} className="w-full" />
+                </div>
+                <select
+                  value={preset}
+                  onChange={(e) => onChange({ ...settings, detection: { ...settings.detection, aspect_ratio_preset: e.target.value as 'person' | 'thermal_person' | 'custom' } })}
+                  className="w-full px-3 py-1.5 bg-surface1 border border-border rounded text-text text-sm"
+                >
+                  <option value="person">{t('aspectRatioPresetPerson')}</option>
+                  <option value="thermal_person">{t('aspectRatioPresetThermalPerson')}</option>
+                  <option value="custom">{t('aspectRatioPresetCustom')}</option>
+                </select>
+                {isCustomAspect && (
+                  <>
+                    <div>
+                      <label className="text-xs text-muted">Aspect min {settings.detection.aspect_ratio_min?.toFixed(2) || 0.3}</label>
+                      <input type="range" min={0.05} max={1} step={0.05} value={settings.detection.aspect_ratio_min || 0.3} onChange={(e) => onChange({ ...settings, detection: { ...settings.detection, aspect_ratio_min: parseFloat(e.target.value) } })} className="w-full" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted">Aspect max {settings.detection.aspect_ratio_max?.toFixed(2) || 3}</label>
+                      <input type="range" min={1} max={5} step={0.1} value={settings.detection.aspect_ratio_max || 3} onChange={(e) => onChange({ ...settings, detection: { ...settings.detection, aspect_ratio_max: parseFloat(e.target.value) } })} className="w-full" />
+                    </div>
+                  </>
+                )}
               </>
+            ) : (
+              <p className="text-xs text-muted">{t('perfDetectionAdvancedHint')}</p>
             )}
           </div>
 
@@ -345,42 +532,52 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
               {t('thermalSuppressionEnabled')}
             </label>
             {(settings.motion.thermal_suppression_enabled ?? true) && (
-              <div className="space-y-2 pl-2 border-l-2 border-border">
-                <div>
-                  <label className="text-xs text-muted block mb-1">{t('thermalSuppressionStreak')}</label>
-                  <input
-                    type="number"
-                    min={5}
-                    max={100}
-                    value={settings.motion.thermal_suppression_streak ?? 15}
-                    onChange={(e) => onChange({ ...settings, motion: { ...settings.motion, thermal_suppression_streak: parseInt(e.target.value) || 15 } })}
-                    className="w-full px-3 py-1.5 bg-surface1 border border-border rounded text-text text-sm"
-                  />
+              showExpertControls ? (
+                <div className="space-y-2 pl-2 border-l-2 border-border">
+                  <div>
+                    <label className="text-xs text-muted block mb-1">{t('thermalSuppressionStreak')}</label>
+                    <input
+                      type="number"
+                      min={5}
+                      max={100}
+                      value={settings.motion.thermal_suppression_streak ?? 15}
+                      onChange={(e) => onChange({ ...settings, motion: { ...settings.motion, thermal_suppression_streak: parseInt(e.target.value) || 15 } })}
+                      className="w-full px-3 py-1.5 bg-surface1 border border-border rounded text-text text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted block mb-1">{t('thermalSuppressionDuration')}</label>
+                    <input
+                      type="number"
+                      min={5}
+                      max={300}
+                      value={settings.motion.thermal_suppression_duration ?? 30}
+                      onChange={(e) => onChange({ ...settings, motion: { ...settings.motion, thermal_suppression_duration: parseInt(e.target.value) || 30 } })}
+                      className="w-full px-3 py-1.5 bg-surface1 border border-border rounded text-text text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted block mb-1">{t('thermalSuppressionWakeup')}</label>
+                    <input
+                      type="number"
+                      min={1.5}
+                      max={10}
+                      step={0.5}
+                      value={settings.motion.thermal_suppression_wakeup_ratio ?? 2.5}
+                      onChange={(e) => onChange({ ...settings, motion: { ...settings.motion, thermal_suppression_wakeup_ratio: parseFloat(e.target.value) || 2.5 } })}
+                      className="w-full px-3 py-1.5 bg-surface1 border border-border rounded text-text text-sm"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="text-xs text-muted block mb-1">{t('thermalSuppressionDuration')}</label>
-                  <input
-                    type="number"
-                    min={5}
-                    max={300}
-                    value={settings.motion.thermal_suppression_duration ?? 30}
-                    onChange={(e) => onChange({ ...settings, motion: { ...settings.motion, thermal_suppression_duration: parseInt(e.target.value) || 30 } })}
-                    className="w-full px-3 py-1.5 bg-surface1 border border-border rounded text-text text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-muted block mb-1">{t('thermalSuppressionWakeup')}</label>
-                  <input
-                    type="number"
-                    min={1.5}
-                    max={10}
-                    step={0.5}
-                    value={settings.motion.thermal_suppression_wakeup_ratio ?? 2.5}
-                    onChange={(e) => onChange({ ...settings, motion: { ...settings.motion, thermal_suppression_wakeup_ratio: parseFloat(e.target.value) || 2.5 } })}
-                    className="w-full px-3 py-1.5 bg-surface1 border border-border rounded text-text text-sm"
-                  />
-                </div>
-              </div>
+              ) : (
+                <p className="text-xs text-muted pl-1">
+                  {t('thermalSuppressionSummary', {
+                    streak: settings.motion.thermal_suppression_streak ?? 15,
+                    duration: settings.motion.thermal_suppression_duration ?? 30,
+                    ratio: (settings.motion.thermal_suppression_wakeup_ratio ?? 2.5).toFixed(1),
+                  })}
+                </p>
+              )
             )}
 
             {/* Thermal - compact */}

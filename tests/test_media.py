@@ -259,3 +259,43 @@ def test_gif_progress_bar(media_worker, test_frames):
         
         # Check file is not empty
         assert os.path.getsize(output_path) > 1000  # At least 1KB
+
+
+def test_select_collage_indices_keeps_event_frame(media_worker, test_frames):
+    """Best detection frame should always be represented in collage selection."""
+    timestamps = [float(i) * 0.2 for i in range(len(test_frames))]
+    detections = [None for _ in test_frames]
+    detections[7] = {"bbox": [80, 60, 180, 280], "confidence": 0.93}
+
+    indices = media_worker._select_collage_indices(
+        frames=test_frames,
+        detections=detections,
+        timestamps=timestamps,
+        best_idx=7,
+    )
+
+    assert 7 in indices
+    assert len(indices) <= media_worker.COLLAGE_FRAMES
+    assert len(indices) == len(set(indices))
+
+
+def test_select_collage_indices_prioritizes_confident_candidate(media_worker):
+    """When two nearby candidates exist, higher-confidence frame should be picked earlier."""
+    frames = [np.full((240, 320, 3), 20 + i * 20, dtype=np.uint8) for i in range(7)]
+    for idx, frame in enumerate(frames):
+        cv2.putText(frame, f"F{idx}", (20, 120), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
+
+    timestamps = [0.0, 0.30, 0.32, 0.60, 0.90, 1.20, 1.50]
+    detections = [None] * 7
+    detections[2] = {"bbox": [50, 50, 120, 190], "confidence": 0.92}
+    detections[1] = {"bbox": [48, 52, 118, 192], "confidence": 0.42}
+
+    indices = media_worker._select_collage_indices(
+        frames=frames,
+        detections=detections,
+        timestamps=timestamps,
+        best_idx=3,
+    )
+
+    assert 2 in indices and 1 in indices
+    assert indices.index(2) < indices.index(1)

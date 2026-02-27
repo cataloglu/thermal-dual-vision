@@ -21,6 +21,7 @@ import pytest
 
 from app.services.inference import InferenceService
 from app.services.time_utils import is_daytime, get_detection_source
+from app.workers.detector import DetectorWorker
 
 
 @pytest.fixture
@@ -291,3 +292,31 @@ def test_bbox_center_calculation(inference_service):
     center = inference_service._get_bbox_center(bbox)
     
     assert center == (150.0, 200.0)
+
+
+def test_thermal_suppression_wakeup_ratio_trigger():
+    """Suppression should wake up on clear ratio-based motion jump."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    assert worker._should_wakeup_thermal_suppression(
+        current_area=2600,
+        prev_area=800,
+        wakeup_ratio=2.5,
+        min_wakeup_area=1200,
+    ) is True
+
+
+def test_thermal_suppression_wakeup_gradual_trigger():
+    """Suppression should also wake up on meaningful gradual growth."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    assert worker._should_wakeup_thermal_suppression(
+        current_area=1700,
+        prev_area=1000,
+        wakeup_ratio=2.5,
+        min_wakeup_area=1200,
+    ) is True
+    assert worker._should_wakeup_thermal_suppression(
+        current_area=1200,
+        prev_area=1000,
+        wakeup_ratio=2.5,
+        min_wakeup_area=1200,
+    ) is False

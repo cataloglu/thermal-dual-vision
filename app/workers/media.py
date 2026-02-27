@@ -461,6 +461,100 @@ class MediaWorker:
                 indices.append(fallback)
                 used.add(fallback)
         return indices
+
+    def _select_collage_indices(
+        self,
+        frames: List[np.ndarray],
+        detections: Optional[List[Optional[Dict]]],
+        timestamps: Optional[List[float]],
+        best_idx: int,
+    ) -> List[int]:
+        """Select collage indices around best frame using time + quality scoring."""
+        total = len(frames)
+        if total == 0:
+            return []
+
+        best_idx = max(0, min(best_idx, total - 1))
+
+        def _pick_closest_index(unused: set[int], target_idx: int) -> Optional[int]:
+            if not unused:
+                return None
+            return min(unused, key=lambda i: abs(i - target_idx))
+
+        if not timestamps or len(timestamps) != total:
+            unused = set(range(total))
+            target_indices = [best_idx - 3, best_idx - 2, best_idx - 1, best_idx, best_idx + 1, best_idx + 2]
+            selected: List[int] = []
+            for target in target_indices:
+                if not unused:
+                    break
+                closest = _pick_closest_index(unused, target)
+                if closest is None:
+                    break
+                selected.append(closest)
+                unused.remove(closest)
+            return selected[: self.COLLAGE_FRAMES]
+
+        center_ts = float(timestamps[best_idx])
+        target_offsets = [-0.90, -0.45, -0.15, 0.0, 0.30, 0.75]
+        target_windows = [0.50, 0.38, 0.28, 0.0, 0.32, 0.48]
+        selected: List[int] = []
+        unused: set[int] = set(range(total))
+        blur_cache: Dict[int, float] = {}
+
+        def _det_conf(idx: int) -> float:
+            if not detections or idx >= len(detections):
+                return 0.0
+            det = detections[idx]
+            if not det:
+                return 0.0
+            return float(det.get("confidence", 0.0))
+
+        def _blur_cached(idx: int) -> float:
+            if idx not in blur_cache:
+                blur_cache[idx] = self._blur_score(frames[idx])
+            return blur_cache[idx]
+
+        for slot, offset in enumerate(target_offsets):
+            if not unused:
+                break
+
+            # Guarantee the event-centric frame is represented in collage.
+            if offset == 0.0 and best_idx in unused:
+                selected.append(best_idx)
+                unused.remove(best_idx)
+                continue
+
+            target_ts = center_ts + offset
+            window = max(0.15, target_windows[slot])
+            candidates = [i for i in unused if abs(float(timestamps[i]) - target_ts) <= window]
+            if not candidates:
+                candidates = sorted(unused, key=lambda i: abs(float(timestamps[i]) - target_ts))[:4]
+            if not candidates:
+                break
+
+            def _score(idx: int) -> float:
+                time_dist = abs(float(timestamps[idx]) - target_ts)
+                time_score = max(0.0, 1.0 - (time_dist / window))
+                sharpness_score = min(_blur_cached(idx) / 120.0, 2.5)
+                score = (_det_conf(idx) * 3.0) + sharpness_score + time_score
+                if idx == best_idx:
+                    score += 0.8
+                return score
+
+            chosen = max(candidates, key=_score)
+            selected.append(chosen)
+            unused.remove(chosen)
+
+        target_len = min(self.COLLAGE_FRAMES, total)
+        if len(selected) < target_len:
+            fillers = sorted(unused, key=lambda i: abs(i - best_idx))
+            for idx in fillers:
+                selected.append(idx)
+                if len(selected) >= target_len:
+                    break
+
+        return selected[: self.COLLAGE_FRAMES]
     
     def create_collage(
         self,
@@ -496,21 +590,6 @@ class MediaWorker:
         if len(frames) == 0:
             raise ValueError("Need at least 1 frame for collage")
 
-        def _unique_preserve(items: List[int]) -> List[int]:
-            seen = set()
-            unique = []
-            for item in items:
-                if item in seen:
-                    continue
-                seen.add(item)
-                unique.append(item)
-            return unique
-
-        def _pick_closest_index(unused: set, target_idx: int) -> Optional[int]:
-            if not unused:
-                return None
-            return min(unused, key=lambda i: abs(i - target_idx))
-
         total = len(frames)
         best_idx = total // 2
         if detections:
@@ -523,36 +602,12 @@ class MediaWorker:
                     best_conf = conf
                     best_idx = idx
 
-        if timestamps and len(timestamps) == total:
-            center_ts = timestamps[best_idx]
-            target_times = [
-                center_ts - 0.75,
-                center_ts - 0.45,
-                center_ts - 0.15,
-                center_ts + 0.15,
-                center_ts + 0.45,
-                center_ts + 0.75,
-            ]
-            unused = set(range(total))
-            indices = []
-            for slot, target in enumerate(target_times):
-                if not unused:
-                    break
-                closest = min(unused, key=lambda i: abs(timestamps[i] - target))
-                indices.append(closest)
-                unused.remove(closest)
-        else:
-            unused = set(range(total))
-            target_indices = [best_idx - 3, best_idx - 2, best_idx - 1, best_idx + 1, best_idx + 2, best_idx + 3]
-            indices = []
-            for target in target_indices:
-                if not unused:
-                    break
-                closest = _pick_closest_index(unused, target)
-                if closest is None:
-                    break
-                indices.append(closest)
-                unused.remove(closest)
+        indices = self._select_collage_indices(
+            frames=frames,
+            detections=detections,
+            timestamps=timestamps,
+            best_idx=best_idx,
+        )
 
         if indices and len(indices) < self.COLLAGE_FRAMES:
             indices.extend([indices[-1]] * (self.COLLAGE_FRAMES - len(indices)))

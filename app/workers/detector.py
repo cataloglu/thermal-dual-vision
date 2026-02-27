@@ -116,6 +116,7 @@ class DetectorWorker:
         self.empty_inference_streak: Dict[str, int] = defaultdict(int)
         self.suppressed_until: Dict[str, float] = {}
         self.last_motion_area: Dict[str, int] = defaultdict(int)
+        self.last_suppression_probe: Dict[str, float] = {}
         self.last_relaxed_infer_time: Dict[str, float] = {}
         self.stale_gate_hits: Dict[str, int] = defaultdict(int)
         self.last_reconnect_ts: Dict[str, float] = {}
@@ -201,6 +202,7 @@ class DetectorWorker:
         self.latest_frames.clear()
         self.latest_frame_locks.clear()
         self.stale_gate_hits.clear()
+        self.last_suppression_probe.clear()
         self.last_reconnect_ts.clear()
         logger.info("DetectorWorker stopped")
     
@@ -244,12 +246,34 @@ class DetectorWorker:
         self.empty_inference_streak.pop(camera_id, None)
         self.suppressed_until.pop(camera_id, None)
         self.last_motion_area.pop(camera_id, None)
+        self.last_suppression_probe.pop(camera_id, None)
         self.last_reconnect_ts.pop(camera_id, None)
         self.ffmpeg_frame_shapes.pop(camera_id, None)
         with self.ffmpeg_error_lock:
             self.ffmpeg_last_errors.pop(camera_id, None)
         with self.stream_stats_lock:
             self.stream_stats.pop(camera_id, None)
+
+    def _should_wakeup_thermal_suppression(
+        self,
+        current_area: int,
+        prev_area: int,
+        wakeup_ratio: float,
+        min_wakeup_area: int,
+    ) -> bool:
+        """Decide whether thermal suppression should be lifted early."""
+        if current_area <= 0:
+            return False
+
+        if current_area >= min_wakeup_area and current_area > (prev_area * wakeup_ratio):
+            return True
+
+        # Slow-walking humans can increase area gradually and never hit ratio.
+        # Allow wake-up if area grows by a meaningful absolute delta.
+        growth_delta = max(0, current_area - prev_area)
+        min_delta = max(300, int(min_wakeup_area * 0.5))
+        gradual_floor = max(1200, int(min_wakeup_area * 0.7))
+        return current_area >= gradual_floor and growth_delta >= min_delta
 
     def _reset_motion_buffers(self, camera_id: str, prebuffer_seconds: float) -> None:
         # Always acquire frame lock before video lock to prevent deadlock
@@ -694,24 +718,51 @@ class DetectorWorker:
                 # in a row, skip inference until motion area increases significantly.
                 if detection_source == "thermal" and getattr(config.motion, "thermal_suppression_enabled", True):
                     wakeup_ratio = float(getattr(config.motion, "thermal_suppression_wakeup_ratio", 2.5))
+                    suppression_secs = int(getattr(config.motion, "thermal_suppression_duration", 30))
                     suppressed_ts = self.suppressed_until.get(camera_id, 0.0)
+                    current_area = int(self.motion_state.get(camera_id, {}).get("thermal_motion_area_raw", 0))
+                    prev_area = int(self.last_motion_area.get(camera_id, current_area))
+                    min_wakeup_area = max(1200, int(getattr(config.motion, "min_area", 0)) * 3)
+                    probe_interval_secs = max(1.0, min(5.0, suppression_secs / 6.0))
                     if current_time < suppressed_ts:
-                        current_area = self.motion_state.get(camera_id, {}).get("thermal_motion_area_raw", 0)
-                        prev_area = self.last_motion_area.get(camera_id, 0)
-                        if current_area > prev_area * wakeup_ratio and current_area > 3000:
+                        if self._should_wakeup_thermal_suppression(
+                            current_area=current_area,
+                            prev_area=prev_area,
+                            wakeup_ratio=wakeup_ratio,
+                            min_wakeup_area=min_wakeup_area,
+                        ):
                             self.suppressed_until.pop(camera_id, None)
                             self.empty_inference_streak[camera_id] = 0
-                        else:
-                            self._update_frame_buffer(
-                                camera_id=camera_id,
-                                frame=frame,
-                                detections=[],
-                                frame_interval=frame_interval,
-                                buffer_size=buffer_size,
+                            self.last_suppression_probe.pop(camera_id, None)
+                            logger.info(
+                                "DETECT camera=%s suppression_wakeup area=%s prev=%s ratio=%.2f",
+                                camera_id,
+                                current_area,
+                                prev_area,
+                                wakeup_ratio,
                             )
-                            continue
-                    motion_area_now = self.motion_state.get(camera_id, {}).get("thermal_motion_area_raw", 0)
-                    self.last_motion_area[camera_id] = motion_area_now
+                        else:
+                            last_probe = float(self.last_suppression_probe.get(camera_id, 0.0))
+                            if current_time - last_probe < probe_interval_secs:
+                                self.last_motion_area[camera_id] = current_area
+                                self._update_frame_buffer(
+                                    camera_id=camera_id,
+                                    frame=frame,
+                                    detections=[],
+                                    frame_interval=frame_interval,
+                                    buffer_size=buffer_size,
+                                )
+                                continue
+                            self.last_suppression_probe[camera_id] = current_time
+                            logger.debug(
+                                "DETECT camera=%s suppression_probe area=%s prev=%s",
+                                camera_id,
+                                current_area,
+                                prev_area,
+                            )
+                            # Probe inference once to avoid missing real humans
+                            # that don't produce an instant large motion jump.
+                    self.last_motion_area[camera_id] = current_area
 
                 # Preprocess frame
                 if detection_source == "thermal" and config.thermal.enable_enhancement:
@@ -891,6 +942,10 @@ class DetectorWorker:
                         if self.empty_inference_streak[camera_id] >= streak_limit:
                             self.suppressed_until[camera_id] = current_time + float(suppression_secs)
                             self.empty_inference_streak[camera_id] = 0
+                            self.last_suppression_probe[camera_id] = current_time
+                            self.last_motion_area[camera_id] = int(
+                                self.motion_state.get(camera_id, {}).get("thermal_motion_area_raw", 0)
+                            )
                             logger.info(
                                 "DETECT camera=%s inference_suppressed for %ds (%d consecutive empty results)",
                                 camera_id, suppression_secs, streak_limit,
@@ -899,6 +954,7 @@ class DetectorWorker:
                     continue
                 self.no_detection_streak[camera_id] = 0
                 self.empty_inference_streak[camera_id] = 0
+                self.last_suppression_probe.pop(camera_id, None)
 
                 # Check temporal consistency (only when we have detections)
                 temporal_min_frames = 3 if detection_source == "thermal" else 2
@@ -911,15 +967,30 @@ class DetectorWorker:
                 )
                 if not temporal_pass:
                     best_conf = max((d.get("confidence", 0.0) for d in detections), default=0.0)
-                    # Recovery path: allow a confident single-frame person hit
-                    # after brief no-detection streaks to reduce missed walk-throughs.
-                    if detection_source != "thermal" and best_conf >= max(confidence_threshold, 0.50):
-                        temporal_pass = True
-                        logger.debug(
-                            "EVENT_GATE camera=%s reason=temporal_recovered best_conf=%.2f",
-                            camera_id,
-                            best_conf,
+                    if detection_source == "thermal":
+                        motion_area_now = int(
+                            self.motion_state.get(camera_id, {}).get("thermal_motion_area_raw", 0)
                         )
+                        min_motion_area = max(1400, int(getattr(config.motion, "min_area", 0)) * 3)
+                        thermal_recovery_conf = max(confidence_threshold + 0.10, 0.65)
+                        if best_conf >= thermal_recovery_conf and motion_area_now >= min_motion_area:
+                            temporal_pass = True
+                            logger.debug(
+                                "EVENT_GATE camera=%s reason=thermal_temporal_recovered best_conf=%.2f area=%s",
+                                camera_id,
+                                best_conf,
+                                motion_area_now,
+                            )
+                    else:
+                        # Recovery path: allow a confident single-frame person hit
+                        # after brief no-detection streaks to reduce missed walk-throughs.
+                        if best_conf >= max(confidence_threshold, 0.50):
+                            temporal_pass = True
+                            logger.debug(
+                                "EVENT_GATE camera=%s reason=temporal_recovered best_conf=%.2f",
+                                camera_id,
+                                best_conf,
+                            )
                 if not temporal_pass:
                     self.event_start_time[camera_id] = None
                     _log_gate("temporal_consistency_failed")
