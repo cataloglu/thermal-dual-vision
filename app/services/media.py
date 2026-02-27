@@ -474,6 +474,47 @@ class MediaService:
         finally:
             cap.release()
 
+    def _extract_frames_from_recording(
+        self,
+        event_id: str,
+        max_frames: int = 18,
+        prebuffer_seconds: float = 5.0,
+        postbuffer_seconds: float = 2.0,
+    ) -> List[np.ndarray]:
+        """Fallback: recover collage frames from continuous recording by event metadata."""
+        try:
+            from app.db.session import session_scope
+
+            with session_scope() as db:
+                event = db.query(Event).filter(Event.id == event_id).first()
+                if not event:
+                    return []
+                camera_id = event.camera_id
+                event_ts = event.timestamp
+        except Exception as exc:
+            logger.debug("Recording frame fallback skipped (event lookup failed): %s", exc)
+            return []
+
+        try:
+            recorder = get_continuous_recorder()
+            utc_dt = (
+                event_ts.replace(tzinfo=timezone.utc)
+                if event_ts.tzinfo is None
+                else event_ts.astimezone(timezone.utc)
+            )
+            event_utc = utc_dt.replace(tzinfo=None)
+            start_utc = event_utc - timedelta(seconds=float(prebuffer_seconds))
+            end_utc = event_utc + timedelta(seconds=float(postbuffer_seconds))
+            return recorder.extract_frames(
+                camera_id=camera_id,
+                start_time=start_utc,
+                end_time=end_utc,
+                max_frames=max_frames,
+            ) or []
+        except Exception as exc:
+            logger.debug("Recording frame fallback failed for event %s: %s", event_id, exc)
+            return []
+
     def _is_ai_collage_shape(self, collage_path: Path) -> bool:
         """Detect old AI collage accidentally saved as user collage."""
         try:
@@ -505,6 +546,8 @@ class MediaService:
 
         mp4_path = event_dir / "timelapse.mp4"
         frames = self._extract_frames_from_mp4(mp4_path, max_frames=18)
+        if not frames:
+            frames = self._extract_frames_from_recording(event_id, max_frames=18)
         if not frames:
             logger.warning(
                 "AI-style collage detected but rebuild skipped (no MP4 frames): event=%s",

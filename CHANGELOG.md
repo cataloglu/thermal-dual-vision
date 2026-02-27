@@ -6,6 +6,13 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.44] - 2026-02-27
+
+### Düzeltmeler
+
+- **Legacy collage onarımı güçlendirildi**: `collage.jpg` eski AI-style formatta kalmışsa ve event MP4'te frame yoksa, artık event metadata ile continuous recording'den frame çekilip standard collage rebuild denenir.
+- **UI'da bozuk collage kalma olasılığı azaltıldı**: "no MP4 frames" durumunda yalnızca skip etmek yerine recording fallback devreye alınır.
+
 ## [4.0.43] - 2026-02-27
 
 ### Düzeltmeler
