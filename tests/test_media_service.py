@@ -73,7 +73,12 @@ def _make_db_session(tmp_path):
     return session, engine
 
 
-def _add_camera_and_event(session, event_id: str, camera_id: str = "camera-1"):
+def _add_camera_and_event(
+    session,
+    event_id: str,
+    camera_id: str = "camera-1",
+    confidence: float = 0.6,
+):
     camera = Camera(
         id=camera_id,
         name="Test Camera",
@@ -89,7 +94,7 @@ def _add_camera_and_event(session, event_id: str, camera_id: str = "camera-1"):
         id=event_id,
         camera_id=camera_id,
         timestamp=datetime.utcnow(),
-        confidence=0.6,
+        confidence=confidence,
     )
     session.add(event)
     session.commit()
@@ -171,7 +176,7 @@ def test_generate_event_media_skips_delayed_timer_for_phantom_event(tmp_path, mo
     session, engine = _make_db_session(tmp_path)
     try:
         event_id = "event-phantom-1"
-        _add_camera_and_event(session, event_id)
+        _add_camera_and_event(session, event_id, confidence=0.4)
 
         media_root = tmp_path / "media"
         monkeypatch.setattr(media_service.MediaService, "MEDIA_DIR", media_root)
@@ -180,7 +185,7 @@ def test_generate_event_media_skips_delayed_timer_for_phantom_event(tmp_path, mo
         timer_calls = []
         service.media_worker = _patch_media_dependencies(
             monkeypatch,
-            duplicate_percentage=99.0,
+            duplicate_percentage=100.0,
             extract_ok=False,
             timer_calls=timer_calls,
         )

@@ -339,6 +339,18 @@ def test_thermal_suppression_wakeup_no_false_positive():
     ) is False
 
 
+def test_count_active_motion_cameras_uses_motion_active_state():
+    """Active camera count should read runtime `motion_active` flags."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    worker.motion_state = {
+        "cam-1": {"motion_active": True},
+        "cam-2": {"motion_active": False},
+        "cam-3": {"active": True},  # legacy fallback key
+        "cam-4": {"other": 1},
+    }
+    assert worker._count_active_motion_cameras() == 2
+
+
 def test_thermal_probe_interval_scales_with_camera_load():
     """Suppression probes should become faster when multiple cameras are active."""
     worker = DetectorWorker.__new__(DetectorWorker)
