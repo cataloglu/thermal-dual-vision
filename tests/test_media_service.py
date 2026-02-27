@@ -278,6 +278,58 @@ def test_generate_collage_for_ai_uses_detection_focused_collage(tmp_path, monkey
         assert result is not None
         assert result.exists()
         assert called["output_path"] == str(result)
+        assert result.name == "collage_ai.jpg"
+        assert called["detections"] == detections
+    finally:
+        session.close()
+        Base.metadata.drop_all(bind=engine)
+        engine.dispose()
+
+
+def test_generate_collage_for_review_uses_standard_collage(tmp_path, monkeypatch):
+    session, engine = _make_db_session(tmp_path)
+    try:
+        event_id = "event-review-collage-1"
+        _add_camera_and_event(session, event_id)
+
+        media_root = tmp_path / "media"
+        monkeypatch.setattr(media_service.MediaService, "MEDIA_DIR", media_root)
+        service = media_service.MediaService()
+
+        called = {"detections": None, "output_path": None}
+
+        class DummyWorker:
+            def create_collage(
+                self,
+                frames,
+                detections,
+                timestamps,
+                output_path,
+                camera_name,
+                timestamp,
+                confidence,
+            ):
+                called["detections"] = detections
+                called["output_path"] = output_path
+                with open(output_path, "wb") as f:
+                    f.write(b"review-collage")
+                return output_path
+
+        service.media_worker = DummyWorker()
+        detections = [{"bbox": [1, 1, 6, 7], "confidence": 0.88}]
+        result = service.generate_collage_for_review(
+            db=session,
+            event_id=event_id,
+            frames=[np.zeros((8, 8, 3), dtype=np.uint8)],
+            detections=detections,
+            timestamps=[1700000000.0],
+            camera_name="Test Cam",
+        )
+
+        assert result is not None
+        assert result.exists()
+        assert called["output_path"] == str(result)
+        assert result.name == "collage.jpg"
         assert called["detections"] == detections
     finally:
         session.close()

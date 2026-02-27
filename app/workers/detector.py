@@ -2499,9 +2499,21 @@ class DetectorWorker:
                     ))
                     if not self._is_ai_confirmed(summary):
                         logger.info("Event %s rejected by AI, keeping for review", event_id)
+                        review_collage = self.media_service.generate_collage_for_review(
+                            db=db,
+                            event_id=event_id,
+                            frames=frames,
+                            detections=detections,
+                            timestamps=timestamps,
+                            camera_name=camera.name or "Camera",
+                        )
                         event.rejected_by_ai = True
                         event.summary = summary
-                        event.collage_url = f"/api/events/{event_id}/collage"
+                        event.collage_url = (
+                            f"/api/events/{event_id}/collage"
+                            if review_collage
+                            else None
+                        )
                         db.commit()
                         return
                     event.summary = summary

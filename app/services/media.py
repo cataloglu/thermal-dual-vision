@@ -119,7 +119,7 @@ class MediaService:
             return None
         event_dir = self.MEDIA_DIR / event_id
         event_dir.mkdir(parents=True, exist_ok=True)
-        collage_path = str(event_dir / "collage.jpg")
+        collage_path = str(event_dir / "collage_ai.jpg")
         try:
             self.media_worker.create_ai_collage(
                 frames,
@@ -133,6 +133,37 @@ class MediaService:
             return Path(collage_path) if os.path.exists(collage_path) else None
         except Exception as e:
             logger.warning("Collage for AI failed: %s", e)
+            return None
+
+    def generate_collage_for_review(
+        self,
+        db: Session,
+        event_id: str,
+        frames: List[np.ndarray],
+        detections: List[Optional[Dict]],
+        timestamps: Optional[List[float]] = None,
+        camera_name: str = "Camera",
+    ) -> Optional[Path]:
+        """Create the standard user-facing collage for event review."""
+        event = db.query(Event).filter(Event.id == event_id).first()
+        if not event or len(frames) == 0:
+            return None
+        event_dir = self.MEDIA_DIR / event_id
+        event_dir.mkdir(parents=True, exist_ok=True)
+        collage_path = str(event_dir / "collage.jpg")
+        try:
+            self.media_worker.create_collage(
+                frames,
+                detections,
+                timestamps,
+                collage_path,
+                camera_name,
+                event.timestamp,
+                event.confidence,
+            )
+            return Path(collage_path) if os.path.exists(collage_path) else None
+        except Exception as e:
+            logger.warning("Collage for review failed: %s", e)
             return None
 
     def generate_event_media(
