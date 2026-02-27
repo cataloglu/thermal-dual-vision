@@ -252,16 +252,6 @@ class MediaService:
             except Exception as e:
                 logger.warning("Clip from recording failed for %s (%s), using frame fallback", event_id, e)
 
-            # When MP4 was from buffer, try to replace with recording clip once segment is closed (~60s)
-            if not mp4_from_recording:
-                timer = threading.Timer(
-                    RECORDING_MP4_DELAY_SEC,
-                    _replace_mp4_from_recording,
-                    args=(event.camera_id, start_utc, end_utc, mp4_path, speed_factor),
-                )
-                timer.daemon = True
-                timer.start()
-
             # Generate media in parallel (collage always; mp4 from frames if not from recording)
             mp4_source_frames = mp4_frames if mp4_frames else frames
             mp4_source_detections = mp4_detections if mp4_detections is not None else detections
@@ -376,6 +366,17 @@ class MediaService:
                                 "Event %s keeping existing MP4 because recording regen unavailable",
                                 event_id,
                             )
+
+            # Start delayed replacement only for events that survived quality gates.
+            # This prevents background extract attempts for phantom events that are deleted.
+            if not mp4_from_recording:
+                timer = threading.Timer(
+                    RECORDING_MP4_DELAY_SEC,
+                    _replace_mp4_from_recording,
+                    args=(event.camera_id, start_utc, end_utc, mp4_path, speed_factor),
+                )
+                timer.daemon = True
+                timer.start()
             
             # Save URLs to database WITHOUT prefix (prefix added at runtime in main.py)
             event.collage_url = f"/api/events/{event_id}/collage" if os.path.exists(collage_path) else None
