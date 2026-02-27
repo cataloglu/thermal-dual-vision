@@ -6,6 +6,15 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.38] - 2026-02-27
+
+### Düzeltmeler
+
+- **Temporal consistency geri alındı**: 5→3 frame, gap 0→1. Gerçek insanlar termal'de 5 ardışık frame tutarlı görünemeyebilir, 3 frame yeterli.
+- **No-detection grace geri alındı**: 0→2. Termal'de kısa YOLO dropout'ları normal, 2 frame tolerans gerekli.
+- **Suppression wakeup hassaslaştırıldı**: Minimum area 5000→3000. Gerçek insan daha kolay suppression'ı kaldırır.
+- **MP4 duplicate gate korundu** (v4.0.37): Fake event'ler MP4 aşamasında yakalanıp silinir.
+
 ## [4.0.37] - 2026-02-27
 
 ### Düzeltmeler

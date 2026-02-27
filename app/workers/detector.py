@@ -698,7 +698,7 @@ class DetectorWorker:
                     if current_time < suppressed_ts:
                         current_area = self.motion_state.get(camera_id, {}).get("thermal_motion_area_raw", 0)
                         prev_area = self.last_motion_area.get(camera_id, 0)
-                        if current_area > prev_area * wakeup_ratio and current_area > 5000:
+                        if current_area > prev_area * wakeup_ratio and current_area > 3000:
                             self.suppressed_until.pop(camera_id, None)
                             self.empty_inference_streak[camera_id] = 0
                         else:
@@ -879,11 +879,8 @@ class DetectorWorker:
 
                 # Check if person detected
                 if len(detections) == 0:
-                    # Tolerate short detector dropouts to avoid killing events
-                    # on transient model misses. Thermal: no grace (0), color: 2.
-                    grace = 0 if detection_source == "thermal" else 2
                     self.no_detection_streak[camera_id] += 1
-                    if self.no_detection_streak[camera_id] <= grace:
+                    if self.no_detection_streak[camera_id] <= 2:
                         _log_gate(f"no_detections_grace streak={self.no_detection_streak[camera_id]}")
                         continue
                     self.event_start_time[camera_id] = None
@@ -904,10 +901,8 @@ class DetectorWorker:
                 self.empty_inference_streak[camera_id] = 0
 
                 # Check temporal consistency (only when we have detections)
-                # Thermal needs stricter temporal gate: 5 consecutive frames
-                # to filter out transient ghost detections from thermal noise.
-                temporal_min_frames = 5 if detection_source == "thermal" else 2
-                temporal_max_gap = 0 if detection_source == "thermal" else 2
+                temporal_min_frames = 3 if detection_source == "thermal" else 2
+                temporal_max_gap = 1 if detection_source == "thermal" else 2
                 temporal_pass = self.inference_service.check_temporal_consistency(
                     detections,
                     list(self.detection_history[camera_id])[:-1],  # Exclude current
