@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.48] - 2026-02-27
+
+### Düzeltmeler
+
+- **Aktif kamera sayımı düzeltildi (kritik)**: Adaptif thermal politikaları hesaplanırken state’den yanlış alan okunuyordu; artık runtime `motion_active` bayrağı doğru sayılır, çoklu kamera yüküne göre probe/threshold tuning gerçekten devreye girer.
+- **Phantom erken-drop daha konservatif**: Detector’daki static phantom kriterleri (conf/spread/duplicate) daha sıkılaştırıldı; gerçek kişi geçişlerinin yanlışlıkla erken silinmesi azaltıldı.
+- **MP4 duplicate auto-delete daha güvenli**: Media tarafında duplicate kaynaklı otomatik silme sadece neredeyse tamamen duplicate + çok düşük confidence olaylarda çalışır.
+
 ## [4.0.47] - 2026-02-27
 
 ### Düzeltmeler

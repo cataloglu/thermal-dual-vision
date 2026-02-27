@@ -281,7 +281,11 @@ class DetectorWorker:
             return sum(
                 1
                 for state in self.motion_state.values()
-                if isinstance(state, dict) and bool(state.get("active", False))
+                if isinstance(state, dict)
+                and (
+                    bool(state.get("motion_active", False))
+                    or bool(state.get("active", False))
+                )
             )
         except Exception:
             return 0
@@ -2483,7 +2487,7 @@ class DetectorWorker:
 
         max_conf = max(float(det.get("confidence", 0.0)) for det in dets_with_bbox)
         # Keep medium/high-confidence hits for review; only drop clearly weak ghosts.
-        if max_conf >= 0.64:
+        if max_conf >= 0.58:
             return None
 
         centers_x: List[float] = []
@@ -2496,11 +2500,11 @@ class DetectorWorker:
         x_spread = max(centers_x) - min(centers_x) if centers_x else 9999.0
         y_spread = max(centers_y) - min(centers_y) if centers_y else 9999.0
         # True walk-throughs usually travel more than a tiny jitter window.
-        if max(x_spread, y_spread) > 10.0:
+        if max(x_spread, y_spread) > 6.0:
             return None
 
         dup_ratio = self._estimate_frame_duplicate_ratio(frames)
-        if dup_ratio < 0.985:
+        if dup_ratio < 0.995:
             return None
 
         return {
