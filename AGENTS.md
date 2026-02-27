@@ -39,6 +39,7 @@ Single-product Home Assistant add-on: Python 3.11 FastAPI backend + React 18 Typ
 
 When changes are intended to reach Home Assistant users as an addon update:
 
+0. Never announce "update hazır/geldi" until `master` merge is completed and verified.
 1. Ensure the PR is **merged to `master`** (not draft/open).
 2. Ensure addon manifest version is bumped in `config.yaml` when needed.
 3. Verify `origin/master:config.yaml` has the expected version after merge.
