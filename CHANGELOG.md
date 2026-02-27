@@ -6,6 +6,31 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.41] - 2026-02-27
+
+### Düzeltmeler
+
+- **Processing kuyruğu hızlandırıldı (fake event erken drop)**: Medya/AI üretimine girmeden önce yüksek duplicate + düşük güven + sabit bbox paterni yakalanırsa phantom event erken siliniyor; ağır MP4/GIF/AI işlemleri boşuna çalıştırılmıyor.
+- **Events ekranı bekleme durumu güncellendi**: Son 3 dakikadaki medya-bekleyen eventler için liste otomatik 5s poll ile yenileniyor; `processing` durumları manuel refresh beklemeden güncelleniyor.
+- **Amaç**: Fake event yoğunluğunda medya kuyruğu birikmesini azaltmak ve gerçek alarm akışını hızlandırmak.
+
+## [4.0.40] - 2026-02-27
+
+### Düzeltmeler
+
+- **Startup readiness warning gürültüsü azaltıldı**: DB/MQTT hazır, sadece go2rtc geç kalıyorsa timeout mesajı `warning` yerine `info` olarak yazılıyor.
+- **Phantom event log seviyesi iyileştirildi**: MP4 duplicate quality-gate ile silinen phantom eventler `warning` yerine `info` olarak raporlanıyor.
+- **Delayed MP4 replace hata spam'i giderildi**: Phantom event silindikten sonra medya dizini yoksa gecikmeli extract güvenli şekilde atlanıyor; `No such file or directory` kaynaklı recorder hata gürültüsü kesildi.
+
+## [4.0.39] - 2026-02-27
+
+### Düzeltmeler
+
+- **Thermal suppression kaçırma riski azaltıldı**: Suppression sırasında sadece ani area sıçramasına bağlı kalınmıyor; kademeli büyüme de erken wake-up sayılıyor ve periyodik probe inference ile gerçek insan girişleri suppression penceresinde kaçmıyor.
+- **Thermal temporal recovery güçlendirildi**: Threading ve multiprocessing worker'da yüksek güven + yeterli motion area şartında tek-frame thermal recovery açıldı; kısa dropout'larda gereksiz event kaçırma azaltıldı.
+- **Collage frame seçimi AI için iyileştirildi**: Seçim algoritması zaman yakınlığı + keskinlik + detection confidence skoruna taşındı; event merkez frame collage'a garanti dahil ediliyor.
+- **Preset + ayar sadeleştirme**: Performance presetleri artık thermal suppression ve thermal preprocessing detaylarını da set ediyor; ayrıca Kamera Ayarları'na "Thermal Quick Profiles" ve "Expert controls" eklendi.
+
 ## [4.0.38] - 2026-02-27
 
 ### Düzeltmeler

@@ -68,6 +68,13 @@ def _replace_mp4_from_recording(
 ) -> None:
     """Background callback: try to replace event MP4 with recording clip once segment is closed."""
     try:
+        mp4_parent = Path(mp4_path).parent
+        if not mp4_parent.exists():
+            logger.debug(
+                "Delayed recording replace skipped: media directory missing (event likely deleted) path=%s",
+                mp4_path,
+            )
+            return
         recorder = get_continuous_recorder()
         if recorder.extract_clip(camera_id, start_utc, end_utc, mp4_path, speed_factor=speed_factor):
             logger.info(
@@ -106,7 +113,7 @@ class MediaService:
         timestamps: Optional[List[float]] = None,
         camera_name: str = "Camera",
     ) -> Optional[Path]:
-        """Create collage for AI pre-check — no bounding boxes so AI judges independently."""
+        """Create a person-focused, lightweight collage for faster AI pre-check."""
         event = db.query(Event).filter(Event.id == event_id).first()
         if not event or len(frames) == 0:
             return None
@@ -114,9 +121,9 @@ class MediaService:
         event_dir.mkdir(parents=True, exist_ok=True)
         collage_path = str(event_dir / "collage.jpg")
         try:
-            self.media_worker.create_collage(
+            self.media_worker.create_ai_collage(
                 frames,
-                None,        # No bounding boxes for AI: independent judgment
+                detections,
                 timestamps,
                 collage_path,
                 camera_name,
@@ -245,16 +252,6 @@ class MediaService:
             except Exception as e:
                 logger.warning("Clip from recording failed for %s (%s), using frame fallback", event_id, e)
 
-            # When MP4 was from buffer, try to replace with recording clip once segment is closed (~60s)
-            if not mp4_from_recording:
-                timer = threading.Timer(
-                    RECORDING_MP4_DELAY_SEC,
-                    _replace_mp4_from_recording,
-                    args=(event.camera_id, start_utc, end_utc, mp4_path, speed_factor),
-                )
-                timer.daemon = True
-                timer.start()
-
             # Generate media in parallel (collage always; mp4 from frames if not from recording)
             mp4_source_frames = mp4_frames if mp4_frames else frames
             mp4_source_detections = mp4_detections if mp4_detections is not None else detections
@@ -329,9 +326,13 @@ class MediaService:
             if os.path.exists(mp4_path):
                 ok, reason = _mp4_is_usable(mp4_path)
                 if not ok:
-                    logger.warning("Event %s MP4 rejected by quality gate: %s", event_id, reason)
+                    is_duplicate_reason = "duplicate:" in reason
+                    if is_duplicate_reason:
+                        logger.info("Event %s MP4 rejected by quality gate: %s", event_id, reason)
+                    else:
+                        logger.warning("Event %s MP4 rejected by quality gate: %s", event_id, reason)
                     # Auto-delete phantom events with very high duplicate percentage
-                    if "duplicate:" in reason:
+                    if is_duplicate_reason:
                         try:
                             dup_val = float(reason.split("duplicate:")[1].rstrip("%"))
                             if dup_val >= 85.0:
@@ -340,7 +341,7 @@ class MediaService:
                                 import shutil
                                 if os.path.exists(str(event_dir)):
                                     shutil.rmtree(str(event_dir), ignore_errors=True)
-                                logger.warning(
+                                logger.info(
                                     "Deleted phantom event %s (MP4 duplicate:%.1f%% — no real movement)",
                                     event_id, dup_val,
                                 )
@@ -365,6 +366,17 @@ class MediaService:
                                 "Event %s keeping existing MP4 because recording regen unavailable",
                                 event_id,
                             )
+
+            # Start delayed replacement only for events that survived quality gates.
+            # This prevents background extract attempts for phantom events that are deleted.
+            if not mp4_from_recording:
+                timer = threading.Timer(
+                    RECORDING_MP4_DELAY_SEC,
+                    _replace_mp4_from_recording,
+                    args=(event.camera_id, start_utc, end_utc, mp4_path, speed_factor),
+                )
+                timer.daemon = True
+                timer.start()
             
             # Save URLs to database WITHOUT prefix (prefix added at runtime in main.py)
             event.collage_url = f"/api/events/{event_id}/collage" if os.path.exists(collage_path) else None

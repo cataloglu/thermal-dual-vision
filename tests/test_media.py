@@ -259,3 +259,118 @@ def test_gif_progress_bar(media_worker, test_frames):
         
         # Check file is not empty
         assert os.path.getsize(output_path) > 1000  # At least 1KB
+
+
+def test_select_collage_indices_keeps_event_frame(media_worker, test_frames):
+    """Best detection frame should always be represented in collage selection."""
+    timestamps = [float(i) * 0.2 for i in range(len(test_frames))]
+    detections = [None for _ in test_frames]
+    detections[7] = {"bbox": [80, 60, 180, 280], "confidence": 0.93}
+
+    indices = media_worker._select_collage_indices(
+        frames=test_frames,
+        detections=detections,
+        timestamps=timestamps,
+        best_idx=7,
+    )
+
+    assert 7 in indices
+    assert len(indices) <= media_worker.COLLAGE_FRAMES
+    assert len(indices) == len(set(indices))
+
+
+def test_select_collage_indices_prioritizes_confident_candidate(media_worker):
+    """When two nearby candidates exist, higher-confidence frame should be picked earlier."""
+    frames = [np.full((240, 320, 3), 20 + i * 20, dtype=np.uint8) for i in range(7)]
+    for idx, frame in enumerate(frames):
+        cv2.putText(frame, f"F{idx}", (20, 120), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
+
+    timestamps = [0.0, 0.30, 0.32, 0.60, 0.90, 1.20, 1.50]
+    detections = [None] * 7
+    detections[2] = {"bbox": [50, 50, 120, 190], "confidence": 0.92}
+    detections[1] = {"bbox": [48, 52, 118, 192], "confidence": 0.42}
+
+    indices = media_worker._select_collage_indices(
+        frames=frames,
+        detections=detections,
+        timestamps=timestamps,
+        best_idx=3,
+    )
+
+    assert 2 in indices and 1 in indices
+    assert indices.index(2) < indices.index(1)
+
+
+def test_ai_collage_is_smaller_and_person_focused(media_worker):
+    """AI collage should be smaller than default collage for faster AI requests."""
+    frames = []
+    detections = []
+    timestamps = []
+    for i in range(6):
+        frame = np.zeros((480, 640, 3), dtype=np.uint8)
+        x1 = 500 + (i % 2) * 8
+        y1 = 120 + (i % 3) * 6
+        x2 = x1 + 22
+        y2 = y1 + 48
+        cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 255, 255), -1)
+        frames.append(frame)
+        detections.append({"bbox": [x1, y1, x2, y2], "confidence": 0.70 + (i * 0.02)})
+        timestamps.append(1700000000.0 + (i * 0.2))
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        full_collage_path = os.path.join(tmpdir, "collage_full.jpg")
+        ai_collage_path = os.path.join(tmpdir, "collage_ai.jpg")
+
+        media_worker.create_collage(
+            frames=frames,
+            detections=detections,
+            timestamps=timestamps,
+            output_path=full_collage_path,
+            camera_name="Test Camera",
+            timestamp=datetime.now(),
+            confidence=0.9,
+        )
+        media_worker.create_ai_collage(
+            frames=frames,
+            detections=detections,
+            timestamps=timestamps,
+            output_path=ai_collage_path,
+            camera_name="Test Camera",
+            timestamp=datetime.now(),
+            confidence=0.9,
+        )
+
+        assert os.path.exists(full_collage_path)
+        assert os.path.exists(ai_collage_path)
+        assert os.path.getsize(ai_collage_path) < os.path.getsize(full_collage_path)
+
+        ai_img = cv2.imread(ai_collage_path)
+        assert ai_img is not None
+        expected_h = media_worker.AI_COLLAGE_FRAME_SIZE[1] * media_worker.AI_COLLAGE_GRID[1]
+        expected_w = media_worker.AI_COLLAGE_FRAME_SIZE[0] * media_worker.AI_COLLAGE_GRID[0]
+        assert ai_img.shape[0] == expected_h
+        assert ai_img.shape[1] == expected_w
+
+
+def test_select_ai_collage_indices_includes_pre_motion_context(media_worker):
+    """AI collage must include pre-motion frames before first detection."""
+    frames = [np.full((240, 320, 3), 15 + (i * 8), dtype=np.uint8) for i in range(12)]
+    timestamps = [1000.0 + (i * 0.2) for i in range(12)]
+    detections = [None] * 12
+    detections[6] = {"bbox": [150, 60, 180, 180], "confidence": 0.71}
+    detections[7] = {"bbox": [152, 62, 182, 182], "confidence": 0.87}
+    detections[8] = {"bbox": [155, 64, 185, 184], "confidence": 0.79}
+
+    indices = media_worker._select_ai_collage_indices(
+        frames=frames,
+        detections=detections,
+        timestamps=timestamps,
+        best_idx=7,
+    )
+
+    assert len(indices) == media_worker.AI_COLLAGE_FRAMES
+    assert indices == sorted(indices)
+    assert any(idx in indices for idx in [6, 7, 8])
+
+    pre_motion = [idx for idx in indices if idx < 6]
+    assert len(pre_motion) >= 2

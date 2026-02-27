@@ -16,7 +16,7 @@ import sys
 import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 
 import cv2
 import imageio
@@ -57,6 +57,13 @@ class MediaWorker:
     COLLAGE_FRAME_SIZE = (640, 480)
     COLLAGE_GRID = (3, 2)  # 3 columns, 2 rows
     COLLAGE_QUALITY = 90
+
+    # AI collage settings (smaller + person-focused for faster/more reliable vision checks)
+    AI_COLLAGE_FRAMES = 6
+    AI_COLLAGE_FRAME_SIZE = (384, 288)
+    AI_COLLAGE_GRID = (3, 2)
+    AI_COLLAGE_QUALITY = 82
+    AI_CROP_PADDING = 2.2
     
     # GIF settings
     GIF_FRAMES = 10  # Scrypted: 5-8, ours: 10 (smoother!)
@@ -461,6 +468,443 @@ class MediaWorker:
                 indices.append(fallback)
                 used.add(fallback)
         return indices
+
+    def _select_collage_indices(
+        self,
+        frames: List[np.ndarray],
+        detections: Optional[List[Optional[Dict]]],
+        timestamps: Optional[List[float]],
+        best_idx: int,
+    ) -> List[int]:
+        """Select collage indices around best frame using time + quality scoring."""
+        total = len(frames)
+        if total == 0:
+            return []
+
+        best_idx = max(0, min(best_idx, total - 1))
+
+        def _pick_closest_index(unused: set[int], target_idx: int) -> Optional[int]:
+            if not unused:
+                return None
+            return min(unused, key=lambda i: abs(i - target_idx))
+
+        if not timestamps or len(timestamps) != total:
+            unused = set(range(total))
+            target_indices = [best_idx - 3, best_idx - 2, best_idx - 1, best_idx, best_idx + 1, best_idx + 2]
+            selected: List[int] = []
+            for target in target_indices:
+                if not unused:
+                    break
+                closest = _pick_closest_index(unused, target)
+                if closest is None:
+                    break
+                selected.append(closest)
+                unused.remove(closest)
+            return selected[: self.COLLAGE_FRAMES]
+
+        center_ts = float(timestamps[best_idx])
+        target_offsets = [-0.90, -0.45, -0.15, 0.0, 0.30, 0.75]
+        target_windows = [0.50, 0.38, 0.28, 0.0, 0.32, 0.48]
+        selected: List[int] = []
+        unused: set[int] = set(range(total))
+        blur_cache: Dict[int, float] = {}
+
+        def _det_conf(idx: int) -> float:
+            if not detections or idx >= len(detections):
+                return 0.0
+            det = detections[idx]
+            if not det:
+                return 0.0
+            return float(det.get("confidence", 0.0))
+
+        def _blur_cached(idx: int) -> float:
+            if idx not in blur_cache:
+                blur_cache[idx] = self._blur_score(frames[idx])
+            return blur_cache[idx]
+
+        for slot, offset in enumerate(target_offsets):
+            if not unused:
+                break
+
+            # Guarantee the event-centric frame is represented in collage.
+            if offset == 0.0 and best_idx in unused:
+                selected.append(best_idx)
+                unused.remove(best_idx)
+                continue
+
+            target_ts = center_ts + offset
+            window = max(0.15, target_windows[slot])
+            candidates = [i for i in unused if abs(float(timestamps[i]) - target_ts) <= window]
+            if not candidates:
+                candidates = sorted(unused, key=lambda i: abs(float(timestamps[i]) - target_ts))[:4]
+            if not candidates:
+                break
+
+            def _score(idx: int) -> float:
+                time_dist = abs(float(timestamps[idx]) - target_ts)
+                time_score = max(0.0, 1.0 - (time_dist / window))
+                sharpness_score = min(_blur_cached(idx) / 120.0, 2.5)
+                score = (_det_conf(idx) * 3.0) + sharpness_score + time_score
+                if idx == best_idx:
+                    score += 0.8
+                return score
+
+            chosen = max(candidates, key=_score)
+            selected.append(chosen)
+            unused.remove(chosen)
+
+        target_len = min(self.COLLAGE_FRAMES, total)
+        if len(selected) < target_len:
+            fillers = sorted(unused, key=lambda i: abs(i - best_idx))
+            for idx in fillers:
+                selected.append(idx)
+                if len(selected) >= target_len:
+                    break
+
+        return selected[: self.COLLAGE_FRAMES]
+
+    @staticmethod
+    def _bbox_or_none(det: Optional[Dict]) -> Optional[Tuple[float, float, float, float]]:
+        if not isinstance(det, dict):
+            return None
+        bbox = det.get("bbox")
+        if not isinstance(bbox, (list, tuple)) or len(bbox) != 4:
+            return None
+        try:
+            x1, y1, x2, y2 = map(float, bbox)
+            if x2 <= x1 or y2 <= y1:
+                return None
+            return x1, y1, x2, y2
+        except Exception:
+            return None
+
+    def _crop_focus_on_bbox(
+        self,
+        frame: np.ndarray,
+        bbox: Tuple[float, float, float, float],
+        target_size: Tuple[int, int],
+        padding: float,
+    ) -> np.ndarray:
+        """Crop around detection bbox while preserving target aspect ratio."""
+        h, w = frame.shape[:2]
+        x1, y1, x2, y2 = bbox
+        x1 = max(0.0, min(x1, float(w - 1)))
+        y1 = max(0.0, min(y1, float(h - 1)))
+        x2 = max(0.0, min(x2, float(w - 1)))
+        y2 = max(0.0, min(y2, float(h - 1)))
+        if x2 <= x1 or y2 <= y1:
+            return frame
+
+        bw = max(8.0, x2 - x1)
+        bh = max(8.0, y2 - y1)
+        cx = (x1 + x2) / 2.0
+        cy = (y1 + y2) / 2.0
+
+        crop_w = min(float(w), max(96.0, bw * padding))
+        crop_h = min(float(h), max(96.0, bh * padding))
+
+        target_ratio = float(target_size[0]) / float(target_size[1])
+        cur_ratio = crop_w / max(1.0, crop_h)
+        if cur_ratio < target_ratio:
+            crop_w = min(float(w), crop_h * target_ratio)
+        elif cur_ratio > target_ratio:
+            crop_h = min(float(h), crop_w / target_ratio)
+
+        xa = int(round(cx - (crop_w / 2.0)))
+        ya = int(round(cy - (crop_h / 2.0)))
+        xb = xa + int(round(crop_w))
+        yb = ya + int(round(crop_h))
+
+        if xa < 0:
+            xb -= xa
+            xa = 0
+        if ya < 0:
+            yb -= ya
+            ya = 0
+        if xb > w:
+            shift = xb - w
+            xa = max(0, xa - shift)
+            xb = w
+        if yb > h:
+            shift = yb - h
+            ya = max(0, ya - shift)
+            yb = h
+
+        if xb <= xa or yb <= ya:
+            return frame
+        return frame[ya:yb, xa:xb]
+
+    def _select_ai_collage_indices(
+        self,
+        frames: List[np.ndarray],
+        detections: Optional[List[Optional[Dict]]],
+        timestamps: Optional[List[float]],
+        best_idx: int,
+    ) -> List[int]:
+        total = len(frames)
+        if total == 0:
+            return []
+
+        baseline = self._select_collage_indices(frames, detections, timestamps, best_idx)
+        if not detections:
+            return baseline
+
+        det_indices = [
+            i for i in range(min(total, len(detections)))
+            if self._bbox_or_none(detections[i]) is not None
+        ]
+        if not det_indices:
+            return baseline
+
+        target_len = min(total, self.AI_COLLAGE_FRAMES)
+        first_det = min(det_indices)
+        last_det = max(det_indices)
+        has_valid_ts = bool(timestamps) and len(timestamps) == total
+
+        blur_cache: Dict[int, float] = {}
+
+        def _blur_cached(idx: int) -> float:
+            if idx not in blur_cache:
+                blur_cache[idx] = self._blur_score(frames[idx])
+            return blur_cache[idx]
+
+        def _det_conf(idx: int) -> float:
+            det = detections[idx] if idx < len(detections) else None
+            if not isinstance(det, dict):
+                return 0.0
+            return float(det.get("confidence", 0.0) or 0.0)
+
+        if best_idx not in det_indices:
+            best_det_idx = max(det_indices, key=lambda i: (_det_conf(i), _blur_cached(i)))
+        else:
+            best_det_idx = best_idx
+
+        selected: List[int] = []
+        used: set[int] = set()
+
+        def _append(idx: Optional[int]) -> None:
+            if idx is None:
+                return
+            if idx in used:
+                return
+            selected.append(idx)
+            used.add(idx)
+
+        def _pick_nearest(
+            candidates: List[int],
+            *,
+            target_idx: Optional[int] = None,
+            target_ts: Optional[float] = None,
+            prefer_bbox: Optional[bool] = None,
+        ) -> Optional[int]:
+            if not candidates:
+                return None
+            shortlist = candidates
+            if has_valid_ts and target_ts is not None:
+                shortlist = sorted(shortlist, key=lambda i: abs(float(timestamps[i]) - target_ts))[:10]
+            elif target_idx is not None:
+                shortlist = sorted(shortlist, key=lambda i: abs(i - target_idx))[:10]
+
+            def _score(idx: int) -> float:
+                score = min(_blur_cached(idx) / 140.0, 2.0) + (_det_conf(idx) * 1.8)
+                has_bbox = self._bbox_or_none(detections[idx] if idx < len(detections) else None) is not None
+                if prefer_bbox is True:
+                    score += 1.0 if has_bbox else -0.8
+                elif prefer_bbox is False:
+                    score += 0.8 if not has_bbox else -0.4
+                if has_valid_ts and target_ts is not None:
+                    dist = abs(float(timestamps[idx]) - target_ts)
+                    score += max(0.0, 1.2 - (dist / 0.8))
+                elif target_idx is not None:
+                    score += max(0.0, 1.0 - (abs(idx - target_idx) / 6.0))
+                return score
+
+            return max(shortlist, key=_score)
+
+        # 1) Force at least two pre-motion context frames so AI sees "before movement".
+        pre_candidates = [i for i in range(0, first_det) if i not in used]
+        if has_valid_ts:
+            first_ts = float(timestamps[first_det])
+            pre_targets = [first_ts - 1.0, first_ts - 0.45]
+            for target_ts in pre_targets:
+                pool = [i for i in pre_candidates if i not in used]
+                if not pool:
+                    break
+                _append(_pick_nearest(pool, target_ts=target_ts, prefer_bbox=False))
+        else:
+            for target_idx in [max(0, first_det - 5), max(0, first_det - 2)]:
+                pool = [i for i in pre_candidates if i not in used]
+                if not pool:
+                    break
+                _append(_pick_nearest(pool, target_idx=target_idx, prefer_bbox=False))
+
+        # 2) Core motion frames: onset, best detection, last detection.
+        for key_idx in (first_det, best_det_idx, last_det):
+            if key_idx not in used:
+                _append(key_idx)
+            else:
+                neighbor_pool = [i for i in det_indices if i not in used]
+                _append(_pick_nearest(neighbor_pool, target_idx=key_idx, prefer_bbox=True))
+
+        # 3) Add one post-motion frame when available.
+        post_candidates = [i for i in range(last_det + 1, total) if i not in used]
+        if post_candidates:
+            if has_valid_ts:
+                post_target_ts = float(timestamps[last_det]) + 0.45
+                _append(_pick_nearest(post_candidates, target_ts=post_target_ts, prefer_bbox=False))
+            else:
+                _append(_pick_nearest(post_candidates, target_idx=min(total - 1, last_det + 2), prefer_bbox=False))
+
+        # 4) Fill remaining from baseline, then nearest unused.
+        for idx in baseline:
+            if len(selected) >= target_len:
+                break
+            _append(idx)
+        if len(selected) < target_len:
+            fillers = [i for i in range(total) if i not in used]
+            fillers = sorted(fillers, key=lambda i: abs(i - best_det_idx))
+            for idx in fillers:
+                _append(idx)
+                if len(selected) >= target_len:
+                    break
+
+        if has_valid_ts:
+            selected.sort(key=lambda i: float(timestamps[i]))
+        else:
+            selected.sort()
+        return selected[:target_len]
+
+    def create_ai_collage(
+        self,
+        frames: List[np.ndarray],
+        detections: Optional[List[Optional[Dict]]],
+        timestamps: Optional[List[float]],
+        output_path: str,
+        camera_name: str = "Camera",
+        timestamp: Optional[datetime] = None,
+        confidence: float = 0.0,
+    ) -> str:
+        """Create an AI-focused collage with detection-centric crops and lighter payload."""
+        if len(frames) == 0:
+            raise ValueError("Need at least 1 frame for AI collage")
+
+        total = len(frames)
+        best_idx = total // 2
+        if detections:
+            best_conf = -1.0
+            for idx, det in enumerate(detections):
+                bbox = self._bbox_or_none(det)
+                if bbox is None:
+                    continue
+                conf = float(det.get("confidence", 0.0) or 0.0) if isinstance(det, dict) else 0.0
+                if conf >= best_conf:
+                    best_conf = conf
+                    best_idx = idx
+
+        selected_indices = self._select_ai_collage_indices(
+            frames=frames,
+            detections=detections,
+            timestamps=timestamps,
+            best_idx=best_idx,
+        )
+        if selected_indices and len(selected_indices) < self.AI_COLLAGE_FRAMES:
+            selected_indices.extend([selected_indices[-1]] * (self.AI_COLLAGE_FRAMES - len(selected_indices)))
+
+        event_slot = min(
+            range(len(selected_indices)),
+            key=lambda i: abs(selected_indices[i] - best_idx),
+        )
+
+        tiles: List[np.ndarray] = []
+        for tile_idx, frame_idx in enumerate(selected_indices):
+            src = frames[frame_idx]
+            focused = src
+            if detections and frame_idx < len(detections):
+                bbox = self._bbox_or_none(detections[frame_idx])
+                if bbox is not None:
+                    focused = self._crop_focus_on_bbox(
+                        src,
+                        bbox,
+                        target_size=self.AI_COLLAGE_FRAME_SIZE,
+                        padding=self.AI_CROP_PADDING,
+                    )
+
+            img = cv2.resize(focused, self.AI_COLLAGE_FRAME_SIZE, interpolation=cv2.INTER_AREA)
+
+            cv2.putText(
+                img,
+                str(tile_idx + 1),
+                (8, 24),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                self.COLOR_WHITE,
+                2,
+            )
+            if timestamps and frame_idx < len(timestamps):
+                cv2.putText(
+                    img,
+                    _local_time_ms_from_epoch(float(timestamps[frame_idx])),
+                    (8, self.AI_COLLAGE_FRAME_SIZE[1] - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.45,
+                    self.COLOR_WHITE,
+                    1,
+                )
+            elif tile_idx == 0 and timestamp:
+                cv2.putText(
+                    img,
+                    _local_time_str(timestamp),
+                    (8, self.AI_COLLAGE_FRAME_SIZE[1] - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.45,
+                    self.COLOR_WHITE,
+                    1,
+                )
+
+            if tile_idx == event_slot:
+                cv2.rectangle(
+                    img,
+                    (2, 2),
+                    (self.AI_COLLAGE_FRAME_SIZE[0] - 3, self.AI_COLLAGE_FRAME_SIZE[1] - 3),
+                    self.COLOR_ACCENT,
+                    2,
+                )
+                cv2.putText(
+                    img,
+                    f"{confidence:.0%}",
+                    (self.AI_COLLAGE_FRAME_SIZE[0] - 70, 22),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.5,
+                    self.COLOR_ACCENT,
+                    2,
+                )
+            tiles.append(img)
+
+        rows = []
+        for row_idx in range(self.AI_COLLAGE_GRID[1]):
+            row_frames = []
+            for col_idx in range(self.AI_COLLAGE_GRID[0]):
+                idx = row_idx * self.AI_COLLAGE_GRID[0] + col_idx
+                if idx < len(tiles):
+                    row_frames.append(tiles[idx])
+                else:
+                    row_frames.append(np.zeros((*self.AI_COLLAGE_FRAME_SIZE[::-1], 3), dtype=np.uint8))
+            rows.append(np.hstack(row_frames))
+        collage = np.vstack(rows)
+
+        cv2.putText(
+            collage,
+            _ascii_safe(camera_name),
+            (collage.shape[1] - 240, 24),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.55,
+            self.COLOR_WHITE,
+            1,
+        )
+
+        cv2.imwrite(output_path, collage, [cv2.IMWRITE_JPEG_QUALITY, self.AI_COLLAGE_QUALITY])
+        logger.info("AI collage created: %s", output_path)
+        return output_path
     
     def create_collage(
         self,
@@ -496,21 +940,6 @@ class MediaWorker:
         if len(frames) == 0:
             raise ValueError("Need at least 1 frame for collage")
 
-        def _unique_preserve(items: List[int]) -> List[int]:
-            seen = set()
-            unique = []
-            for item in items:
-                if item in seen:
-                    continue
-                seen.add(item)
-                unique.append(item)
-            return unique
-
-        def _pick_closest_index(unused: set, target_idx: int) -> Optional[int]:
-            if not unused:
-                return None
-            return min(unused, key=lambda i: abs(i - target_idx))
-
         total = len(frames)
         best_idx = total // 2
         if detections:
@@ -523,36 +952,12 @@ class MediaWorker:
                     best_conf = conf
                     best_idx = idx
 
-        if timestamps and len(timestamps) == total:
-            center_ts = timestamps[best_idx]
-            target_times = [
-                center_ts - 0.75,
-                center_ts - 0.45,
-                center_ts - 0.15,
-                center_ts + 0.15,
-                center_ts + 0.45,
-                center_ts + 0.75,
-            ]
-            unused = set(range(total))
-            indices = []
-            for slot, target in enumerate(target_times):
-                if not unused:
-                    break
-                closest = min(unused, key=lambda i: abs(timestamps[i] - target))
-                indices.append(closest)
-                unused.remove(closest)
-        else:
-            unused = set(range(total))
-            target_indices = [best_idx - 3, best_idx - 2, best_idx - 1, best_idx + 1, best_idx + 2, best_idx + 3]
-            indices = []
-            for target in target_indices:
-                if not unused:
-                    break
-                closest = _pick_closest_index(unused, target)
-                if closest is None:
-                    break
-                indices.append(closest)
-                unused.remove(closest)
+        indices = self._select_collage_indices(
+            frames=frames,
+            detections=detections,
+            timestamps=timestamps,
+            best_idx=best_idx,
+        )
 
         if indices and len(indices) < self.COLLAGE_FRAMES:
             indices.extend([indices[-1]] * (self.COLLAGE_FRAMES - len(indices)))

@@ -1180,7 +1180,18 @@ def camera_detection_process(
             
             if not temporal_pass:
                 best_conf = max((d.get("confidence", 0.0) for d in detections), default=0.0)
-                if detection_source != "thermal" and best_conf >= max(confidence_threshold, 0.50):
+                if detection_source == "thermal":
+                    min_motion_area = max(1400, int(motion_min_area_eff) * 2)
+                    thermal_recovery_conf = max(confidence_threshold + 0.10, 0.65)
+                    if best_conf >= thermal_recovery_conf and motion_area >= min_motion_area:
+                        temporal_pass = True
+                        process_logger.debug(
+                            "EVENT_GATE [%s]: thermal_temporal_recovered best_conf=%.2f area=%s",
+                            cam_name,
+                            best_conf,
+                            motion_area,
+                        )
+                elif best_conf >= max(confidence_threshold, 0.50):
                     temporal_pass = True
                     process_logger.debug(
                         "EVENT_GATE [%s]: temporal_recovered best_conf=%.2f",
@@ -1803,9 +1814,9 @@ class MultiprocessingDetectorWorker:
                             _ai_collage_path = media_service.MEDIA_DIR / event.id / "collage_ai.jpg"
                             ai_collage_to_use = None
                             try:
-                                _mw.create_collage(
+                                _mw.create_ai_collage(
                                     frames,
-                                    None,  # No boxes: AI judges independently
+                                    detections_list,
                                     frame_timestamps,
                                     str(_ai_collage_path),
                                     camera_name,

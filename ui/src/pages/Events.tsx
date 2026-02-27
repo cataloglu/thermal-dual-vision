@@ -149,6 +149,28 @@ export function Events() {
 
   const hasActiveFilters = Boolean(cameraFilter || dateFilter || confidenceFilter > 0)
 
+  const refreshRef = useRef(refresh)
+  useEffect(() => {
+    refreshRef.current = refresh
+  }, [refresh])
+
+  const hasRecentPendingMedia = useMemo(() => {
+    const now = Date.now()
+    return events.some((event) => {
+      const eventTs = new Date(event.timestamp).getTime()
+      const ageMs = now - eventTs
+      return ageMs >= 0 && ageMs < 180000 && (!event.collage_url || !event.mp4_url)
+    })
+  }, [events])
+
+  useEffect(() => {
+    if (!hasRecentPendingMedia) return
+    const pollId = window.setInterval(() => {
+      refreshRef.current()
+    }, 5000)
+    return () => window.clearInterval(pollId)
+  }, [hasRecentPendingMedia])
+
   const handleDeleteEvent = async (eventId: string) => {
     try {
       await api.deleteEvent(eventId)
