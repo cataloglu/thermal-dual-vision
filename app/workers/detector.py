@@ -429,6 +429,45 @@ class DetectorWorker:
         return float(np.median(np.array(ious, dtype=np.float32)))
 
     @classmethod
+    def _thermal_bbox_edge_touch_ratio(
+        cls,
+        detection_frames: List[List[Dict[str, Any]]],
+        frame_width: int,
+        frame_height: int,
+        sample_frames: int = 5,
+        margin_ratio: float = 0.03,
+    ) -> float:
+        """Share of recent best boxes touching frame borders."""
+        if not detection_frames:
+            return 0.0
+        w = max(1, int(frame_width))
+        h = max(1, int(frame_height))
+        margin_x = max(2.0, float(w) * float(margin_ratio))
+        margin_y = max(2.0, float(h) * float(margin_ratio))
+        frames = detection_frames[-max(2, int(sample_frames)) :]
+        touches = 0
+        total = 0
+        for frame_dets in frames:
+            dets_with_bbox = [
+                det for det in (frame_dets or []) if isinstance(det, dict) and det.get("bbox")
+            ]
+            if not dets_with_bbox:
+                continue
+            best_det = max(dets_with_bbox, key=lambda det: float(det.get("confidence", 0.0)))
+            x1, y1, x2, y2 = map(float, best_det["bbox"])
+            total += 1
+            if (
+                x1 <= margin_x
+                or y1 <= margin_y
+                or x2 >= (float(w) - margin_x)
+                or y2 >= (float(h) - margin_y)
+            ):
+                touches += 1
+        if total == 0:
+            return 0.0
+        return float(touches) / float(total)
+
+    @classmethod
     def _passes_thermal_static_event_guard(
         cls,
         detection_frames: List[List[Dict[str, Any]]],
@@ -436,6 +475,8 @@ class DetectorWorker:
         active_motion_cameras: int,
         confidence_threshold: float,
         base_min_area: int,
+        frame_width: Optional[int] = None,
+        frame_height: Optional[int] = None,
     ) -> bool:
         """
         Block static thermal ghosts on idle scenes while preserving multi-cam recall.
@@ -445,16 +486,33 @@ class DetectorWorker:
         """
         current_dets = detection_frames[-1] if detection_frames else []
         best_conf = max((float(det.get("confidence", 0.0)) for det in current_dets), default=0.0)
-        min_conf_floor = max(float(confidence_threshold) + 0.12, 0.65)
+        min_conf_floor = max(float(confidence_threshold) + 0.15, 0.67)
         spread = cls._thermal_bbox_center_spread(detection_frames=detection_frames, sample_frames=5)
         median_iou = cls._thermal_bbox_median_iou(detection_frames=detection_frames, sample_frames=5)
+        edge_touch_ratio = 0.0
+        if frame_width and frame_height:
+            edge_touch_ratio = cls._thermal_bbox_edge_touch_ratio(
+                detection_frames=detection_frames,
+                frame_width=int(frame_width),
+                frame_height=int(frame_height),
+                sample_frames=5,
+            )
+
+        # Border-hugging boxes are usually static background artifacts.
+        if edge_touch_ratio >= 0.80 and best_conf < max(float(confidence_threshold) + 0.25, 0.78):
+            return False
 
         # Low-confidence + static/jitter signature => block.
         if best_conf < min_conf_floor and (spread < 12.0 or median_iou > 0.88):
             return False
 
         # Real walk-through signature: enough travel + lower overlap over time.
-        if spread >= 12.0 and median_iou <= 0.88:
+        if (
+            spread >= 12.0
+            and median_iou <= 0.88
+            and best_conf >= max(min_conf_floor, 0.68)
+            and int(motion_area_now) >= max(900, int(base_min_area) * 3)
+        ):
             return True
 
         # Static box acceptance requires stronger evidence.
@@ -1280,12 +1338,15 @@ class DetectorWorker:
                     motion_area_now = int(
                         self.motion_state.get(camera_id, {}).get("thermal_motion_area_raw", 0)
                     )
+                    frame_h, frame_w = frame.shape[:2]
                     if not self._passes_thermal_static_event_guard(
                         detection_frames=list(self.detection_history[camera_id]),
                         motion_area_now=motion_area_now,
                         active_motion_cameras=active_motion_cameras,
                         confidence_threshold=confidence_threshold,
                         base_min_area=int(getattr(config.motion, "min_area", 0)),
+                        frame_width=frame_w,
+                        frame_height=frame_h,
                     ):
                         self.event_start_time[camera_id] = None
                         _log_gate("thermal_static_guard")

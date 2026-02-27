@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.56] - 2026-02-28
+
+### Düzeltmeler
+
+- **Sabit ağaç/siluet kutuları için edge-touch guard eklendi**: Frame sınırına yapışan bbox pattern’i (border-hugging jitter) düşük/orta confidence’da evente düşmesi engellendi.
+- **Hareket geçiş kriteri rafine edildi**: Sadece spread değil; spread + IoU + confidence + motion-area birlikte doğrulanarak jitter kaynaklı false-positive azaltıldı.
+- **Thread/MP parity güncellendi**: Aynı edge-touch + IoU kuralı multiprocessing worker’a da taşındı.
+
 ## [4.0.55] - 2026-02-28
 
 ### Düzeltmeler
