@@ -850,7 +850,7 @@ def camera_detection_process(
                 spread >= 12.0
                 and median_iou <= 0.88
                 and best_conf >= max(min_conf_floor, 0.68)
-                and int(motion_area_now) >= max(900, int(base_min_area) * 3)
+                and int(motion_area_now) >= max(800, int(base_min_area) * 3)
             ):
                 return True
             strong_conf = max(float(confidence_threshold) + 0.24, 0.82)

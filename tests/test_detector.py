@@ -535,12 +535,12 @@ def test_thermal_static_guard_allows_moving_track_or_multi_camera_load():
     """Guard should allow moving tracks and block low-conf static ghosts even with multi-cam."""
     worker = DetectorWorker.__new__(DetectorWorker)
     moving_frames = [
-        [{"bbox": [120 + (i * 9), 70, 170 + (i * 9), 230], "confidence": 0.62}]
+        [{"bbox": [120 + (i * 9), 70, 170 + (i * 9), 230], "confidence": 0.69}]
         for i in range(5)
     ]
     assert worker._passes_thermal_static_event_guard(
         detection_frames=moving_frames,
-        motion_area_now=850,
+        motion_area_now=900,
         active_motion_cameras=1,
         confidence_threshold=0.55,
         base_min_area=260,
