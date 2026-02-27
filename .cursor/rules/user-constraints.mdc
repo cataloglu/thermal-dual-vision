@@ -9,4 +9,5 @@ alwaysApply: true
 - **Ayrı URL istemiyoruz:** Ekstra detection URL’si veya ayrı stream URL’si önerme; mevcut kurulum kabul edilmiş.
 - CPU/düşük kullanım konuşulurken substream’i çözüm olarak sayma; fps, resolution, thermal, kamera sayısı, worker modu gibi diğer ayarlara odaklan.
 - **Release disiplini (zorunlu):** Kullanıcıya "update hazır/geldi" demeden önce değişikliği `master` dalına merge et, `origin/master` üzerinde commit/version doğrulaması yap, sonra bilgi ver.
+- **Versiyon çıkarma kuralı (zorunlu):** `config.yaml` içinde sürüm (version) artırıldıysa aynı iş akışında mutlaka `master` merge yap; merge olmadan Home Assistant update görünmez.
 - **Update görünmüyor senaryosu:** Önce merge doğrula; ardından kullanıcıya Add-on Store `Reload` + `Check for updates` adımlarını net ver.
