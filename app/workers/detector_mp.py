@@ -733,6 +733,51 @@ def camera_detection_process(
                 return 0.0
             return max(max(centers_x) - min(centers_x), max(centers_y) - min(centers_y))
 
+        def _bbox_iou(box_a: List[float], box_b: List[float]) -> float:
+            """Compute IoU for two [x1, y1, x2, y2] boxes."""
+            ax1, ay1, ax2, ay2 = map(float, box_a)
+            bx1, by1, bx2, by2 = map(float, box_b)
+            inter_x1 = max(ax1, bx1)
+            inter_y1 = max(ay1, by1)
+            inter_x2 = min(ax2, bx2)
+            inter_y2 = min(ay2, by2)
+            inter_w = max(0.0, inter_x2 - inter_x1)
+            inter_h = max(0.0, inter_y2 - inter_y1)
+            inter_area = inter_w * inter_h
+            area_a = max(0.0, ax2 - ax1) * max(0.0, ay2 - ay1)
+            area_b = max(0.0, bx2 - bx1) * max(0.0, by2 - by1)
+            union = area_a + area_b - inter_area
+            if union <= 0.0:
+                return 0.0
+            return inter_area / union
+
+        def _thermal_bbox_median_iou(
+            detection_frames: List[List[Dict[str, Any]]],
+            sample_frames: int = 5,
+        ) -> float:
+            """Median IoU of consecutive best boxes across recent frames."""
+            if not detection_frames:
+                return 0.0
+            frames = detection_frames[-max(2, int(sample_frames)) :]
+            boxes: List[List[float]] = []
+            for frame_dets in frames:
+                dets_with_bbox = [
+                    det for det in (frame_dets or []) if isinstance(det, dict) and det.get("bbox")
+                ]
+                if not dets_with_bbox:
+                    continue
+                best_det = max(dets_with_bbox, key=lambda det: float(det.get("confidence", 0.0)))
+                boxes.append(best_det["bbox"])
+            if len(boxes) < 2:
+                return 0.0
+            ious = [
+                _bbox_iou(boxes[idx - 1], boxes[idx])
+                for idx in range(1, len(boxes))
+            ]
+            if not ious:
+                return 0.0
+            return float(np.median(np.array(ious, dtype=np.float32)))
+
         def _passes_thermal_static_event_guard(
             detection_frames: List[List[Dict[str, Any]]],
             motion_area_now: int,
@@ -744,19 +789,20 @@ def camera_detection_process(
 
             MP worker has no global active-camera state in-process, so this uses
             a robust local heuristic: allow movement or strong confidence+motion.
-            Minimum confidence floor + movement check blocks static low-conf ghosts.
+            Minimum confidence floor + IoU movement signature blocks static ghosts.
             """
             spread = _thermal_bbox_center_spread(detection_frames=detection_frames, sample_frames=5)
+            median_iou = _thermal_bbox_median_iou(detection_frames=detection_frames, sample_frames=5)
             current_dets = detection_frames[-1] if detection_frames else []
             best_conf = max((float(det.get("confidence", 0.0)) for det in current_dets), default=0.0)
             min_conf_floor = max(float(confidence_threshold) + 0.12, 0.65)
-            if best_conf < min_conf_floor and spread < 8.0:
+            if best_conf < min_conf_floor and (spread < 12.0 or median_iou > 0.88):
                 return False
 
-            if spread >= 8.0:
+            if spread >= 12.0 and median_iou <= 0.88:
                 return True
-            strong_conf = max(float(confidence_threshold) + 0.18, 0.75)
-            strong_motion = max(1600, int(base_min_area) * 4)
+            strong_conf = max(float(confidence_threshold) + 0.22, 0.80)
+            strong_motion = max(1900, int(base_min_area) * 5)
             return best_conf >= strong_conf and int(motion_area_now) >= strong_motion
 
         # Get detection parameters
