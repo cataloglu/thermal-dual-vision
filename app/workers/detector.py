@@ -2301,6 +2301,95 @@ class DetectorWorker:
     def _has_bbox_detections(detections: List[Optional[Dict]]) -> bool:
         return any(isinstance(det, dict) and det.get("bbox") for det in detections)
 
+    def _estimate_frame_duplicate_ratio(
+        self,
+        frames: List[np.ndarray],
+        sample_count: int = 18,
+        duplicate_threshold: float = 1.3,
+    ) -> float:
+        """Estimate duplicate ratio from lightweight grayscale frame diffs."""
+        if len(frames) < 2:
+            return 0.0
+        sample_count = max(2, min(sample_count, len(frames)))
+        if sample_count == 2:
+            indices = [0, len(frames) - 1]
+        else:
+            indices = [
+                int(round(i * (len(frames) - 1) / (sample_count - 1)))
+                for i in range(sample_count)
+            ]
+
+        duplicate_pairs = 0
+        total_pairs = 0
+        prev_gray: Optional[np.ndarray] = None
+        for idx in indices:
+            frame = frames[idx]
+            if frame is None:
+                continue
+            if len(frame.shape) == 3:
+                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            else:
+                gray = frame
+            gray = cv2.resize(gray, (96, 72), interpolation=cv2.INTER_AREA)
+            if prev_gray is not None:
+                diff = float(cv2.absdiff(gray, prev_gray).mean())
+                total_pairs += 1
+                if diff <= duplicate_threshold:
+                    duplicate_pairs += 1
+            prev_gray = gray
+
+        if total_pairs == 0:
+            return 0.0
+        return duplicate_pairs / float(total_pairs)
+
+    def _detect_static_phantom_event(
+        self,
+        frames: List[np.ndarray],
+        detections: List[Optional[Dict]],
+    ) -> Optional[Dict[str, float]]:
+        """
+        Detect clearly static phantom thermal events before expensive media/AI steps.
+
+        Conservative gate:
+        - Many sampled frames are near-identical.
+        - Bounding box center barely moves.
+        - Confidence is not high.
+        """
+        if len(frames) < 12:
+            return None
+
+        dets_with_bbox = [det for det in detections if isinstance(det, dict) and det.get("bbox")]
+        if len(dets_with_bbox) < 6:
+            return None
+
+        max_conf = max(float(det.get("confidence", 0.0)) for det in dets_with_bbox)
+        if max_conf >= 0.72:
+            return None
+
+        centers_x: List[float] = []
+        centers_y: List[float] = []
+        for det in dets_with_bbox:
+            x1, y1, x2, y2 = det["bbox"]
+            centers_x.append((float(x1) + float(x2)) / 2.0)
+            centers_y.append((float(y1) + float(y2)) / 2.0)
+
+        x_spread = max(centers_x) - min(centers_x) if centers_x else 9999.0
+        y_spread = max(centers_y) - min(centers_y) if centers_y else 9999.0
+        if max(x_spread, y_spread) > 24.0:
+            return None
+
+        dup_ratio = self._estimate_frame_duplicate_ratio(frames)
+        if dup_ratio < 0.96:
+            return None
+
+        return {
+            "duplicate_ratio": dup_ratio,
+            "max_conf": max_conf,
+            "x_spread": x_spread,
+            "y_spread": y_spread,
+            "sampled_frames": float(len(frames)),
+        }
+
     def _start_media_generation(self, camera: Camera, event_id: str, config) -> None:
         postbuffer_seconds = float(getattr(config.event, "postbuffer_seconds", 0.0))
         ai_required = self._ai_requires_confirmation(config)
@@ -2325,6 +2414,22 @@ class DetectorWorker:
                     logger.warning(
                         "Deleted phantom event %s (no bbox in media window — thermal ghost)",
                         event_id,
+                    )
+                    return
+
+                phantom_metrics = self._detect_static_phantom_event(frames, detections)
+                if phantom_metrics:
+                    event = db.query(Event).filter(Event.id == event_id).first()
+                    if event:
+                        db.delete(event)
+                        db.commit()
+                    logger.info(
+                        "Deleted phantom event %s early (dup=%.1f%% conf=%.2f spread=%.1fx%.1f)",
+                        event_id,
+                        phantom_metrics["duplicate_ratio"] * 100.0,
+                        phantom_metrics["max_conf"],
+                        phantom_metrics["x_spread"],
+                        phantom_metrics["y_spread"],
                     )
                     return
 

@@ -320,3 +320,46 @@ def test_thermal_suppression_wakeup_gradual_trigger():
         wakeup_ratio=2.5,
         min_wakeup_area=1200,
     ) is False
+
+
+def test_detect_static_phantom_event_true():
+    """Highly duplicate low-confidence static bbox stream should be marked phantom."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    frames = [np.full((240, 320, 3), 64, dtype=np.uint8) for _ in range(16)]
+    detections = [
+        {"bbox": [120, 40, 180, 220], "confidence": 0.56}
+        for _ in range(16)
+    ]
+
+    metrics = worker._detect_static_phantom_event(frames, detections)
+    assert metrics is not None
+    assert metrics["duplicate_ratio"] >= 0.96
+
+
+def test_detect_static_phantom_event_false_when_moving():
+    """Moving person-like stream should not be marked phantom."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    frames = []
+    detections = []
+    for i in range(16):
+        frame = np.zeros((240, 320, 3), dtype=np.uint8)
+        x = 20 + i * 8
+        cv2.rectangle(frame, (x, 70), (x + 40, 190), (180, 180, 180), -1)
+        frames.append(frame)
+        detections.append({"bbox": [x, 70, x + 40, 190], "confidence": 0.58})
+
+    metrics = worker._detect_static_phantom_event(frames, detections)
+    assert metrics is None
+
+
+def test_detect_static_phantom_event_false_when_high_conf():
+    """High-confidence detections should bypass static phantom early-drop."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    frames = [np.full((240, 320, 3), 64, dtype=np.uint8) for _ in range(16)]
+    detections = [
+        {"bbox": [120, 40, 180, 220], "confidence": 0.84}
+        for _ in range(16)
+    ]
+
+    metrics = worker._detect_static_phantom_event(frames, detections)
+    assert metrics is None

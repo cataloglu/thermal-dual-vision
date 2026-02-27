@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.41] - 2026-02-27
+
+### Düzeltmeler
+
+- **Processing kuyruğu hızlandırıldı (fake event erken drop)**: Medya/AI üretimine girmeden önce yüksek duplicate + düşük güven + sabit bbox paterni yakalanırsa phantom event erken siliniyor; ağır MP4/GIF/AI işlemleri boşuna çalıştırılmıyor.
+- **Events ekranı bekleme durumu güncellendi**: Son 3 dakikadaki medya-bekleyen eventler için liste otomatik 5s poll ile yenileniyor; `processing` durumları manuel refresh beklemeden güncelleniyor.
+- **Amaç**: Fake event yoğunluğunda medya kuyruğu birikmesini azaltmak ve gerçek alarm akışını hızlandırmak.
+
 ## [4.0.40] - 2026-02-27
 
 ### Düzeltmeler
