@@ -17,6 +17,7 @@ from typing import Dict, List, Optional
 # Delay before trying to replace event MP4 from recording (segment must be closed: 60s + margin)
 RECORDING_MP4_DELAY_SEC = 65  # > 60s segment duration to ensure segment is fully written
 
+import cv2
 import numpy as np
 from sqlalchemy.orm import Session
 
@@ -119,7 +120,7 @@ class MediaService:
             return None
         event_dir = self.MEDIA_DIR / event_id
         event_dir.mkdir(parents=True, exist_ok=True)
-        collage_path = str(event_dir / "collage.jpg")
+        collage_path = str(event_dir / "collage_ai.jpg")
         try:
             self.media_worker.create_ai_collage(
                 frames,
@@ -133,6 +134,37 @@ class MediaService:
             return Path(collage_path) if os.path.exists(collage_path) else None
         except Exception as e:
             logger.warning("Collage for AI failed: %s", e)
+            return None
+
+    def generate_collage_for_review(
+        self,
+        db: Session,
+        event_id: str,
+        frames: List[np.ndarray],
+        detections: List[Optional[Dict]],
+        timestamps: Optional[List[float]] = None,
+        camera_name: str = "Camera",
+    ) -> Optional[Path]:
+        """Create the standard user-facing collage for event review."""
+        event = db.query(Event).filter(Event.id == event_id).first()
+        if not event or len(frames) == 0:
+            return None
+        event_dir = self.MEDIA_DIR / event_id
+        event_dir.mkdir(parents=True, exist_ok=True)
+        collage_path = str(event_dir / "collage.jpg")
+        try:
+            self.media_worker.create_collage(
+                frames,
+                detections,
+                timestamps,
+                collage_path,
+                camera_name,
+                event.timestamp,
+                event.confidence,
+            )
+            return Path(collage_path) if os.path.exists(collage_path) else None
+        except Exception as e:
+            logger.warning("Collage for review failed: %s", e)
             return None
 
     def generate_event_media(
@@ -405,6 +437,95 @@ class MediaService:
         if ".." in id_str or "/" in id_str or "\\" in id_str:
             return False
         return True
+
+    def _extract_frames_from_mp4(self, mp4_path: Path, max_frames: int = 18) -> List[np.ndarray]:
+        """Extract sampled frames from event MP4 for collage rebuild."""
+        if not mp4_path.exists():
+            return []
+        cap = cv2.VideoCapture(str(mp4_path))
+        if not cap.isOpened():
+            return []
+        try:
+            frame_total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+            sampled: List[np.ndarray] = []
+            max_frames = max(1, int(max_frames))
+            if frame_total > 0:
+                sample_count = min(max_frames, frame_total)
+                if sample_count == 1:
+                    indices = [0]
+                else:
+                    indices = [int(round(i * (frame_total - 1) / (sample_count - 1))) for i in range(sample_count)]
+                for idx in indices:
+                    cap.set(cv2.CAP_PROP_POS_FRAMES, float(idx))
+                    ok, frame = cap.read()
+                    if ok and frame is not None:
+                        sampled.append(frame)
+            if sampled:
+                return sampled
+
+            # Fallback when frame count metadata is missing.
+            sequential: List[np.ndarray] = []
+            while len(sequential) < max_frames:
+                ok, frame = cap.read()
+                if not ok or frame is None:
+                    break
+                sequential.append(frame)
+            return sequential
+        finally:
+            cap.release()
+
+    def _is_ai_collage_shape(self, collage_path: Path) -> bool:
+        """Detect old AI collage accidentally saved as user collage."""
+        try:
+            img = cv2.imread(str(collage_path))
+            if img is None:
+                return False
+            h, w = img.shape[:2]
+            ai_w = self.media_worker.AI_COLLAGE_FRAME_SIZE[0] * self.media_worker.AI_COLLAGE_GRID[0]
+            ai_h = self.media_worker.AI_COLLAGE_FRAME_SIZE[1] * self.media_worker.AI_COLLAGE_GRID[1]
+            return w == ai_w and h == ai_h
+        except Exception:
+            return False
+
+    def ensure_user_collage_quality(self, event_id: str, camera_name: str = "Camera") -> Optional[Path]:
+        """
+        Repair legacy AI-style collage.jpg by rebuilding standard collage from MP4.
+
+        This is a lazy, backward-compatible fix for events produced by older builds
+        where AI collage overwrote the user-facing collage path.
+        """
+        if not self.validate_id(event_id):
+            return None
+        event_dir = self.MEDIA_DIR / event_id
+        collage_path = event_dir / "collage.jpg"
+        if not collage_path.exists():
+            return None
+        if not self._is_ai_collage_shape(collage_path):
+            return collage_path
+
+        mp4_path = event_dir / "timelapse.mp4"
+        frames = self._extract_frames_from_mp4(mp4_path, max_frames=18)
+        if not frames:
+            logger.warning(
+                "AI-style collage detected but rebuild skipped (no MP4 frames): event=%s",
+                event_id,
+            )
+            return collage_path
+
+        try:
+            self.media_worker.create_collage(
+                frames=frames,
+                detections=[None] * len(frames),
+                timestamps=None,
+                output_path=str(collage_path),
+                camera_name=camera_name,
+                timestamp=None,
+                confidence=0.0,
+            )
+            logger.info("Rebuilt user collage from MP4 for event %s", event_id)
+        except Exception as e:
+            logger.warning("Failed to rebuild user collage for event %s: %s", event_id, e)
+        return collage_path if collage_path.exists() else None
 
     def get_media_path(self, event_id: str, media_type: str) -> Optional[Path]:
         """

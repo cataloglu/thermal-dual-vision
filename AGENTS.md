@@ -34,3 +34,15 @@ Single-product Home Assistant add-on: Python 3.11 FastAPI backend + React 18 Typ
 - The backend process may appear to exit immediately if run via a non-backgrounded shell in certain sandbox environments — always verify with `curl http://localhost:8000/api/health`.
 - Node 20+ is required for the frontend; the repo uses `npm` (not pnpm/yarn), matching `package-lock.json` is absent so `npm install` generates a fresh lockfile.
 - `requirements.txt` pulls PyTorch + CUDA/NVIDIA wheels (~3 GB); this is expected and needed for Ultralytics YOLO inference.
+
+### Home Assistant update visibility checklist (release hygiene)
+
+When changes are intended to reach Home Assistant users as an addon update:
+
+1. Ensure the PR is **merged to `master`** (not draft/open).
+2. Ensure addon manifest version is bumped in `config.yaml` when needed.
+3. Verify `origin/master:config.yaml` has the expected version after merge.
+4. If user says "update görünmüyor", explicitly remind:
+   - Add-on Store → 3 dots → **Reload**
+   - **Check for updates**
+5. In final report, always state merge state + effective `master` version to avoid ambiguity.

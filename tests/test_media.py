@@ -374,3 +374,75 @@ def test_select_ai_collage_indices_includes_pre_motion_context(media_worker):
 
     pre_motion = [idx for idx in indices if idx < 6]
     assert len(pre_motion) >= 2
+
+
+def test_ai_collage_marks_person_bbox_not_full_tile_border(media_worker):
+    """AI collage should mark person region, not draw full-frame event border."""
+    frame_h, frame_w = 480, 640
+    frames = []
+    detections = []
+    timestamps = []
+    for i in range(8):
+        frame = np.zeros((frame_h, frame_w, 3), dtype=np.uint8)
+        x1 = 290 + i
+        y1 = 140
+        x2 = x1 + 34
+        y2 = y1 + 122
+        cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 255, 255), -1)
+        frames.append(frame)
+        detections.append({"bbox": [x1, y1, x2, y2], "confidence": 0.70 + (i * 0.02)})
+        timestamps.append(1700000100.0 + (i * 0.2))
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ai_collage_path = os.path.join(tmpdir, "collage_ai.jpg")
+        media_worker.create_ai_collage(
+            frames=frames,
+            detections=detections,
+            timestamps=timestamps,
+            output_path=ai_collage_path,
+            camera_name="Test Camera",
+            timestamp=datetime.now(),
+            confidence=0.86,
+        )
+
+        img = cv2.imread(ai_collage_path)
+        assert img is not None
+
+        accent = np.array(media_worker.COLOR_ACCENT, dtype=np.int16)
+        delta = np.abs(img.astype(np.int16) - accent)
+        accent_mask = np.all(delta <= 45, axis=2)
+
+        tile_w, tile_h = media_worker.AI_COLLAGE_FRAME_SIZE
+        tile_rows = media_worker.AI_COLLAGE_GRID[1]
+        tile_cols = media_worker.AI_COLLAGE_GRID[0]
+
+        max_border_accent = 0
+        tiles_with_interior_bbox = 0
+        for row in range(tile_rows):
+            for col in range(tile_cols):
+                y0 = row * tile_h
+                y1 = y0 + tile_h
+                x0 = col * tile_w
+                x1 = x0 + tile_w
+                tile_mask = accent_mask[y0:y1, x0:x1]
+                if tile_mask.size == 0:
+                    continue
+
+                border = np.zeros(tile_mask.shape, dtype=bool)
+                border[:3, :] = True
+                border[-3:, :] = True
+                border[:, :3] = True
+                border[:, -3:] = True
+                border_accent = int(np.count_nonzero(tile_mask & border))
+                max_border_accent = max(max_border_accent, border_accent)
+
+                inner = np.zeros(tile_mask.shape, dtype=bool)
+                inner[24:-24, 24:-24] = True
+                interior_accent = int(np.count_nonzero(tile_mask & inner))
+                if interior_accent >= 45:
+                    tiles_with_interior_bbox += 1
+
+        # Regression guard: previous behavior highlighted whole event tile border.
+        assert max_border_accent < 240
+        # Person bbox overlays should create visible accent edges inside tiles.
+        assert tiles_with_interior_bbox >= 3

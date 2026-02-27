@@ -6,6 +6,21 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.43] - 2026-02-27
+
+### Düzeltmeler
+
+- **AI collage ve kullanıcı collage ayrıldı**: AI pre-check artık `collage_ai.jpg` kullanır; kullanıcıya gösterilen `collage.jpg` standard görünümde kalır.
+- **Legacy bozuk collage otomatik onarım**: Eski sürümden kalan AI-style `collage.jpg`, `/api/events/{id}/collage` çağrısında MP4'ten otomatik rebuild edilir.
+- **HA update görünürlüğü için sürüm bump**: Addon versiyonu `4.0.43` yapıldı (aynı versiyon cache kaynaklı eski image kalmasını önlemek için).
+
+## [4.0.42] - 2026-02-27
+
+### Düzeltmeler
+
+- **Thermal suppression wake-up thrash düzeltildi**: `suppression_wakeup` artık probe interval'ini bypass etmiyor; suppression yalnızca probe'da gerçek detection oluşursa kaldırılıyor. Böylece wake-up görünüp anında tekrar suppress olma döngüsü kesildi.
+- **Saha takibi kolaylaştırıldı**: suppression kaldırma logları `suppression_wakeup_confirmed` / `suppression_probe_confirmed` olarak netleştirildi; "aday wake-up" ile "gerçek recover" ayrımı belirgin.
+
 ## [4.0.41] - 2026-02-27
 
 ### Düzeltmeler

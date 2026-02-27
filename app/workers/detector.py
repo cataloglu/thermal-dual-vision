@@ -714,6 +714,12 @@ class DetectorWorker:
                     )
                     continue
 
+                suppression_active = False
+                suppression_wakeup_candidate = False
+                suppression_candidate_area = 0
+                suppression_candidate_prev = 0
+                suppression_candidate_ratio = 0.0
+
                 # Thermal inference suppression: if YOLO returned empty N times
                 # in a row, skip inference until motion area increases significantly.
                 if detection_source == "thermal" and getattr(config.motion, "thermal_suppression_enabled", True):
@@ -724,26 +730,26 @@ class DetectorWorker:
                     prev_area = int(self.last_motion_area.get(camera_id, current_area))
                     min_wakeup_area = max(1200, int(getattr(config.motion, "min_area", 0)) * 3)
                     probe_interval_secs = max(1.0, min(5.0, suppression_secs / 6.0))
+                    suppression_active = current_time < suppressed_ts
                     if current_time < suppressed_ts:
-                        if self._should_wakeup_thermal_suppression(
+                        last_probe = float(self.last_suppression_probe.get(camera_id, 0.0))
+                        probe_due = (current_time - last_probe) >= probe_interval_secs
+                        wakeup_candidate = self._should_wakeup_thermal_suppression(
                             current_area=current_area,
                             prev_area=prev_area,
                             wakeup_ratio=wakeup_ratio,
                             min_wakeup_area=min_wakeup_area,
-                        ):
-                            self.suppressed_until.pop(camera_id, None)
-                            self.empty_inference_streak[camera_id] = 0
-                            self.last_suppression_probe.pop(camera_id, None)
-                            logger.info(
-                                "DETECT camera=%s suppression_wakeup area=%s prev=%s ratio=%.2f",
-                                camera_id,
-                                current_area,
-                                prev_area,
-                                wakeup_ratio,
+                        )
+                        if wakeup_candidate and probe_due:
+                            suppression_wakeup_candidate = True
+                            suppression_candidate_area = current_area
+                            suppression_candidate_prev = prev_area
+                            suppression_candidate_ratio = (
+                                float(current_area) / float(max(prev_area, 1))
                             )
+                            self.last_suppression_probe[camera_id] = current_time
                         else:
-                            last_probe = float(self.last_suppression_probe.get(camera_id, 0.0))
-                            if current_time - last_probe < probe_interval_secs:
+                            if not probe_due:
                                 self.last_motion_area[camera_id] = current_area
                                 self._update_frame_buffer(
                                     camera_id=camera_id,
@@ -914,6 +920,27 @@ class DetectorWorker:
                         )
                     self.last_detection_pipeline_log[camera_id] = current_time
                 self.detection_history[camera_id].append(detections)
+
+                # If suppression was active, lift it only after probe sees actual detections.
+                if suppression_active and len(detections) > 0:
+                    self.suppressed_until.pop(camera_id, None)
+                    self.empty_inference_streak[camera_id] = 0
+                    self.last_suppression_probe.pop(camera_id, None)
+                    if suppression_wakeup_candidate:
+                        logger.info(
+                            "DETECT camera=%s suppression_wakeup_confirmed area=%s prev=%s growth=%.2f detections=%s",
+                            camera_id,
+                            suppression_candidate_area,
+                            suppression_candidate_prev,
+                            suppression_candidate_ratio,
+                            len(detections),
+                        )
+                    else:
+                        logger.info(
+                            "DETECT camera=%s suppression_probe_confirmed detections=%s",
+                            camera_id,
+                            len(detections),
+                        )
 
                 # Detection log: when person found throttle to 10s; empty every 60s (reduces log noise)
                 last_log = self.last_detection_log.get(camera_id, 0.0)
@@ -2472,9 +2499,21 @@ class DetectorWorker:
                     ))
                     if not self._is_ai_confirmed(summary):
                         logger.info("Event %s rejected by AI, keeping for review", event_id)
+                        review_collage = self.media_service.generate_collage_for_review(
+                            db=db,
+                            event_id=event_id,
+                            frames=frames,
+                            detections=detections,
+                            timestamps=timestamps,
+                            camera_name=camera.name or "Camera",
+                        )
                         event.rejected_by_ai = True
                         event.summary = summary
-                        event.collage_url = f"/api/events/{event_id}/collage"
+                        event.collage_url = (
+                            f"/api/events/{event_id}/collage"
+                            if review_collage
+                            else None
+                        )
                         db.commit()
                         return
                     event.summary = summary

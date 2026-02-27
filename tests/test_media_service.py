@@ -3,6 +3,7 @@ Unit tests for media service background replacement behavior.
 """
 from datetime import datetime, timedelta
 
+import cv2
 import numpy as np
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -278,8 +279,93 @@ def test_generate_collage_for_ai_uses_detection_focused_collage(tmp_path, monkey
         assert result is not None
         assert result.exists()
         assert called["output_path"] == str(result)
+        assert result.name == "collage_ai.jpg"
         assert called["detections"] == detections
     finally:
         session.close()
         Base.metadata.drop_all(bind=engine)
         engine.dispose()
+
+
+def test_generate_collage_for_review_uses_standard_collage(tmp_path, monkeypatch):
+    session, engine = _make_db_session(tmp_path)
+    try:
+        event_id = "event-review-collage-1"
+        _add_camera_and_event(session, event_id)
+
+        media_root = tmp_path / "media"
+        monkeypatch.setattr(media_service.MediaService, "MEDIA_DIR", media_root)
+        service = media_service.MediaService()
+
+        called = {"detections": None, "output_path": None}
+
+        class DummyWorker:
+            def create_collage(
+                self,
+                frames,
+                detections,
+                timestamps,
+                output_path,
+                camera_name,
+                timestamp,
+                confidence,
+            ):
+                called["detections"] = detections
+                called["output_path"] = output_path
+                with open(output_path, "wb") as f:
+                    f.write(b"review-collage")
+                return output_path
+
+        service.media_worker = DummyWorker()
+        detections = [{"bbox": [1, 1, 6, 7], "confidence": 0.88}]
+        result = service.generate_collage_for_review(
+            db=session,
+            event_id=event_id,
+            frames=[np.zeros((8, 8, 3), dtype=np.uint8)],
+            detections=detections,
+            timestamps=[1700000000.0],
+            camera_name="Test Cam",
+        )
+
+        assert result is not None
+        assert result.exists()
+        assert called["output_path"] == str(result)
+        assert result.name == "collage.jpg"
+        assert called["detections"] == detections
+    finally:
+        session.close()
+        Base.metadata.drop_all(bind=engine)
+        engine.dispose()
+
+
+def test_ensure_user_collage_quality_repairs_legacy_ai_collage(tmp_path, monkeypatch):
+    media_root = tmp_path / "media"
+    event_id = "event-legacy-ai-collage-1"
+    event_dir = media_root / event_id
+    event_dir.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(media_service.MediaService, "MEDIA_DIR", media_root)
+    service = media_service.MediaService()
+
+    ai_w = service.media_worker.AI_COLLAGE_FRAME_SIZE[0] * service.media_worker.AI_COLLAGE_GRID[0]
+    ai_h = service.media_worker.AI_COLLAGE_FRAME_SIZE[1] * service.media_worker.AI_COLLAGE_GRID[1]
+    legacy_ai_collage = np.full((ai_h, ai_w, 3), 22, dtype=np.uint8)
+    cv2.imwrite(str(event_dir / "collage.jpg"), legacy_ai_collage)
+    (event_dir / "timelapse.mp4").write_bytes(b"mp4")
+
+    rebuilt_frames = [np.full((480, 640, 3), 30 + i * 10, dtype=np.uint8) for i in range(8)]
+    monkeypatch.setattr(
+        service,
+        "_extract_frames_from_mp4",
+        lambda _path, max_frames=18: rebuilt_frames,
+    )
+
+    result = service.ensure_user_collage_quality(event_id, camera_name="Repair Cam")
+    assert result is not None
+    assert result.exists()
+
+    repaired = cv2.imread(str(result))
+    assert repaired is not None
+    expected_h = service.media_worker.COLLAGE_FRAME_SIZE[1] * service.media_worker.COLLAGE_GRID[1]
+    expected_w = service.media_worker.COLLAGE_FRAME_SIZE[0] * service.media_worker.COLLAGE_GRID[0]
+    assert repaired.shape[:2] == (expected_h, expected_w)

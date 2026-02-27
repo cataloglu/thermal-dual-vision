@@ -1,6 +1,6 @@
 # Thermal Dual Vision — Smart Motion Detector
 
-> Home Assistant addon · v4.0.41 · AI-powered person detection for thermal & color cameras
+> Home Assistant addon · v4.0.43 · AI-powered person detection for thermal & color cameras
 
 ## What is this?
 
@@ -48,6 +48,16 @@ Thermal Dual Vision is a Home Assistant addon that runs a real-time person-only 
 - `8099` — Web UI + API
 - `1985` — go2rtc API
 - `19854` — go2rtc RTSP restream
+
+### Update not visible in Home Assistant?
+
+If a new version is merged but Home Assistant does not show an update yet:
+
+1. Open **Add-on Store**
+2. Click **⋮ (top-right) → Reload**
+3. Click **Check for updates**
+
+Note: Home Assistant shows an update only when addon `config.yaml` `version` is higher than your installed version.
 
 ## Configuration
 

@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 from datetime import datetime
 from typing import Any, Dict, Optional
 
@@ -191,6 +191,7 @@ async def clear_events(request: Dict[str, Any], db: Session = Depends(get_sessio
 @router.get("/api/events/{event_id}/collage")
 async def get_event_collage(event_id: str) -> FileResponse:
     try:
+        media_service.ensure_user_collage_quality(event_id)
         media_path = media_service.get_media_path(event_id, "collage")
         if not media_path or not media_path.exists():
             raise HTTPException(status_code=404, detail={"error": True, "code": "MEDIA_NOT_FOUND", "message": f"Collage not found for event {event_id}"})
