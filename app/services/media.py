@@ -324,10 +324,29 @@ class MediaService:
                 raise errors[0]
 
             # Final MP4 quality gate for stability: reject tiny/duplicate-heavy clips.
+            # If duplicate percentage is very high, this is a phantom thermal event —
+            # delete it entirely to prevent fake Telegram notifications.
             if os.path.exists(mp4_path):
                 ok, reason = _mp4_is_usable(mp4_path)
                 if not ok:
                     logger.warning("Event %s MP4 rejected by quality gate: %s", event_id, reason)
+                    # Auto-delete phantom events with very high duplicate percentage
+                    if "duplicate:" in reason:
+                        try:
+                            dup_val = float(reason.split("duplicate:")[1].rstrip("%"))
+                            if dup_val >= 85.0:
+                                db.delete(event)
+                                db.commit()
+                                import shutil
+                                if os.path.exists(str(event_dir)):
+                                    shutil.rmtree(str(event_dir), ignore_errors=True)
+                                logger.warning(
+                                    "Deleted phantom event %s (MP4 duplicate:%.1f%% — no real movement)",
+                                    event_id, dup_val,
+                                )
+                                return {"collage_url": None, "gif_url": None, "mp4_url": None}
+                        except (ValueError, IndexError):
+                            pass
                     had_existing_mp4 = os.path.exists(mp4_path)
                     # One more regeneration attempt from recording with a wider range.
                     if _try_recording_regen(expand_seconds=12.0):

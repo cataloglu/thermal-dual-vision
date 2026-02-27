@@ -6,6 +6,12 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.37] - 2026-02-27
+
+### Düzeltmeler
+
+- **MP4 quality gate ile phantom event silme**: MP4 duplicate oranı %85+ ise event DB'den silinir, medya dosyaları temizlenir, Telegram bildirimi GÖNDERİLMEZ. Sistem zaten fake olduğunu biliyordu ama yine de bildirim gönderiyordu — artık göndermez.
+
 ## [4.0.36] - 2026-02-26
 
 ### Düzeltmeler
