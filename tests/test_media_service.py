@@ -236,6 +236,40 @@ def test_generate_event_media_starts_delayed_timer_for_kept_event(tmp_path, monk
         engine.dispose()
 
 
+def test_generate_event_media_keeps_event_on_moderate_duplicate_mp4(tmp_path, monkeypatch):
+    session, engine = _make_db_session(tmp_path)
+    try:
+        event_id = "event-keep-dup-1"
+        _add_camera_and_event(session, event_id)
+
+        media_root = tmp_path / "media"
+        monkeypatch.setattr(media_service.MediaService, "MEDIA_DIR", media_root)
+        service = media_service.MediaService()
+
+        timer_calls = []
+        service.media_worker = _patch_media_dependencies(
+            monkeypatch,
+            duplicate_percentage=97.8,
+            extract_ok=False,
+            timer_calls=timer_calls,
+        )
+
+        result = service.generate_event_media(
+            db=session,
+            event_id=event_id,
+            frames=[np.zeros((8, 8, 3), dtype=np.uint8)],
+            detections=[None],
+        )
+
+        assert result["mp4_url"] is not None
+        assert session.query(Event).filter(Event.id == event_id).first() is not None
+        assert len(timer_calls) == 1
+    finally:
+        session.close()
+        Base.metadata.drop_all(bind=engine)
+        engine.dispose()
+
+
 def test_generate_collage_for_ai_uses_detection_focused_collage(tmp_path, monkeypatch):
     session, engine = _make_db_session(tmp_path)
     try:

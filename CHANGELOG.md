@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.47] - 2026-02-27
+
+### Düzeltmeler
+
+- **Thermal auto min-area runaway daha agresif sınırlandı**: Loglarda görülen `min=1500` kilitlenmesini azaltmak için thermal auto cap değerleri tekrar aşağı çekildi; eşzamanlı sahnede motion gate’in gerçek geçişleri elemesi azaltıldı.
+- **Phantom erken-silme konservatifleştirildi (detector)**: Erken phantom drop için duplicate/conf/spread kriterleri daha sıkı hale getirildi; orta güvenli ve hafif hareketli gerçek kişi event’lerinin yanlış silinmesi azaltıldı.
+- **MP4 duplicate auto-delete konservatifleştirildi (media)**: Duplicate kaynaklı otomatik event silme artık sadece çok uç duplicate + düşük confidence durumunda çalışır; review için eventlerin korunması artırıldı.
+
 ## [4.0.46] - 2026-02-27
 
 ### Düzeltmeler

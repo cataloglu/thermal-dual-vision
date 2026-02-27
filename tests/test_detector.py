@@ -351,9 +351,9 @@ def test_thermal_probe_interval_scales_with_camera_load():
 def test_thermal_auto_min_area_cap_scales_with_camera_load():
     """Thermal auto min-area cap should drop as concurrent load increases."""
     worker = DetectorWorker.__new__(DetectorWorker)
-    assert worker._thermal_auto_min_area_cap(1800, active_motion_cameras=1) == 1500
-    assert worker._thermal_auto_min_area_cap(1800, active_motion_cameras=2) == 1100
-    assert worker._thermal_auto_min_area_cap(1800, active_motion_cameras=4) == 900
+    assert worker._thermal_auto_min_area_cap(1800, active_motion_cameras=1) == 1100
+    assert worker._thermal_auto_min_area_cap(1800, active_motion_cameras=2) == 850
+    assert worker._thermal_auto_min_area_cap(1800, active_motion_cameras=4) == 700
     # Never force a higher cap than configured.
     assert worker._thermal_auto_min_area_cap(700, active_motion_cameras=4) == 700
 
