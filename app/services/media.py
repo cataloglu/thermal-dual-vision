@@ -113,7 +113,7 @@ class MediaService:
         timestamps: Optional[List[float]] = None,
         camera_name: str = "Camera",
     ) -> Optional[Path]:
-        """Create collage for AI pre-check — no bounding boxes so AI judges independently."""
+        """Create a person-focused, lightweight collage for faster AI pre-check."""
         event = db.query(Event).filter(Event.id == event_id).first()
         if not event or len(frames) == 0:
             return None
@@ -121,9 +121,9 @@ class MediaService:
         event_dir.mkdir(parents=True, exist_ok=True)
         collage_path = str(event_dir / "collage.jpg")
         try:
-            self.media_worker.create_collage(
+            self.media_worker.create_ai_collage(
                 frames,
-                None,        # No bounding boxes for AI: independent judgment
+                detections,
                 timestamps,
                 collage_path,
                 camera_name,

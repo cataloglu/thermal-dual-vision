@@ -1814,9 +1814,9 @@ class MultiprocessingDetectorWorker:
                             _ai_collage_path = media_service.MEDIA_DIR / event.id / "collage_ai.jpg"
                             ai_collage_to_use = None
                             try:
-                                _mw.create_collage(
+                                _mw.create_ai_collage(
                                     frames,
-                                    None,  # No boxes: AI judges independently
+                                    detections_list,
                                     frame_timestamps,
                                     str(_ai_collage_path),
                                     camera_name,

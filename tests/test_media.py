@@ -299,3 +299,54 @@ def test_select_collage_indices_prioritizes_confident_candidate(media_worker):
 
     assert 2 in indices and 1 in indices
     assert indices.index(2) < indices.index(1)
+
+
+def test_ai_collage_is_smaller_and_person_focused(media_worker):
+    """AI collage should be smaller than default collage for faster AI requests."""
+    frames = []
+    detections = []
+    timestamps = []
+    for i in range(6):
+        frame = np.zeros((480, 640, 3), dtype=np.uint8)
+        x1 = 500 + (i % 2) * 8
+        y1 = 120 + (i % 3) * 6
+        x2 = x1 + 22
+        y2 = y1 + 48
+        cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 255, 255), -1)
+        frames.append(frame)
+        detections.append({"bbox": [x1, y1, x2, y2], "confidence": 0.70 + (i * 0.02)})
+        timestamps.append(1700000000.0 + (i * 0.2))
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        full_collage_path = os.path.join(tmpdir, "collage_full.jpg")
+        ai_collage_path = os.path.join(tmpdir, "collage_ai.jpg")
+
+        media_worker.create_collage(
+            frames=frames,
+            detections=detections,
+            timestamps=timestamps,
+            output_path=full_collage_path,
+            camera_name="Test Camera",
+            timestamp=datetime.now(),
+            confidence=0.9,
+        )
+        media_worker.create_ai_collage(
+            frames=frames,
+            detections=detections,
+            timestamps=timestamps,
+            output_path=ai_collage_path,
+            camera_name="Test Camera",
+            timestamp=datetime.now(),
+            confidence=0.9,
+        )
+
+        assert os.path.exists(full_collage_path)
+        assert os.path.exists(ai_collage_path)
+        assert os.path.getsize(ai_collage_path) < os.path.getsize(full_collage_path)
+
+        ai_img = cv2.imread(ai_collage_path)
+        assert ai_img is not None
+        expected_h = media_worker.AI_COLLAGE_FRAME_SIZE[1] * media_worker.AI_COLLAGE_GRID[1]
+        expected_w = media_worker.AI_COLLAGE_FRAME_SIZE[0] * media_worker.AI_COLLAGE_GRID[0]
+        assert ai_img.shape[0] == expected_h
+        assert ai_img.shape[1] == expected_w

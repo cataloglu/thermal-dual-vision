@@ -16,7 +16,7 @@ import sys
 import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 
 import cv2
 import imageio
@@ -57,6 +57,13 @@ class MediaWorker:
     COLLAGE_FRAME_SIZE = (640, 480)
     COLLAGE_GRID = (3, 2)  # 3 columns, 2 rows
     COLLAGE_QUALITY = 90
+
+    # AI collage settings (smaller + person-focused for faster/more reliable vision checks)
+    AI_COLLAGE_FRAMES = 6
+    AI_COLLAGE_FRAME_SIZE = (384, 288)
+    AI_COLLAGE_GRID = (3, 2)
+    AI_COLLAGE_QUALITY = 82
+    AI_CROP_PADDING = 2.2
     
     # GIF settings
     GIF_FRAMES = 10  # Scrypted: 5-8, ours: 10 (smoother!)
@@ -555,6 +562,292 @@ class MediaWorker:
                     break
 
         return selected[: self.COLLAGE_FRAMES]
+
+    @staticmethod
+    def _bbox_or_none(det: Optional[Dict]) -> Optional[Tuple[float, float, float, float]]:
+        if not isinstance(det, dict):
+            return None
+        bbox = det.get("bbox")
+        if not isinstance(bbox, (list, tuple)) or len(bbox) != 4:
+            return None
+        try:
+            x1, y1, x2, y2 = map(float, bbox)
+            if x2 <= x1 or y2 <= y1:
+                return None
+            return x1, y1, x2, y2
+        except Exception:
+            return None
+
+    def _crop_focus_on_bbox(
+        self,
+        frame: np.ndarray,
+        bbox: Tuple[float, float, float, float],
+        target_size: Tuple[int, int],
+        padding: float,
+    ) -> np.ndarray:
+        """Crop around detection bbox while preserving target aspect ratio."""
+        h, w = frame.shape[:2]
+        x1, y1, x2, y2 = bbox
+        x1 = max(0.0, min(x1, float(w - 1)))
+        y1 = max(0.0, min(y1, float(h - 1)))
+        x2 = max(0.0, min(x2, float(w - 1)))
+        y2 = max(0.0, min(y2, float(h - 1)))
+        if x2 <= x1 or y2 <= y1:
+            return frame
+
+        bw = max(8.0, x2 - x1)
+        bh = max(8.0, y2 - y1)
+        cx = (x1 + x2) / 2.0
+        cy = (y1 + y2) / 2.0
+
+        crop_w = min(float(w), max(96.0, bw * padding))
+        crop_h = min(float(h), max(96.0, bh * padding))
+
+        target_ratio = float(target_size[0]) / float(target_size[1])
+        cur_ratio = crop_w / max(1.0, crop_h)
+        if cur_ratio < target_ratio:
+            crop_w = min(float(w), crop_h * target_ratio)
+        elif cur_ratio > target_ratio:
+            crop_h = min(float(h), crop_w / target_ratio)
+
+        xa = int(round(cx - (crop_w / 2.0)))
+        ya = int(round(cy - (crop_h / 2.0)))
+        xb = xa + int(round(crop_w))
+        yb = ya + int(round(crop_h))
+
+        if xa < 0:
+            xb -= xa
+            xa = 0
+        if ya < 0:
+            yb -= ya
+            ya = 0
+        if xb > w:
+            shift = xb - w
+            xa = max(0, xa - shift)
+            xb = w
+        if yb > h:
+            shift = yb - h
+            ya = max(0, ya - shift)
+            yb = h
+
+        if xb <= xa or yb <= ya:
+            return frame
+        return frame[ya:yb, xa:xb]
+
+    def _select_ai_collage_indices(
+        self,
+        frames: List[np.ndarray],
+        detections: Optional[List[Optional[Dict]]],
+        timestamps: Optional[List[float]],
+        best_idx: int,
+    ) -> List[int]:
+        total = len(frames)
+        if total == 0:
+            return []
+
+        baseline = self._select_collage_indices(frames, detections, timestamps, best_idx)
+        if not detections:
+            return baseline
+
+        det_indices = [
+            i for i in range(min(total, len(detections)))
+            if self._bbox_or_none(detections[i]) is not None
+        ]
+        if not det_indices:
+            return baseline
+
+        blur_cache: Dict[int, float] = {}
+
+        def _blur_cached(idx: int) -> float:
+            if idx not in blur_cache:
+                blur_cache[idx] = self._blur_score(frames[idx])
+            return blur_cache[idx]
+
+        def _det_conf(idx: int) -> float:
+            det = detections[idx] if idx < len(detections) else None
+            if not isinstance(det, dict):
+                return 0.0
+            return float(det.get("confidence", 0.0) or 0.0)
+
+        det_sorted = sorted(
+            det_indices,
+            key=lambda i: (_det_conf(i), _blur_cached(i)),
+            reverse=True,
+        )
+
+        selected: List[int] = []
+        min_gap_sec = 0.18
+        has_valid_ts = bool(timestamps) and len(timestamps) == total
+        for idx in det_sorted:
+            if idx in selected:
+                continue
+            if has_valid_ts:
+                ts = float(timestamps[idx])
+                if any(abs(float(timestamps[j]) - ts) < min_gap_sec for j in selected):
+                    continue
+            selected.append(idx)
+            if len(selected) >= self.AI_COLLAGE_FRAMES:
+                break
+
+        for idx in det_sorted:
+            if len(selected) >= self.AI_COLLAGE_FRAMES:
+                break
+            if idx not in selected:
+                selected.append(idx)
+
+        for idx in baseline:
+            if len(selected) >= self.AI_COLLAGE_FRAMES:
+                break
+            if idx not in selected:
+                selected.append(idx)
+
+        if len(selected) < min(total, self.AI_COLLAGE_FRAMES):
+            fillers = sorted(
+                [i for i in range(total) if i not in selected],
+                key=lambda i: abs(i - best_idx),
+            )
+            for idx in fillers:
+                selected.append(idx)
+                if len(selected) >= min(total, self.AI_COLLAGE_FRAMES):
+                    break
+
+        if has_valid_ts:
+            selected.sort(key=lambda i: float(timestamps[i]))
+        else:
+            selected.sort()
+        return selected[: min(total, self.AI_COLLAGE_FRAMES)]
+
+    def create_ai_collage(
+        self,
+        frames: List[np.ndarray],
+        detections: Optional[List[Optional[Dict]]],
+        timestamps: Optional[List[float]],
+        output_path: str,
+        camera_name: str = "Camera",
+        timestamp: Optional[datetime] = None,
+        confidence: float = 0.0,
+    ) -> str:
+        """Create an AI-focused collage with detection-centric crops and lighter payload."""
+        if len(frames) == 0:
+            raise ValueError("Need at least 1 frame for AI collage")
+
+        total = len(frames)
+        best_idx = total // 2
+        if detections:
+            best_conf = -1.0
+            for idx, det in enumerate(detections):
+                bbox = self._bbox_or_none(det)
+                if bbox is None:
+                    continue
+                conf = float(det.get("confidence", 0.0) or 0.0) if isinstance(det, dict) else 0.0
+                if conf >= best_conf:
+                    best_conf = conf
+                    best_idx = idx
+
+        selected_indices = self._select_ai_collage_indices(
+            frames=frames,
+            detections=detections,
+            timestamps=timestamps,
+            best_idx=best_idx,
+        )
+        if selected_indices and len(selected_indices) < self.AI_COLLAGE_FRAMES:
+            selected_indices.extend([selected_indices[-1]] * (self.AI_COLLAGE_FRAMES - len(selected_indices)))
+
+        event_slot = min(
+            range(len(selected_indices)),
+            key=lambda i: abs(selected_indices[i] - best_idx),
+        )
+
+        tiles: List[np.ndarray] = []
+        for tile_idx, frame_idx in enumerate(selected_indices):
+            src = frames[frame_idx]
+            focused = src
+            if detections and frame_idx < len(detections):
+                bbox = self._bbox_or_none(detections[frame_idx])
+                if bbox is not None:
+                    focused = self._crop_focus_on_bbox(
+                        src,
+                        bbox,
+                        target_size=self.AI_COLLAGE_FRAME_SIZE,
+                        padding=self.AI_CROP_PADDING,
+                    )
+
+            img = cv2.resize(focused, self.AI_COLLAGE_FRAME_SIZE, interpolation=cv2.INTER_AREA)
+
+            cv2.putText(
+                img,
+                str(tile_idx + 1),
+                (8, 24),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                self.COLOR_WHITE,
+                2,
+            )
+            if timestamps and frame_idx < len(timestamps):
+                cv2.putText(
+                    img,
+                    _local_time_ms_from_epoch(float(timestamps[frame_idx])),
+                    (8, self.AI_COLLAGE_FRAME_SIZE[1] - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.45,
+                    self.COLOR_WHITE,
+                    1,
+                )
+            elif tile_idx == 0 and timestamp:
+                cv2.putText(
+                    img,
+                    _local_time_str(timestamp),
+                    (8, self.AI_COLLAGE_FRAME_SIZE[1] - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.45,
+                    self.COLOR_WHITE,
+                    1,
+                )
+
+            if tile_idx == event_slot:
+                cv2.rectangle(
+                    img,
+                    (2, 2),
+                    (self.AI_COLLAGE_FRAME_SIZE[0] - 3, self.AI_COLLAGE_FRAME_SIZE[1] - 3),
+                    self.COLOR_ACCENT,
+                    2,
+                )
+                cv2.putText(
+                    img,
+                    f"{confidence:.0%}",
+                    (self.AI_COLLAGE_FRAME_SIZE[0] - 70, 22),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.5,
+                    self.COLOR_ACCENT,
+                    2,
+                )
+            tiles.append(img)
+
+        rows = []
+        for row_idx in range(self.AI_COLLAGE_GRID[1]):
+            row_frames = []
+            for col_idx in range(self.AI_COLLAGE_GRID[0]):
+                idx = row_idx * self.AI_COLLAGE_GRID[0] + col_idx
+                if idx < len(tiles):
+                    row_frames.append(tiles[idx])
+                else:
+                    row_frames.append(np.zeros((*self.AI_COLLAGE_FRAME_SIZE[::-1], 3), dtype=np.uint8))
+            rows.append(np.hstack(row_frames))
+        collage = np.vstack(rows)
+
+        cv2.putText(
+            collage,
+            _ascii_safe(camera_name),
+            (collage.shape[1] - 240, 24),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.55,
+            self.COLOR_WHITE,
+            1,
+        )
+
+        cv2.imwrite(output_path, collage, [cv2.IMWRITE_JPEG_QUALITY, self.AI_COLLAGE_QUALITY])
+        logger.info("AI collage created: %s", output_path)
+        return output_path
     
     def create_collage(
         self,
