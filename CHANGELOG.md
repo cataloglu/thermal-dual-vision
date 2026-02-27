@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.55] - 2026-02-28
+
+### Düzeltmeler
+
+- **Kolajdaki sabit kutu (jitter ghost) için IoU guard eklendi**: Sadece center spread değil, ardışık bbox overlap (IoU) deseni de kontrol edilerek aynı siluete yapışan statik kutular evente düşmesi zorlaştırıldı.
+- **Hareket imzası sıkılaştırıldı**: Event öncesi “gerçek hareket” için daha yüksek center spread + daha düşük IoU birlikte aranıyor; jitter kaynaklı sahte hareketler filtreleniyor.
+- **Thread/MP parity korundu**: Aynı IoU tabanlı guard multiprocessing worker’a da uygulandı.
+
 ## [4.0.54] - 2026-02-28
 
 ### Düzeltmeler

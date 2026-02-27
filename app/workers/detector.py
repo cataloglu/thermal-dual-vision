@@ -380,6 +380,54 @@ class DetectorWorker:
             return 0.0
         return max(max(centers_x) - min(centers_x), max(centers_y) - min(centers_y))
 
+    @staticmethod
+    def _bbox_iou(box_a: List[float], box_b: List[float]) -> float:
+        """Compute IoU for two [x1, y1, x2, y2] boxes."""
+        ax1, ay1, ax2, ay2 = map(float, box_a)
+        bx1, by1, bx2, by2 = map(float, box_b)
+        inter_x1 = max(ax1, bx1)
+        inter_y1 = max(ay1, by1)
+        inter_x2 = min(ax2, bx2)
+        inter_y2 = min(ay2, by2)
+        inter_w = max(0.0, inter_x2 - inter_x1)
+        inter_h = max(0.0, inter_y2 - inter_y1)
+        inter_area = inter_w * inter_h
+        area_a = max(0.0, ax2 - ax1) * max(0.0, ay2 - ay1)
+        area_b = max(0.0, bx2 - bx1) * max(0.0, by2 - by1)
+        union = area_a + area_b - inter_area
+        if union <= 0.0:
+            return 0.0
+        return inter_area / union
+
+    @classmethod
+    def _thermal_bbox_median_iou(
+        cls,
+        detection_frames: List[List[Dict[str, Any]]],
+        sample_frames: int = 5,
+    ) -> float:
+        """Median IoU of consecutive best boxes across recent frames."""
+        if not detection_frames:
+            return 0.0
+        frames = detection_frames[-max(2, int(sample_frames)) :]
+        boxes: List[List[float]] = []
+        for frame_dets in frames:
+            dets_with_bbox = [
+                det for det in (frame_dets or []) if isinstance(det, dict) and det.get("bbox")
+            ]
+            if not dets_with_bbox:
+                continue
+            best_det = max(dets_with_bbox, key=lambda det: float(det.get("confidence", 0.0)))
+            boxes.append(best_det["bbox"])
+        if len(boxes) < 2:
+            return 0.0
+        ious = [
+            cls._bbox_iou(boxes[idx - 1], boxes[idx])
+            for idx in range(1, len(boxes))
+        ]
+        if not ious:
+            return 0.0
+        return float(np.median(np.array(ious, dtype=np.float32)))
+
     @classmethod
     def _passes_thermal_static_event_guard(
         cls,
@@ -399,22 +447,23 @@ class DetectorWorker:
         best_conf = max((float(det.get("confidence", 0.0)) for det in current_dets), default=0.0)
         min_conf_floor = max(float(confidence_threshold) + 0.12, 0.65)
         spread = cls._thermal_bbox_center_spread(detection_frames=detection_frames, sample_frames=5)
+        median_iou = cls._thermal_bbox_median_iou(detection_frames=detection_frames, sample_frames=5)
 
-        # For low-confidence static boxes, fail fast.
-        if best_conf < min_conf_floor and spread < 8.0:
+        # Low-confidence + static/jitter signature => block.
+        if best_conf < min_conf_floor and (spread < 12.0 or median_iou > 0.88):
             return False
 
-        # Real walk-throughs should move bbox center across recent frames.
-        if spread >= 8.0:
+        # Real walk-through signature: enough travel + lower overlap over time.
+        if spread >= 12.0 and median_iou <= 0.88:
             return True
 
         # Static box acceptance requires stronger evidence.
         if active_motion_cameras >= 2:
-            strong_conf = max(float(confidence_threshold) + 0.18, 0.75)
-            strong_motion = max(1600, int(base_min_area) * 4)
+            strong_conf = max(float(confidence_threshold) + 0.22, 0.80)
+            strong_motion = max(1900, int(base_min_area) * 5)
         else:
-            strong_conf = max(float(confidence_threshold) + 0.25, 0.85)
-            strong_motion = max(1800, int(base_min_area) * 5)
+            strong_conf = max(float(confidence_threshold) + 0.27, 0.87)
+            strong_motion = max(2200, int(base_min_area) * 6)
         return best_conf >= strong_conf and int(motion_area_now) >= strong_motion
 
     @staticmethod
