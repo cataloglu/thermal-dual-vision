@@ -238,12 +238,13 @@ class RetentionWorker:
                     logger.debug(f"Deleted media file: {file_path}")
                 except Exception as e:
                     logger.error(f"Failed to delete {file_path}: {e}")
-        
-        # Delete event directory
+
+        # Remove any remaining files (e.g. collage_ai.jpg, nested leftovers)
+        # so retention doesn't spam "Directory not empty" errors.
         try:
             if event_dir.exists():
-                event_dir.rmdir()
-                logger.debug(f"Deleted event directory: {event_dir}")
+                shutil.rmtree(event_dir)
+                logger.debug(f"Deleted event directory recursively: {event_dir}")
         except Exception as e:
             logger.error(f"Failed to delete directory {event_dir}: {e}")
     

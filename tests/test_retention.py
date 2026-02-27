@@ -211,6 +211,26 @@ def test_delete_event_media_partial(retention_worker, temp_media_dir):
     assert not event_dir.exists()
 
 
+def test_delete_event_media_removes_untracked_and_nested_files(retention_worker, temp_media_dir):
+    """Retention should delete event dir even with extra files/subdirs."""
+    event_id = "test-event-extra"
+    event_dir = temp_media_dir / event_id
+    event_dir.mkdir()
+
+    # Known files
+    (event_dir / "timelapse.mp4").write_text("mp4")
+    (event_dir / "collage.jpg").write_text("collage")
+    # Extra files introduced by other workers/features
+    (event_dir / "collage_ai.jpg").write_text("ai-collage")
+    (event_dir / "notes.txt").write_text("notes")
+    nested = event_dir / "tmp"
+    nested.mkdir()
+    (nested / "leftover.bin").write_bytes(b"x")
+
+    retention_worker.delete_event_media(event_id)
+    assert not event_dir.exists()
+
+
 def test_delete_event_media_not_exists(retention_worker, temp_media_dir):
     """Test deletion when event directory doesn't exist."""
     # Should not crash

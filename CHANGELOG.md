@@ -6,6 +6,13 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.53] - 2026-02-28
+
+### Düzeltmeler
+
+- **Retention cleanup hatası düzeltildi**: Event klasöründe `collage_ai.jpg` veya alt klasör artığı kaldığında görülen `Directory not empty` hataları için silme adımı recursive hale getirildi.
+- **Log gürültüsü azaltıldı**: Startup/cleanup sırasında retention worker’ın aynı event klasörleri için ardışık hata spam’i engellendi.
+
 ## [4.0.52] - 2026-02-28
 
 ### Düzeltmeler
