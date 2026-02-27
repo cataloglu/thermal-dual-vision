@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.51] - 2026-02-28
+
+### Düzeltmeler
+
+- **Boş sahne false-positive guard eklendi (thermal)**: Event öncesi son frame’lerde bbox merkezi neredeyse sabitse event bloke edilir; hareketli iz veya güçlü conf+motion yoksa static ghost event oluşmaz.
+- **Suppression sonrası ghost spam azaltıldı**: Suppression/probe döngüsünden gelen statik thermal kutular için evente gitmeden ek güvenlik kapısı eklendi.
+- **Thread/MP parity güncellendi**: Aynı static-ghost guard multiprocessing worker tarafına da taşındı.
+
 ## [4.0.50] - 2026-02-28
 
 ### Düzeltmeler

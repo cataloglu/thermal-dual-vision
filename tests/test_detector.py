@@ -428,6 +428,65 @@ def test_thermal_suppression_policy_delays_suppression_under_load():
     assert secs_very_busy <= secs_busy
 
 
+def test_thermal_bbox_center_spread_detects_motion_vs_static():
+    """Spread helper should separate moving and static bbox tracks."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    static_frames = [
+        [{"bbox": [100, 60, 160, 220], "confidence": 0.70}]
+        for _ in range(5)
+    ]
+    moving_frames = [
+        [{"bbox": [100 + (i * 8), 60, 160 + (i * 8), 220], "confidence": 0.70}]
+        for i in range(5)
+    ]
+    assert worker._thermal_bbox_center_spread(static_frames) == 0.0
+    assert worker._thermal_bbox_center_spread(moving_frames) >= 8.0
+
+
+def test_thermal_static_guard_blocks_static_weak_motion_on_idle_scene():
+    """Idle-scene static thermal boxes should require stronger evidence."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    static_frames = [
+        [{"bbox": [120, 70, 170, 230], "confidence": 0.72}]
+        for _ in range(5)
+    ]
+    assert worker._passes_thermal_static_event_guard(
+        detection_frames=static_frames,
+        motion_area_now=900,
+        active_motion_cameras=1,
+        confidence_threshold=0.55,
+        base_min_area=260,
+    ) is False
+
+
+def test_thermal_static_guard_allows_moving_track_or_multi_camera_load():
+    """Guard should allow moving tracks and stay relaxed on concurrent load."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    moving_frames = [
+        [{"bbox": [120 + (i * 9), 70, 170 + (i * 9), 230], "confidence": 0.62}]
+        for i in range(5)
+    ]
+    assert worker._passes_thermal_static_event_guard(
+        detection_frames=moving_frames,
+        motion_area_now=850,
+        active_motion_cameras=1,
+        confidence_threshold=0.55,
+        base_min_area=260,
+    ) is True
+
+    static_frames = [
+        [{"bbox": [120, 70, 170, 230], "confidence": 0.62}]
+        for _ in range(5)
+    ]
+    assert worker._passes_thermal_static_event_guard(
+        detection_frames=static_frames,
+        motion_area_now=850,
+        active_motion_cameras=3,
+        confidence_threshold=0.55,
+        base_min_area=260,
+    ) is True
+
+
 def test_detect_static_phantom_event_true():
     """Highly duplicate low-confidence static bbox stream should be marked phantom."""
     worker = DetectorWorker.__new__(DetectorWorker)

@@ -356,6 +356,60 @@ class DetectorWorker:
         return 3, 1, max(float(confidence_threshold) + 0.10, 0.65)
 
     @staticmethod
+    def _thermal_bbox_center_spread(
+        detection_frames: List[List[Dict[str, Any]]],
+        sample_frames: int = 5,
+    ) -> float:
+        """Estimate center spread across recent thermal detections."""
+        if not detection_frames:
+            return 0.0
+        frames = detection_frames[-max(2, int(sample_frames)) :]
+        centers_x: List[float] = []
+        centers_y: List[float] = []
+        for frame_dets in frames:
+            dets_with_bbox = [
+                det for det in (frame_dets or []) if isinstance(det, dict) and det.get("bbox")
+            ]
+            if not dets_with_bbox:
+                continue
+            best_det = max(dets_with_bbox, key=lambda det: float(det.get("confidence", 0.0)))
+            x1, y1, x2, y2 = best_det["bbox"]
+            centers_x.append((float(x1) + float(x2)) / 2.0)
+            centers_y.append((float(y1) + float(y2)) / 2.0)
+        if len(centers_x) < 2:
+            return 0.0
+        return max(max(centers_x) - min(centers_x), max(centers_y) - min(centers_y))
+
+    @classmethod
+    def _passes_thermal_static_event_guard(
+        cls,
+        detection_frames: List[List[Dict[str, Any]]],
+        motion_area_now: int,
+        active_motion_cameras: int,
+        confidence_threshold: float,
+        base_min_area: int,
+    ) -> bool:
+        """
+        Block static thermal ghosts on idle scenes while preserving multi-cam recall.
+
+        When only one camera appears active, require either:
+        - meaningful bbox travel over recent frames, OR
+        - very strong confidence + strong motion area.
+        """
+        if active_motion_cameras >= 2:
+            return True
+
+        spread = cls._thermal_bbox_center_spread(detection_frames=detection_frames, sample_frames=5)
+        if spread >= 6.0:
+            return True
+
+        current_dets = detection_frames[-1] if detection_frames else []
+        best_conf = max((float(det.get("confidence", 0.0)) for det in current_dets), default=0.0)
+        strong_conf = max(float(confidence_threshold) + 0.25, 0.85)
+        strong_motion = max(1600, int(base_min_area) * 4)
+        return best_conf >= strong_conf and int(motion_area_now) >= strong_motion
+
+    @staticmethod
     def _thermal_suppression_policy(
         base_streak: int,
         base_duration_secs: int,
@@ -1164,6 +1218,21 @@ class DetectorWorker:
                     self.event_start_time[camera_id] = None
                     _log_gate("temporal_consistency_failed")
                     continue
+
+                if detection_source == "thermal":
+                    motion_area_now = int(
+                        self.motion_state.get(camera_id, {}).get("thermal_motion_area_raw", 0)
+                    )
+                    if not self._passes_thermal_static_event_guard(
+                        detection_frames=list(self.detection_history[camera_id]),
+                        motion_area_now=motion_area_now,
+                        active_motion_cameras=active_motion_cameras,
+                        confidence_threshold=confidence_threshold,
+                        base_min_area=int(getattr(config.motion, "min_area", 0)),
+                    ):
+                        self.event_start_time[camera_id] = None
+                        _log_gate("thermal_static_guard")
+                        continue
 
                 # Enforce minimum event duration
                 start_time = self.event_start_time.get(camera_id)

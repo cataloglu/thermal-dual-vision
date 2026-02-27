@@ -709,6 +709,51 @@ def camera_detection_process(
             duration = max(5, int(base_duration_secs))
             return max(streak * 2, 30), min(duration, 15)
 
+        def _thermal_bbox_center_spread(
+            detection_frames: List[List[Dict[str, Any]]],
+            sample_frames: int = 5,
+        ) -> float:
+            """Estimate bbox center spread across recent detections."""
+            if not detection_frames:
+                return 0.0
+            frames = detection_frames[-max(2, int(sample_frames)) :]
+            centers_x: List[float] = []
+            centers_y: List[float] = []
+            for frame_dets in frames:
+                dets_with_bbox = [
+                    det for det in (frame_dets or []) if isinstance(det, dict) and det.get("bbox")
+                ]
+                if not dets_with_bbox:
+                    continue
+                best_det = max(dets_with_bbox, key=lambda det: float(det.get("confidence", 0.0)))
+                x1, y1, x2, y2 = best_det["bbox"]
+                centers_x.append((float(x1) + float(x2)) / 2.0)
+                centers_y.append((float(y1) + float(y2)) / 2.0)
+            if len(centers_x) < 2:
+                return 0.0
+            return max(max(centers_x) - min(centers_x), max(centers_y) - min(centers_y))
+
+        def _passes_thermal_static_event_guard(
+            detection_frames: List[List[Dict[str, Any]]],
+            motion_area_now: int,
+            confidence_threshold: float,
+            base_min_area: int,
+        ) -> bool:
+            """
+            Drop static thermal ghosts in sparse scenes.
+
+            MP worker has no global active-camera state in-process, so this uses
+            a robust local heuristic: allow movement or strong confidence+motion.
+            """
+            spread = _thermal_bbox_center_spread(detection_frames=detection_frames, sample_frames=5)
+            if spread >= 6.0:
+                return True
+            current_dets = detection_frames[-1] if detection_frames else []
+            best_conf = max((float(det.get("confidence", 0.0)) for det in current_dets), default=0.0)
+            strong_conf = max(float(confidence_threshold) + 0.25, 0.85)
+            strong_motion = max(1600, int(base_min_area) * 4)
+            return best_conf >= strong_conf and int(motion_area_now) >= strong_motion
+
         # Get detection parameters
         detection_source = camera_config.get("detection_source") or camera_config.get("type", "thermal")
         frame_delay = 1.0 / config.detection.inference_fps
@@ -1314,6 +1359,18 @@ def camera_detection_process(
                 _log_gate("temporal_consistency_failed")
                 continue
             
+            if detection_source == "thermal":
+                motion_area_now = int(thermal_motion_state.get("thermal_motion_area_raw", 0))
+                if not _passes_thermal_static_event_guard(
+                    detection_frames=list(detection_history),
+                    motion_area_now=motion_area_now,
+                    confidence_threshold=confidence_threshold,
+                    base_min_area=int(motion_config.get("min_area", 0) or 0),
+                ):
+                    event_start_time = None
+                    _log_gate("thermal_static_guard")
+                    continue
+
             # Enforce minimum event duration
             if event_start_time is None:
                 event_start_time = current_time
