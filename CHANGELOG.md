@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.40] - 2026-02-27
+
+### Düzeltmeler
+
+- **Startup readiness warning gürültüsü azaltıldı**: DB/MQTT hazır, sadece go2rtc geç kalıyorsa timeout mesajı `warning` yerine `info` olarak yazılıyor.
+- **Phantom event log seviyesi iyileştirildi**: MP4 duplicate quality-gate ile silinen phantom eventler `warning` yerine `info` olarak raporlanıyor.
+- **Delayed MP4 replace hata spam'i giderildi**: Phantom event silindikten sonra medya dizini yoksa gecikmeli extract güvenli şekilde atlanıyor; `No such file or directory` kaynaklı recorder hata gürültüsü kesildi.
+
 ## [4.0.39] - 2026-02-27
 
 ### Düzeltmeler
