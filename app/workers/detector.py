@@ -275,6 +275,43 @@ class DetectorWorker:
         gradual_floor = max(1200, int(min_wakeup_area * 0.7))
         return current_area >= gradual_floor and growth_delta >= min_delta
 
+    def _count_active_motion_cameras(self) -> int:
+        """Count cameras currently marked as motion-active."""
+        try:
+            return sum(
+                1
+                for state in self.motion_state.values()
+                if isinstance(state, dict) and bool(state.get("active", False))
+            )
+        except Exception:
+            return 0
+
+    @staticmethod
+    def _thermal_probe_interval_seconds(
+        suppression_secs: int,
+        active_motion_cameras: int,
+    ) -> float:
+        """
+        Probe cadence while suppressed.
+
+        Base cadence keeps CPU savings; multi-camera motion gets faster probes
+        to avoid missing short walk-throughs under shared-inference contention.
+        """
+        base_interval = max(1.0, min(5.0, float(suppression_secs) / 15.0))
+        if active_motion_cameras >= 2:
+            return max(0.8, min(base_interval, 1.0))
+        return base_interval
+
+    @staticmethod
+    def _thermal_temporal_policy(
+        confidence_threshold: float,
+        active_motion_cameras: int,
+    ) -> Tuple[int, int, float]:
+        """Adaptive temporal gate for thermal detections under concurrent load."""
+        if active_motion_cameras >= 2:
+            return 2, 1, max(float(confidence_threshold) + 0.05, 0.60)
+        return 3, 1, max(float(confidence_threshold) + 0.10, 0.65)
+
     def _reset_motion_buffers(self, camera_id: str, prebuffer_seconds: float) -> None:
         # Always acquire frame lock before video lock to prevent deadlock
         frame_lock = self.frame_buffer_locks[camera_id]
@@ -719,6 +756,7 @@ class DetectorWorker:
                 suppression_candidate_area = 0
                 suppression_candidate_prev = 0
                 suppression_candidate_ratio = 0.0
+                active_motion_cameras = self._count_active_motion_cameras()
 
                 # Thermal inference suppression: if YOLO returned empty N times
                 # in a row, skip inference until motion area increases significantly.
@@ -729,7 +767,10 @@ class DetectorWorker:
                     current_area = int(self.motion_state.get(camera_id, {}).get("thermal_motion_area_raw", 0))
                     prev_area = int(self.last_motion_area.get(camera_id, current_area))
                     min_wakeup_area = max(1200, int(getattr(config.motion, "min_area", 0)) * 3)
-                    probe_interval_secs = max(1.0, min(5.0, suppression_secs / 6.0))
+                    probe_interval_secs = self._thermal_probe_interval_seconds(
+                        suppression_secs=suppression_secs,
+                        active_motion_cameras=active_motion_cameras,
+                    )
                     suppression_active = current_time < suppressed_ts
                     if current_time < suppressed_ts:
                         last_probe = float(self.last_suppression_probe.get(camera_id, 0.0))
@@ -740,7 +781,10 @@ class DetectorWorker:
                             wakeup_ratio=wakeup_ratio,
                             min_wakeup_area=min_wakeup_area,
                         )
-                        if wakeup_candidate and probe_due:
+                        # Run inference when wakeup_candidate (area jump) OR probe_due (periodic).
+                        # Previously: wakeup_candidate required probe_due, so we skipped inference
+                        # when a person entered during suppression if probe_due was false.
+                        if wakeup_candidate:
                             suppression_wakeup_candidate = True
                             suppression_candidate_area = current_area
                             suppression_candidate_prev = prev_area
@@ -748,17 +792,7 @@ class DetectorWorker:
                                 float(current_area) / float(max(prev_area, 1))
                             )
                             self.last_suppression_probe[camera_id] = current_time
-                        else:
-                            if not probe_due:
-                                self.last_motion_area[camera_id] = current_area
-                                self._update_frame_buffer(
-                                    camera_id=camera_id,
-                                    frame=frame,
-                                    detections=[],
-                                    frame_interval=frame_interval,
-                                    buffer_size=buffer_size,
-                                )
-                                continue
+                        elif probe_due:
                             self.last_suppression_probe[camera_id] = current_time
                             logger.debug(
                                 "DETECT camera=%s suppression_probe area=%s prev=%s",
@@ -766,8 +800,16 @@ class DetectorWorker:
                                 current_area,
                                 prev_area,
                             )
-                            # Probe inference once to avoid missing real humans
-                            # that don't produce an instant large motion jump.
+                        else:
+                            self.last_motion_area[camera_id] = current_area
+                            self._update_frame_buffer(
+                                camera_id=camera_id,
+                                frame=frame,
+                                detections=[],
+                                frame_interval=frame_interval,
+                                buffer_size=buffer_size,
+                            )
+                            continue
                     self.last_motion_area[camera_id] = current_area
 
                 # Preprocess frame
@@ -984,8 +1026,19 @@ class DetectorWorker:
                 self.last_suppression_probe.pop(camera_id, None)
 
                 # Check temporal consistency (only when we have detections)
-                temporal_min_frames = 3 if detection_source == "thermal" else 2
-                temporal_max_gap = 1 if detection_source == "thermal" else 2
+                thermal_recovery_conf = 0.0
+                if detection_source == "thermal":
+                    (
+                        temporal_min_frames,
+                        temporal_max_gap,
+                        thermal_recovery_conf,
+                    ) = self._thermal_temporal_policy(
+                        confidence_threshold=confidence_threshold,
+                        active_motion_cameras=active_motion_cameras,
+                    )
+                else:
+                    temporal_min_frames = 2
+                    temporal_max_gap = 2
                 temporal_pass = self.inference_service.check_temporal_consistency(
                     detections,
                     list(self.detection_history[camera_id])[:-1],  # Exclude current
@@ -998,8 +1051,12 @@ class DetectorWorker:
                         motion_area_now = int(
                             self.motion_state.get(camera_id, {}).get("thermal_motion_area_raw", 0)
                         )
-                        min_motion_area = max(1400, int(getattr(config.motion, "min_area", 0)) * 3)
-                        thermal_recovery_conf = max(confidence_threshold + 0.10, 0.65)
+                        min_motion_mult = 2 if active_motion_cameras >= 2 else 3
+                        min_motion_floor = 1200 if active_motion_cameras >= 2 else 1400
+                        min_motion_area = max(
+                            min_motion_floor,
+                            int(getattr(config.motion, "min_area", 0)) * min_motion_mult,
+                        )
                         if best_conf >= thermal_recovery_conf and motion_area_now >= min_motion_area:
                             temporal_pass = True
                             logger.debug(

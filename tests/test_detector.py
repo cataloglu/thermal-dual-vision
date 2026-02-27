@@ -322,6 +322,49 @@ def test_thermal_suppression_wakeup_gradual_trigger():
     ) is False
 
 
+def test_thermal_suppression_wakeup_no_false_positive():
+    """Suppression should NOT wake when area is below thresholds."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    assert worker._should_wakeup_thermal_suppression(
+        current_area=0,
+        prev_area=500,
+        wakeup_ratio=2.5,
+        min_wakeup_area=1200,
+    ) is False
+    assert worker._should_wakeup_thermal_suppression(
+        current_area=800,
+        prev_area=400,
+        wakeup_ratio=2.5,
+        min_wakeup_area=1200,
+    ) is False
+
+
+def test_thermal_probe_interval_scales_with_camera_load():
+    """Suppression probes should become faster when multiple cameras are active."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    assert worker._thermal_probe_interval_seconds(30, active_motion_cameras=1) == 2.0
+    assert worker._thermal_probe_interval_seconds(30, active_motion_cameras=2) == 1.0
+    # Never below safety floor.
+    assert worker._thermal_probe_interval_seconds(6, active_motion_cameras=4) >= 0.8
+
+
+def test_thermal_temporal_policy_relaxes_under_multi_camera_motion():
+    """Thermal temporal gate should relax slightly under concurrent camera load."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    min_frames, max_gap, recovery_conf = worker._thermal_temporal_policy(0.55, active_motion_cameras=1)
+    assert min_frames == 3
+    assert max_gap == 1
+    assert recovery_conf >= 0.65
+
+    min_frames_busy, max_gap_busy, recovery_conf_busy = worker._thermal_temporal_policy(
+        0.55,
+        active_motion_cameras=3,
+    )
+    assert min_frames_busy == 2
+    assert max_gap_busy == 1
+    assert recovery_conf_busy < recovery_conf
+
+
 def test_detect_static_phantom_event_true():
     """Highly duplicate low-confidence static bbox stream should be marked phantom."""
     worker = DetectorWorker.__new__(DetectorWorker)
