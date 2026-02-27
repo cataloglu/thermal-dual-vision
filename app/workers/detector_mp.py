@@ -16,7 +16,7 @@ import threading
 import time
 from collections import deque
 from datetime import datetime, timezone as tz
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 
 from app.db.models import Camera, CameraStatus
@@ -520,6 +520,10 @@ def camera_detection_process(
         last_event_time = 0
         last_frame_time = 0
         no_detection_streak = 0
+        empty_inference_streak = 0
+        suppressed_until = 0.0
+        last_suppression_probe = 0.0
+        last_motion_area = 0
         _last_buffer_time = 0.0
         last_success_time = time.time()
         failure_threshold = max(1, int(getattr(config.stream, "read_failure_threshold", 5)))
@@ -675,7 +679,24 @@ def camera_detection_process(
             state["thermal_bg"] = bg
             state["thermal_noise_var"] = noise_var
             state["thermal_motion_persisted"] = persisted_motion
+            state["thermal_motion_area_raw"] = motion_area_local
             return motion_area_local if persisted_motion else 0
+
+        def _should_wakeup_thermal_suppression(
+            current_area: int,
+            prev_area: int,
+            wakeup_ratio: float,
+            min_wakeup_area: int,
+        ) -> bool:
+            """Decide whether thermal suppression should be lifted early (parity with threading)."""
+            if current_area <= 0:
+                return False
+            if current_area >= min_wakeup_area and current_area > (prev_area * wakeup_ratio):
+                return True
+            growth_delta = max(0, current_area - prev_area)
+            min_delta = max(300, int(min_wakeup_area * 0.5))
+            gradual_floor = max(1200, int(min_wakeup_area * 0.7))
+            return current_area >= gradual_floor and growth_delta >= min_delta
 
         # Get detection parameters
         detection_source = camera_config.get("detection_source") or camera_config.get("type", "thermal")
@@ -1023,6 +1044,37 @@ def camera_detection_process(
             if not motion_active:
                 continue
             
+            # Thermal inference suppression (parity with threading detector)
+            suppression_active = False
+            if detection_source == "thermal" and getattr(config.motion, "thermal_suppression_enabled", True):
+                wakeup_ratio = float(getattr(config.motion, "thermal_suppression_wakeup_ratio", 2.5))
+                suppression_secs = int(getattr(config.motion, "thermal_suppression_duration", 30))
+                current_area = int(thermal_motion_state.get("thermal_motion_area_raw", 0))
+                prev_area = last_motion_area
+                min_wakeup_area = max(1200, int(motion_config.get("min_area", 0) or 0) * 3)
+                probe_interval_secs = max(1.0, min(5.0, suppression_secs / 15.0))
+                suppression_active = current_time < suppressed_until
+                if suppression_active:
+                    probe_due = (current_time - last_suppression_probe) >= probe_interval_secs
+                    wakeup_candidate = _should_wakeup_thermal_suppression(
+                        current_area=current_area,
+                        prev_area=prev_area,
+                        wakeup_ratio=wakeup_ratio,
+                        min_wakeup_area=min_wakeup_area,
+                    )
+                    if wakeup_candidate:
+                        last_suppression_probe = current_time
+                    elif probe_due:
+                        last_suppression_probe = current_time
+                        process_logger.debug(
+                            "DETECT [%s] suppression_probe area=%s prev=%s",
+                            cam_name, current_area, prev_area,
+                        )
+                    else:
+                        last_motion_area = current_area
+                        continue
+                last_motion_area = current_area
+            
             # Preprocess frame
             if detection_source == "thermal" and config.thermal.enable_enhancement:
                 preprocessed = inference_service.preprocess_thermal(
@@ -1156,6 +1208,16 @@ def camera_detection_process(
             # Update detection history
             detection_history.append(detections)
             
+            # If suppression was active, lift it only after probe sees actual detections
+            if suppression_active and len(detections) > 0:
+                suppressed_until = 0.0
+                empty_inference_streak = 0
+                last_suppression_probe = 0.0
+                process_logger.info(
+                    "DETECT [%s] suppression_probe_confirmed detections=%s",
+                    cam_name, len(detections),
+                )
+            
             # Check if person detected
             if len(detections) == 0:
                 no_detection_streak += 1
@@ -1164,9 +1226,24 @@ def camera_detection_process(
                     _log_gate(f"no_detections_grace streak={no_detection_streak}")
                     continue
                 event_start_time = None
+                if detection_source == "thermal" and getattr(config.motion, "thermal_suppression_enabled", True):
+                    streak_limit = int(getattr(config.motion, "thermal_suppression_streak", 15))
+                    suppression_secs = int(getattr(config.motion, "thermal_suppression_duration", 30))
+                    empty_inference_streak += 1
+                    if empty_inference_streak >= streak_limit:
+                        suppressed_until = current_time + float(suppression_secs)
+                        empty_inference_streak = 0
+                        last_suppression_probe = current_time
+                        last_motion_area = int(thermal_motion_state.get("thermal_motion_area_raw", 0))
+                        process_logger.info(
+                            "DETECT [%s] inference_suppressed for %ds (%d consecutive empty results)",
+                            cam_name, suppression_secs, streak_limit,
+                        )
                 _log_gate("no_detections")
                 continue
             no_detection_streak = 0
+            empty_inference_streak = 0
+            last_suppression_probe = 0.0
             
             # Check temporal consistency (tuned for short walk-through scenarios)
             temporal_min_frames = 3 if detection_source == "thermal" else 2

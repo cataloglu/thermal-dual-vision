@@ -729,7 +729,9 @@ class DetectorWorker:
                     current_area = int(self.motion_state.get(camera_id, {}).get("thermal_motion_area_raw", 0))
                     prev_area = int(self.last_motion_area.get(camera_id, current_area))
                     min_wakeup_area = max(1200, int(getattr(config.motion, "min_area", 0)) * 3)
-                    probe_interval_secs = max(1.0, min(5.0, suppression_secs / 6.0))
+                    # Probe every 2s during suppression (was 5s) — reduces missed walk-throughs
+                    # when multiple cameras share inference; 4 cams = ~0.5s per camera.
+                    probe_interval_secs = max(1.0, min(5.0, suppression_secs / 15.0))
                     suppression_active = current_time < suppressed_ts
                     if current_time < suppressed_ts:
                         last_probe = float(self.last_suppression_probe.get(camera_id, 0.0))
@@ -740,7 +742,10 @@ class DetectorWorker:
                             wakeup_ratio=wakeup_ratio,
                             min_wakeup_area=min_wakeup_area,
                         )
-                        if wakeup_candidate and probe_due:
+                        # Run inference when wakeup_candidate (area jump) OR probe_due (periodic).
+                        # Previously: wakeup_candidate required probe_due, so we skipped inference
+                        # when a person entered during suppression if probe_due was false.
+                        if wakeup_candidate:
                             suppression_wakeup_candidate = True
                             suppression_candidate_area = current_area
                             suppression_candidate_prev = prev_area
@@ -748,17 +753,7 @@ class DetectorWorker:
                                 float(current_area) / float(max(prev_area, 1))
                             )
                             self.last_suppression_probe[camera_id] = current_time
-                        else:
-                            if not probe_due:
-                                self.last_motion_area[camera_id] = current_area
-                                self._update_frame_buffer(
-                                    camera_id=camera_id,
-                                    frame=frame,
-                                    detections=[],
-                                    frame_interval=frame_interval,
-                                    buffer_size=buffer_size,
-                                )
-                                continue
+                        elif probe_due:
                             self.last_suppression_probe[camera_id] = current_time
                             logger.debug(
                                 "DETECT camera=%s suppression_probe area=%s prev=%s",
@@ -766,8 +761,16 @@ class DetectorWorker:
                                 current_area,
                                 prev_area,
                             )
-                            # Probe inference once to avoid missing real humans
-                            # that don't produce an instant large motion jump.
+                        else:
+                            self.last_motion_area[camera_id] = current_area
+                            self._update_frame_buffer(
+                                camera_id=camera_id,
+                                frame=frame,
+                                detections=[],
+                                frame_interval=frame_interval,
+                                buffer_size=buffer_size,
+                            )
+                            continue
                     self.last_motion_area[camera_id] = current_area
 
                 # Preprocess frame

@@ -322,6 +322,23 @@ def test_thermal_suppression_wakeup_gradual_trigger():
     ) is False
 
 
+def test_thermal_suppression_wakeup_no_false_positive():
+    """Suppression should NOT wake when area is below thresholds."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    assert worker._should_wakeup_thermal_suppression(
+        current_area=0,
+        prev_area=500,
+        wakeup_ratio=2.5,
+        min_wakeup_area=1200,
+    ) is False
+    assert worker._should_wakeup_thermal_suppression(
+        current_area=800,
+        prev_area=400,
+        wakeup_ratio=2.5,
+        min_wakeup_area=1200,
+    ) is False
+
+
 def test_detect_static_phantom_event_true():
     """Highly duplicate low-confidence static bbox stream should be marked phantom."""
     worker = DetectorWorker.__new__(DetectorWorker)
