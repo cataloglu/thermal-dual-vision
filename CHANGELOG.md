@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.52] - 2026-02-28
+
+### Düzeltmeler
+
+- **Boş sahne false-positive (0.52–0.64) bloklandı**: Multi-camera durumunda static guard artık low-confidence thermal kutuları otomatik geçirmez; confidence floor altı evente gitmez.
+- **Static guard bypass kapatıldı**: Çoklu kamera hareketinde guard’ın tamamen devreden çıkması engellendi, düşük güvenli statik hayalet kutular filtreleniyor.
+- **Thread/MP parity iyileştirildi**: Aynı low-confidence bloklama kuralı multiprocessing worker’a da taşındı.
+
 ## [4.0.51] - 2026-02-28
 
 ### Düzeltmeler

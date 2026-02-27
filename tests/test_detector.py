@@ -459,8 +459,22 @@ def test_thermal_static_guard_blocks_static_weak_motion_on_idle_scene():
     ) is False
 
 
+def test_thermal_static_guard_blocks_low_conf_false_positives():
+    """Low-conf (0.52-0.64) thermal ghosts should be blocked even with multi-cam motion."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    for conf in (0.52, 0.58, 0.64):
+        frames = [[{"bbox": [120, 70, 170, 230], "confidence": conf}] for _ in range(5)]
+        assert worker._passes_thermal_static_event_guard(
+            detection_frames=frames,
+            motion_area_now=1200,
+            active_motion_cameras=4,
+            confidence_threshold=0.55,
+            base_min_area=260,
+        ) is False, f"conf={conf} should be blocked"
+
+
 def test_thermal_static_guard_allows_moving_track_or_multi_camera_load():
-    """Guard should allow moving tracks and stay relaxed on concurrent load."""
+    """Guard should allow moving tracks and block low-conf static ghosts even with multi-cam."""
     worker = DetectorWorker.__new__(DetectorWorker)
     moving_frames = [
         [{"bbox": [120 + (i * 9), 70, 170 + (i * 9), 230], "confidence": 0.62}]
@@ -474,12 +488,26 @@ def test_thermal_static_guard_allows_moving_track_or_multi_camera_load():
         base_min_area=260,
     ) is True
 
-    static_frames = [
+    # Low-conf (0.62) static ghost with multi-cam: blocked by confidence floor 0.65
+    static_frames_low_conf = [
         [{"bbox": [120, 70, 170, 230], "confidence": 0.62}]
         for _ in range(5)
     ]
     assert worker._passes_thermal_static_event_guard(
-        detection_frames=static_frames,
+        detection_frames=static_frames_low_conf,
+        motion_area_now=850,
+        active_motion_cameras=3,
+        confidence_threshold=0.55,
+        base_min_area=260,
+    ) is False
+
+    # Higher-conf (0.68) static with multi-cam: passes floor
+    static_frames_high_conf = [
+        [{"bbox": [120, 70, 170, 230], "confidence": 0.68}]
+        for _ in range(5)
+    ]
+    assert worker._passes_thermal_static_event_guard(
+        detection_frames=static_frames_high_conf,
         motion_area_now=850,
         active_motion_cameras=3,
         confidence_threshold=0.55,
