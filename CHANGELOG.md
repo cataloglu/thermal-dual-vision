@@ -6,6 +6,13 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.42] - 2026-02-27
+
+### Düzeltmeler
+
+- **Thermal suppression wake-up thrash düzeltildi**: `suppression_wakeup` artık probe interval'ini bypass etmiyor; suppression yalnızca probe'da gerçek detection oluşursa kaldırılıyor. Böylece wake-up görünüp anında tekrar suppress olma döngüsü kesildi.
+- **Saha takibi kolaylaştırıldı**: suppression kaldırma logları `suppression_wakeup_confirmed` / `suppression_probe_confirmed` olarak netleştirildi; "aday wake-up" ile "gerçek recover" ayrımı belirgin.
+
 ## [4.0.41] - 2026-02-27
 
 ### Düzeltmeler
