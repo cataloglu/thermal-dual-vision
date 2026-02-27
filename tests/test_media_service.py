@@ -369,3 +369,40 @@ def test_ensure_user_collage_quality_repairs_legacy_ai_collage(tmp_path, monkeyp
     expected_h = service.media_worker.COLLAGE_FRAME_SIZE[1] * service.media_worker.COLLAGE_GRID[1]
     expected_w = service.media_worker.COLLAGE_FRAME_SIZE[0] * service.media_worker.COLLAGE_GRID[0]
     assert repaired.shape[:2] == (expected_h, expected_w)
+
+
+def test_ensure_user_collage_quality_uses_recording_fallback_when_mp4_missing(tmp_path, monkeypatch):
+    media_root = tmp_path / "media"
+    event_id = "event-legacy-ai-collage-2"
+    event_dir = media_root / event_id
+    event_dir.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(media_service.MediaService, "MEDIA_DIR", media_root)
+    service = media_service.MediaService()
+
+    ai_w = service.media_worker.AI_COLLAGE_FRAME_SIZE[0] * service.media_worker.AI_COLLAGE_GRID[0]
+    ai_h = service.media_worker.AI_COLLAGE_FRAME_SIZE[1] * service.media_worker.AI_COLLAGE_GRID[1]
+    legacy_ai_collage = np.full((ai_h, ai_w, 3), 18, dtype=np.uint8)
+    cv2.imwrite(str(event_dir / "collage.jpg"), legacy_ai_collage)
+
+    rebuilt_frames = [np.full((480, 640, 3), 20 + i * 12, dtype=np.uint8) for i in range(7)]
+    monkeypatch.setattr(
+        service,
+        "_extract_frames_from_mp4",
+        lambda _path, max_frames=18: [],
+    )
+    monkeypatch.setattr(
+        service,
+        "_extract_frames_from_recording",
+        lambda _event_id, max_frames=18, prebuffer_seconds=5.0, postbuffer_seconds=2.0: rebuilt_frames,
+    )
+
+    result = service.ensure_user_collage_quality(event_id, camera_name="Repair Cam")
+    assert result is not None
+    assert result.exists()
+
+    repaired = cv2.imread(str(result))
+    assert repaired is not None
+    expected_h = service.media_worker.COLLAGE_FRAME_SIZE[1] * service.media_worker.COLLAGE_GRID[1]
+    expected_w = service.media_worker.COLLAGE_FRAME_SIZE[0] * service.media_worker.COLLAGE_GRID[0]
+    assert repaired.shape[:2] == (expected_h, expected_w)
