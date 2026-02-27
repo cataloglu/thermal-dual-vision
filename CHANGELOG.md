@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.45] - 2026-02-27
+
+### Düzeltmeler
+
+- **Eşzamanlı kamera hareketinde kaçırma azaltıldı**: Thermal suppression probe aralığı artık çoklu aktif kamerada adaptif olarak sıklaşıyor; kısa süreli eşzamanlı geçişlerin kaçma riski düşürüldü.
+- **Thermal temporal gate adaptif hale getirildi**: Çoklu aktif kamera yükünde temporal gereksinim kontrollü gevşetildi (yalnızca contention durumunda), gerçek kişi geçişlerinde yakalama oranı artırıldı.
+- **Thermal recovery eşiği iyileştirildi**: Çoklu kamera hareketinde recovery confidence/motion alan koşulları hafifletilerek tek-kamera davranışı korunurken yoğun sahnede kaçırma azaltıldı.
+
 ## [4.0.44] - 2026-02-27
 
 ### Düzeltmeler
