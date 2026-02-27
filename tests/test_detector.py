@@ -488,7 +488,7 @@ def test_thermal_static_guard_allows_moving_track_or_multi_camera_load():
         base_min_area=260,
     ) is True
 
-    # Low-conf (0.62) static ghost with multi-cam: blocked by confidence floor 0.65
+    # Low-conf static ghost with multi-cam remains blocked.
     static_frames_low_conf = [
         [{"bbox": [120, 70, 170, 230], "confidence": 0.62}]
         for _ in range(5)
@@ -501,14 +501,27 @@ def test_thermal_static_guard_allows_moving_track_or_multi_camera_load():
         base_min_area=260,
     ) is False
 
-    # Higher-conf (0.68) static with multi-cam: passes floor
-    static_frames_high_conf = [
+    # Mid-conf static ghost is still blocked even if motion area is elevated.
+    static_frames_mid_conf = [
         [{"bbox": [120, 70, 170, 230], "confidence": 0.68}]
         for _ in range(5)
     ]
     assert worker._passes_thermal_static_event_guard(
+        detection_frames=static_frames_mid_conf,
+        motion_area_now=2200,
+        active_motion_cameras=3,
+        confidence_threshold=0.55,
+        base_min_area=260,
+    ) is False
+
+    # High-confidence static box can pass only with strong motion evidence.
+    static_frames_high_conf = [
+        [{"bbox": [120, 70, 170, 230], "confidence": 0.82}]
+        for _ in range(5)
+    ]
+    assert worker._passes_thermal_static_event_guard(
         detection_frames=static_frames_high_conf,
-        motion_area_now=850,
+        motion_area_now=2200,
         active_motion_cameras=3,
         confidence_threshold=0.55,
         base_min_area=260,

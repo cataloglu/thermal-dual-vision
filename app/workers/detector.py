@@ -392,29 +392,29 @@ class DetectorWorker:
         """
         Block static thermal ghosts on idle scenes while preserving multi-cam recall.
 
-        When only one camera appears active, require either:
-        - meaningful bbox travel over recent frames, OR
-        - very strong confidence + strong motion area.
-
-        When multiple cameras have motion, do NOT bypass entirely: require minimum
-        confidence floor (0.65) to block low-conf thermal ghosts (0.52-0.64) that
-        survive temporal gate but show no visible human.
+        Require meaningful bbox travel for low/mid confidence tracks.
+        Static tracks can pass only with strong confidence + strong motion area.
         """
         current_dets = detection_frames[-1] if detection_frames else []
         best_conf = max((float(det.get("confidence", 0.0)) for det in current_dets), default=0.0)
         min_conf_floor = max(float(confidence_threshold) + 0.12, 0.65)
-
-        if active_motion_cameras >= 2:
-            if best_conf >= min_conf_floor:
-                return True
-            # Fall through to spread/strong check — do not bypass for low-conf ghosts
-
         spread = cls._thermal_bbox_center_spread(detection_frames=detection_frames, sample_frames=5)
-        if spread >= 6.0:
+
+        # For low-confidence static boxes, fail fast.
+        if best_conf < min_conf_floor and spread < 8.0:
+            return False
+
+        # Real walk-throughs should move bbox center across recent frames.
+        if spread >= 8.0:
             return True
 
-        strong_conf = max(float(confidence_threshold) + 0.25, 0.85)
-        strong_motion = max(1600, int(base_min_area) * 4)
+        # Static box acceptance requires stronger evidence.
+        if active_motion_cameras >= 2:
+            strong_conf = max(float(confidence_threshold) + 0.18, 0.75)
+            strong_motion = max(1600, int(base_min_area) * 4)
+        else:
+            strong_conf = max(float(confidence_threshold) + 0.25, 0.85)
+            strong_motion = max(1800, int(base_min_area) * 5)
         return best_conf >= strong_conf and int(motion_area_now) >= strong_motion
 
     @staticmethod

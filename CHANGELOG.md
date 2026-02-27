@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.54] - 2026-02-28
+
+### Düzeltmeler
+
+- **Kolajdaki statik kutu pattern’i için guard sıkılaştırıldı**: Multi-camera durumda da statik bbox artık otomatik geçmez; düşük/orta confidence için hareket (center spread) zorunlu hale getirildi.
+- **Static ghost eşiği güncellendi**: Bbox center spread eşiği 8 px’e yükseltildi; “aynı noktada titreyen kutu” evente daha zor düşer.
+- **Thread/MP parity korundu**: Aynı sıkılaştırılmış static-guard kuralı multiprocessing worker’a da uygulandı.
+
 ## [4.0.53] - 2026-02-28
 
 ### Düzeltmeler
