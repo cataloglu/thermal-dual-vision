@@ -315,10 +315,10 @@ class DetectorWorker:
         """
         cap = max(200, int(configured_ceiling))
         if active_motion_cameras >= 4:
-            return min(cap, 900)
+            return min(cap, 700)
         if active_motion_cameras >= 2:
-            return min(cap, 1100)
-        return min(cap, 1500)
+            return min(cap, 850)
+        return min(cap, 1100)
 
     @staticmethod
     def _thermal_temporal_policy(
@@ -2482,7 +2482,8 @@ class DetectorWorker:
             return None
 
         max_conf = max(float(det.get("confidence", 0.0)) for det in dets_with_bbox)
-        if max_conf >= 0.72:
+        # Keep medium/high-confidence hits for review; only drop clearly weak ghosts.
+        if max_conf >= 0.64:
             return None
 
         centers_x: List[float] = []
@@ -2494,11 +2495,12 @@ class DetectorWorker:
 
         x_spread = max(centers_x) - min(centers_x) if centers_x else 9999.0
         y_spread = max(centers_y) - min(centers_y) if centers_y else 9999.0
-        if max(x_spread, y_spread) > 24.0:
+        # True walk-throughs usually travel more than a tiny jitter window.
+        if max(x_spread, y_spread) > 10.0:
             return None
 
         dup_ratio = self._estimate_frame_duplicate_ratio(frames)
-        if dup_ratio < 0.96:
+        if dup_ratio < 0.985:
             return None
 
         return {

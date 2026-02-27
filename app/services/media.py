@@ -367,7 +367,9 @@ class MediaService:
                     if is_duplicate_reason:
                         try:
                             dup_val = float(reason.split("duplicate:")[1].rstrip("%"))
-                            if dup_val >= 85.0:
+                            # Conservative cleanup: only delete when both duplicate ratio
+                            # is extreme and detector confidence is low.
+                            if dup_val >= 98.5 and float(getattr(event, "confidence", 0.0) or 0.0) < 0.62:
                                 db.delete(event)
                                 db.commit()
                                 import shutil
