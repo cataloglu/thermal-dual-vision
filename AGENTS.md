@@ -46,3 +46,28 @@ When changes are intended to reach Home Assistant users as an addon update:
    - Add-on Store → 3 dots → **Reload**
    - **Check for updates**
 5. In final report, always state merge state + effective `master` version to avoid ambiguity.
+
+#### Required release verification commands
+
+- `git fetch origin master && git show origin/master:config.yaml | rg "version:"`
+- `curl -sL https://raw.githubusercontent.com/cataloglu/thermal-dual-vision/master/config.yaml | rg "version:"`
+
+#### If PR creation is blocked by token scope
+
+If `gh pr create` fails with `Resource not accessible by integration`, try direct merge API:
+
+- `gh api -X POST repos/cataloglu/thermal-dual-vision/merges -f base='master' -f head='cursor/termal-kamera-alg-lama-ayarlar-4dc2' -f commit_message='Merge release fixes into master'`
+
+Then re-run required release verification commands above.
+
+#### Stubborn HA store cache (still no update visible)
+
+Tell user to do all steps in order:
+
+1. Add-on Store → 3 dots → **Repositories**
+2. Remove `https://github.com/cataloglu/thermal-dual-vision`
+3. Add the same repository URL again
+4. 3 dots → **Reload**
+5. **Check for updates**
+6. Browser hard refresh (`Ctrl+F5`)
+7. If still missing: restart Home Assistant once
