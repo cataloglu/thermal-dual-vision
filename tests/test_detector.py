@@ -587,7 +587,7 @@ def test_thermal_static_guard_allows_moving_track_or_multi_camera_load():
 
     # Mid confidence moving track should pass when movement signature is clear.
     moving_mid_conf = [
-        [{"bbox": [120 + (i * 12), 70, 170 + (i * 12), 230], "confidence": 0.69}]
+        [{"bbox": [120 + (i * 12), 70, 170 + (i * 12), 230], "confidence": 0.70}]
         for i in range(5)
     ]
     assert worker._passes_thermal_static_event_guard(
