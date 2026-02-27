@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.46] - 2026-02-27
+
+### Düzeltmeler
+
+- **Thermal motion gate tavanı adaptif kısıtlandı**: Auto-learned `min_area` artık thermal akışta eşzamanlı kamera yükünde daha düşük üst sınırla çalışır; `min=1800` benzeri runaway eşiğin kısa/uzak kişi geçişlerini kaçırması azaltıldı.
+- **Concurrent thermal temporal recovery gevşetildi**: Çoklu aktif kamerada temporal recovery confidence ve gap politikası bir kademe daha toleranslı hale getirildi; suppression probe üstünden gelen kısa person hit’leri event’e dönüşmede daha az elenir.
+- **Thermal kalite filtresi çoklu kamera yükünde esnetildi**: Multi-cam sahnede küçük bbox’ların (uzak kişi) kalite kapısından düşme oranı azaltıldı.
+
 ## [4.0.45] - 2026-02-27
 
 ### Düzeltmeler

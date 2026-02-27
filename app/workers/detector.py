@@ -303,13 +303,33 @@ class DetectorWorker:
         return base_interval
 
     @staticmethod
+    def _thermal_auto_min_area_cap(
+        configured_ceiling: int,
+        active_motion_cameras: int,
+    ) -> int:
+        """
+        Cap thermal auto min-area so learned thresholds don't drift too high.
+
+        Multi-camera concurrent motion needs lower caps to keep short/far person
+        walk-throughs from being filtered out by the motion gate.
+        """
+        cap = max(200, int(configured_ceiling))
+        if active_motion_cameras >= 4:
+            return min(cap, 900)
+        if active_motion_cameras >= 2:
+            return min(cap, 1100)
+        return min(cap, 1500)
+
+    @staticmethod
     def _thermal_temporal_policy(
         confidence_threshold: float,
         active_motion_cameras: int,
     ) -> Tuple[int, int, float]:
         """Adaptive temporal gate for thermal detections under concurrent load."""
+        if active_motion_cameras >= 4:
+            return 2, 2, max(float(confidence_threshold) + 0.02, 0.50)
         if active_motion_cameras >= 2:
-            return 2, 1, max(float(confidence_threshold) + 0.05, 0.60)
+            return 2, 1, max(float(confidence_threshold) + 0.03, 0.52)
         return 3, 1, max(float(confidence_threshold) + 0.10, 0.65)
 
     def _reset_motion_buffers(self, camera_id: str, prebuffer_seconds: float) -> None:
@@ -891,6 +911,11 @@ class DetectorWorker:
                 thermal_conf_floor = confidence_threshold
                 thermal_min_area_ratio = 0.0018
                 thermal_min_height_ratio = 0.06
+                if detection_source == "thermal" and active_motion_cameras >= 2:
+                    # Concurrent thermal load: keep quality gates slightly looser
+                    # to reduce misses on smaller/farther person boxes.
+                    thermal_min_area_ratio = 0.0014
+                    thermal_min_height_ratio = 0.05
                 if detection_source == "thermal" and detections_after_ar > 0:
                     frame_h, frame_w = frame.shape[:2]
                     frame_area = float(max(frame_h * frame_w, 1))
@@ -1925,6 +1950,7 @@ class DetectorWorker:
             camera_type == "thermal"
             or str(motion_settings.get("pipeline", "")).lower() == "thermal_iir"
         )
+        active_motion_cameras = self._count_active_motion_cameras() if is_thermal_motion else 0
         effective_algorithm = algorithm
 
         thermal_floor = int(motion_settings.get("thermal_min_area_floor", 260)) if is_thermal_motion else 0
@@ -1962,6 +1988,15 @@ class DetectorWorker:
             update_seconds = int(motion_settings.get("auto_update_seconds", getattr(config.motion, "auto_update_seconds", 10)))
             floor = max(0, floor)
             ceiling = max(floor + 1, ceiling)
+            if is_thermal_motion:
+                thermal_cap_default = self._thermal_auto_min_area_cap(
+                    configured_ceiling=ceiling,
+                    active_motion_cameras=active_motion_cameras,
+                )
+                thermal_ceiling = int(
+                    motion_settings.get("thermal_auto_min_area_ceiling", thermal_cap_default)
+                )
+                ceiling = max(floor + 1, min(ceiling, thermal_ceiling))
             multiplier = max(1.0, multiplier)
             floor = int(max(0, floor * float(profile_cfg["floor_boost"])))
             update_seconds = int(max(2, update_seconds * float(profile_cfg["update_mul"])))
