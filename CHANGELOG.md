@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.49] - 2026-02-27
+
+### Düzeltmeler
+
+- **Suppression tekrar tetikleme döngüsü gevşetildi**: Çoklu aktif kamerada thermal suppression artık daha geç devreye girer (daha yüksek empty streak) ve daha kısa sürer; sürekli `inference_suppressed` döngüsünün gerçek geçişleri bastırması azaltıldı.
+- **Aktif kamera sayımı düzeltmesi devreye alındı**: Adaptif suppression politikasının çoklu kamera yükünü gerçekten dikkate alması garanti altına alındı (`motion_active` state).
+- **Phantom/duplicate silme tarafı korunarak daha güvenli bırakıldı**: Orta confidence gerçek olayların tutulması korunur, sadece aşırı duplicate + çok düşük confidence olaylar silinir.
+
 ## [4.0.48] - 2026-02-27
 
 ### Düzeltmeler

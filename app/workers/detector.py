@@ -336,6 +336,26 @@ class DetectorWorker:
             return 2, 1, max(float(confidence_threshold) + 0.03, 0.52)
         return 3, 1, max(float(confidence_threshold) + 0.10, 0.65)
 
+    @staticmethod
+    def _thermal_suppression_policy(
+        base_streak: int,
+        base_duration_secs: int,
+        active_motion_cameras: int,
+    ) -> Tuple[int, int]:
+        """
+        Adaptive suppression policy for thermal streams under concurrent load.
+
+        Multi-camera scenarios prioritize recall: require longer empty streaks
+        before suppressing, and keep suppression windows shorter.
+        """
+        streak = max(5, int(base_streak))
+        duration = max(5, int(base_duration_secs))
+        if active_motion_cameras >= 4:
+            return max(streak * 4, 60), min(duration, 8)
+        if active_motion_cameras >= 2:
+            return max(streak * 3, 45), min(duration, 12)
+        return streak, duration
+
     def _reset_motion_buffers(self, camera_id: str, prebuffer_seconds: float) -> None:
         # Always acquire frame lock before video lock to prevent deadlock
         frame_lock = self.frame_buffer_locks[camera_id]
@@ -781,12 +801,29 @@ class DetectorWorker:
                 suppression_candidate_prev = 0
                 suppression_candidate_ratio = 0.0
                 active_motion_cameras = self._count_active_motion_cameras()
+                thermal_suppression_streak = int(
+                    getattr(config.motion, "thermal_suppression_streak", 15)
+                )
+                thermal_suppression_secs = int(
+                    getattr(config.motion, "thermal_suppression_duration", 30)
+                )
+                if detection_source == "thermal" and getattr(
+                    config.motion, "thermal_suppression_enabled", True
+                ):
+                    (
+                        thermal_suppression_streak,
+                        thermal_suppression_secs,
+                    ) = self._thermal_suppression_policy(
+                        base_streak=thermal_suppression_streak,
+                        base_duration_secs=thermal_suppression_secs,
+                        active_motion_cameras=active_motion_cameras,
+                    )
 
                 # Thermal inference suppression: if YOLO returned empty N times
                 # in a row, skip inference until motion area increases significantly.
                 if detection_source == "thermal" and getattr(config.motion, "thermal_suppression_enabled", True):
                     wakeup_ratio = float(getattr(config.motion, "thermal_suppression_wakeup_ratio", 2.5))
-                    suppression_secs = int(getattr(config.motion, "thermal_suppression_duration", 30))
+                    suppression_secs = thermal_suppression_secs
                     suppressed_ts = self.suppressed_until.get(camera_id, 0.0)
                     current_area = int(self.motion_state.get(camera_id, {}).get("thermal_motion_area_raw", 0))
                     prev_area = int(self.last_motion_area.get(camera_id, current_area))
@@ -1034,8 +1071,8 @@ class DetectorWorker:
                         continue
                     self.event_start_time[camera_id] = None
                     if detection_source == "thermal" and getattr(config.motion, "thermal_suppression_enabled", True):
-                        streak_limit = int(getattr(config.motion, "thermal_suppression_streak", 15))
-                        suppression_secs = int(getattr(config.motion, "thermal_suppression_duration", 30))
+                        streak_limit = thermal_suppression_streak
+                        suppression_secs = thermal_suppression_secs
                         self.empty_inference_streak[camera_id] = self.empty_inference_streak.get(camera_id, 0) + 1
                         if self.empty_inference_streak[camera_id] >= streak_limit:
                             self.suppressed_until[camera_id] = current_time + float(suppression_secs)

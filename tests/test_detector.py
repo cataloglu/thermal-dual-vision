@@ -396,6 +396,26 @@ def test_thermal_temporal_policy_relaxes_under_multi_camera_motion():
     assert recovery_conf_very_busy <= recovery_conf_busy
 
 
+def test_thermal_suppression_policy_delays_suppression_under_load():
+    """Suppression should trigger later and shorter under concurrent load."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    streak_single, secs_single = worker._thermal_suppression_policy(15, 30, active_motion_cameras=1)
+    assert streak_single == 15
+    assert secs_single == 30
+
+    streak_busy, secs_busy = worker._thermal_suppression_policy(15, 30, active_motion_cameras=2)
+    assert streak_busy >= 45
+    assert secs_busy <= 12
+
+    streak_very_busy, secs_very_busy = worker._thermal_suppression_policy(
+        15,
+        30,
+        active_motion_cameras=4,
+    )
+    assert streak_very_busy >= streak_busy
+    assert secs_very_busy <= secs_busy
+
+
 def test_detect_static_phantom_event_true():
     """Highly duplicate low-confidence static bbox stream should be marked phantom."""
     worker = DetectorWorker.__new__(DetectorWorker)
