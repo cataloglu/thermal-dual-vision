@@ -846,10 +846,11 @@ def camera_detection_process(
             if best_conf < min_conf_floor and (spread < 12.0 or median_iou > 0.88):
                 return False
 
+            movement_conf_floor = max(min_conf_floor, 0.68)
             if (
                 spread >= 12.0
                 and median_iou <= 0.88
-                and best_conf >= max(min_conf_floor, 0.68)
+                and (best_conf + 1e-6) >= movement_conf_floor
                 and int(motion_area_now) >= max(800, int(base_min_area) * 3)
             ):
                 return True
