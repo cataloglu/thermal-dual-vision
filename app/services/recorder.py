@@ -8,6 +8,7 @@ Recording segment filenames use UTC (TZ=UTC) for consistency with event timestam
 """
 import logging
 import os
+import errno
 import shutil
 import subprocess
 import tempfile
@@ -445,13 +446,13 @@ class ContinuousRecorder:
             else:
                 logger.warning("FFmpeg extraction failed (rc=%s): %s", result.returncode, stderr[:200])
             return False
-        except FileNotFoundError as e:
-            logger.debug(
-                "Extract clip skipped: output path vanished during extraction (%s)",
-                e,
-            )
-            return False
         except Exception as e:
+            if isinstance(e, OSError) and getattr(e, "errno", None) == errno.ENOENT:
+                logger.debug(
+                    "Extract clip skipped: output path vanished during extraction (%s)",
+                    e,
+                )
+                return False
             logger.warning("Extract clip failed: %s", e)
             return False
         finally:
@@ -551,13 +552,13 @@ class ContinuousRecorder:
                 result.stderr.decode(errors="ignore")[:300],
             )
             return False
-        except FileNotFoundError as e:
-            logger.debug(
-                "Multi-segment extract skipped: output path vanished during extraction (%s)",
-                e,
-            )
-            return False
         except Exception as e:
+            if isinstance(e, OSError) and getattr(e, "errno", None) == errno.ENOENT:
+                logger.debug(
+                    "Multi-segment extract skipped: output path vanished during extraction (%s)",
+                    e,
+                )
+                return False
             logger.error("Multi-segment extraction error: %s", e)
             return False
         finally:
