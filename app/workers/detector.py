@@ -117,6 +117,9 @@ class DetectorWorker:
         self.suppressed_until: Dict[str, float] = {}
         self.last_motion_area: Dict[str, int] = defaultdict(int)
         self.last_suppression_probe: Dict[str, float] = {}
+        self.suppression_rearm_until: Dict[str, float] = {}
+        self.thermal_motion_peak_area: Dict[str, int] = defaultdict(int)
+        self.thermal_motion_peak_ts: Dict[str, float] = {}
         self.last_relaxed_infer_time: Dict[str, float] = {}
         self.stale_gate_hits: Dict[str, int] = defaultdict(int)
         self.last_reconnect_ts: Dict[str, float] = {}
@@ -203,6 +206,9 @@ class DetectorWorker:
         self.latest_frame_locks.clear()
         self.stale_gate_hits.clear()
         self.last_suppression_probe.clear()
+        self.suppression_rearm_until.clear()
+        self.thermal_motion_peak_area.clear()
+        self.thermal_motion_peak_ts.clear()
         self.last_reconnect_ts.clear()
         logger.info("DetectorWorker stopped")
     
@@ -247,6 +253,9 @@ class DetectorWorker:
         self.suppressed_until.pop(camera_id, None)
         self.last_motion_area.pop(camera_id, None)
         self.last_suppression_probe.pop(camera_id, None)
+        self.suppression_rearm_until.pop(camera_id, None)
+        self.thermal_motion_peak_area.pop(camera_id, None)
+        self.thermal_motion_peak_ts.pop(camera_id, None)
         self.last_reconnect_ts.pop(camera_id, None)
         self.ffmpeg_frame_shapes.pop(camera_id, None)
         with self.ffmpeg_error_lock:
@@ -607,6 +616,58 @@ class DetectorWorker:
         else:
             hold_floor = max(800, int(adaptive_min * 1.10))
         return area >= hold_floor
+
+    @staticmethod
+    def _thermal_suppression_rearm_seconds(active_motion_cameras: int) -> float:
+        """Grace window before suppression can re-arm again."""
+        if active_motion_cameras >= 4:
+            return 26.0
+        if active_motion_cameras >= 2:
+            return 22.0
+        return 16.0
+
+    def _update_thermal_motion_peak(
+        self,
+        camera_id: str,
+        current_area: int,
+        now_ts: float,
+        window_seconds: float = 6.0,
+    ) -> None:
+        """Track short-lived thermal area peaks to smooth single-frame dips."""
+        area_map = getattr(self, "thermal_motion_peak_area", None)
+        ts_map = getattr(self, "thermal_motion_peak_ts", None)
+        if area_map is None or ts_map is None:
+            self.thermal_motion_peak_area = defaultdict(int)
+            self.thermal_motion_peak_ts = {}
+            area_map = self.thermal_motion_peak_area
+            ts_map = self.thermal_motion_peak_ts
+        area = max(0, int(current_area))
+        if area <= 0:
+            return
+        prev_ts = float(ts_map.get(camera_id, 0.0))
+        prev_peak = int(area_map.get(camera_id, 0))
+        if prev_ts <= 0.0 or (now_ts - prev_ts) > float(max(1.0, window_seconds)):
+            area_map[camera_id] = area
+        else:
+            area_map[camera_id] = max(prev_peak, area)
+        ts_map[camera_id] = float(now_ts)
+
+    def _effective_thermal_motion_area(
+        self,
+        camera_id: str,
+        current_area: int,
+        now_ts: float,
+        window_seconds: float = 6.0,
+    ) -> int:
+        """Blend current area with recent peak to avoid jitter-driven drops."""
+        area = max(0, int(current_area))
+        area_map = getattr(self, "thermal_motion_peak_area", {}) or {}
+        ts_map = getattr(self, "thermal_motion_peak_ts", {}) or {}
+        peak_ts = float(ts_map.get(camera_id, 0.0))
+        if peak_ts <= 0.0 or (now_ts - peak_ts) > float(max(1.0, window_seconds)):
+            return area
+        peak = int(area_map.get(camera_id, 0))
+        return max(area, int(peak * 0.85))
 
     def _reset_motion_buffers(self, camera_id: str, prebuffer_seconds: float) -> None:
         # Always acquire frame lock before video lock to prevent deadlock
@@ -1079,11 +1140,20 @@ class DetectorWorker:
                     suppressed_ts = self.suppressed_until.get(camera_id, 0.0)
                     current_area = int(self.motion_state.get(camera_id, {}).get("thermal_motion_area_raw", 0))
                     prev_area = int(self.last_motion_area.get(camera_id, current_area))
+                    self._update_thermal_motion_peak(
+                        camera_id=camera_id,
+                        current_area=current_area,
+                        now_ts=current_time,
+                    )
                     min_wakeup_area = max(1200, int(getattr(config.motion, "min_area", 0)) * 3)
                     probe_interval_secs = self._thermal_probe_interval_seconds(
                         suppression_secs=suppression_secs,
                         active_motion_cameras=active_motion_cameras,
                     )
+                    rearm_until = float(self.suppression_rearm_until.get(camera_id, 0.0))
+                    if current_time < rearm_until and current_time < float(suppressed_ts):
+                        self.suppressed_until.pop(camera_id, None)
+                        suppressed_ts = 0.0
                     suppression_active = current_time < suppressed_ts
                     if current_time < suppressed_ts:
                         last_probe = float(self.last_suppression_probe.get(camera_id, 0.0))
@@ -1286,6 +1356,9 @@ class DetectorWorker:
                     self.suppressed_until.pop(camera_id, None)
                     self.empty_inference_streak[camera_id] = 0
                     self.last_suppression_probe.pop(camera_id, None)
+                    self.suppression_rearm_until[camera_id] = current_time + float(
+                        self._thermal_suppression_rearm_seconds(active_motion_cameras)
+                    )
                     if suppression_wakeup_candidate:
                         logger.info(
                             "DETECT camera=%s suppression_wakeup_confirmed area=%s prev=%s growth=%.2f detections=%s",
@@ -1334,28 +1407,37 @@ class DetectorWorker:
                             )
                             or int(getattr(config.motion, "min_area", 0))
                         )
-                        if self._should_hold_thermal_suppression_for_motion(
-                            current_area=current_area,
-                            adaptive_min_area=adaptive_min_area,
-                            active_motion_cameras=active_motion_cameras,
-                        ):
-                            self.empty_inference_streak[camera_id] = max(
-                                0,
-                                self.empty_inference_streak.get(camera_id, 0) - 1,
-                            )
+                        rearm_until = float(self.suppression_rearm_until.get(camera_id, 0.0))
+                        if current_time < rearm_until:
+                            self.empty_inference_streak[camera_id] = 0
                         else:
-                            self.empty_inference_streak[camera_id] = (
-                                self.empty_inference_streak.get(camera_id, 0) + 1
+                            effective_area = self._effective_thermal_motion_area(
+                                camera_id=camera_id,
+                                current_area=current_area,
+                                now_ts=current_time,
                             )
-                            if self.empty_inference_streak[camera_id] >= streak_limit:
-                                self.suppressed_until[camera_id] = current_time + float(suppression_secs)
-                                self.empty_inference_streak[camera_id] = 0
-                                self.last_suppression_probe[camera_id] = current_time
-                                self.last_motion_area[camera_id] = current_area
-                                logger.info(
-                                    "DETECT camera=%s inference_suppressed for %ds (%d consecutive empty results)",
-                                    camera_id, suppression_secs, streak_limit,
+                            if self._should_hold_thermal_suppression_for_motion(
+                                current_area=effective_area,
+                                adaptive_min_area=adaptive_min_area,
+                                active_motion_cameras=active_motion_cameras,
+                            ):
+                                self.empty_inference_streak[camera_id] = max(
+                                    0,
+                                    self.empty_inference_streak.get(camera_id, 0) - 1,
                                 )
+                            else:
+                                self.empty_inference_streak[camera_id] = (
+                                    self.empty_inference_streak.get(camera_id, 0) + 1
+                                )
+                                if self.empty_inference_streak[camera_id] >= streak_limit:
+                                    self.suppressed_until[camera_id] = current_time + float(suppression_secs)
+                                    self.empty_inference_streak[camera_id] = 0
+                                    self.last_suppression_probe[camera_id] = current_time
+                                    self.last_motion_area[camera_id] = current_area
+                                    logger.info(
+                                        "DETECT camera=%s inference_suppressed for %ds (%d consecutive empty results)",
+                                        camera_id, suppression_secs, streak_limit,
+                                    )
                     _log_gate("no_detections")
                     continue
                 self.no_detection_streak[camera_id] = 0
@@ -1858,6 +1940,8 @@ class DetectorWorker:
 
             self._start_ffmpeg_stderr_reader(process, camera_id)
             if is_reconnect:
+                if camera_id:
+                    self.suppression_rearm_until[camera_id] = time.time() + 20.0
                 logger.info("Reconnected camera %s (ffmpeg backend)", camera_id)
             else:
                 logger.info("Opened camera %s with ffmpeg backend", camera_id)

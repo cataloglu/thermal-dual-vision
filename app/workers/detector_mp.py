@@ -523,7 +523,10 @@ def camera_detection_process(
         empty_inference_streak = 0
         suppressed_until = 0.0
         last_suppression_probe = 0.0
+        suppression_rearm_until = 0.0
         last_motion_area = 0
+        thermal_motion_peak_area = 0
+        thermal_motion_peak_ts = 0.0
         _last_buffer_time = 0.0
         last_success_time = time.time()
         failure_threshold = max(1, int(getattr(config.stream, "read_failure_threshold", 5)))
@@ -720,6 +723,26 @@ def camera_detection_process(
             adaptive_min = max(200, int(adaptive_min_area))
             hold_floor = max(650, int(adaptive_min * 0.95))
             return area >= hold_floor
+
+        def _thermal_suppression_rearm_seconds() -> float:
+            return 22.0
+
+        def _update_thermal_motion_peak(current_area: int, now_ts: float, window_seconds: float = 6.0) -> None:
+            nonlocal thermal_motion_peak_area, thermal_motion_peak_ts
+            area = max(0, int(current_area))
+            if area <= 0:
+                return
+            if thermal_motion_peak_ts <= 0.0 or (now_ts - thermal_motion_peak_ts) > float(max(1.0, window_seconds)):
+                thermal_motion_peak_area = area
+            else:
+                thermal_motion_peak_area = max(int(thermal_motion_peak_area), area)
+            thermal_motion_peak_ts = float(now_ts)
+
+        def _effective_thermal_motion_area(current_area: int, now_ts: float, window_seconds: float = 6.0) -> int:
+            area = max(0, int(current_area))
+            if thermal_motion_peak_ts <= 0.0 or (now_ts - thermal_motion_peak_ts) > float(max(1.0, window_seconds)):
+                return area
+            return max(area, int(int(thermal_motion_peak_area) * 0.85))
 
         def _thermal_bbox_center_spread(
             detection_frames: List[List[Dict[str, Any]]],
@@ -1013,6 +1036,7 @@ def camera_detection_process(
                 if not cap or not cap.isOpened():
                     time.sleep(reconnect_delay)
                     continue
+                suppression_rearm_until = time.time() + 20.0
 
             # ALWAYS read frame before FPS throttle — drains go2rtc buffer at camera FPS.
             # Scrypted/NVR approach: consume every frame from the stream, discard if not
@@ -1047,6 +1071,7 @@ def camera_detection_process(
                     frames_failed = 0
                     if cap and cap.isOpened():
                         _send_status("connected")
+                        suppression_rearm_until = time.time() + 20.0
                     else:
                         time.sleep(reconnect_delay)
                     continue
@@ -1282,8 +1307,11 @@ def camera_detection_process(
                 suppression_secs = thermal_suppression_secs
                 current_area = int(thermal_motion_state.get("thermal_motion_area_raw", 0))
                 prev_area = last_motion_area
+                _update_thermal_motion_peak(current_area=current_area, now_ts=current_time)
                 min_wakeup_area = max(1200, int(motion_config.get("min_area", 0) or 0) * 3)
                 probe_interval_secs = max(1.0, min(5.0, suppression_secs / 15.0))
+                if current_time < suppression_rearm_until and current_time < suppressed_until:
+                    suppressed_until = 0.0
                 suppression_active = current_time < suppressed_until
                 if suppression_active:
                     probe_due = (current_time - last_suppression_probe) >= probe_interval_secs
@@ -1444,6 +1472,7 @@ def camera_detection_process(
                 suppressed_until = 0.0
                 empty_inference_streak = 0
                 last_suppression_probe = 0.0
+                suppression_rearm_until = current_time + _thermal_suppression_rearm_seconds()
                 process_logger.info(
                     "DETECT [%s] suppression_probe_confirmed detections=%s",
                     cam_name, len(detections),
@@ -1465,22 +1494,29 @@ def camera_detection_process(
                         thermal_motion_state.get("thermal_auto_min_area", int(motion_min_area_eff))
                         or int(motion_min_area_eff)
                     )
-                    if _should_hold_thermal_suppression_for_motion(
-                        current_area=current_area,
-                        adaptive_min_area=adaptive_min_area,
-                    ):
-                        empty_inference_streak = max(0, empty_inference_streak - 1)
+                    if current_time < suppression_rearm_until:
+                        empty_inference_streak = 0
                     else:
-                        empty_inference_streak += 1
-                        if empty_inference_streak >= streak_limit:
-                            suppressed_until = current_time + float(suppression_secs)
-                            empty_inference_streak = 0
-                            last_suppression_probe = current_time
-                            last_motion_area = current_area
-                            process_logger.info(
-                                "DETECT [%s] inference_suppressed for %ds (%d consecutive empty results)",
-                                cam_name, suppression_secs, streak_limit,
-                            )
+                        effective_area = _effective_thermal_motion_area(
+                            current_area=current_area,
+                            now_ts=current_time,
+                        )
+                        if _should_hold_thermal_suppression_for_motion(
+                            current_area=effective_area,
+                            adaptive_min_area=adaptive_min_area,
+                        ):
+                            empty_inference_streak = max(0, empty_inference_streak - 1)
+                        else:
+                            empty_inference_streak += 1
+                            if empty_inference_streak >= streak_limit:
+                                suppressed_until = current_time + float(suppression_secs)
+                                empty_inference_streak = 0
+                                last_suppression_probe = current_time
+                                last_motion_area = current_area
+                                process_logger.info(
+                                    "DETECT [%s] inference_suppressed for %ds (%d consecutive empty results)",
+                                    cam_name, suppression_secs, streak_limit,
+                                )
                 _log_gate("no_detections")
                 continue
             no_detection_streak = 0
