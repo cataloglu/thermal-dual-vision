@@ -478,6 +478,26 @@ def test_thermal_bbox_median_iou_separates_static_and_moving_tracks():
     assert worker._thermal_bbox_median_iou(moving_frames) < 0.88
 
 
+def test_thermal_bbox_net_displacement_separates_drift_from_static():
+    """Net displacement should stay near zero for oscillation around same point."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    static_frames = [
+        [{"bbox": [100, 60, 160, 220], "confidence": 0.70}]
+        for _ in range(5)
+    ]
+    moving_frames = [
+        [{"bbox": [100 + (i * 12), 60, 160 + (i * 12), 220], "confidence": 0.70}]
+        for i in range(5)
+    ]
+    oscillating_frames = [
+        [{"bbox": [100 + dx, 60, 160 + dx, 220], "confidence": 0.70}]
+        for dx in (8, 40, 10, 38, 9)
+    ]
+    assert worker._thermal_bbox_net_displacement(static_frames) == 0.0
+    assert worker._thermal_bbox_net_displacement(moving_frames) >= 40.0
+    assert worker._thermal_bbox_net_displacement(oscillating_frames) < 5.0
+
+
 def test_thermal_bbox_edge_touch_ratio_detects_border_hugging_boxes():
     """Edge-touch ratio should be high for border-hugging static boxes."""
     worker = DetectorWorker.__new__(DetectorWorker)
@@ -542,6 +562,21 @@ def test_thermal_static_guard_blocks_low_conf_false_positives():
     ]
     assert worker._passes_thermal_static_event_guard(
         detection_frames=edge_jitter,
+        motion_area_now=2600,
+        active_motion_cameras=4,
+        confidence_threshold=0.55,
+        base_min_area=260,
+        frame_width=640,
+        frame_height=512,
+    ) is False
+
+    # Edge oscillation with high spread but tiny net displacement should also be blocked.
+    edge_oscillation = [
+        [{"bbox": [x, 0, x + 130, 510], "confidence": 0.70}]
+        for x in (8, 42, 10, 40, 9)
+    ]
+    assert worker._passes_thermal_static_event_guard(
+        detection_frames=edge_oscillation,
         motion_area_now=2600,
         active_motion_cameras=4,
         confidence_threshold=0.55,
