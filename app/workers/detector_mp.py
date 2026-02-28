@@ -709,6 +709,18 @@ def camera_detection_process(
             duration = max(5, int(base_duration_secs))
             return max(streak * 2, 30), min(duration, 15)
 
+        def _should_hold_thermal_suppression_for_motion(
+            current_area: int,
+            adaptive_min_area: int,
+        ) -> bool:
+            """Keep inference active while thermal motion remains meaningful."""
+            area = int(current_area)
+            if area <= 0:
+                return False
+            adaptive_min = max(200, int(adaptive_min_area))
+            hold_floor = max(650, int(adaptive_min * 0.95))
+            return area >= hold_floor
+
         def _thermal_bbox_center_spread(
             detection_frames: List[List[Dict[str, Any]]],
             sample_frames: int = 5,
@@ -1412,16 +1424,27 @@ def camera_detection_process(
                 if detection_source == "thermal" and getattr(config.motion, "thermal_suppression_enabled", True):
                     streak_limit = thermal_suppression_streak
                     suppression_secs = thermal_suppression_secs
-                    empty_inference_streak += 1
-                    if empty_inference_streak >= streak_limit:
-                        suppressed_until = current_time + float(suppression_secs)
-                        empty_inference_streak = 0
-                        last_suppression_probe = current_time
-                        last_motion_area = int(thermal_motion_state.get("thermal_motion_area_raw", 0))
-                        process_logger.info(
-                            "DETECT [%s] inference_suppressed for %ds (%d consecutive empty results)",
-                            cam_name, suppression_secs, streak_limit,
-                        )
+                    current_area = int(thermal_motion_state.get("thermal_motion_area_raw", 0))
+                    adaptive_min_area = int(
+                        thermal_motion_state.get("thermal_auto_min_area", int(motion_min_area_eff))
+                        or int(motion_min_area_eff)
+                    )
+                    if _should_hold_thermal_suppression_for_motion(
+                        current_area=current_area,
+                        adaptive_min_area=adaptive_min_area,
+                    ):
+                        empty_inference_streak = max(0, empty_inference_streak - 1)
+                    else:
+                        empty_inference_streak += 1
+                        if empty_inference_streak >= streak_limit:
+                            suppressed_until = current_time + float(suppression_secs)
+                            empty_inference_streak = 0
+                            last_suppression_probe = current_time
+                            last_motion_area = current_area
+                            process_logger.info(
+                                "DETECT [%s] inference_suppressed for %ds (%d consecutive empty results)",
+                                cam_name, suppression_secs, streak_limit,
+                            )
                 _log_gate("no_detections")
                 continue
             no_detection_streak = 0

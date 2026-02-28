@@ -545,6 +545,29 @@ class DetectorWorker:
             return max(streak * 3, 45), min(duration, 12)
         return max(streak * 2, 30), min(duration, 15)
 
+    @staticmethod
+    def _should_hold_thermal_suppression_for_motion(
+        current_area: int,
+        adaptive_min_area: int,
+        active_motion_cameras: int,
+    ) -> bool:
+        """
+        Keep inference unsuppressed while motion signal remains meaningful.
+
+        Prevents rapid suppress/unsuppress loops during genuine scene activity.
+        """
+        area = int(current_area)
+        if area <= 0:
+            return False
+        adaptive_min = max(200, int(adaptive_min_area))
+        if active_motion_cameras >= 4:
+            hold_floor = max(560, int(adaptive_min * 0.90))
+        elif active_motion_cameras >= 2:
+            hold_floor = max(650, int(adaptive_min * 0.95))
+        else:
+            hold_floor = max(800, int(adaptive_min * 1.10))
+        return area >= hold_floor
+
     def _reset_motion_buffers(self, camera_id: str, prebuffer_seconds: float) -> None:
         # Always acquire frame lock before video lock to prevent deadlock
         frame_lock = self.frame_buffer_locks[camera_id]
@@ -1262,18 +1285,37 @@ class DetectorWorker:
                     if detection_source == "thermal" and getattr(config.motion, "thermal_suppression_enabled", True):
                         streak_limit = thermal_suppression_streak
                         suppression_secs = thermal_suppression_secs
-                        self.empty_inference_streak[camera_id] = self.empty_inference_streak.get(camera_id, 0) + 1
-                        if self.empty_inference_streak[camera_id] >= streak_limit:
-                            self.suppressed_until[camera_id] = current_time + float(suppression_secs)
-                            self.empty_inference_streak[camera_id] = 0
-                            self.last_suppression_probe[camera_id] = current_time
-                            self.last_motion_area[camera_id] = int(
-                                self.motion_state.get(camera_id, {}).get("thermal_motion_area_raw", 0)
+                        motion_state_now = self.motion_state.get(camera_id, {})
+                        current_area = int(motion_state_now.get("thermal_motion_area_raw", 0))
+                        adaptive_min_area = int(
+                            motion_state_now.get(
+                                "thermal_auto_min_area",
+                                int(getattr(config.motion, "min_area", 0)),
                             )
-                            logger.info(
-                                "DETECT camera=%s inference_suppressed for %ds (%d consecutive empty results)",
-                                camera_id, suppression_secs, streak_limit,
+                            or int(getattr(config.motion, "min_area", 0))
+                        )
+                        if self._should_hold_thermal_suppression_for_motion(
+                            current_area=current_area,
+                            adaptive_min_area=adaptive_min_area,
+                            active_motion_cameras=active_motion_cameras,
+                        ):
+                            self.empty_inference_streak[camera_id] = max(
+                                0,
+                                self.empty_inference_streak.get(camera_id, 0) - 1,
                             )
+                        else:
+                            self.empty_inference_streak[camera_id] = (
+                                self.empty_inference_streak.get(camera_id, 0) + 1
+                            )
+                            if self.empty_inference_streak[camera_id] >= streak_limit:
+                                self.suppressed_until[camera_id] = current_time + float(suppression_secs)
+                                self.empty_inference_streak[camera_id] = 0
+                                self.last_suppression_probe[camera_id] = current_time
+                                self.last_motion_area[camera_id] = current_area
+                                logger.info(
+                                    "DETECT camera=%s inference_suppressed for %ds (%d consecutive empty results)",
+                                    camera_id, suppression_secs, streak_limit,
+                                )
                     _log_gate("no_detections")
                     continue
                 self.no_detection_streak[camera_id] = 0

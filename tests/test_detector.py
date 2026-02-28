@@ -428,6 +428,26 @@ def test_thermal_suppression_policy_delays_suppression_under_load():
     assert secs_very_busy <= secs_busy
 
 
+def test_thermal_suppression_motion_hold_prefers_live_motion_signal():
+    """Suppression hold should keep inference active when motion stays meaningful."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    assert worker._should_hold_thermal_suppression_for_motion(
+        current_area=780,
+        adaptive_min_area=700,
+        active_motion_cameras=4,
+    ) is True
+    assert worker._should_hold_thermal_suppression_for_motion(
+        current_area=640,
+        adaptive_min_area=700,
+        active_motion_cameras=2,
+    ) is False
+    assert worker._should_hold_thermal_suppression_for_motion(
+        current_area=820,
+        adaptive_min_area=700,
+        active_motion_cameras=1,
+    ) is True
+
+
 def test_thermal_bbox_center_spread_detects_motion_vs_static():
     """Spread helper should separate moving and static bbox tracks."""
     worker = DetectorWorker.__new__(DetectorWorker)
