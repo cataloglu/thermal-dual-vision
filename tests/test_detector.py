@@ -448,6 +448,31 @@ def test_thermal_suppression_motion_hold_prefers_live_motion_signal():
     ) is True
 
 
+def test_thermal_suppression_rearm_scales_with_camera_load():
+    """Suppression re-arm grace should be longer under higher concurrent load."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    assert worker._thermal_suppression_rearm_seconds(active_motion_cameras=1) == 16.0
+    assert worker._thermal_suppression_rearm_seconds(active_motion_cameras=2) == 22.0
+    assert worker._thermal_suppression_rearm_seconds(active_motion_cameras=4) == 26.0
+
+
+def test_effective_thermal_motion_area_uses_recent_peak():
+    """Recent peak area should smooth one-frame drops for suppression decisions."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    worker.thermal_motion_peak_area = {"cam-1": 1000}
+    worker.thermal_motion_peak_ts = {"cam-1": 100.0}
+    assert worker._effective_thermal_motion_area(
+        camera_id="cam-1",
+        current_area=600,
+        now_ts=103.0,
+    ) == 850
+    assert worker._effective_thermal_motion_area(
+        camera_id="cam-1",
+        current_area=600,
+        now_ts=108.0,
+    ) == 600
+
+
 def test_thermal_bbox_center_spread_detects_motion_vs_static():
     """Spread helper should separate moving and static bbox tracks."""
     worker = DetectorWorker.__new__(DetectorWorker)

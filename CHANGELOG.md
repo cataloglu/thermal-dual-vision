@@ -6,6 +6,15 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.58] - 2026-02-28
+
+### Düzeltmeler
+
+- **Suppression re-arm cooldown eklendi**: Thermal suppression bir kez kalktıktan sonra hemen tekrar devreye girmiyor; `45 empty -> 12s suppress` loop frekansı düşürüldü.
+- **Recent peak motion smoothing eklendi**: Tek frame area düşüşlerinde suppression kararı için son kısa pencere tepe motion alanı dikkate alınıyor; “anlık düşüş yüzünden tekrar suppress” azaltıldı.
+- **Reconnect sonrası suppression grace eklendi**: Kamera reconnect olur olmaz eski suppression state devam etmiyor, kısa bir grace penceresiyle detection tekrar nefes alıyor.
+- **Thread/MP parity korundu**: Aynı suppression rearm + peak smoothing mantığı multiprocessing worker’a da eklendi.
+
 ## [4.0.57] - 2026-02-28
 
 ### Düzeltmeler
