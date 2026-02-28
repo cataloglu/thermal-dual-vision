@@ -478,6 +478,39 @@ def test_stream_read_failure_policy_softens_reconnect_flap_after_reconnect():
     assert cooldown_stable == 12.0
 
 
+def test_ffmpeg_flapping_detector_triggers_fallback_in_short_window():
+    """Frequent ffmpeg reconnects should trigger auto backend fallback."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    reconnects = [100.0, 130.0, 170.0, 220.0]
+    assert worker._should_fallback_from_ffmpeg_flapping(
+        reconnect_timestamps=reconnects,
+        now_ts=220.0,
+        window_seconds=180.0,
+        reconnect_threshold=4,
+    ) is True
+    assert worker._should_fallback_from_ffmpeg_flapping(
+        reconnect_timestamps=[100.0, 130.0, 170.0],
+        now_ts=220.0,
+        window_seconds=180.0,
+        reconnect_threshold=4,
+    ) is False
+
+
+def test_thermal_motion_active_hold_prevents_short_idle_flips():
+    """Thermal motion active hold should suppress short active->idle chatter."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    assert worker._should_hold_thermal_motion_active(
+        active_since_ts=100.0,
+        now_ts=101.5,
+        min_active_seconds=3.0,
+    ) is True
+    assert worker._should_hold_thermal_motion_active(
+        active_since_ts=100.0,
+        now_ts=104.0,
+        min_active_seconds=3.0,
+    ) is False
+
+
 def test_slew_limited_auto_min_area_limits_large_threshold_jumps():
     """Thermal auto min-area should change in bounded steps."""
     worker = DetectorWorker.__new__(DetectorWorker)

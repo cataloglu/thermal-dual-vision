@@ -6,6 +6,15 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.60] - 2026-02-28
+
+### Düzeltmeler
+
+- **FFmpeg reconnect flapping için auto fallback eklendi**: Thread worker’da kısa pencerede sık FFmpeg reconnect tespit edilirse (`capture_backend=auto`), kamera OpenCV backend’e düşürülerek sürekli ffmpeg reconnect döngüsü yumuşatıldı.
+- **Reconnect nedeni gözlemlenebilir hale getirildi**: FFmpeg process exit durumunda reconnect nedeni stream istatistiklerine işleniyor (`ffmpeg_exit` / `ffmpeg_reopen`), teşhis netliği artırıldı.
+- **Thermal active/idle chatter azaltıldı**: Thermal motion state için kısa süreli `active hold` penceresi eklendi; eşik çevresinde anlık düşüşlerde hızlı active→idle flip azalır.
+- **Thread/MP parity korundu**: Thermal `active hold` mantığı multiprocessing worker tarafına da taşındı.
+
 ## [4.0.59] - 2026-02-28
 
 ### Düzeltmeler

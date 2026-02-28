@@ -791,6 +791,19 @@ def camera_detection_process(
                 return above >= need_on, above, 0
             return False, 0, 0
 
+        def _should_hold_thermal_motion_active(
+            active_since_ts: float,
+            now_ts: float,
+            min_active_seconds: float,
+        ) -> bool:
+            min_hold = max(0.0, float(min_active_seconds))
+            if min_hold <= 0.0:
+                return False
+            started = float(active_since_ts or 0.0)
+            if started <= 0.0:
+                return False
+            return (float(now_ts) - started) < min_hold
+
         def _update_thermal_motion_peak(current_area: int, now_ts: float, window_seconds: float = 6.0) -> None:
             nonlocal thermal_motion_peak_area, thermal_motion_peak_ts
             area = max(0, int(current_area))
@@ -1054,6 +1067,7 @@ def camera_detection_process(
         last_motion_log = 0.0
         last_motion_state = None
         last_motion_time = 0.0
+        motion_active_since = 0.0
         auto_motion_mode = str(motion_config.get("mode", "auto")).lower() == "auto"
         auto_motion_history: deque[float] = deque(maxlen=600)
         auto_started_at = time.time()
@@ -1371,13 +1385,25 @@ def camera_detection_process(
                         active_streak_required=active_streak_required,
                         idle_streak_required=idle_streak_required,
                     )
+                previous_motion_active = motion_active
                 if motion_detected:
                     last_motion_time = current_time
                     motion_active = True
                 elif motion_cooldown and last_motion_time and (current_time - last_motion_time) < motion_cooldown:
                     motion_active = True
                 else:
-                    motion_active = False
+                    if is_thermal_motion and motion_active and _should_hold_thermal_motion_active(
+                        active_since_ts=motion_active_since,
+                        now_ts=current_time,
+                        min_active_seconds=float(motion_config.get("thermal_min_active_seconds", 3.0)),
+                    ):
+                        motion_active = True
+                    else:
+                        motion_active = False
+                if motion_active and not previous_motion_active:
+                    motion_active_since = current_time
+                elif not motion_active:
+                    motion_active_since = 0.0
                 if last_motion_state is None or motion_active != last_motion_state:
                     process_logger.info(
                         "Motion filter [%s]: %s (area=%d, min=%d, sensitivity=%d, algo=%s)",

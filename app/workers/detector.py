@@ -353,6 +353,36 @@ class DetectorWorker:
         return min(cap, 1100)
 
     @staticmethod
+    def _should_fallback_from_ffmpeg_flapping(
+        reconnect_timestamps: List[float],
+        now_ts: float,
+        window_seconds: float = 180.0,
+        reconnect_threshold: int = 4,
+    ) -> bool:
+        """Detect frequent ffmpeg reconnects in a short window."""
+        if not reconnect_timestamps:
+            return False
+        window = max(30.0, float(window_seconds))
+        threshold = max(2, int(reconnect_threshold))
+        recent = sum(1 for ts in reconnect_timestamps if (now_ts - float(ts)) <= window)
+        return recent >= threshold
+
+    @staticmethod
+    def _should_hold_thermal_motion_active(
+        active_since_ts: float,
+        now_ts: float,
+        min_active_seconds: float,
+    ) -> bool:
+        """Keep thermal motion active briefly to avoid active/idle chatter."""
+        min_hold = max(0.0, float(min_active_seconds))
+        if min_hold <= 0.0:
+            return False
+        started = float(active_since_ts or 0.0)
+        if started <= 0.0:
+            return False
+        return (float(now_ts) - started) < min_hold
+
+    @staticmethod
     def _stream_read_failure_policy(
         base_threshold: int,
         base_timeout: float,
@@ -914,6 +944,7 @@ class DetectorWorker:
             protocol = config.stream.protocol
 
             self._init_stream_stats(camera_id)
+            ffmpeg_reconnect_times: deque[float] = deque(maxlen=12)
 
             def reader_loop() -> None:
                 nonlocal cap, active_url, rtsp_urls, ffmpeg_proc, ffmpeg_frame_shape, ffmpeg_frame_size, active_backend
@@ -941,8 +972,32 @@ class DetectorWorker:
                         if ffmpeg_proc and ffmpeg_frame_shape:
                             ffmpeg_frame_size = ffmpeg_frame_shape[0] * ffmpeg_frame_shape[1] * 3
                             if is_reconnect:
-                                self.last_reconnect_ts[camera_id] = time.time()
-                            return True
+                                now_ts = time.time()
+                                self.last_reconnect_ts[camera_id] = now_ts
+                                ffmpeg_reconnect_times.append(now_ts)
+                                self._update_stream_stats(
+                                    camera_id,
+                                    reconnect_increment=1,
+                                    last_reconnect_reason="ffmpeg_reopen",
+                                )
+                                if (
+                                    capture_backend == "auto"
+                                    and self._should_fallback_from_ffmpeg_flapping(
+                                        reconnect_timestamps=list(ffmpeg_reconnect_times),
+                                        now_ts=now_ts,
+                                    )
+                                ):
+                                    logger.warning(
+                                        "Camera %s ffmpeg reconnect flapping detected; falling back to OpenCV backend",
+                                        camera_id,
+                                    )
+                                    self._stop_ffmpeg_capture(ffmpeg_proc)
+                                    ffmpeg_proc = None
+                                    active_backend = "opencv"
+                                else:
+                                    return True
+                            else:
+                                return True
                         if capture_backend == "auto":
                             active_backend = "opencv"
                     if active_backend == "opencv":
@@ -961,6 +1016,19 @@ class DetectorWorker:
                             protocol=protocol,
                         )
                         if not _capture_ready():
+                            if active_backend == "ffmpeg":
+                                exit_code = ffmpeg_proc.poll() if ffmpeg_proc else None
+                                if ffmpeg_proc is not None and exit_code is not None:
+                                    self._update_stream_stats(
+                                        camera_id,
+                                        reconnect_increment=1,
+                                        last_reconnect_reason="ffmpeg_exit",
+                                    )
+                                    logger.warning(
+                                        "Camera %s ffmpeg capture exited (code=%s); reopening",
+                                        camera_id,
+                                        exit_code,
+                                    )
                             if not _open_capture_backend(is_reconnect=True):
                                 open_failures += 1
                                 if open_failures >= max(config.stream.max_reconnect_attempts, 1):
@@ -2596,7 +2664,14 @@ class DetectorWorker:
             state["last_motion"] = now
             motion_active = True
         elif not (cooldown_seconds and now - last_motion < cooldown_seconds):
-            motion_active = False
+            if is_thermal_motion and motion_active and self._should_hold_thermal_motion_active(
+                active_since_ts=float(state.get("motion_active_since", 0.0)),
+                now_ts=now,
+                min_active_seconds=float(motion_settings.get("thermal_min_active_seconds", 3.0)),
+            ):
+                motion_active = True
+            else:
+                motion_active = False
 
         state["motion_active"] = motion_active
         if motion_active and not previous_motion_active:
