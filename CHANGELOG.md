@@ -6,6 +6,15 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.57] - 2026-02-28
+
+### Düzeltmeler
+
+- **Edge jitter (ağaç/sabit siluet) için yön tutarlılığı guard’ı eklendi**: Sadece spread/IoU değil, son 5 framede net center displacement oranı da kontrol edilerek “sağa-sola sallanan ama ilerlemeyen” kutular bloklandı.
+- **Thermal false-positive filtresi sıkılaştırıldı**: Düşük/orta confidence için border-oscillation pattern’i (yüksek spread + düşük net displacement) event öncesinde kesiliyor.
+- **Suppression döngüsü azaltıldı**: Motion hâlâ anlamlıyken thermal `empty_inference_streak` kör artmıyor; `motion active` sırasında gereksiz `inference_suppressed` tetiklenmesi azaltıldı.
+- **Thread/MP parity korundu**: Aynı edge-oscillation + suppression-hold kuralı multiprocessing worker’a da uygulandı.
+
 ## [4.0.56] - 2026-02-28
 
 ### Düzeltmeler

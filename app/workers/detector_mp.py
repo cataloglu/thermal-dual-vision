@@ -745,6 +745,30 @@ def camera_detection_process(
                 return 0.0
             return max(max(centers_x) - min(centers_x), max(centers_y) - min(centers_y))
 
+        def _thermal_bbox_net_displacement(
+            detection_frames: List[List[Dict[str, Any]]],
+            sample_frames: int = 5,
+        ) -> float:
+            """Net center displacement between first and last recent best boxes."""
+            if not detection_frames:
+                return 0.0
+            frames = detection_frames[-max(2, int(sample_frames)) :]
+            centers: List[tuple[float, float]] = []
+            for frame_dets in frames:
+                dets_with_bbox = [
+                    det for det in (frame_dets or []) if isinstance(det, dict) and det.get("bbox")
+                ]
+                if not dets_with_bbox:
+                    continue
+                best_det = max(dets_with_bbox, key=lambda det: float(det.get("confidence", 0.0)))
+                x1, y1, x2, y2 = map(float, best_det["bbox"])
+                centers.append(((x1 + x2) / 2.0, (y1 + y2) / 2.0))
+            if len(centers) < 2:
+                return 0.0
+            sx, sy = centers[0]
+            ex, ey = centers[-1]
+            return float(np.hypot(ex - sx, ey - sy))
+
         def _bbox_iou(box_a: List[float], box_b: List[float]) -> float:
             """Compute IoU for two [x1, y1, x2, y2] boxes."""
             ax1, ay1, ax2, ay2 = map(float, box_a)
@@ -844,6 +868,11 @@ def camera_detection_process(
             """
             spread = _thermal_bbox_center_spread(detection_frames=detection_frames, sample_frames=5)
             median_iou = _thermal_bbox_median_iou(detection_frames=detection_frames, sample_frames=5)
+            net_displacement = _thermal_bbox_net_displacement(
+                detection_frames=detection_frames,
+                sample_frames=5,
+            )
+            directional_ratio = float(net_displacement) / max(float(spread), 1.0)
             current_dets = detection_frames[-1] if detection_frames else []
             best_conf = max((float(det.get("confidence", 0.0)) for det in current_dets), default=0.0)
             min_conf_floor = max(float(confidence_threshold) + 0.15, 0.67)
@@ -855,7 +884,12 @@ def camera_detection_process(
             )
             if edge_touch_ratio >= 0.80 and best_conf < max(float(confidence_threshold) + 0.25, 0.78):
                 return False
+            if edge_touch_ratio >= 0.60 and best_conf < max(float(confidence_threshold) + 0.20, 0.74):
+                if spread >= 8.0 and directional_ratio < 0.55:
+                    return False
             if best_conf < min_conf_floor and (spread < 12.0 or median_iou > 0.88):
+                return False
+            if best_conf < min_conf_floor and directional_ratio < 0.60:
                 return False
 
             movement_conf_floor = max(min_conf_floor, 0.68)
@@ -864,6 +898,8 @@ def camera_detection_process(
                 and median_iou <= 0.88
                 and (best_conf + 1e-6) >= movement_conf_floor
                 and int(motion_area_now) >= max(800, int(base_min_area) * 3)
+                and directional_ratio >= 0.60
+                and net_displacement >= max(8.0, float(spread) * 0.55)
             ):
                 return True
             strong_conf = max(float(confidence_threshold) + 0.24, 0.82)
