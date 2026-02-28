@@ -709,6 +709,18 @@ def camera_detection_process(
             duration = max(5, int(base_duration_secs))
             return max(streak * 2, 30), min(duration, 15)
 
+        def _should_hold_thermal_suppression_for_motion(
+            current_area: int,
+            adaptive_min_area: int,
+        ) -> bool:
+            """Keep inference active while thermal motion remains meaningful."""
+            area = int(current_area)
+            if area <= 0:
+                return False
+            adaptive_min = max(200, int(adaptive_min_area))
+            hold_floor = max(650, int(adaptive_min * 0.95))
+            return area >= hold_floor
+
         def _thermal_bbox_center_spread(
             detection_frames: List[List[Dict[str, Any]]],
             sample_frames: int = 5,
@@ -778,11 +790,50 @@ def camera_detection_process(
                 return 0.0
             return float(np.median(np.array(ious, dtype=np.float32)))
 
+        def _thermal_bbox_edge_touch_ratio(
+            detection_frames: List[List[Dict[str, Any]]],
+            frame_width: int,
+            frame_height: int,
+            sample_frames: int = 5,
+            margin_ratio: float = 0.03,
+        ) -> float:
+            """Share of recent best boxes touching frame borders."""
+            if not detection_frames:
+                return 0.0
+            w = max(1, int(frame_width))
+            h = max(1, int(frame_height))
+            margin_x = max(2.0, float(w) * float(margin_ratio))
+            margin_y = max(2.0, float(h) * float(margin_ratio))
+            frames = detection_frames[-max(2, int(sample_frames)) :]
+            touches = 0
+            total = 0
+            for frame_dets in frames:
+                dets_with_bbox = [
+                    det for det in (frame_dets or []) if isinstance(det, dict) and det.get("bbox")
+                ]
+                if not dets_with_bbox:
+                    continue
+                best_det = max(dets_with_bbox, key=lambda det: float(det.get("confidence", 0.0)))
+                x1, y1, x2, y2 = map(float, best_det["bbox"])
+                total += 1
+                if (
+                    x1 <= margin_x
+                    or y1 <= margin_y
+                    or x2 >= (float(w) - margin_x)
+                    or y2 >= (float(h) - margin_y)
+                ):
+                    touches += 1
+            if total == 0:
+                return 0.0
+            return float(touches) / float(total)
+
         def _passes_thermal_static_event_guard(
             detection_frames: List[List[Dict[str, Any]]],
             motion_area_now: int,
             confidence_threshold: float,
             base_min_area: int,
+            frame_width: int,
+            frame_height: int,
         ) -> bool:
             """
             Drop static thermal ghosts in sparse scenes.
@@ -795,14 +846,28 @@ def camera_detection_process(
             median_iou = _thermal_bbox_median_iou(detection_frames=detection_frames, sample_frames=5)
             current_dets = detection_frames[-1] if detection_frames else []
             best_conf = max((float(det.get("confidence", 0.0)) for det in current_dets), default=0.0)
-            min_conf_floor = max(float(confidence_threshold) + 0.12, 0.65)
+            min_conf_floor = max(float(confidence_threshold) + 0.15, 0.67)
+            edge_touch_ratio = _thermal_bbox_edge_touch_ratio(
+                detection_frames=detection_frames,
+                frame_width=frame_width,
+                frame_height=frame_height,
+                sample_frames=5,
+            )
+            if edge_touch_ratio >= 0.80 and best_conf < max(float(confidence_threshold) + 0.25, 0.78):
+                return False
             if best_conf < min_conf_floor and (spread < 12.0 or median_iou > 0.88):
                 return False
 
-            if spread >= 12.0 and median_iou <= 0.88:
+            movement_conf_floor = max(min_conf_floor, 0.68)
+            if (
+                spread >= 12.0
+                and median_iou <= 0.88
+                and (best_conf + 1e-6) >= movement_conf_floor
+                and int(motion_area_now) >= max(800, int(base_min_area) * 3)
+            ):
                 return True
-            strong_conf = max(float(confidence_threshold) + 0.22, 0.80)
-            strong_motion = max(1900, int(base_min_area) * 5)
+            strong_conf = max(float(confidence_threshold) + 0.24, 0.82)
+            strong_motion = max(2200, int(base_min_area) * 6)
             return best_conf >= strong_conf and int(motion_area_now) >= strong_motion
 
         # Get detection parameters
@@ -1359,16 +1424,27 @@ def camera_detection_process(
                 if detection_source == "thermal" and getattr(config.motion, "thermal_suppression_enabled", True):
                     streak_limit = thermal_suppression_streak
                     suppression_secs = thermal_suppression_secs
-                    empty_inference_streak += 1
-                    if empty_inference_streak >= streak_limit:
-                        suppressed_until = current_time + float(suppression_secs)
-                        empty_inference_streak = 0
-                        last_suppression_probe = current_time
-                        last_motion_area = int(thermal_motion_state.get("thermal_motion_area_raw", 0))
-                        process_logger.info(
-                            "DETECT [%s] inference_suppressed for %ds (%d consecutive empty results)",
-                            cam_name, suppression_secs, streak_limit,
-                        )
+                    current_area = int(thermal_motion_state.get("thermal_motion_area_raw", 0))
+                    adaptive_min_area = int(
+                        thermal_motion_state.get("thermal_auto_min_area", int(motion_min_area_eff))
+                        or int(motion_min_area_eff)
+                    )
+                    if _should_hold_thermal_suppression_for_motion(
+                        current_area=current_area,
+                        adaptive_min_area=adaptive_min_area,
+                    ):
+                        empty_inference_streak = max(0, empty_inference_streak - 1)
+                    else:
+                        empty_inference_streak += 1
+                        if empty_inference_streak >= streak_limit:
+                            suppressed_until = current_time + float(suppression_secs)
+                            empty_inference_streak = 0
+                            last_suppression_probe = current_time
+                            last_motion_area = current_area
+                            process_logger.info(
+                                "DETECT [%s] inference_suppressed for %ds (%d consecutive empty results)",
+                                cam_name, suppression_secs, streak_limit,
+                            )
                 _log_gate("no_detections")
                 continue
             no_detection_streak = 0
@@ -1412,11 +1488,14 @@ def camera_detection_process(
             
             if detection_source == "thermal":
                 motion_area_now = int(thermal_motion_state.get("thermal_motion_area_raw", 0))
+                frame_h, frame_w = frame.shape[:2]
                 if not _passes_thermal_static_event_guard(
                     detection_frames=list(detection_history),
                     motion_area_now=motion_area_now,
                     confidence_threshold=confidence_threshold,
                     base_min_area=int(motion_config.get("min_area", 0) or 0),
+                    frame_width=frame_w,
+                    frame_height=frame_h,
                 ):
                     event_start_time = None
                     _log_gate("thermal_static_guard")

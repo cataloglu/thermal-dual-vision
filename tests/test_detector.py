@@ -428,6 +428,26 @@ def test_thermal_suppression_policy_delays_suppression_under_load():
     assert secs_very_busy <= secs_busy
 
 
+def test_thermal_suppression_motion_hold_prefers_live_motion_signal():
+    """Suppression hold should keep inference active when motion stays meaningful."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    assert worker._should_hold_thermal_suppression_for_motion(
+        current_area=780,
+        adaptive_min_area=700,
+        active_motion_cameras=4,
+    ) is True
+    assert worker._should_hold_thermal_suppression_for_motion(
+        current_area=640,
+        adaptive_min_area=700,
+        active_motion_cameras=2,
+    ) is False
+    assert worker._should_hold_thermal_suppression_for_motion(
+        current_area=820,
+        adaptive_min_area=700,
+        active_motion_cameras=1,
+    ) is True
+
+
 def test_thermal_bbox_center_spread_detects_motion_vs_static():
     """Spread helper should separate moving and static bbox tracks."""
     worker = DetectorWorker.__new__(DetectorWorker)
@@ -456,6 +476,21 @@ def test_thermal_bbox_median_iou_separates_static_and_moving_tracks():
     ]
     assert worker._thermal_bbox_median_iou(static_jitter_frames) > 0.88
     assert worker._thermal_bbox_median_iou(moving_frames) < 0.88
+
+
+def test_thermal_bbox_edge_touch_ratio_detects_border_hugging_boxes():
+    """Edge-touch ratio should be high for border-hugging static boxes."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    edge_frames = [
+        [{"bbox": [0 + i, 2, 120 + i, 510], "confidence": 0.70}]
+        for i in range(5)
+    ]
+    ratio = worker._thermal_bbox_edge_touch_ratio(
+        detection_frames=edge_frames,
+        frame_width=640,
+        frame_height=512,
+    )
+    assert ratio >= 0.8
 
 
 def test_thermal_static_guard_blocks_static_weak_motion_on_idle_scene():
@@ -500,17 +535,32 @@ def test_thermal_static_guard_blocks_low_conf_false_positives():
         base_min_area=260,
     ) is False
 
+    # Border-hugging jitter boxes should be blocked even with moderate confidence.
+    edge_jitter = [
+        [{"bbox": [0 + (i * 2), 0, 130 + (i * 2), 510], "confidence": 0.72}]
+        for i in range(5)
+    ]
+    assert worker._passes_thermal_static_event_guard(
+        detection_frames=edge_jitter,
+        motion_area_now=2600,
+        active_motion_cameras=4,
+        confidence_threshold=0.55,
+        base_min_area=260,
+        frame_width=640,
+        frame_height=512,
+    ) is False
+
 
 def test_thermal_static_guard_allows_moving_track_or_multi_camera_load():
     """Guard should allow moving tracks and block low-conf static ghosts even with multi-cam."""
     worker = DetectorWorker.__new__(DetectorWorker)
     moving_frames = [
-        [{"bbox": [120 + (i * 9), 70, 170 + (i * 9), 230], "confidence": 0.62}]
+        [{"bbox": [120 + (i * 9), 70, 170 + (i * 9), 230], "confidence": 0.70}]
         for i in range(5)
     ]
     assert worker._passes_thermal_static_event_guard(
         detection_frames=moving_frames,
-        motion_area_now=850,
+        motion_area_now=900,
         active_motion_cameras=1,
         confidence_threshold=0.55,
         base_min_area=260,
@@ -555,13 +605,13 @@ def test_thermal_static_guard_allows_moving_track_or_multi_camera_load():
         base_min_area=260,
     ) is True
 
-    # Low confidence moving track should still pass when movement signature is clear.
-    moving_low_conf = [
-        [{"bbox": [120 + (i * 12), 70, 170 + (i * 12), 230], "confidence": 0.63}]
+    # Mid confidence moving track should pass when movement signature is clear.
+    moving_mid_conf = [
+        [{"bbox": [120 + (i * 12), 70, 170 + (i * 12), 230], "confidence": 0.70}]
         for i in range(5)
     ]
     assert worker._passes_thermal_static_event_guard(
-        detection_frames=moving_low_conf,
+        detection_frames=moving_mid_conf,
         motion_area_now=1100,
         active_motion_cameras=3,
         confidence_threshold=0.55,
