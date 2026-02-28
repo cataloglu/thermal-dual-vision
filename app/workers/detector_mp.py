@@ -529,6 +529,7 @@ def camera_detection_process(
         thermal_motion_peak_ts = 0.0
         _last_buffer_time = 0.0
         last_success_time = time.time()
+        last_reconnect_time = 0.0
         failure_threshold = max(1, int(getattr(config.stream, "read_failure_threshold", 5)))
         failure_timeout = float(getattr(config.stream, "read_failure_timeout_seconds", 20.0))
         reconnect_delay = max(1, int(getattr(config.stream, "reconnect_delay_seconds", 1)))
@@ -726,6 +727,69 @@ def camera_detection_process(
 
         def _thermal_suppression_rearm_seconds() -> float:
             return 22.0
+
+        def _stream_read_failure_policy(
+            base_threshold: int,
+            base_timeout: float,
+            seconds_since_reconnect: float,
+        ) -> tuple[int, float, float]:
+            """Reconnect policy tuned to avoid post-reconnect flapping."""
+            threshold = max(1, int(base_threshold))
+            timeout = max(4.0, float(base_timeout))
+            reconnect_cooldown = max(8.0, min(30.0, timeout * 1.5))
+            if 0.0 <= float(seconds_since_reconnect) < 45.0:
+                threshold = max(threshold + 3, 8)
+                timeout = max(timeout + 4.0, 12.0)
+                reconnect_cooldown = max(reconnect_cooldown, 20.0)
+            return threshold, timeout, reconnect_cooldown
+
+        def _slew_limited_auto_min_area(
+            previous_learned: Optional[int],
+            learned_target: int,
+            max_down_step: int,
+            max_up_step: int,
+        ) -> int:
+            target = int(learned_target)
+            if previous_learned is None:
+                return target
+            prev = int(previous_learned)
+            down_step = max(1, int(max_down_step))
+            up_step = max(1, int(max_up_step))
+            if target < prev:
+                return max(target, prev - down_step)
+            if target > prev:
+                return min(target, prev + up_step)
+            return target
+
+        def _thermal_motion_hysteresis_decision(
+            motion_area: int,
+            min_area: int,
+            motion_active: bool,
+            above_streak: int,
+            below_streak: int,
+            active_factor: float,
+            idle_factor: float,
+            active_streak_required: int,
+            idle_streak_required: int,
+        ) -> tuple[bool, int, int]:
+            active_factor = max(1.0, float(active_factor))
+            idle_factor = max(0.5, min(1.0, float(idle_factor)))
+            on_threshold = int(max(1, int(min_area) * active_factor))
+            off_threshold = int(max(1, int(min_area) * idle_factor))
+            above = max(0, int(above_streak))
+            below = max(0, int(below_streak))
+            need_on = max(1, int(active_streak_required))
+            need_off = max(1, int(idle_streak_required))
+            area = int(motion_area)
+            if motion_active:
+                if area >= off_threshold:
+                    return True, above, 0
+                below += 1
+                return below < need_off, above, below
+            if area >= on_threshold:
+                above += 1
+                return above >= need_on, above, 0
+            return False, 0, 0
 
         def _update_thermal_motion_peak(current_area: int, now_ts: float, window_seconds: float = 6.0) -> None:
             nonlocal thermal_motion_peak_area, thermal_motion_peak_ts
@@ -1001,6 +1065,8 @@ def camera_detection_process(
         last_pipeline_log = 0.0
         last_fallback_log = 0.0
         thermal_gate_warmup_until = 0.0
+        thermal_motion_above_streak = 0
+        thermal_motion_below_streak = 0
         thermal_motion_state: Dict[str, Any] = {}
         
         process_logger.info(f"Detection parameters [{cam_name}]: source={detection_source}, fps={config.detection.inference_fps}, zones={len(zones)}")
@@ -1036,6 +1102,7 @@ def camera_detection_process(
                 if not cap or not cap.isOpened():
                     time.sleep(reconnect_delay)
                     continue
+                last_reconnect_time = time.time()
                 suppression_rearm_until = time.time() + 20.0
 
             # ALWAYS read frame before FPS throttle — drains go2rtc buffer at camera FPS.
@@ -1055,8 +1122,22 @@ def camera_detection_process(
 
                 now = time.time()
                 last_age = None if not last_success_time else (now - last_success_time)
+                since_reconnect = (now - last_reconnect_time) if last_reconnect_time > 0.0 else float("inf")
+                (
+                    effective_failure_threshold,
+                    effective_failure_timeout,
+                    reconnect_cooldown,
+                ) = _stream_read_failure_policy(
+                    base_threshold=failure_threshold,
+                    base_timeout=failure_timeout,
+                    seconds_since_reconnect=since_reconnect,
+                )
 
-                if frames_failed >= failure_threshold and (last_age is None or last_age >= failure_timeout):
+                if (
+                    frames_failed >= effective_failure_threshold
+                    and (last_age is None or last_age >= effective_failure_timeout)
+                    and since_reconnect >= reconnect_cooldown
+                ):
                     process_logger.warning(
                         "Camera %s (%s) read failures=%d; reconnecting",
                         cam_name,
@@ -1070,6 +1151,7 @@ def camera_detection_process(
                     cap = _open_capture(is_reconnect=True)
                     frames_failed = 0
                     if cap and cap.isOpened():
+                        last_reconnect_time = time.time()
                         _send_status("connected")
                         suppression_rearm_until = time.time() + 20.0
                     else:
@@ -1244,7 +1326,17 @@ def camera_detection_process(
                     ):
                         percentile = max(85.0, min(98.0, 84.0 + (motion_sensitivity * 1.4)))
                         noise_p = float(np.percentile(np.array(auto_motion_history, dtype=np.float32), percentile))
-                        auto_learned_min_area = max(floor, min(ceiling, int(noise_p * multiplier)))
+                        learned_target = max(floor, min(ceiling, int(noise_p * multiplier)))
+                        if is_thermal_motion:
+                            down_step = int(motion_config.get("thermal_auto_min_area_step_down", 40))
+                            up_step = int(motion_config.get("thermal_auto_min_area_step_up", 120))
+                            learned_target = _slew_limited_auto_min_area(
+                                previous_learned=auto_learned_min_area,
+                                learned_target=learned_target,
+                                max_down_step=down_step,
+                                max_up_step=up_step,
+                            )
+                        auto_learned_min_area = learned_target
                         auto_last_calc = current_time
                     if is_thermal_motion:
                         motion_min_area_request = max(motion_min_area_request, max(80, thermal_floor))
@@ -1252,13 +1344,33 @@ def camera_detection_process(
                     motion_area = 0
                     motion_detected = False
                 if is_thermal_motion:
+                    reconnect_gate_seconds = max(
+                        0.0,
+                        float(motion_config.get("thermal_reconnect_warmup_seconds", 6.0)),
+                    )
+                    if last_reconnect_time > 0.0 and (current_time - last_reconnect_time) < reconnect_gate_seconds:
+                        motion_area = 0
+                        motion_detected = False
+                if is_thermal_motion:
                     active_factor = float(motion_config.get("thermal_active_hysteresis", 1.08))
                     idle_factor = float(motion_config.get("thermal_idle_hysteresis", 0.92))
-                    active_factor = max(1.0, active_factor)
-                    idle_factor = max(0.5, min(1.0, idle_factor))
-                    on_threshold = int(max(1, motion_min_area_request * active_factor))
-                    off_threshold = int(max(1, motion_min_area_request * idle_factor))
-                    motion_detected = motion_area >= (off_threshold if motion_active else on_threshold)
+                    active_streak_required = int(motion_config.get("thermal_active_streak_frames", 2))
+                    idle_streak_required = int(motion_config.get("thermal_idle_streak_frames", 3))
+                    (
+                        motion_detected,
+                        thermal_motion_above_streak,
+                        thermal_motion_below_streak,
+                    ) = _thermal_motion_hysteresis_decision(
+                        motion_area=motion_area,
+                        min_area=motion_min_area_request,
+                        motion_active=motion_active,
+                        above_streak=thermal_motion_above_streak,
+                        below_streak=thermal_motion_below_streak,
+                        active_factor=active_factor,
+                        idle_factor=idle_factor,
+                        active_streak_required=active_streak_required,
+                        idle_streak_required=idle_streak_required,
+                    )
                 if motion_detected:
                     last_motion_time = current_time
                     motion_active = True

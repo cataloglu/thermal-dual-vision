@@ -6,6 +6,16 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.59] - 2026-02-28
+
+### Düzeltmeler
+
+- **Reconnect flapping yumuşatıldı**: Kamera yeni reconnect olduktan hemen sonra read-failure kaynaklı yeniden reconnect kararları daha toleranslı hale getirildi; kısa decoder/akış ısınma dalgalanmaları için erken reconnect azaltıldı.
+- **Thermal motion gate anti-chatter eklendi**: `active/idle` geçişleri için streak tabanlı hysteresis eklendi (üst/alt eşik ardışık frame onayı); eşik çevresi jitter’da hızlı state zıplamaları azaltıldı.
+- **Thermal auto min-area geçişleri kademelendi**: Auto-learned `min_area` thermal tarafta tek adımda sert düşüp/yükselmek yerine slew-limit ile kademeli değişiyor; ani eşik düşüşlerinden gelen false active oranı azaltıldı.
+- **Reconnect warmup ile motion gate korundu**: Kamera reconnect sonrası kısa pencerede thermal motion gate kontrollü ısınma süresi uygulayarak reconnect sonrası anlık motion spike gürültüsü azaltıldı.
+- **Thread/MP parity korundu**: Aynı reconnect stabilizasyonu + thermal motion anti-chatter davranışı multiprocessing worker’a da taşındı.
+
 ## [4.0.58] - 2026-02-28
 
 ### Düzeltmeler
