@@ -6,6 +6,15 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.65] - 2026-03-01
+
+### Düzeltmeler
+
+- **“Collage’de insan var, video’da yok” senaryosu düzeltildi (threading worker)**: Event media artık event timestamp + pre/postbuffer penceresine göre seçiliyor; geçmiş buffer’dan alakasız (stale) frame karışması engellendi.
+- **Media window fallback sıkılaştırıldı**: Tam pencere boşsa önce kontrollü geniş pencere, yine boşsa sadece son (tail) frame seti kullanılıyor; tarihsel eski person frame’lerinin collage/video’ya taşınması azaltıldı.
+- **Delayed recording replace güvenli hale getirildi**: Zaten üretilmiş `timelapse.mp4` varsa 65s sonra recording’den üzerine yazılmıyor; böylece event-anına hizalı MP4 korunuyor.
+- **Test kapsamı genişletildi**: Event window filtreleme (frame/video) ve mevcut MP4’ü delayed replace’in ezmemesi için unit test eklendi.
+
 ## [4.0.64] - 2026-03-01
 
 ### Düzeltmeler

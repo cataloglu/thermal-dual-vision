@@ -13,6 +13,8 @@ Tests cover:
 - Frame preprocessing
 """
 from datetime import datetime
+from collections import deque
+import threading
 from unittest.mock import Mock, patch, MagicMock
 
 import cv2
@@ -471,6 +473,62 @@ def test_thermal_confidence_policy_relaxes_only_with_multi_cam_and_strong_motion
     assert worker._thermal_confidence_policy(
         0.55, active_motion_cameras=4, motion_area_now=1200, base_min_area=400
     ) == pytest.approx(0.45, abs=1e-6)
+
+
+def test_get_event_media_data_filters_to_event_window():
+    """Event media selection should prefer frames from requested event window."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    camera_id = "cam-window"
+    worker.frame_buffers = {
+        camera_id: deque(
+            [
+                (np.zeros((6, 6, 3), dtype=np.uint8), {"bbox": [0, 0, 2, 4], "confidence": 0.81}, 100.0),
+                (np.zeros((6, 6, 3), dtype=np.uint8), None, 119.6),
+                (np.zeros((6, 6, 3), dtype=np.uint8), {"bbox": [1, 1, 3, 5], "confidence": 0.86}, 120.2),
+                (np.zeros((6, 6, 3), dtype=np.uint8), None, 120.8),
+            ]
+        )
+    }
+    worker.frame_buffer_locks = {camera_id: threading.Lock()}
+    worker.latest_frame_locks = {}
+    worker.latest_frames = {}
+
+    frames, detections, timestamps = worker._get_event_media_data(
+        camera_id,
+        window_start_ts=120.0,
+        window_end_ts=121.0,
+    )
+
+    assert len(frames) == 2
+    assert timestamps == [120.2, 120.8]
+    assert detections[0]["confidence"] == pytest.approx(0.86, abs=1e-6)
+    assert detections[1] is None
+
+
+def test_get_event_video_data_filters_to_event_window():
+    """Event video selection should prefer frames from requested event window."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    camera_id = "cam-video-window"
+    worker.video_buffers = {
+        camera_id: deque(
+            [
+                (np.zeros((6, 6, 3), dtype=np.uint8), 90.0),
+                (np.zeros((6, 6, 3), dtype=np.uint8), 120.1),
+                (np.zeros((6, 6, 3), dtype=np.uint8), 120.7),
+                (np.zeros((6, 6, 3), dtype=np.uint8), 130.0),
+            ]
+        )
+    }
+    worker.video_buffer_locks = {camera_id: threading.Lock()}
+
+    frames, timestamps = worker._get_event_video_data(
+        camera_id,
+        window_start_ts=120.0,
+        window_end_ts=121.0,
+    )
+
+    assert len(frames) == 2
+    assert timestamps == [120.1, 120.7]
 
 
 def test_stream_read_failure_policy_softens_reconnect_flap_after_reconnect():

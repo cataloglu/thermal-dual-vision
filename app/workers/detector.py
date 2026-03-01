@@ -2054,7 +2054,12 @@ class DetectorWorker:
                 except Exception as e:
                     logger.error("MQTT publish failed: %s", e)
 
-                self._start_media_generation(camera, event.id, config)
+                self._start_media_generation(
+                    camera,
+                    event.id,
+                    config,
+                    event_timestamp=event.timestamp,
+                )
                 
         except Exception as e:
             logger.error(f"Failed to create event: {e}")
@@ -3328,15 +3333,41 @@ class DetectorWorker:
             "sampled_frames": float(len(frames)),
         }
 
-    def _start_media_generation(self, camera: Camera, event_id: str, config) -> None:
+    def _start_media_generation(
+        self,
+        camera: Camera,
+        event_id: str,
+        config,
+        event_timestamp: Optional[datetime] = None,
+    ) -> None:
+        prebuffer_seconds = float(getattr(config.event, "prebuffer_seconds", 5.0))
         postbuffer_seconds = float(getattr(config.event, "postbuffer_seconds", 0.0))
         ai_required = self._ai_requires_confirmation(config)
+        event_epoch_ts: Optional[float] = None
+        if event_timestamp is not None:
+            if event_timestamp.tzinfo is None:
+                event_epoch_ts = event_timestamp.replace(tzinfo=timezone.utc).timestamp()
+            else:
+                event_epoch_ts = event_timestamp.astimezone(timezone.utc).timestamp()
 
         def _run_media() -> None:
             if postbuffer_seconds > 0:
                 time.sleep(postbuffer_seconds)
-            frames, detections, timestamps = self._get_event_media_data(camera.id)
-            video_frames, video_timestamps = self._get_event_video_data(camera.id)
+            window_start_ts: Optional[float] = None
+            window_end_ts: Optional[float] = None
+            if event_epoch_ts is not None:
+                window_start_ts = event_epoch_ts - prebuffer_seconds
+                window_end_ts = event_epoch_ts + postbuffer_seconds
+            frames, detections, timestamps = self._get_event_media_data(
+                camera.id,
+                window_start_ts=window_start_ts,
+                window_end_ts=window_end_ts,
+            )
+            video_frames, video_timestamps = self._get_event_video_data(
+                camera.id,
+                window_start_ts=window_start_ts,
+                window_end_ts=window_end_ts,
+            )
             if len(frames) == 0:
                 logger.warning(
                     "Skipping media generation for event %s (no frames)",
@@ -3568,7 +3599,10 @@ class DetectorWorker:
         ).start()
 
     def _get_event_media_data(
-        self, camera_id: str
+        self,
+        camera_id: str,
+        window_start_ts: Optional[float] = None,
+        window_end_ts: Optional[float] = None,
     ) -> Tuple[List[np.ndarray], List[Optional[Dict]], List[float]]:
         buffer = self.frame_buffers.get(camera_id)
         if not buffer or len(buffer) == 0:
@@ -3580,15 +3614,48 @@ class DetectorWorker:
         lock = self.frame_buffer_locks[camera_id]
         with lock:
             items = list(buffer)
-            frames = [item[0] for item in items]
-            detections = [item[1] for item in items]
-            timestamps = [item[2] for item in items if len(item) > 2]
+            selected_items = items
+            if (
+                window_start_ts is not None
+                and window_end_ts is not None
+                and window_end_ts >= window_start_ts
+            ):
+                selected_items = [
+                    item
+                    for item in items
+                    if len(item) > 2 and window_start_ts <= float(item[2]) <= window_end_ts
+                ]
+                if not selected_items:
+                    # Window miss fallback: try one-window wider before tail fallback.
+                    window_span = max(float(window_end_ts - window_start_ts), 1.0)
+                    wider_start = float(window_start_ts) - window_span
+                    wider_end = float(window_end_ts) + window_span
+                    selected_items = [
+                        item
+                        for item in items
+                        if len(item) > 2 and wider_start <= float(item[2]) <= wider_end
+                    ]
+                if not selected_items:
+                    # Keep most recent frames only; avoid stale, historical detections.
+                    selected_items = items[-min(len(items), 80):]
+                    logger.debug(
+                        "EVENT_MEDIA camera=%s window_miss fallback=tail items=%s",
+                        camera_id,
+                        len(selected_items),
+                    )
+
+            frames = [item[0] for item in selected_items]
+            detections = [item[1] for item in selected_items]
+            timestamps = [item[2] for item in selected_items if len(item) > 2]
         if len(timestamps) != len(frames):
             timestamps = []
         return frames, detections, timestamps
 
     def _get_event_video_data(
-        self, camera_id: str
+        self,
+        camera_id: str,
+        window_start_ts: Optional[float] = None,
+        window_end_ts: Optional[float] = None,
     ) -> Tuple[List[np.ndarray], List[float]]:
         buffer = self.video_buffers.get(camera_id)
         if not buffer or len(buffer) == 0:
@@ -3596,8 +3663,35 @@ class DetectorWorker:
         lock = self.video_buffer_locks[camera_id]
         with lock:
             items = list(buffer)
-        frames = [item[0] for item in items]
-        timestamps = [item[1] for item in items]
+            selected_items = items
+            if (
+                window_start_ts is not None
+                and window_end_ts is not None
+                and window_end_ts >= window_start_ts
+            ):
+                selected_items = [
+                    item
+                    for item in items
+                    if len(item) > 1 and window_start_ts <= float(item[1]) <= window_end_ts
+                ]
+                if not selected_items:
+                    window_span = max(float(window_end_ts - window_start_ts), 1.0)
+                    wider_start = float(window_start_ts) - window_span
+                    wider_end = float(window_end_ts) + window_span
+                    selected_items = [
+                        item
+                        for item in items
+                        if len(item) > 1 and wider_start <= float(item[1]) <= wider_end
+                    ]
+                if not selected_items:
+                    selected_items = items[-min(len(items), 120):]
+                    logger.debug(
+                        "EVENT_VIDEO camera=%s window_miss fallback=tail items=%s",
+                        camera_id,
+                        len(selected_items),
+                    )
+        frames = [item[0] for item in selected_items]
+        timestamps = [item[1] for item in selected_items]
         return frames, timestamps
 
     def get_latest_frame(self, camera_id: str) -> Optional[np.ndarray]:
