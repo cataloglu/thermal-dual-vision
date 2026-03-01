@@ -497,10 +497,40 @@ class DetectorWorker:
         return threshold, timeout, reconnect_cooldown
 
     @staticmethod
+    def _stream_fallback_read_failure_policy(
+        failure_threshold: int,
+        failure_timeout: float,
+        reconnect_cooldown: float,
+        active_backend: Optional[str],
+        fallback_until_ts: float,
+        now_ts: float,
+        detection_source: Optional[str] = None,
+    ) -> Tuple[int, float, float]:
+        """
+        During temporary OpenCV fallback, avoid eager reconnect loops.
+
+        FFmpeg has already failed in this window; short RTSP hiccups should not
+        immediately trigger another reopen while fallback is trying to stabilize.
+        """
+        backend = str(active_backend or "").lower()
+        if backend != "opencv" or float(now_ts) >= float(fallback_until_ts):
+            return int(failure_threshold), float(failure_timeout), float(reconnect_cooldown)
+
+        threshold = max(int(failure_threshold) + 3, 10)
+        timeout = max(float(failure_timeout) + 8.0, 18.0)
+        cooldown = max(float(reconnect_cooldown), 30.0)
+        if str(detection_source or "").lower() == "thermal":
+            threshold = max(threshold, 12)
+            timeout = max(timeout, 20.0)
+            cooldown = max(cooldown, 35.0)
+        return threshold, timeout, cooldown
+
+    @staticmethod
     def _stream_reconnect_age_gate(
         failure_timeout: float,
         recent_reconnects: int,
         detection_source: Optional[str] = None,
+        fallback_active: bool = False,
     ) -> float:
         """
         Require a longer no-frame age before reconnecting under unstable streams.
@@ -518,6 +548,10 @@ class DetectorWorker:
             stale_age = max(stale_age, timeout * 2.0, 18.0)
         if pressure >= 5:
             stale_age = max(stale_age, timeout * 2.5, 24.0)
+        if bool(fallback_active):
+            # While in ffmpeg->opencv fallback window, require stronger stale
+            # evidence before reconnecting again.
+            stale_age = max(stale_age, timeout * 1.8, 30.0)
         return stale_age
 
     @staticmethod
@@ -1283,6 +1317,24 @@ class DetectorWorker:
                                     recent_reconnects=recent_reconnects,
                                     detection_source=detection_source,
                                 )
+                                fallback_until = float(self.ffmpeg_fallback_until.get(camera_id, 0.0))
+                                fallback_active = (
+                                    str(active_backend).lower() == "opencv"
+                                    and now < fallback_until
+                                )
+                                (
+                                    failure_threshold,
+                                    failure_timeout,
+                                    reconnect_cooldown,
+                                ) = self._stream_fallback_read_failure_policy(
+                                    failure_threshold=failure_threshold,
+                                    failure_timeout=failure_timeout,
+                                    reconnect_cooldown=reconnect_cooldown,
+                                    active_backend=active_backend,
+                                    fallback_until_ts=fallback_until,
+                                    now_ts=now,
+                                    detection_source=detection_source,
+                                )
                                 if failures >= failure_threshold:
                                     last_frame_age = self._get_last_frame_age(camera_id, now)
                                     is_stale = last_frame_age is None or last_frame_age >= failure_timeout
@@ -1291,6 +1343,7 @@ class DetectorWorker:
                                             failure_timeout=failure_timeout,
                                             recent_reconnects=recent_reconnects,
                                             detection_source=detection_source,
+                                            fallback_active=fallback_active,
                                         )
                                         if (
                                             last_frame_age is not None
