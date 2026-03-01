@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.63] - 2026-03-01
+
+### Düzeltmeler
+
+- **FFmpeg→OpenCV fallback mantık hatası düzeltildi**: Geçici fallback aktifken worker artık yanlışlıkla aynı döngüde tekrar ffmpeg açmayı denemiyor; gerçekten OpenCV reopen yoluna geçiyor.
+- **Backend seçim akışı netleştirildi**: Reopen sırasında backend seçimi helper fonksiyona taşındı; fallback penceresi aktifse OpenCV zorlanır, forced-ffmpeg modunda pencere bitince ffmpeg yeniden denenir.
+- **Test kapsamı artırıldı**: Reopen backend seçimi için fallback aktif/pasif ve auto/ffmpeg kombinasyonlarını doğrulayan unit test eklendi.
+
 ## [4.0.62] - 2026-03-01
 
 ### Düzeltmeler
