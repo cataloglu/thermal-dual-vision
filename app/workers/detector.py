@@ -353,6 +353,121 @@ class DetectorWorker:
         return min(cap, 1100)
 
     @staticmethod
+    def _should_fallback_from_ffmpeg_flapping(
+        reconnect_timestamps: List[float],
+        now_ts: float,
+        window_seconds: float = 180.0,
+        reconnect_threshold: int = 4,
+    ) -> bool:
+        """Detect frequent ffmpeg reconnects in a short window."""
+        if not reconnect_timestamps:
+            return False
+        window = max(30.0, float(window_seconds))
+        threshold = max(2, int(reconnect_threshold))
+        recent = sum(1 for ts in reconnect_timestamps if (now_ts - float(ts)) <= window)
+        return recent >= threshold
+
+    @staticmethod
+    def _allows_ffmpeg_flapping_fallback(capture_backend: str) -> bool:
+        """Allow anti-flapping fallback for auto and forced ffmpeg modes."""
+        return str(capture_backend or "auto").lower() in ("auto", "ffmpeg")
+
+    @staticmethod
+    def _should_hold_thermal_motion_active(
+        active_since_ts: float,
+        now_ts: float,
+        min_active_seconds: float,
+    ) -> bool:
+        """Keep thermal motion active briefly to avoid active/idle chatter."""
+        min_hold = max(0.0, float(min_active_seconds))
+        if min_hold <= 0.0:
+            return False
+        started = float(active_since_ts or 0.0)
+        if started <= 0.0:
+            return False
+        return (float(now_ts) - started) < min_hold
+
+    @staticmethod
+    def _stream_read_failure_policy(
+        base_threshold: int,
+        base_timeout: float,
+        seconds_since_reconnect: float,
+    ) -> Tuple[int, float, float]:
+        """
+        Stabilize reconnect decisions to avoid read-failure reconnect flapping.
+
+        Right after a reconnect, allow extra tolerance for decoder/stream warmup.
+        """
+        threshold = max(1, int(base_threshold))
+        timeout = max(4.0, float(base_timeout))
+        reconnect_cooldown = max(8.0, min(30.0, timeout * 1.5))
+
+        if 0.0 <= float(seconds_since_reconnect) < 45.0:
+            threshold = max(threshold + 3, 8)
+            timeout = max(timeout + 4.0, 12.0)
+            reconnect_cooldown = max(reconnect_cooldown, 20.0)
+
+        return threshold, timeout, reconnect_cooldown
+
+    @staticmethod
+    def _slew_limited_auto_min_area(
+        previous_learned: Optional[int],
+        learned_target: int,
+        max_down_step: int,
+        max_up_step: int,
+    ) -> int:
+        """Limit per-update threshold jumps to reduce thermal min-area chatter."""
+        target = int(learned_target)
+        if previous_learned is None:
+            return target
+
+        prev = int(previous_learned)
+        down_step = max(1, int(max_down_step))
+        up_step = max(1, int(max_up_step))
+
+        if target < prev:
+            return max(target, prev - down_step)
+        if target > prev:
+            return min(target, prev + up_step)
+        return target
+
+    @staticmethod
+    def _thermal_motion_hysteresis_decision(
+        motion_area: int,
+        min_area: int,
+        motion_active: bool,
+        above_streak: int,
+        below_streak: int,
+        active_factor: float,
+        idle_factor: float,
+        active_streak_required: int,
+        idle_streak_required: int,
+    ) -> Tuple[bool, int, int, int, int]:
+        """Two-sided hysteresis with streak confirmation for thermal motion."""
+        active_factor = max(1.0, float(active_factor))
+        idle_factor = max(0.5, min(1.0, float(idle_factor)))
+        on_threshold = int(max(1, int(min_area) * active_factor))
+        off_threshold = int(max(1, int(min_area) * idle_factor))
+
+        above = max(0, int(above_streak))
+        below = max(0, int(below_streak))
+        need_on = max(1, int(active_streak_required))
+        need_off = max(1, int(idle_streak_required))
+        area = int(motion_area)
+
+        if motion_active:
+            if area >= off_threshold:
+                return True, above, 0, on_threshold, off_threshold
+            below += 1
+            return below < need_off, above, below, on_threshold, off_threshold
+
+        if area >= on_threshold:
+            above += 1
+            return above >= need_on, above, 0, on_threshold, off_threshold
+
+        return False, 0, 0, on_threshold, off_threshold
+
+    @staticmethod
     def _thermal_temporal_policy(
         confidence_threshold: float,
         active_motion_cameras: int,
@@ -834,6 +949,7 @@ class DetectorWorker:
             protocol = config.stream.protocol
 
             self._init_stream_stats(camera_id)
+            ffmpeg_reconnect_times: deque[float] = deque(maxlen=12)
 
             def reader_loop() -> None:
                 nonlocal cap, active_url, rtsp_urls, ffmpeg_proc, ffmpeg_frame_shape, ffmpeg_frame_size, active_backend
@@ -860,12 +976,41 @@ class DetectorWorker:
                         )
                         if ffmpeg_proc and ffmpeg_frame_shape:
                             ffmpeg_frame_size = ffmpeg_frame_shape[0] * ffmpeg_frame_shape[1] * 3
-                            return True
+                            if is_reconnect:
+                                now_ts = time.time()
+                                self.last_reconnect_ts[camera_id] = now_ts
+                                ffmpeg_reconnect_times.append(now_ts)
+                                self._update_stream_stats(
+                                    camera_id,
+                                    reconnect_increment=1,
+                                    last_reconnect_reason="ffmpeg_reopen",
+                                )
+                                if (
+                                    self._allows_ffmpeg_flapping_fallback(capture_backend)
+                                    and self._should_fallback_from_ffmpeg_flapping(
+                                        reconnect_timestamps=list(ffmpeg_reconnect_times),
+                                        now_ts=now_ts,
+                                    )
+                                ):
+                                    logger.warning(
+                                        "Camera %s ffmpeg reconnect flapping detected (mode=%s); falling back to OpenCV backend",
+                                        camera_id,
+                                        capture_backend,
+                                    )
+                                    self._stop_ffmpeg_capture(ffmpeg_proc)
+                                    ffmpeg_proc = None
+                                    active_backend = "opencv"
+                                else:
+                                    return True
+                            else:
+                                return True
                         if capture_backend == "auto":
                             active_backend = "opencv"
                     if active_backend == "opencv":
                         cap, active_url = self._open_capture_with_fallbacks(rtsp_urls, config, camera_id)
                         if cap is not None and cap.isOpened():
+                            if is_reconnect:
+                                self.last_reconnect_ts[camera_id] = time.time()
                             return True
                     return False
 
@@ -877,6 +1022,19 @@ class DetectorWorker:
                             protocol=protocol,
                         )
                         if not _capture_ready():
+                            if active_backend == "ffmpeg":
+                                exit_code = ffmpeg_proc.poll() if ffmpeg_proc else None
+                                if ffmpeg_proc is not None and exit_code is not None:
+                                    self._update_stream_stats(
+                                        camera_id,
+                                        reconnect_increment=1,
+                                        last_reconnect_reason="ffmpeg_exit",
+                                    )
+                                    logger.warning(
+                                        "Camera %s ffmpeg capture exited (code=%s); reopening",
+                                        camera_id,
+                                        exit_code,
+                                    )
                             if not _open_capture_backend(is_reconnect=True):
                                 open_failures += 1
                                 if open_failures >= max(config.stream.max_reconnect_attempts, 1):
@@ -911,15 +1069,31 @@ class DetectorWorker:
                                     failed_increment=1,
                                     last_error="read_failed",
                                 )
-                                failure_threshold = max(1, int(getattr(config.stream, "read_failure_threshold", 3)))
-                                failure_timeout = float(getattr(config.stream, "read_failure_timeout_seconds", 8.0))
+                                base_failure_threshold = max(
+                                    1,
+                                    int(getattr(config.stream, "read_failure_threshold", 3)),
+                                )
+                                base_failure_timeout = float(
+                                    getattr(config.stream, "read_failure_timeout_seconds", 8.0)
+                                )
+                                now = time.time()
+                                last_reconnect = float(self.last_reconnect_ts.get(camera_id, 0.0))
+                                since_reconnect = (
+                                    now - last_reconnect if last_reconnect > 0.0 else float("inf")
+                                )
+                                (
+                                    failure_threshold,
+                                    failure_timeout,
+                                    reconnect_cooldown,
+                                ) = self._stream_read_failure_policy(
+                                    base_failure_threshold,
+                                    base_failure_timeout,
+                                    since_reconnect,
+                                )
                                 if failures >= failure_threshold:
-                                    now = time.time()
                                     last_frame_age = self._get_last_frame_age(camera_id, now)
                                     is_stale = last_frame_age is None or last_frame_age >= failure_timeout
                                     if is_stale:
-                                        reconnect_cooldown = 8.0
-                                        last_reconnect = float(self.last_reconnect_ts.get(camera_id, 0.0))
                                         if now - last_reconnect < reconnect_cooldown:
                                             time.sleep(0.2)
                                             continue
@@ -1941,6 +2115,7 @@ class DetectorWorker:
             self._start_ffmpeg_stderr_reader(process, camera_id)
             if is_reconnect:
                 if camera_id:
+                    self.last_reconnect_ts[camera_id] = time.time()
                     self.suppression_rearm_until[camera_id] = time.time() + 20.0
                 logger.info("Reconnected camera %s (ffmpeg backend)", camera_id)
             else:
@@ -2342,6 +2517,7 @@ class DetectorWorker:
             state.clear()
             state["algorithm"] = algorithm
         motion_active = bool(state.get("motion_active"))
+        previous_motion_active = motion_active
         last_motion = state.get("last_motion", 0.0)
         now = time.time()
         if len(frame.shape) == 3:
@@ -2430,6 +2606,16 @@ class DetectorWorker:
                 noise_p = float(np.percentile(np.array(history, dtype=np.float32), percentile))
                 learned = int(noise_p * multiplier)
                 learned = max(floor, min(ceiling, learned))
+                if is_thermal_motion:
+                    prev_learned = state.get("auto_learned_min_area")
+                    down_step = int(motion_settings.get("thermal_auto_min_area_step_down", 40))
+                    up_step = int(motion_settings.get("thermal_auto_min_area_step_up", 120))
+                    learned = self._slew_limited_auto_min_area(
+                        previous_learned=prev_learned if prev_learned is not None else None,
+                        learned_target=learned,
+                        max_down_step=down_step,
+                        max_up_step=up_step,
+                    )
                 state["auto_learned_min_area"] = learned
                 state["auto_last_calc"] = now
 
@@ -2445,16 +2631,37 @@ class DetectorWorker:
         if is_thermal_motion and now < float(state.get("thermal_motion_gate_warmup_until", 0.0)):
             motion_area = 0
         if is_thermal_motion:
+            reconnect_gate_seconds = float(motion_settings.get("thermal_reconnect_warmup_seconds", 6.0))
+            reconnect_gate_seconds = max(0.0, reconnect_gate_seconds)
+            last_reconnect_ts = float(self.last_reconnect_ts.get(camera.id, 0.0))
+            if last_reconnect_ts > 0.0 and (now - last_reconnect_ts) < reconnect_gate_seconds:
+                motion_area = 0
+        if is_thermal_motion:
             active_factor = float(motion_settings.get("thermal_active_hysteresis", 1.08))
             idle_factor = float(motion_settings.get("thermal_idle_hysteresis", 0.92))
-            active_factor = max(1.0, active_factor)
-            idle_factor = max(0.5, min(1.0, idle_factor))
-            on_threshold = int(max(1, min_area * active_factor))
-            off_threshold = int(max(1, min_area * idle_factor))
-            if motion_active:
-                motion_detected = motion_area >= off_threshold
-            else:
-                motion_detected = motion_area >= on_threshold
+            active_streak_required = int(motion_settings.get("thermal_active_streak_frames", 2))
+            idle_streak_required = int(motion_settings.get("thermal_idle_streak_frames", 3))
+            above_streak = int(state.get("thermal_motion_above_streak", 0))
+            below_streak = int(state.get("thermal_motion_below_streak", 0))
+            (
+                motion_detected,
+                above_streak,
+                below_streak,
+                _,
+                _,
+            ) = self._thermal_motion_hysteresis_decision(
+                motion_area=motion_area,
+                min_area=min_area,
+                motion_active=motion_active,
+                above_streak=above_streak,
+                below_streak=below_streak,
+                active_factor=active_factor,
+                idle_factor=idle_factor,
+                active_streak_required=active_streak_required,
+                idle_streak_required=idle_streak_required,
+            )
+            state["thermal_motion_above_streak"] = above_streak
+            state["thermal_motion_below_streak"] = below_streak
         else:
             motion_detected = motion_area >= min_area
         if motion_detected:
@@ -2463,9 +2670,20 @@ class DetectorWorker:
             state["last_motion"] = now
             motion_active = True
         elif not (cooldown_seconds and now - last_motion < cooldown_seconds):
-            motion_active = False
+            if is_thermal_motion and motion_active and self._should_hold_thermal_motion_active(
+                active_since_ts=float(state.get("motion_active_since", 0.0)),
+                now_ts=now,
+                min_active_seconds=float(motion_settings.get("thermal_min_active_seconds", 3.0)),
+            ):
+                motion_active = True
+            else:
+                motion_active = False
 
         state["motion_active"] = motion_active
+        if motion_active and not previous_motion_active:
+            state["motion_active_since"] = now
+        elif not motion_active:
+            state.pop("motion_active_since", None)
 
         last_logged_state = state.get("last_motion_logged_state")
         last_motion_log = state.get("last_motion_log", 0.0)

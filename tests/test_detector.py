@@ -456,6 +456,142 @@ def test_thermal_suppression_rearm_scales_with_camera_load():
     assert worker._thermal_suppression_rearm_seconds(active_motion_cameras=4) == 26.0
 
 
+def test_stream_read_failure_policy_softens_reconnect_flap_after_reconnect():
+    """Read failure reconnect should be more conservative right after reconnect."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    threshold, timeout, cooldown = worker._stream_read_failure_policy(
+        base_threshold=3,
+        base_timeout=8.0,
+        seconds_since_reconnect=10.0,
+    )
+    assert threshold >= 8
+    assert timeout >= 12.0
+    assert cooldown >= 20.0
+
+    threshold_stable, timeout_stable, cooldown_stable = worker._stream_read_failure_policy(
+        base_threshold=3,
+        base_timeout=8.0,
+        seconds_since_reconnect=120.0,
+    )
+    assert threshold_stable == 3
+    assert timeout_stable == 8.0
+    assert cooldown_stable == 12.0
+
+
+def test_ffmpeg_flapping_detector_triggers_fallback_in_short_window():
+    """Frequent ffmpeg reconnects should trigger auto backend fallback."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    reconnects = [100.0, 130.0, 170.0, 220.0]
+    assert worker._should_fallback_from_ffmpeg_flapping(
+        reconnect_timestamps=reconnects,
+        now_ts=220.0,
+        window_seconds=180.0,
+        reconnect_threshold=4,
+    ) is True
+    assert worker._should_fallback_from_ffmpeg_flapping(
+        reconnect_timestamps=[100.0, 130.0, 170.0],
+        now_ts=220.0,
+        window_seconds=180.0,
+        reconnect_threshold=4,
+    ) is False
+
+
+def test_ffmpeg_flapping_fallback_allowed_for_auto_and_ffmpeg_modes():
+    """Anti-flapping fallback should work in auto and forced ffmpeg modes."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    assert worker._allows_ffmpeg_flapping_fallback("auto") is True
+    assert worker._allows_ffmpeg_flapping_fallback("ffmpeg") is True
+    assert worker._allows_ffmpeg_flapping_fallback("opencv") is False
+
+
+def test_thermal_motion_active_hold_prevents_short_idle_flips():
+    """Thermal motion active hold should suppress short active->idle chatter."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    assert worker._should_hold_thermal_motion_active(
+        active_since_ts=100.0,
+        now_ts=101.5,
+        min_active_seconds=3.0,
+    ) is True
+    assert worker._should_hold_thermal_motion_active(
+        active_since_ts=100.0,
+        now_ts=104.0,
+        min_active_seconds=3.0,
+    ) is False
+
+
+def test_slew_limited_auto_min_area_limits_large_threshold_jumps():
+    """Thermal auto min-area should change in bounded steps."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    assert worker._slew_limited_auto_min_area(700, 520, max_down_step=40, max_up_step=120) == 660
+    assert worker._slew_limited_auto_min_area(700, 1100, max_down_step=40, max_up_step=120) == 820
+    assert worker._slew_limited_auto_min_area(None, 580, max_down_step=40, max_up_step=120) == 580
+
+
+def test_thermal_motion_hysteresis_uses_streak_confirmation():
+    """Thermal motion should avoid active/idle chatter around threshold."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+
+    motion_detected, above, below, _, _ = worker._thermal_motion_hysteresis_decision(
+        motion_area=780,
+        min_area=700,
+        motion_active=False,
+        above_streak=0,
+        below_streak=0,
+        active_factor=1.08,
+        idle_factor=0.92,
+        active_streak_required=2,
+        idle_streak_required=3,
+    )
+    assert motion_detected is False
+    assert above == 1
+    assert below == 0
+
+    motion_detected, above, below, _, _ = worker._thermal_motion_hysteresis_decision(
+        motion_area=790,
+        min_area=700,
+        motion_active=False,
+        above_streak=above,
+        below_streak=below,
+        active_factor=1.08,
+        idle_factor=0.92,
+        active_streak_required=2,
+        idle_streak_required=3,
+    )
+    assert motion_detected is True
+    assert above == 2
+    assert below == 0
+
+    # Active state should tolerate brief dips and only deactivate after enough
+    # consecutive below-threshold frames.
+    motion_detected, above, below, _, _ = worker._thermal_motion_hysteresis_decision(
+        motion_area=500,
+        min_area=700,
+        motion_active=True,
+        above_streak=above,
+        below_streak=0,
+        active_factor=1.08,
+        idle_factor=0.92,
+        active_streak_required=2,
+        idle_streak_required=3,
+    )
+    assert motion_detected is True
+    assert below == 1
+
+    motion_detected, _, below, _, _ = worker._thermal_motion_hysteresis_decision(
+        motion_area=500,
+        min_area=700,
+        motion_active=True,
+        above_streak=above,
+        below_streak=2,
+        active_factor=1.08,
+        idle_factor=0.92,
+        active_streak_required=2,
+        idle_streak_required=3,
+    )
+    assert motion_detected is False
+    assert below == 3
+
+
 def test_effective_thermal_motion_area_uses_recent_peak():
     """Recent peak area should smooth one-frame drops for suppression decisions."""
     worker = DetectorWorker.__new__(DetectorWorker)
