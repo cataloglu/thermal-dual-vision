@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.68] - 2026-03-01
+
+### Düzeltmeler
+
+- **Fallback sırasında read-failure reconnect daha da yumuşatıldı**: FFmpeg exit sonrası geçici OpenCV fallback aktifken reconnect eşik/timeout/cooldown değerleri otomatik yükseltiliyor.
+- **Fallback-aware stale-age gate eklendi**: Fallback penceresinde reconnect kararı için daha uzun “son başarılı frame yaşı” zorunlu tutuldu; kısa RTSP takılmalarında gereksiz reopen azaltıldı.
+- **Test kapsamı genişletildi**: Fallback aktif durumda stream reconnect politikasını ve fallback-age gate davranışını doğrulayan unit testler eklendi.
+
 ## [4.0.67] - 2026-03-01
 
 ### Düzeltmeler
