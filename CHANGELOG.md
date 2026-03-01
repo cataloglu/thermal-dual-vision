@@ -6,6 +6,15 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.66] - 2026-03-01
+
+### Düzeltmeler
+
+- **Reconnect flapping (read failures) daha toleranslı hale getirildi**: Thermal stream’lerde kısa upstream RTSP stall’larında hemen reconnect yerine daha güçlü stale-age şartı aranıyor.
+- **Reconnect pressure adaptasyonu eklendi**: Son 5 dakikadaki reconnect sayısı arttıkça `read_failure` eşik/timeout/cooldown değerleri otomatik yükseltiliyor; `Reconnecting camera ... after read failures` döngüleri azaltıldı.
+- **Yeni stale-age gate eklendi**: Reconnect kararı için sadece failure sayısı değil, “son başarılı frame’den geçen süre” için dinamik bir minimum yaş eşiği zorunlu kılındı.
+- **Test kapsamı güncellendi**: Thermal + reconnect pressure altında stream policy ve reconnect age gate davranışını doğrulayan unit testler eklendi.
+
 ## [4.0.65] - 2026-03-01
 
 ### Düzeltmeler

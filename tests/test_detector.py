@@ -553,6 +553,39 @@ def test_stream_read_failure_policy_softens_reconnect_flap_after_reconnect():
     assert cooldown_stable == 12.0
 
 
+def test_stream_read_failure_policy_adds_tolerance_for_thermal_reconnect_pressure():
+    """Thermal streams under reconnect pressure should require stronger stale signal."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    threshold, timeout, cooldown = worker._stream_read_failure_policy(
+        base_threshold=3,
+        base_timeout=8.0,
+        seconds_since_reconnect=120.0,
+        recent_reconnects=5,
+        detection_source="thermal",
+    )
+    assert threshold >= 14
+    assert timeout >= 18.0
+    assert cooldown >= 45.0
+
+
+def test_stream_reconnect_age_gate_scales_with_reconnect_pressure():
+    """Reconnect stale-age gate should become stricter when stream is unstable."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    baseline = worker._stream_reconnect_age_gate(
+        failure_timeout=8.0,
+        recent_reconnects=0,
+        detection_source="thermal",
+    )
+    pressured = worker._stream_reconnect_age_gate(
+        failure_timeout=8.0,
+        recent_reconnects=5,
+        detection_source="thermal",
+    )
+    assert baseline >= 14.0
+    assert pressured >= 24.0
+    assert pressured > baseline
+
+
 def test_ffmpeg_flapping_detector_triggers_fallback_in_short_window():
     """Frequent ffmpeg reconnects should trigger auto backend fallback."""
     worker = DetectorWorker.__new__(DetectorWorker)
