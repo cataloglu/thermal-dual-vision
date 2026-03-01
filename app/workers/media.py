@@ -504,7 +504,7 @@ class MediaWorker:
 
         center_ts = float(timestamps[best_idx])
         timeline_span = max(0.0, float(timestamps[-1]) - float(timestamps[0]))
-        if timeline_span >= 2.2:
+        if timeline_span >= 1.2:
             # Spread collage across a wider timeline when possible so AI and users
             # can see motion progression, not nearly same-second snapshots.
             left_far = min(3.8, max(1.4, timeline_span * 0.42))
