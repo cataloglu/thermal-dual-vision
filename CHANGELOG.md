@@ -6,6 +6,16 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.64] - 2026-03-01
+
+### Düzeltmeler
+
+- **Multi-camera recall güçlendirildi (thermal)**: Eşzamanlı aktif kamera sayısı arttığında thermal suppression artık çok daha geç devreye giriyor (streak ciddi yükseltildi), kısa walk-through kaçırmaları azaltıldı.
+- **Concurrent thermal confidence politikası eklendi**: Çoklu kamera + güçlü motion sinyalinde thermal confidence eşiği kontrollü gevşetiliyor; “aynı anda sadece tek kamera yakalıyor” senaryosunda diğer kameraların da evente düşmesi kolaylaştırıldı.
+- **Gated thermal retry eklendi**: Multi-camera durumda ilk infer boşsa ve motion güçlü ise tek seferlik hafif düşük eşik retry çalışıyor; contention anında kaçırma azaltıldı.
+- **Thread/MP parity güncellendi**: Aynı recall-biased suppression + thermal confidence/retry yaklaşımı multiprocessing worker’a da taşındı.
+- **Test kapsamı güncellendi**: Yeni thermal confidence politikasını doğrulayan unit test eklendi.
+
 ## [4.0.63] - 2026-03-01
 
 ### Düzeltmeler

@@ -711,7 +711,25 @@ def camera_detection_process(
             """
             streak = max(5, int(base_streak))
             duration = max(5, int(base_duration_secs))
-            return max(streak * 2, 30), min(duration, 15)
+            return max(streak * 6, 120), min(duration, 8)
+
+        def _thermal_confidence_policy(
+            base_confidence: float,
+            motion_area_now: int,
+            base_min_area: int,
+        ) -> float:
+            """
+            Local recall-biased thermal confidence floor for MP worker.
+
+            Relax only when live motion is meaningfully above baseline.
+            """
+            conf = max(0.25, float(base_confidence))
+            motion_area = max(0, int(motion_area_now))
+            min_area = max(1, int(base_min_area))
+            strong_motion_gate = max(900, min_area * 2)
+            if motion_area >= strong_motion_gate:
+                return max(0.25, conf - 0.05)
+            return conf
 
         def _should_hold_thermal_suppression_for_motion(
             current_area: int,
@@ -1487,7 +1505,12 @@ def camera_detection_process(
             confidence_threshold = float(config.detection.confidence_threshold)
             if detection_source == "thermal":
                 thermal_conf = float(getattr(config.detection, "thermal_confidence_threshold", confidence_threshold))
-                confidence_threshold = max(0.25, thermal_conf)
+                motion_area_now = int(thermal_motion_state.get("thermal_motion_area_raw", 0))
+                confidence_threshold = _thermal_confidence_policy(
+                    base_confidence=thermal_conf,
+                    motion_area_now=motion_area_now,
+                    base_min_area=int(getattr(config.motion, "min_area", 0)),
+                )
             
             detections_raw = inference_service.infer(
                 preprocessed,
@@ -1513,6 +1536,30 @@ def camera_detection_process(
                             cam_name,
                             relaxed_threshold,
                             len(relaxed_detections),
+                        )
+            elif len(detections_raw) == 0 and detection_source == "thermal":
+                motion_area_now = int(thermal_motion_state.get("thermal_motion_area_raw", 0))
+                retry_motion_gate = max(900, int(getattr(config.motion, "min_area", 0)) * 2)
+                relaxed_threshold = max(0.25, confidence_threshold - 0.05)
+                if (
+                    motion_area_now >= retry_motion_gate
+                    and relaxed_threshold < confidence_threshold
+                    and (current_time - last_relaxed_infer_time) >= 1.0
+                ):
+                    relaxed_detections = inference_service.infer(
+                        preprocessed,
+                        confidence_threshold=relaxed_threshold,
+                        inference_resolution=tuple(config.detection.inference_resolution),
+                    )
+                    last_relaxed_infer_time = current_time
+                    if relaxed_detections:
+                        detections_raw = relaxed_detections
+                        process_logger.debug(
+                            "DETECT [%s] thermal_relaxed_threshold=%.2f recovered=%s area=%s",
+                            cam_name,
+                            relaxed_threshold,
+                            len(relaxed_detections),
+                            motion_area_now,
                         )
             
             # Filter by aspect ratio

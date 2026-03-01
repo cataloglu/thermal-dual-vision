@@ -770,10 +770,36 @@ class DetectorWorker:
         streak = max(5, int(base_streak))
         duration = max(5, int(base_duration_secs))
         if active_motion_cameras >= 4:
-            return max(streak * 4, 60), min(duration, 8)
+            # Dense concurrent motion: almost disable suppression to avoid misses.
+            return max(streak * 8, 180), min(duration, 6)
         if active_motion_cameras >= 2:
-            return max(streak * 3, 45), min(duration, 12)
-        return max(streak * 2, 30), min(duration, 15)
+            return max(streak * 6, 120), min(duration, 8)
+        return max(streak * 3, 45), min(duration, 12)
+
+    @staticmethod
+    def _thermal_confidence_policy(
+        base_confidence: float,
+        active_motion_cameras: int,
+        motion_area_now: int,
+        base_min_area: int,
+    ) -> float:
+        """
+        Recall-biased thermal confidence floor under concurrent motion.
+
+        Relax confidence only when motion signal is meaningfully above baseline,
+        so weak idle-scene noise doesn't get a lower confidence floor.
+        """
+        conf = max(0.25, float(base_confidence))
+        motion_area = max(0, int(motion_area_now))
+        min_area = max(1, int(base_min_area))
+        strong_motion_gate = max(800, min_area * 2)
+        very_strong_motion_gate = max(900, min_area * 2)
+
+        if active_motion_cameras >= 4 and motion_area >= very_strong_motion_gate:
+            return max(0.25, conf - 0.10)
+        if active_motion_cameras >= 2 and motion_area >= strong_motion_gate:
+            return max(0.25, conf - 0.07)
+        return conf
 
     @staticmethod
     def _should_hold_thermal_suppression_for_motion(
@@ -1500,8 +1526,18 @@ class DetectorWorker:
                 # Run inference (with metrics)
                 confidence_threshold = float(config.detection.confidence_threshold)
                 if detection_source == "thermal":
-                    thermal_conf = float(getattr(config.detection, "thermal_confidence_threshold", confidence_threshold))
-                    confidence_threshold = max(0.25, thermal_conf)
+                    thermal_conf = float(
+                        getattr(config.detection, "thermal_confidence_threshold", confidence_threshold)
+                    )
+                    motion_area_now = int(
+                        self.motion_state.get(camera_id, {}).get("thermal_motion_area_raw", 0)
+                    )
+                    confidence_threshold = self._thermal_confidence_policy(
+                        base_confidence=thermal_conf,
+                        active_motion_cameras=active_motion_cameras,
+                        motion_area_now=motion_area_now,
+                        base_min_area=int(getattr(config.motion, "min_area", 0)),
+                    )
                 t0 = time.perf_counter()
                 detections_raw = self.inference_service.infer(
                     preprocessed,
@@ -1532,6 +1568,39 @@ class DetectorWorker:
                                 camera_id,
                                 relaxed_threshold,
                                 len(relaxed_detections),
+                            )
+                elif (
+                    len(detections_raw) == 0
+                    and detection_source == "thermal"
+                    and active_motion_cameras >= 2
+                ):
+                    # Concurrent thermal motion: allow a small, gated retry to
+                    # reduce "only one camera catches" misses under contention.
+                    motion_area_now = int(
+                        self.motion_state.get(camera_id, {}).get("thermal_motion_area_raw", 0)
+                    )
+                    retry_motion_gate = max(900, int(getattr(config.motion, "min_area", 0)) * 2)
+                    relaxed_threshold = max(0.25, confidence_threshold - 0.05)
+                    last_relaxed = float(self.last_relaxed_infer_time.get(camera_id, 0.0))
+                    if (
+                        motion_area_now >= retry_motion_gate
+                        and relaxed_threshold < confidence_threshold
+                        and current_time - last_relaxed >= 1.0
+                    ):
+                        relaxed_detections = self.inference_service.infer(
+                            preprocessed,
+                            confidence_threshold=relaxed_threshold,
+                            inference_resolution=tuple(config.detection.inference_resolution),
+                        )
+                        self.last_relaxed_infer_time[camera_id] = current_time
+                        if relaxed_detections:
+                            detections_raw = relaxed_detections
+                            logger.debug(
+                                "DETECT camera=%s thermal_relaxed_threshold=%.2f recovered=%s area=%s",
+                                camera_id,
+                                relaxed_threshold,
+                                len(relaxed_detections),
+                                motion_area_now,
                             )
                 inference_latency = time.perf_counter() - t0
                 model_name = getattr(config.detection, "model", "yolov8n-person") or "yolov8n-person"
