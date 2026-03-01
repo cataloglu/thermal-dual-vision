@@ -301,6 +301,27 @@ def test_select_collage_indices_prioritizes_confident_candidate(media_worker):
     assert indices.index(2) < indices.index(1)
 
 
+def test_select_collage_indices_spreads_timeline_when_possible(media_worker):
+    """When enough timestamp span exists, collage should cover wider motion timeline."""
+    frames = [np.full((240, 320, 3), 10 + i * 5, dtype=np.uint8) for i in range(40)]
+    timestamps = [1000.0 + (i * 0.2) for i in range(40)]  # 7.8s span
+    detections = [None] * 40
+    detections[20] = {"bbox": [80, 60, 160, 220], "confidence": 0.88}
+
+    indices = media_worker._select_collage_indices(
+        frames=frames,
+        detections=detections,
+        timestamps=timestamps,
+        best_idx=20,
+    )
+
+    assert len(indices) == media_worker.COLLAGE_FRAMES
+    assert len(indices) == len(set(indices))
+    assert 20 in indices
+    selected_ts = [timestamps[i] for i in indices]
+    assert max(selected_ts) - min(selected_ts) >= 4.0
+
+
 def test_ai_collage_is_smaller_and_person_focused(media_worker):
     """AI collage should be smaller than default collage for faster AI requests."""
     frames = []
@@ -374,6 +395,30 @@ def test_select_ai_collage_indices_includes_pre_motion_context(media_worker):
 
     pre_motion = [idx for idx in indices if idx < 6]
     assert len(pre_motion) >= 2
+
+
+def test_select_ai_collage_indices_spreads_context_over_wider_timeline(media_worker):
+    """AI collage should keep pre/post context on longer timelines."""
+    frames = [np.full((240, 320, 3), 20 + (i * 4), dtype=np.uint8) for i in range(36)]
+    timestamps = [2000.0 + (i * 0.3) for i in range(36)]  # 10.5s span
+    detections = [None] * 36
+    detections[18] = {"bbox": [150, 70, 185, 200], "confidence": 0.74}
+    detections[19] = {"bbox": [152, 72, 187, 202], "confidence": 0.91}
+    detections[20] = {"bbox": [154, 73, 189, 203], "confidence": 0.83}
+
+    indices = media_worker._select_ai_collage_indices(
+        frames=frames,
+        detections=detections,
+        timestamps=timestamps,
+        best_idx=19,
+    )
+
+    assert len(indices) == media_worker.AI_COLLAGE_FRAMES
+    assert indices == sorted(indices)
+    assert any(idx < 18 for idx in indices)
+    assert any(idx > 20 for idx in indices)
+    selected_ts = [timestamps[i] for i in indices]
+    assert max(selected_ts) - min(selected_ts) >= 4.0
 
 
 def test_ai_collage_marks_person_bbox_not_full_tile_border(media_worker):
