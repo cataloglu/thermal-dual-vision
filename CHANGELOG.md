@@ -6,6 +6,15 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.69] - 2026-03-01
+
+### Düzeltmeler
+
+- **Collage zaman yayılımı genişletildi**: 6 kare artık yeterli zaman aralığı varsa daha geniş event penceresine yayılıyor; “aynı saniyede 6 kare” problemi azaltıldı.
+- **AI collage context genişletildi**: Pre/post motion hedefleri dinamik hale getirildi; AI için başlangıç-orta-bitiş akışı daha anlaşılır hale getirildi.
+- **AI prompt metni güncellendi**: Prompt artık kare aralığının sabit olmadığını açıkça belirtiyor (saniye altı + birkaç saniye arası).
+- **Test kapsamı artırıldı**: Collage/AI-collage seçiminde zaman yayılımını doğrulayan yeni unit testler eklendi.
+
 ## [4.0.68] - 2026-03-01
 
 ### Düzeltmeler

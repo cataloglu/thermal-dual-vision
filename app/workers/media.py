@@ -503,8 +503,27 @@ class MediaWorker:
             return selected[: self.COLLAGE_FRAMES]
 
         center_ts = float(timestamps[best_idx])
-        target_offsets = [-0.90, -0.45, -0.15, 0.0, 0.30, 0.75]
-        target_windows = [0.50, 0.38, 0.28, 0.0, 0.32, 0.48]
+        timeline_span = max(0.0, float(timestamps[-1]) - float(timestamps[0]))
+        if timeline_span >= 2.2:
+            # Spread collage across a wider timeline when possible so AI and users
+            # can see motion progression, not nearly same-second snapshots.
+            left_far = min(3.8, max(1.4, timeline_span * 0.42))
+            left_mid = min(2.6, max(0.9, timeline_span * 0.25))
+            left_near = min(1.5, max(0.35, timeline_span * 0.12))
+            right_near = min(1.8, max(0.45, timeline_span * 0.18))
+            right_far = min(4.0, max(1.2, timeline_span * 0.38))
+            target_offsets = [-left_far, -left_mid, -left_near, 0.0, right_near, right_far]
+            target_windows = [
+                max(0.45, left_far * 0.45),
+                max(0.38, left_mid * 0.42),
+                max(0.26, left_near * 0.60),
+                0.0,
+                max(0.30, right_near * 0.55),
+                max(0.45, right_far * 0.45),
+            ]
+        else:
+            target_offsets = [-0.90, -0.45, -0.15, 0.0, 0.30, 0.75]
+            target_windows = [0.50, 0.38, 0.28, 0.0, 0.32, 0.48]
         selected: List[int] = []
         unused: set[int] = set(range(total))
         blur_cache: Dict[int, float] = {}
@@ -787,7 +806,11 @@ class MediaWorker:
         pre_candidates = [i for i in range(0, first_det) if i not in used]
         if has_valid_ts:
             first_ts = float(timestamps[first_det])
-            pre_targets = [first_ts - 1.0, first_ts - 0.45]
+            timeline_start = float(timestamps[0])
+            pre_available = max(0.0, first_ts - timeline_start)
+            pre_far = max(0.6, min(3.0, max(pre_available * 0.75, 1.2)))
+            pre_near = max(0.35, min(1.8, max(pre_available * 0.35, 0.55)))
+            pre_targets = [first_ts - pre_far, first_ts - pre_near]
             for target_ts in pre_targets:
                 pool = [i for i in pre_candidates if i not in used]
                 if not pool:
@@ -812,7 +835,11 @@ class MediaWorker:
         post_candidates = [i for i in range(last_det + 1, total) if i not in used]
         if post_candidates:
             if has_valid_ts:
-                post_target_ts = float(timestamps[last_det]) + 0.45
+                timeline_end = float(timestamps[-1])
+                last_ts = float(timestamps[last_det])
+                post_available = max(0.0, timeline_end - last_ts)
+                post_step = max(0.5, min(2.4, max(post_available * 0.45, 0.9)))
+                post_target_ts = last_ts + post_step
                 _append(_pick_nearest(post_candidates, target_ts=post_target_ts, prefer_bbox=False))
             else:
                 _append(_pick_nearest(post_candidates, target_idx=min(total - 1, last_det + 2), prefer_bbox=False))
