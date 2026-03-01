@@ -496,6 +496,14 @@ def test_ffmpeg_flapping_detector_triggers_fallback_in_short_window():
     ) is False
 
 
+def test_ffmpeg_flapping_fallback_allowed_for_auto_and_ffmpeg_modes():
+    """Anti-flapping fallback should work in auto and forced ffmpeg modes."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    assert worker._allows_ffmpeg_flapping_fallback("auto") is True
+    assert worker._allows_ffmpeg_flapping_fallback("ffmpeg") is True
+    assert worker._allows_ffmpeg_flapping_fallback("opencv") is False
+
+
 def test_thermal_motion_active_hold_prevents_short_idle_flips():
     """Thermal motion active hold should suppress short active->idle chatter."""
     worker = DetectorWorker.__new__(DetectorWorker)

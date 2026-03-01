@@ -368,6 +368,11 @@ class DetectorWorker:
         return recent >= threshold
 
     @staticmethod
+    def _allows_ffmpeg_flapping_fallback(capture_backend: str) -> bool:
+        """Allow anti-flapping fallback for auto and forced ffmpeg modes."""
+        return str(capture_backend or "auto").lower() in ("auto", "ffmpeg")
+
+    @staticmethod
     def _should_hold_thermal_motion_active(
         active_since_ts: float,
         now_ts: float,
@@ -981,15 +986,16 @@ class DetectorWorker:
                                     last_reconnect_reason="ffmpeg_reopen",
                                 )
                                 if (
-                                    capture_backend == "auto"
+                                    self._allows_ffmpeg_flapping_fallback(capture_backend)
                                     and self._should_fallback_from_ffmpeg_flapping(
                                         reconnect_timestamps=list(ffmpeg_reconnect_times),
                                         now_ts=now_ts,
                                     )
                                 ):
                                     logger.warning(
-                                        "Camera %s ffmpeg reconnect flapping detected; falling back to OpenCV backend",
+                                        "Camera %s ffmpeg reconnect flapping detected (mode=%s); falling back to OpenCV backend",
                                         camera_id,
+                                        capture_backend,
                                     )
                                     self._stop_ffmpeg_capture(ffmpeg_proc)
                                     ffmpeg_proc = None

@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.61] - 2026-03-01
+
+### Düzeltmeler
+
+- **FFmpeg flapping fallback kapsamı genişletildi**: Anti-flapping OpenCV fallback artık sadece `capture_backend=auto` için değil, `capture_backend=ffmpeg` seçiliyken de devreye giriyor.
+- **Reconnect flapping logu iyileştirildi**: Fallback tetiklenirken aktif capture mode (`auto/ffmpeg`) loglanıyor; sahadaki teşhis netliği arttı.
+- **Thread behavior test kapsamı güncellendi**: Fallback izin koşulu için (`auto`, `ffmpeg`, `opencv`) ek unit test eklendi.
+
 ## [4.0.60] - 2026-02-28
 
 ### Düzeltmeler
