@@ -13,6 +13,8 @@ Tests cover:
 - Frame preprocessing
 """
 from datetime import datetime
+from collections import deque
+import threading
 from unittest.mock import Mock, patch, MagicMock
 
 import cv2
@@ -473,6 +475,62 @@ def test_thermal_confidence_policy_relaxes_only_with_multi_cam_and_strong_motion
     ) == pytest.approx(0.45, abs=1e-6)
 
 
+def test_get_event_media_data_filters_to_event_window():
+    """Event media selection should prefer frames from requested event window."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    camera_id = "cam-window"
+    worker.frame_buffers = {
+        camera_id: deque(
+            [
+                (np.zeros((6, 6, 3), dtype=np.uint8), {"bbox": [0, 0, 2, 4], "confidence": 0.81}, 100.0),
+                (np.zeros((6, 6, 3), dtype=np.uint8), None, 119.6),
+                (np.zeros((6, 6, 3), dtype=np.uint8), {"bbox": [1, 1, 3, 5], "confidence": 0.86}, 120.2),
+                (np.zeros((6, 6, 3), dtype=np.uint8), None, 120.8),
+            ]
+        )
+    }
+    worker.frame_buffer_locks = {camera_id: threading.Lock()}
+    worker.latest_frame_locks = {}
+    worker.latest_frames = {}
+
+    frames, detections, timestamps = worker._get_event_media_data(
+        camera_id,
+        window_start_ts=120.0,
+        window_end_ts=121.0,
+    )
+
+    assert len(frames) == 2
+    assert timestamps == [120.2, 120.8]
+    assert detections[0]["confidence"] == pytest.approx(0.86, abs=1e-6)
+    assert detections[1] is None
+
+
+def test_get_event_video_data_filters_to_event_window():
+    """Event video selection should prefer frames from requested event window."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    camera_id = "cam-video-window"
+    worker.video_buffers = {
+        camera_id: deque(
+            [
+                (np.zeros((6, 6, 3), dtype=np.uint8), 90.0),
+                (np.zeros((6, 6, 3), dtype=np.uint8), 120.1),
+                (np.zeros((6, 6, 3), dtype=np.uint8), 120.7),
+                (np.zeros((6, 6, 3), dtype=np.uint8), 130.0),
+            ]
+        )
+    }
+    worker.video_buffer_locks = {camera_id: threading.Lock()}
+
+    frames, timestamps = worker._get_event_video_data(
+        camera_id,
+        window_start_ts=120.0,
+        window_end_ts=121.0,
+    )
+
+    assert len(frames) == 2
+    assert timestamps == [120.1, 120.7]
+
+
 def test_stream_read_failure_policy_softens_reconnect_flap_after_reconnect():
     """Read failure reconnect should be more conservative right after reconnect."""
     worker = DetectorWorker.__new__(DetectorWorker)
@@ -493,6 +551,39 @@ def test_stream_read_failure_policy_softens_reconnect_flap_after_reconnect():
     assert threshold_stable == 3
     assert timeout_stable == 8.0
     assert cooldown_stable == 12.0
+
+
+def test_stream_read_failure_policy_adds_tolerance_for_thermal_reconnect_pressure():
+    """Thermal streams under reconnect pressure should require stronger stale signal."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    threshold, timeout, cooldown = worker._stream_read_failure_policy(
+        base_threshold=3,
+        base_timeout=8.0,
+        seconds_since_reconnect=120.0,
+        recent_reconnects=5,
+        detection_source="thermal",
+    )
+    assert threshold >= 14
+    assert timeout >= 18.0
+    assert cooldown >= 45.0
+
+
+def test_stream_reconnect_age_gate_scales_with_reconnect_pressure():
+    """Reconnect stale-age gate should become stricter when stream is unstable."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    baseline = worker._stream_reconnect_age_gate(
+        failure_timeout=8.0,
+        recent_reconnects=0,
+        detection_source="thermal",
+    )
+    pressured = worker._stream_reconnect_age_gate(
+        failure_timeout=8.0,
+        recent_reconnects=5,
+        detection_source="thermal",
+    )
+    assert baseline >= 14.0
+    assert pressured >= 24.0
+    assert pressured > baseline
 
 
 def test_ffmpeg_flapping_detector_triggers_fallback_in_short_window():

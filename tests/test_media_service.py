@@ -64,6 +64,35 @@ def test_delayed_replace_attempts_when_media_dir_exists(tmp_path, monkeypatch):
     assert called["extract"] is True
 
 
+def test_delayed_replace_keeps_existing_mp4(tmp_path, monkeypatch):
+    """Delayed recorder replace must not overwrite an already-generated MP4."""
+    called = {"extract": False}
+
+    class DummyRecorder:
+        def extract_clip(self, *args, **kwargs):
+            called["extract"] = True
+            return True
+
+    event_dir = tmp_path / "event-existing"
+    event_dir.mkdir(parents=True, exist_ok=True)
+    mp4_path = event_dir / "timelapse.mp4"
+    mp4_path.write_bytes(b"existing-mp4")
+    monkeypatch.setattr(media_service, "get_continuous_recorder", lambda: DummyRecorder())
+
+    start = datetime.utcnow()
+    end = start + timedelta(seconds=7)
+    media_service._replace_mp4_from_recording(
+        "camera-1",
+        start,
+        end,
+        str(mp4_path),
+        4.0,
+    )
+
+    assert called["extract"] is False
+    assert mp4_path.read_bytes() == b"existing-mp4"
+
+
 def _make_db_session(tmp_path):
     db_path = tmp_path / "media_service_test.db"
     engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})

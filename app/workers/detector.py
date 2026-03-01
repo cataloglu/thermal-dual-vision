@@ -458,6 +458,8 @@ class DetectorWorker:
         base_threshold: int,
         base_timeout: float,
         seconds_since_reconnect: float,
+        recent_reconnects: int = 0,
+        detection_source: Optional[str] = None,
     ) -> Tuple[int, float, float]:
         """
         Stabilize reconnect decisions to avoid read-failure reconnect flapping.
@@ -467,13 +469,56 @@ class DetectorWorker:
         threshold = max(1, int(base_threshold))
         timeout = max(4.0, float(base_timeout))
         reconnect_cooldown = max(8.0, min(30.0, timeout * 1.5))
+        reconnect_pressure = max(0, int(recent_reconnects))
+        source = str(detection_source or "").lower()
+
+        # Thermal streams tolerate brief stutters better if we avoid eager reopen.
+        if source == "thermal":
+            threshold = max(threshold + 2, 6)
+            timeout = max(timeout + 3.0, 11.0)
+            reconnect_cooldown = max(reconnect_cooldown, 14.0)
 
         if 0.0 <= float(seconds_since_reconnect) < 45.0:
             threshold = max(threshold + 3, 8)
             timeout = max(timeout + 4.0, 12.0)
             reconnect_cooldown = max(reconnect_cooldown, 20.0)
 
+        # Reconnect pressure means upstream is unstable (camera/go2rtc/network).
+        # Avoid reconnect loops by requiring a stronger stale signal.
+        if reconnect_pressure >= 3:
+            threshold = max(threshold + 2, 10)
+            timeout = max(timeout + 4.0, 14.0)
+            reconnect_cooldown = max(reconnect_cooldown, 30.0)
+        if reconnect_pressure >= 5:
+            threshold = max(threshold + 4, 14)
+            timeout = max(timeout + 6.0, 18.0)
+            reconnect_cooldown = max(reconnect_cooldown, 45.0)
+
         return threshold, timeout, reconnect_cooldown
+
+    @staticmethod
+    def _stream_reconnect_age_gate(
+        failure_timeout: float,
+        recent_reconnects: int,
+        detection_source: Optional[str] = None,
+    ) -> float:
+        """
+        Require a longer no-frame age before reconnecting under unstable streams.
+
+        This reduces reconnect oscillation during short upstream RTSP hiccups.
+        """
+        timeout = max(4.0, float(failure_timeout))
+        pressure = max(0, int(recent_reconnects))
+        source = str(detection_source or "").lower()
+
+        stale_age = max(10.0, timeout * 1.6)
+        if source == "thermal":
+            stale_age = max(stale_age, 14.0)
+        if pressure >= 3:
+            stale_age = max(stale_age, timeout * 2.0, 18.0)
+        if pressure >= 5:
+            stale_age = max(stale_age, timeout * 2.5, 24.0)
+        return stale_age
 
     @staticmethod
     def _slew_limited_auto_min_area(
@@ -1223,6 +1268,10 @@ class DetectorWorker:
                                 since_reconnect = (
                                     now - last_reconnect if last_reconnect > 0.0 else float("inf")
                                 )
+                                recent_reconnects = self._count_recent_reconnects(
+                                    camera_id,
+                                    window_seconds=300.0,
+                                )
                                 (
                                     failure_threshold,
                                     failure_timeout,
@@ -1231,11 +1280,24 @@ class DetectorWorker:
                                     base_failure_threshold,
                                     base_failure_timeout,
                                     since_reconnect,
+                                    recent_reconnects=recent_reconnects,
+                                    detection_source=detection_source,
                                 )
                                 if failures >= failure_threshold:
                                     last_frame_age = self._get_last_frame_age(camera_id, now)
                                     is_stale = last_frame_age is None or last_frame_age >= failure_timeout
                                     if is_stale:
+                                        reconnect_age_gate = self._stream_reconnect_age_gate(
+                                            failure_timeout=failure_timeout,
+                                            recent_reconnects=recent_reconnects,
+                                            detection_source=detection_source,
+                                        )
+                                        if (
+                                            last_frame_age is not None
+                                            and last_frame_age < reconnect_age_gate
+                                        ):
+                                            time.sleep(0.2)
+                                            continue
                                         if now - last_reconnect < reconnect_cooldown:
                                             time.sleep(0.2)
                                             continue
@@ -2054,7 +2116,12 @@ class DetectorWorker:
                 except Exception as e:
                     logger.error("MQTT publish failed: %s", e)
 
-                self._start_media_generation(camera, event.id, config)
+                self._start_media_generation(
+                    camera,
+                    event.id,
+                    config,
+                    event_timestamp=event.timestamp,
+                )
                 
         except Exception as e:
             logger.error(f"Failed to create event: {e}")
@@ -2540,6 +2607,7 @@ class DetectorWorker:
                 "frames_read": 0,
                 "frames_failed": 0,
                 "reconnects": 0,
+                "reconnect_timestamps": deque(maxlen=20),
                 "last_log": 0.0,
                 "last_frames_read": 0,
                 "last_frames_failed": 0,
@@ -2566,12 +2634,29 @@ class DetectorWorker:
             stats["frames_read"] += read_increment
             stats["frames_failed"] += failed_increment
             stats["reconnects"] += reconnect_increment
+            if reconnect_increment > 0:
+                reconnect_times = stats.get("reconnect_timestamps")
+                if not isinstance(reconnect_times, deque):
+                    reconnect_times = deque(maxlen=20)
+                    stats["reconnect_timestamps"] = reconnect_times
+                for _ in range(max(0, int(reconnect_increment))):
+                    reconnect_times.append(time.time())
             if last_error:
                 stats["last_error"] = last_error
             if last_reconnect_reason:
                 stats["last_reconnect_reason"] = last_reconnect_reason
             if last_frame_time is not None:
                 stats["last_frame_time"] = last_frame_time
+
+    def _count_recent_reconnects(self, camera_id: str, window_seconds: float = 300.0) -> int:
+        now = time.time()
+        window = max(1.0, float(window_seconds))
+        with self.stream_stats_lock:
+            stats = self.stream_stats.get(camera_id)
+            if not stats:
+                return 0
+            reconnect_times = list(stats.get("reconnect_timestamps", []))
+        return sum(1 for ts in reconnect_times if (now - float(ts)) <= window)
 
     def _log_stream_summary(self, camera_id: str, interval: float, protocol: str) -> None:
         now = time.time()
@@ -3328,15 +3413,41 @@ class DetectorWorker:
             "sampled_frames": float(len(frames)),
         }
 
-    def _start_media_generation(self, camera: Camera, event_id: str, config) -> None:
+    def _start_media_generation(
+        self,
+        camera: Camera,
+        event_id: str,
+        config,
+        event_timestamp: Optional[datetime] = None,
+    ) -> None:
+        prebuffer_seconds = float(getattr(config.event, "prebuffer_seconds", 5.0))
         postbuffer_seconds = float(getattr(config.event, "postbuffer_seconds", 0.0))
         ai_required = self._ai_requires_confirmation(config)
+        event_epoch_ts: Optional[float] = None
+        if event_timestamp is not None:
+            if event_timestamp.tzinfo is None:
+                event_epoch_ts = event_timestamp.replace(tzinfo=timezone.utc).timestamp()
+            else:
+                event_epoch_ts = event_timestamp.astimezone(timezone.utc).timestamp()
 
         def _run_media() -> None:
             if postbuffer_seconds > 0:
                 time.sleep(postbuffer_seconds)
-            frames, detections, timestamps = self._get_event_media_data(camera.id)
-            video_frames, video_timestamps = self._get_event_video_data(camera.id)
+            window_start_ts: Optional[float] = None
+            window_end_ts: Optional[float] = None
+            if event_epoch_ts is not None:
+                window_start_ts = event_epoch_ts - prebuffer_seconds
+                window_end_ts = event_epoch_ts + postbuffer_seconds
+            frames, detections, timestamps = self._get_event_media_data(
+                camera.id,
+                window_start_ts=window_start_ts,
+                window_end_ts=window_end_ts,
+            )
+            video_frames, video_timestamps = self._get_event_video_data(
+                camera.id,
+                window_start_ts=window_start_ts,
+                window_end_ts=window_end_ts,
+            )
             if len(frames) == 0:
                 logger.warning(
                     "Skipping media generation for event %s (no frames)",
@@ -3568,7 +3679,10 @@ class DetectorWorker:
         ).start()
 
     def _get_event_media_data(
-        self, camera_id: str
+        self,
+        camera_id: str,
+        window_start_ts: Optional[float] = None,
+        window_end_ts: Optional[float] = None,
     ) -> Tuple[List[np.ndarray], List[Optional[Dict]], List[float]]:
         buffer = self.frame_buffers.get(camera_id)
         if not buffer or len(buffer) == 0:
@@ -3580,15 +3694,48 @@ class DetectorWorker:
         lock = self.frame_buffer_locks[camera_id]
         with lock:
             items = list(buffer)
-            frames = [item[0] for item in items]
-            detections = [item[1] for item in items]
-            timestamps = [item[2] for item in items if len(item) > 2]
+            selected_items = items
+            if (
+                window_start_ts is not None
+                and window_end_ts is not None
+                and window_end_ts >= window_start_ts
+            ):
+                selected_items = [
+                    item
+                    for item in items
+                    if len(item) > 2 and window_start_ts <= float(item[2]) <= window_end_ts
+                ]
+                if not selected_items:
+                    # Window miss fallback: try one-window wider before tail fallback.
+                    window_span = max(float(window_end_ts - window_start_ts), 1.0)
+                    wider_start = float(window_start_ts) - window_span
+                    wider_end = float(window_end_ts) + window_span
+                    selected_items = [
+                        item
+                        for item in items
+                        if len(item) > 2 and wider_start <= float(item[2]) <= wider_end
+                    ]
+                if not selected_items:
+                    # Keep most recent frames only; avoid stale, historical detections.
+                    selected_items = items[-min(len(items), 80):]
+                    logger.debug(
+                        "EVENT_MEDIA camera=%s window_miss fallback=tail items=%s",
+                        camera_id,
+                        len(selected_items),
+                    )
+
+            frames = [item[0] for item in selected_items]
+            detections = [item[1] for item in selected_items]
+            timestamps = [item[2] for item in selected_items if len(item) > 2]
         if len(timestamps) != len(frames):
             timestamps = []
         return frames, detections, timestamps
 
     def _get_event_video_data(
-        self, camera_id: str
+        self,
+        camera_id: str,
+        window_start_ts: Optional[float] = None,
+        window_end_ts: Optional[float] = None,
     ) -> Tuple[List[np.ndarray], List[float]]:
         buffer = self.video_buffers.get(camera_id)
         if not buffer or len(buffer) == 0:
@@ -3596,8 +3743,35 @@ class DetectorWorker:
         lock = self.video_buffer_locks[camera_id]
         with lock:
             items = list(buffer)
-        frames = [item[0] for item in items]
-        timestamps = [item[1] for item in items]
+            selected_items = items
+            if (
+                window_start_ts is not None
+                and window_end_ts is not None
+                and window_end_ts >= window_start_ts
+            ):
+                selected_items = [
+                    item
+                    for item in items
+                    if len(item) > 1 and window_start_ts <= float(item[1]) <= window_end_ts
+                ]
+                if not selected_items:
+                    window_span = max(float(window_end_ts - window_start_ts), 1.0)
+                    wider_start = float(window_start_ts) - window_span
+                    wider_end = float(window_end_ts) + window_span
+                    selected_items = [
+                        item
+                        for item in items
+                        if len(item) > 1 and wider_start <= float(item[1]) <= wider_end
+                    ]
+                if not selected_items:
+                    selected_items = items[-min(len(items), 120):]
+                    logger.debug(
+                        "EVENT_VIDEO camera=%s window_miss fallback=tail items=%s",
+                        camera_id,
+                        len(selected_items),
+                    )
+        frames = [item[0] for item in selected_items]
+        timestamps = [item[1] for item in selected_items]
         return frames, timestamps
 
     def get_latest_frame(self, camera_id: str) -> Optional[np.ndarray]:

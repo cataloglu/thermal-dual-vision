@@ -76,6 +76,20 @@ def _replace_mp4_from_recording(
                 mp4_path,
             )
             return
+        # Keep already-generated event MP4 to preserve detector-aligned content.
+        # Delayed replace is only a safety net when initial MP4 is missing.
+        existing_mp4 = Path(mp4_path)
+        if existing_mp4.exists():
+            try:
+                if existing_mp4.stat().st_size > 0:
+                    logger.debug(
+                        "Delayed recording replace skipped: keeping existing MP4 path=%s",
+                        mp4_path,
+                    )
+                    return
+            except OSError:
+                # If stat fails, continue and allow recorder extraction attempt.
+                pass
         recorder = get_continuous_recorder()
         if recorder.extract_clip(camera_id, start_utc, end_utc, mp4_path, speed_factor=speed_factor):
             logger.info(
