@@ -57,12 +57,16 @@ class MediaWorker:
     COLLAGE_FRAME_SIZE = (640, 480)
     COLLAGE_GRID = (3, 2)  # 3 columns, 2 rows
     COLLAGE_QUALITY = 90
+    COLLAGE_MIN_QUALITY = 40
+    COLLAGE_MAX_BYTES = 1_400_000  # Keep user collage network-friendly (avoid multi-MB payloads).
 
     # AI collage settings (smaller + person-focused for faster/more reliable vision checks)
     AI_COLLAGE_FRAMES = 6
     AI_COLLAGE_FRAME_SIZE = (384, 288)
     AI_COLLAGE_GRID = (3, 2)
     AI_COLLAGE_QUALITY = 82
+    AI_COLLAGE_MIN_QUALITY = 36
+    AI_COLLAGE_MAX_BYTES = 550_000  # AI upload-friendly ceiling.
     AI_CROP_PADDING = 2.2
     
     # GIF settings
@@ -143,6 +147,62 @@ class MediaWorker:
         canvas = np.zeros((target_size[1], target_size[0], 3), dtype=np.uint8)
         canvas[y_offset:y_offset + resized_h, x_offset:x_offset + resized_w] = resized
         return canvas
+
+    @staticmethod
+    def _jpeg_quality_steps(preferred_quality: int, min_quality: int) -> List[int]:
+        start = max(20, min(100, int(preferred_quality)))
+        floor = max(20, min(start, int(min_quality)))
+        steps = list(range(start, floor - 1, -5))
+        if steps[-1] != floor:
+            steps.append(floor)
+        return steps
+
+    def _write_jpeg_with_size_cap(
+        self,
+        image: np.ndarray,
+        output_path: str,
+        preferred_quality: int,
+        min_quality: int,
+        max_bytes: int,
+        label: str,
+    ) -> int:
+        """Write JPEG with descending quality until size cap is met."""
+        max_bytes = max(40_000, int(max_bytes))
+        best_data: Optional[bytes] = None
+        best_quality = int(preferred_quality)
+
+        for quality in self._jpeg_quality_steps(preferred_quality, min_quality):
+            ok, encoded = cv2.imencode(".jpg", image, [cv2.IMWRITE_JPEG_QUALITY, int(quality)])
+            if not ok or encoded is None:
+                continue
+            data = encoded.tobytes()
+            if best_data is None or len(data) < len(best_data):
+                best_data = data
+                best_quality = int(quality)
+            if len(data) <= max_bytes:
+                Path(output_path).write_bytes(data)
+                if int(quality) < int(preferred_quality):
+                    logger.info(
+                        "%s JPEG compressed to %.1fKB (q=%d, cap=%.1fKB)",
+                        label,
+                        len(data) / 1024.0,
+                        int(quality),
+                        max_bytes / 1024.0,
+                    )
+                return int(len(data))
+
+        if best_data is None:
+            raise RuntimeError(f"{label} JPEG encode failed")
+
+        Path(output_path).write_bytes(best_data)
+        logger.warning(
+            "%s JPEG remains above cap: %.1fKB (q=%d, cap=%.1fKB)",
+            label,
+            len(best_data) / 1024.0,
+            best_quality,
+            max_bytes / 1024.0,
+        )
+        return int(len(best_data))
 
     def _select_indices(self, frame_count: int, target_count: int) -> List[int]:
         """Select indices evenly - never repeat frames."""
@@ -1027,8 +1087,15 @@ class MediaWorker:
             1,
         )
 
-        cv2.imwrite(output_path, collage, [cv2.IMWRITE_JPEG_QUALITY, self.AI_COLLAGE_QUALITY])
-        logger.info("AI collage created: %s", output_path)
+        saved_bytes = self._write_jpeg_with_size_cap(
+            image=collage,
+            output_path=output_path,
+            preferred_quality=self.AI_COLLAGE_QUALITY,
+            min_quality=self.AI_COLLAGE_MIN_QUALITY,
+            max_bytes=self.AI_COLLAGE_MAX_BYTES,
+            label="AI collage",
+        )
+        logger.info("AI collage created: %s (%.1fKB)", output_path, saved_bytes / 1024.0)
         return output_path
     
     def create_collage(
@@ -1240,10 +1307,17 @@ class MediaWorker:
             2
         )
         
-        # Save with high quality
-        cv2.imwrite(output_path, collage, [cv2.IMWRITE_JPEG_QUALITY, self.COLLAGE_QUALITY])
-        
-        logger.info(f"Collage created: {output_path}")
+        # Save with adaptive JPEG quality so collage size does not explode on noisy thermal frames.
+        saved_bytes = self._write_jpeg_with_size_cap(
+            image=collage,
+            output_path=output_path,
+            preferred_quality=self.COLLAGE_QUALITY,
+            min_quality=self.COLLAGE_MIN_QUALITY,
+            max_bytes=self.COLLAGE_MAX_BYTES,
+            label="Collage",
+        )
+
+        logger.info("Collage created: %s (%.1fKB)", output_path, saved_bytes / 1024.0)
         return output_path
     
     def create_timeline_gif(

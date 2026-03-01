@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.70] - 2026-03-01
+
+### Düzeltmeler
+
+- **Kolaj boyutu sınırlandı (hard cap)**: `collage.jpg` artık yüksek entropy/noise karelerde bile hedef byte limitini aşmamak için kaliteyi kademeli düşürerek kaydediliyor.
+- **AI kolaj boyutu daha da küçültüldü**: `collage_ai.jpg` için daha düşük byte tavanı uygulanarak OpenAI görsel yükü/latency azaltıldı.
+- **Yeni testler**: Gürültülü karelerle hem normal kolaj hem AI kolaj için “boyut limiti korunuyor” unit testleri eklendi.
+
 ## [4.0.69] - 2026-03-01
 
 ### Düzeltmeler

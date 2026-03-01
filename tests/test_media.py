@@ -80,6 +80,29 @@ def test_collage_generation(media_worker, test_frames):
         assert size_kb < 2000  # Less than 2MB
 
 
+def test_collage_generation_respects_size_cap(media_worker):
+    """High-entropy collages should still stay under configured size cap."""
+    rng = np.random.default_rng(42)
+    frames = [rng.integers(0, 256, size=(480, 640, 3), dtype=np.uint8) for _ in range(18)]
+    detections = [None] * len(frames)
+    timestamps = [1700000200.0 + (i * 0.2) for i in range(len(frames))]
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        output_path = os.path.join(tmpdir, "collage_capped.jpg")
+        media_worker.create_collage(
+            frames=frames,
+            detections=detections,
+            timestamps=timestamps,
+            output_path=output_path,
+            camera_name="Noisy Thermal",
+            timestamp=datetime.now(),
+            confidence=0.65,
+        )
+
+        assert os.path.exists(output_path)
+        assert os.path.getsize(output_path) <= media_worker.COLLAGE_MAX_BYTES
+
+
 def test_collage_6_frames(media_worker, test_frames):
     """Test that collage uses exactly 6 frames."""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -371,6 +394,29 @@ def test_ai_collage_is_smaller_and_person_focused(media_worker):
         expected_w = media_worker.AI_COLLAGE_FRAME_SIZE[0] * media_worker.AI_COLLAGE_GRID[0]
         assert ai_img.shape[0] == expected_h
         assert ai_img.shape[1] == expected_w
+
+
+def test_ai_collage_generation_respects_size_cap(media_worker):
+    """AI collage should remain compact even with noisy input frames."""
+    rng = np.random.default_rng(123)
+    frames = [rng.integers(0, 256, size=(480, 640, 3), dtype=np.uint8) for _ in range(12)]
+    detections = [None] * len(frames)
+    timestamps = [1700000300.0 + (i * 0.15) for i in range(len(frames))]
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        output_path = os.path.join(tmpdir, "collage_ai_capped.jpg")
+        media_worker.create_ai_collage(
+            frames=frames,
+            detections=detections,
+            timestamps=timestamps,
+            output_path=output_path,
+            camera_name="Noisy Thermal",
+            timestamp=datetime.now(),
+            confidence=0.70,
+        )
+
+        assert os.path.exists(output_path)
+        assert os.path.getsize(output_path) <= media_worker.AI_COLLAGE_MAX_BYTES
 
 
 def test_select_ai_collage_indices_includes_pre_motion_context(media_worker):
