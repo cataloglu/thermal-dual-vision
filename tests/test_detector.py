@@ -504,6 +504,44 @@ def test_ffmpeg_flapping_fallback_allowed_for_auto_and_ffmpeg_modes():
     assert worker._allows_ffmpeg_flapping_fallback("opencv") is False
 
 
+def test_ffmpeg_exit_opencv_fallback_seconds_prefers_longer_on_clean_exit():
+    """ffmpeg exit code 0 should trigger longer temporary OpenCV fallback."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    assert worker._ffmpeg_exit_opencv_fallback_seconds(0) == 600.0
+    assert worker._ffmpeg_exit_opencv_fallback_seconds(1) == 240.0
+
+
+def test_mark_thermal_reconnect_warmup_resets_motion_baseline_state():
+    """Reconnect warmup should clear thermal baseline and chatter counters."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    worker.motion_state = {
+        "cam-1": {
+            "motion_active": True,
+            "motion_active_since": 90.0,
+            "thermal_motion_gate_warmup_until": 100.0,
+            "thermal_motion_above_streak": 2,
+            "thermal_motion_below_streak": 1,
+            "thermal_bg": np.zeros((2, 2), dtype=np.float32),
+            "thermal_noise_var": np.ones((2, 2), dtype=np.float32),
+            "thermal_motion_area_raw": 1234,
+        }
+    }
+    worker._mark_thermal_reconnect_warmup(
+        camera_id="cam-1",
+        now_ts=120.0,
+        warmup_seconds=10.0,
+    )
+    state = worker.motion_state["cam-1"]
+    assert state["motion_active"] is False
+    assert "motion_active_since" not in state
+    assert state["thermal_motion_above_streak"] == 0
+    assert state["thermal_motion_below_streak"] == 0
+    assert "thermal_bg" not in state
+    assert "thermal_noise_var" not in state
+    assert "thermal_motion_area_raw" not in state
+    assert state["thermal_motion_gate_warmup_until"] >= 130.0
+
+
 def test_thermal_motion_active_hold_prevents_short_idle_flips():
     """Thermal motion active hold should suppress short active->idle chatter."""
     worker = DetectorWorker.__new__(DetectorWorker)
