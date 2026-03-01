@@ -27,12 +27,31 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
   const [showAdvancedPerf, setShowAdvancedPerf] = useState(false)
   const [showThermalQuickProfiles, setShowThermalQuickProfiles] = useState(false)
   const [showExpertControls, setShowExpertControls] = useState(false)
+  const [showAdvancedPresetGroups, setShowAdvancedPresetGroups] = useState(false)
 
   const preset = settings.detection.aspect_ratio_preset ?? 'person'
   const isCustomAspect = preset === 'custom'
 
-  const applyPreset = async (presetId: 'eco' | 'balanced' | 'quality' | 'frigate') => {
-    const base = { detection: settings.detection, motion: settings.motion, thermal: settings.thermal, stream: settings.stream }
+  const mergeSettings = (baseSettings: Settings, updates: Partial<Settings>): Settings => {
+    return {
+      ...baseSettings,
+      detection: updates.detection ? { ...baseSettings.detection, ...updates.detection } : baseSettings.detection,
+      motion: updates.motion ? { ...baseSettings.motion, ...updates.motion } : baseSettings.motion,
+      thermal: updates.thermal ? { ...baseSettings.thermal, ...updates.thermal } : baseSettings.thermal,
+      stream: updates.stream ? { ...baseSettings.stream, ...updates.stream } : baseSettings.stream,
+      performance: updates.performance
+        ? { ...baseSettings.performance, ...updates.performance }
+        : baseSettings.performance,
+    }
+  }
+
+  const buildPresetUpdates = (baseSettings: Settings, presetId: 'eco' | 'balanced' | 'quality' | 'frigate'): Partial<Settings> => {
+    const base = {
+      detection: baseSettings.detection,
+      motion: baseSettings.motion,
+      thermal: baseSettings.thermal,
+      stream: baseSettings.stream,
+    }
     const presets: Record<string, Partial<Settings>> = {
       eco: {
         detection: {
@@ -199,14 +218,15 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
         },
       },
     }
-    const updates = presets[presetId] || presets.balanced
-    const next = { ...settings, ...updates } as Settings
-    onChange(next)
-    await onSave(updates)
+    return presets[presetId] || presets.balanced
   }
 
-  const applyThermalQuickProfile = async (profile: 'stable' | 'balanced' | 'detect') => {
-    const base = { detection: settings.detection, motion: settings.motion, thermal: settings.thermal }
+  const buildThermalQuickUpdates = (baseSettings: Settings, profile: 'stable' | 'balanced' | 'detect'): Partial<Settings> => {
+    const base = {
+      detection: baseSettings.detection,
+      motion: baseSettings.motion,
+      thermal: baseSettings.thermal,
+    }
     const profiles: Record<string, Partial<Settings>> = {
       stable: {
         detection: {
@@ -263,9 +283,40 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
         },
       },
     }
-    const updates = profiles[profile] || profiles.balanced
-    const next = { ...settings, ...updates } as Settings
+    return profiles[profile] || profiles.balanced
+  }
+
+  const applyPreset = async (presetId: 'eco' | 'balanced' | 'quality' | 'frigate') => {
+    const updates = buildPresetUpdates(settings, presetId)
+    const next = mergeSettings(settings, updates)
     onChange(next)
+    await onSave(updates)
+  }
+
+  const applyThermalQuickProfile = async (profile: 'stable' | 'balanced' | 'detect') => {
+    const updates = buildThermalQuickUpdates(settings, profile)
+    const next = mergeSettings(settings, updates)
+    onChange(next)
+    await onSave(updates)
+  }
+
+  const applyQuickMode = async (mode: 'stable' | 'balanced' | 'detect') => {
+    const presetId: 'eco' | 'balanced' | 'quality' | 'frigate' = mode === 'detect' ? 'frigate' : 'balanced'
+    const thermalProfile: 'stable' | 'balanced' | 'detect' = mode
+
+    const presetUpdates = buildPresetUpdates(settings, presetId)
+    const withPreset = mergeSettings(settings, presetUpdates)
+    const thermalUpdates = buildThermalQuickUpdates(withPreset, thermalProfile)
+    const finalSettings = mergeSettings(withPreset, thermalUpdates)
+
+    const updates: Partial<Settings> = {
+      detection: finalSettings.detection,
+      motion: finalSettings.motion,
+      thermal: finalSettings.thermal,
+      stream: finalSettings.stream,
+    }
+
+    onChange(finalSettings)
     await onSave(updates)
   }
 
@@ -288,80 +339,125 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
         <p className="text-sm text-muted">{t('perfPageDesc')}</p>
       </div>
 
-      {/* Presets - compact */}
+      {/* Quick mode - single choice */}
       <div className="bg-surface2 border border-border rounded-lg p-4">
-        <h4 className="text-sm font-semibold text-text mb-1">{t('perfPresetsStepTitle')}</h4>
-        <p className="text-xs text-muted mb-1">{t('perfPresetsDesc')}</p>
-        <p className="text-xs text-muted mb-3">{t('perfPresetsScope')}</p>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-          {(['eco', 'balanced', 'frigate', 'quality'] as const).map((id) => (
-            <button
-              key={id}
-              onClick={() => applyPreset(id)}
-              className="p-3 rounded-lg border border-border bg-surface1 text-left hover:bg-surface1/80 transition-colors text-sm"
-            >
-              <span className="font-medium text-text">
-                {id === 'eco' && `⚡ ${t('perfPresetEcoTitle')}`}
-                {id === 'balanced' && `⚖️ ${t('perfPresetBalancedTitle')}`}
-                {id === 'frigate' && `🛡️ ${t('perfPresetFrigateTitle')}`}
-                {id === 'quality' && `🎯 ${t('perfPresetQualityTitle')}`}
-              </span>
-              <p className="text-xs text-muted mt-0.5">
-                {id === 'eco' && t('perfPresetEcoDesc')}
-                {id === 'balanced' && t('perfPresetBalancedDesc')}
-                {id === 'frigate' && t('perfPresetFrigateDesc')}
-                {id === 'quality' && t('perfPresetQualityDesc')}
-              </p>
-            </button>
-          ))}
+        <h4 className="text-sm font-semibold text-text mb-1">{t('perfQuickModeTitle')}</h4>
+        <p className="text-xs text-muted mb-3">{t('perfQuickModeDesc')}</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+          <button
+            type="button"
+            onClick={() => applyQuickMode('stable')}
+            className="p-3 rounded-lg border border-border bg-surface1 text-left hover:bg-surface1/80 transition-colors text-sm"
+          >
+            <span className="font-medium text-text">🧱 {t('perfQuickModeStableTitle')}</span>
+            <p className="text-xs text-muted mt-0.5">{t('perfQuickModeStableDesc')}</p>
+          </button>
+          <button
+            type="button"
+            onClick={() => applyQuickMode('balanced')}
+            className="p-3 rounded-lg border border-border bg-surface1 text-left hover:bg-surface1/80 transition-colors text-sm"
+          >
+            <span className="font-medium text-text">⚖️ {t('perfQuickModeBalancedTitle')}</span>
+            <p className="text-xs text-muted mt-0.5">{t('perfQuickModeBalancedDesc')}</p>
+          </button>
+          <button
+            type="button"
+            onClick={() => applyQuickMode('detect')}
+            className="p-3 rounded-lg border border-border bg-surface1 text-left hover:bg-surface1/80 transition-colors text-sm"
+          >
+            <span className="font-medium text-text">🚶 {t('perfQuickModeDetectTitle')}</span>
+            <p className="text-xs text-muted mt-0.5">{t('perfQuickModeDetectDesc')}</p>
+          </button>
         </div>
+        <p className="text-xs text-muted mt-3">{t('perfQuickModeAdvancedHint')}</p>
+        <button
+          type="button"
+          onClick={() => setShowAdvancedPresetGroups(!showAdvancedPresetGroups)}
+          className="mt-3 flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border border-border text-muted hover:text-text hover:bg-surface1/70"
+        >
+          {showAdvancedPresetGroups ? <MdExpandLess /> : <MdExpandMore />}
+          {showAdvancedPresetGroups ? t('perfQuickModeAdvancedHide') : t('perfQuickModeAdvancedShow')}
+        </button>
       </div>
 
-      {/* Thermal quick profiles - optional fine tuning */}
-      <div className="bg-surface2 border border-border rounded-lg p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h4 className="text-sm font-semibold text-text mb-1">{t('thermalQuickProfilesStepTitle')}</h4>
-            <p className="text-xs text-muted mb-1">{t('thermalQuickProfilesDesc')}</p>
-            <p className="text-xs text-muted">{t('thermalQuickProfilesScope')}</p>
-            <p className="text-xs text-muted mt-1">{t('thermalQuickProfilesOrderHint')}</p>
+      {showAdvancedPresetGroups && (
+        <>
+          {/* Presets - compact */}
+          <div className="bg-surface2 border border-border rounded-lg p-4">
+            <h4 className="text-sm font-semibold text-text mb-1">{t('perfPresetsStepTitle')}</h4>
+            <p className="text-xs text-muted mb-1">{t('perfPresetsDesc')}</p>
+            <p className="text-xs text-muted mb-3">{t('perfPresetsScope')}</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {(['eco', 'balanced', 'frigate', 'quality'] as const).map((id) => (
+                <button
+                  key={id}
+                  onClick={() => applyPreset(id)}
+                  className="p-3 rounded-lg border border-border bg-surface1 text-left hover:bg-surface1/80 transition-colors text-sm"
+                >
+                  <span className="font-medium text-text">
+                    {id === 'eco' && `⚡ ${t('perfPresetEcoTitle')}`}
+                    {id === 'balanced' && `⚖️ ${t('perfPresetBalancedTitle')}`}
+                    {id === 'frigate' && `🛡️ ${t('perfPresetFrigateTitle')}`}
+                    {id === 'quality' && `🎯 ${t('perfPresetQualityTitle')}`}
+                  </span>
+                  <p className="text-xs text-muted mt-0.5">
+                    {id === 'eco' && t('perfPresetEcoDesc')}
+                    {id === 'balanced' && t('perfPresetBalancedDesc')}
+                    {id === 'frigate' && t('perfPresetFrigateDesc')}
+                    {id === 'quality' && t('perfPresetQualityDesc')}
+                  </p>
+                </button>
+              ))}
+            </div>
           </div>
-          <button
-            type="button"
-            onClick={() => setShowThermalQuickProfiles(!showThermalQuickProfiles)}
-            className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border border-border text-muted hover:text-text hover:bg-surface1/70 whitespace-nowrap"
-          >
-            {showThermalQuickProfiles ? <MdExpandLess /> : <MdExpandMore />}
-            {showThermalQuickProfiles ? t('thermalQuickProfilesHide') : t('thermalQuickProfilesShow')}
-          </button>
-        </div>
-        <div className={`grid grid-cols-1 md:grid-cols-3 gap-2 mt-3 ${showThermalQuickProfiles ? '' : 'hidden'}`}>
-          <button
-            type="button"
-            onClick={() => applyThermalQuickProfile('stable')}
-            className="p-3 rounded-lg border border-border bg-surface1 text-left hover:bg-surface1/80 transition-colors text-sm"
-          >
-            <span className="font-medium text-text">🧱 {t('thermalQuickProfileStable')}</span>
-            <p className="text-xs text-muted mt-0.5">{t('thermalQuickProfileStableDesc')}</p>
-          </button>
-          <button
-            type="button"
-            onClick={() => applyThermalQuickProfile('balanced')}
-            className="p-3 rounded-lg border border-border bg-surface1 text-left hover:bg-surface1/80 transition-colors text-sm"
-          >
-            <span className="font-medium text-text">⚖️ {t('thermalQuickProfileBalanced')}</span>
-            <p className="text-xs text-muted mt-0.5">{t('thermalQuickProfileBalancedDesc')}</p>
-          </button>
-          <button
-            type="button"
-            onClick={() => applyThermalQuickProfile('detect')}
-            className="p-3 rounded-lg border border-border bg-surface1 text-left hover:bg-surface1/80 transition-colors text-sm"
-          >
-            <span className="font-medium text-text">🚶 {t('thermalQuickProfileDetect')}</span>
-            <p className="text-xs text-muted mt-0.5">{t('thermalQuickProfileDetectDesc')}</p>
-          </button>
-        </div>
-      </div>
+
+          {/* Thermal quick profiles - optional fine tuning */}
+          <div className="bg-surface2 border border-border rounded-lg p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h4 className="text-sm font-semibold text-text mb-1">{t('thermalQuickProfilesStepTitle')}</h4>
+                <p className="text-xs text-muted mb-1">{t('thermalQuickProfilesDesc')}</p>
+                <p className="text-xs text-muted">{t('thermalQuickProfilesScope')}</p>
+                <p className="text-xs text-muted mt-1">{t('thermalQuickProfilesOrderHint')}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowThermalQuickProfiles(!showThermalQuickProfiles)}
+                className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border border-border text-muted hover:text-text hover:bg-surface1/70 whitespace-nowrap"
+              >
+                {showThermalQuickProfiles ? <MdExpandLess /> : <MdExpandMore />}
+                {showThermalQuickProfiles ? t('thermalQuickProfilesHide') : t('thermalQuickProfilesShow')}
+              </button>
+            </div>
+            <div className={`grid grid-cols-1 md:grid-cols-3 gap-2 mt-3 ${showThermalQuickProfiles ? '' : 'hidden'}`}>
+              <button
+                type="button"
+                onClick={() => applyThermalQuickProfile('stable')}
+                className="p-3 rounded-lg border border-border bg-surface1 text-left hover:bg-surface1/80 transition-colors text-sm"
+              >
+                <span className="font-medium text-text">🧱 {t('thermalQuickProfileStable')}</span>
+                <p className="text-xs text-muted mt-0.5">{t('thermalQuickProfileStableDesc')}</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => applyThermalQuickProfile('balanced')}
+                className="p-3 rounded-lg border border-border bg-surface1 text-left hover:bg-surface1/80 transition-colors text-sm"
+              >
+                <span className="font-medium text-text">⚖️ {t('thermalQuickProfileBalanced')}</span>
+                <p className="text-xs text-muted mt-0.5">{t('thermalQuickProfileBalancedDesc')}</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => applyThermalQuickProfile('detect')}
+                className="p-3 rounded-lg border border-border bg-surface1 text-left hover:bg-surface1/80 transition-colors text-sm"
+              >
+                <span className="font-medium text-text">🚶 {t('thermalQuickProfileDetect')}</span>
+                <p className="text-xs text-muted mt-0.5">{t('thermalQuickProfileDetectDesc')}</p>
+              </button>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Manual - 3 columns */}
       <div className="bg-surface2 border border-border rounded-lg p-6 space-y-4">

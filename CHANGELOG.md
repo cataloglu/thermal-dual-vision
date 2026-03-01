@@ -6,6 +6,15 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.67] - 2026-03-01
+
+### Düzeltmeler
+
+- **Preset ekranı sadeleştirildi (tek seçim akışı)**: Üstte tek “Hızlı kullanım modu” (Stabil / Dengeli / Yakalama odaklı) ile tüm gerekli ayarlar tek tıkla uygulanır.
+- **Kafa karıştıran çift grup varsayılan olarak gizlendi**: Eski “Genel preset” + “Termal ince ayar” blokları artık gelişmiş detay altında, isteyene açılır durumda.
+- **Açık kapsam metni eklendi**: Hızlı modun ne yaptığını ve detaylı presetlerin sadece ileri kullanım için olduğunu belirten metinler eklendi.
+- **TR/EN çeviriler güncellendi**: Yeni hızlı mod ve gelişmiş preset toggle metinleri eklendi.
+
 ## [4.0.66] - 2026-03-01
 
 ### Düzeltmeler
