@@ -585,6 +585,22 @@ def test_stream_fallback_read_failure_policy_relaxes_reconnect_during_fallback()
     assert cooldown >= 35.0
 
 
+def test_stream_opencv_read_failure_policy_adds_steady_state_tolerance():
+    """OpenCV backend should keep reconnect thresholds conservative."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    threshold, timeout, cooldown = worker._stream_opencv_read_failure_policy(
+        failure_threshold=8,
+        failure_timeout=12.0,
+        reconnect_cooldown=20.0,
+        active_backend="opencv",
+        recent_reconnects=4,
+        detection_source="thermal",
+    )
+    assert threshold >= 14
+    assert timeout >= 24.0
+    assert cooldown >= 55.0
+
+
 def test_stream_reconnect_age_gate_scales_with_reconnect_pressure():
     """Reconnect stale-age gate should become stricter when stream is unstable."""
     worker = DetectorWorker.__new__(DetectorWorker)
@@ -620,6 +636,27 @@ def test_stream_reconnect_age_gate_stricter_in_fallback_window():
     )
     assert fallback_gate >= 30.0
     assert fallback_gate > normal_gate
+
+
+def test_stream_reconnect_age_gate_stricter_in_opencv_backend():
+    """OpenCV backend should require longer stale age before reconnect."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    normal_gate = worker._stream_reconnect_age_gate(
+        failure_timeout=12.0,
+        recent_reconnects=2,
+        detection_source="thermal",
+        fallback_active=False,
+        opencv_backend=False,
+    )
+    opencv_gate = worker._stream_reconnect_age_gate(
+        failure_timeout=12.0,
+        recent_reconnects=4,
+        detection_source="thermal",
+        fallback_active=False,
+        opencv_backend=True,
+    )
+    assert opencv_gate >= 45.0
+    assert opencv_gate > normal_gate
 
 
 def test_ffmpeg_flapping_detector_triggers_fallback_in_short_window():

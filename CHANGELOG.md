@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.71] - 2026-03-02
+
+### Düzeltmeler
+
+- **OpenCV steady-state reconnect hardening**: Fallback süresi bitse bile OpenCV backend üzerinde read-failure reconnect eşiği/timeout/cooldown daha konservatif hale getirildi.
+- **Backend-aware stale-age gate**: OpenCV backend aktifken reconnect kararı için daha uzun “last successful frame age” zorunlu tutuldu; periyodik reconnect döngüsü azaltıldı.
+- **Test kapsamı genişletildi**: OpenCV steady-state reconnect toleransı ve opencv-aware stale-age gate davranışı için yeni unit testler eklendi.
+
 ## [4.0.70] - 2026-03-01
 
 ### Düzeltmeler
