@@ -25,6 +25,7 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
   const [showAdvancedStream, setShowAdvancedStream] = useState(false)
   const [showAdvancedThermal, setShowAdvancedThermal] = useState(false)
   const [showAdvancedPerf, setShowAdvancedPerf] = useState(false)
+  const [showThermalQuickProfiles, setShowThermalQuickProfiles] = useState(false)
   const [showExpertControls, setShowExpertControls] = useState(false)
 
   const preset = settings.detection.aspect_ratio_preset ?? 'person'
@@ -289,7 +290,9 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
 
       {/* Presets - compact */}
       <div className="bg-surface2 border border-border rounded-lg p-4">
-        <h4 className="text-sm font-semibold text-text mb-3">{t('perfPresetsTitle')}</h4>
+        <h4 className="text-sm font-semibold text-text mb-1">{t('perfPresetsStepTitle')}</h4>
+        <p className="text-xs text-muted mb-1">{t('perfPresetsDesc')}</p>
+        <p className="text-xs text-muted mb-3">{t('perfPresetsScope')}</p>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
           {(['eco', 'balanced', 'frigate', 'quality'] as const).map((id) => (
             <button
@@ -314,31 +317,48 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
         </div>
       </div>
 
-      {/* Thermal quick profiles */}
+      {/* Thermal quick profiles - optional fine tuning */}
       <div className="bg-surface2 border border-border rounded-lg p-4">
-        <h4 className="text-sm font-semibold text-text mb-1">{t('thermalQuickProfilesTitle')}</h4>
-        <p className="text-xs text-muted mb-3">{t('thermalQuickProfilesDesc')}</p>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h4 className="text-sm font-semibold text-text mb-1">{t('thermalQuickProfilesStepTitle')}</h4>
+            <p className="text-xs text-muted mb-1">{t('thermalQuickProfilesDesc')}</p>
+            <p className="text-xs text-muted">{t('thermalQuickProfilesScope')}</p>
+            <p className="text-xs text-muted mt-1">{t('thermalQuickProfilesOrderHint')}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowThermalQuickProfiles(!showThermalQuickProfiles)}
+            className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border border-border text-muted hover:text-text hover:bg-surface1/70 whitespace-nowrap"
+          >
+            {showThermalQuickProfiles ? <MdExpandLess /> : <MdExpandMore />}
+            {showThermalQuickProfiles ? t('thermalQuickProfilesHide') : t('thermalQuickProfilesShow')}
+          </button>
+        </div>
+        <div className={`grid grid-cols-1 md:grid-cols-3 gap-2 mt-3 ${showThermalQuickProfiles ? '' : 'hidden'}`}>
           <button
             type="button"
             onClick={() => applyThermalQuickProfile('stable')}
             className="p-3 rounded-lg border border-border bg-surface1 text-left hover:bg-surface1/80 transition-colors text-sm"
           >
-            🧱 {t('thermalQuickProfileStable')}
+            <span className="font-medium text-text">🧱 {t('thermalQuickProfileStable')}</span>
+            <p className="text-xs text-muted mt-0.5">{t('thermalQuickProfileStableDesc')}</p>
           </button>
           <button
             type="button"
             onClick={() => applyThermalQuickProfile('balanced')}
             className="p-3 rounded-lg border border-border bg-surface1 text-left hover:bg-surface1/80 transition-colors text-sm"
           >
-            ⚖️ {t('thermalQuickProfileBalanced')}
+            <span className="font-medium text-text">⚖️ {t('thermalQuickProfileBalanced')}</span>
+            <p className="text-xs text-muted mt-0.5">{t('thermalQuickProfileBalancedDesc')}</p>
           </button>
           <button
             type="button"
             onClick={() => applyThermalQuickProfile('detect')}
             className="p-3 rounded-lg border border-border bg-surface1 text-left hover:bg-surface1/80 transition-colors text-sm"
           >
-            🚶 {t('thermalQuickProfileDetect')}
+            <span className="font-medium text-text">🚶 {t('thermalQuickProfileDetect')}</span>
+            <p className="text-xs text-muted mt-0.5">{t('thermalQuickProfileDetectDesc')}</p>
           </button>
         </div>
       </div>
