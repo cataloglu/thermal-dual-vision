@@ -504,6 +504,32 @@ def test_ffmpeg_flapping_fallback_allowed_for_auto_and_ffmpeg_modes():
     assert worker._allows_ffmpeg_flapping_fallback("opencv") is False
 
 
+def test_select_capture_backend_for_reopen_respects_fallback_window():
+    """Backend selection should enforce fallback and recover in forced ffmpeg mode."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    # Fallback active -> ffmpeg gets forced to OpenCV.
+    assert worker._select_capture_backend_for_reopen(
+        current_backend="ffmpeg",
+        configured_backend="ffmpeg",
+        fallback_until_ts=200.0,
+        now_ts=150.0,
+    ) == "opencv"
+    # Forced ffmpeg recovers after fallback window.
+    assert worker._select_capture_backend_for_reopen(
+        current_backend="opencv",
+        configured_backend="ffmpeg",
+        fallback_until_ts=140.0,
+        now_ts=150.0,
+    ) == "ffmpeg"
+    # Auto mode stays on OpenCV after fallback (stability-first).
+    assert worker._select_capture_backend_for_reopen(
+        current_backend="opencv",
+        configured_backend="auto",
+        fallback_until_ts=140.0,
+        now_ts=150.0,
+    ) == "opencv"
+
+
 def test_ffmpeg_exit_opencv_fallback_seconds_prefers_longer_on_clean_exit():
     """ffmpeg exit code 0 should trigger longer temporary OpenCV fallback."""
     worker = DetectorWorker.__new__(DetectorWorker)

@@ -376,6 +376,30 @@ class DetectorWorker:
         return str(capture_backend or "auto").lower() in ("auto", "ffmpeg")
 
     @staticmethod
+    def _select_capture_backend_for_reopen(
+        current_backend: str,
+        configured_backend: str,
+        fallback_until_ts: float,
+        now_ts: float,
+    ) -> str:
+        """
+        Resolve backend choice during reopen attempts.
+
+        - While temporary fallback is active, force OpenCV.
+        - In forced ffmpeg mode, allow retrying ffmpeg after fallback window.
+        """
+        current = str(current_backend or "opencv").lower()
+        configured = str(configured_backend or "auto").lower()
+        fallback_until = float(fallback_until_ts or 0.0)
+        now = float(now_ts)
+
+        if current == "ffmpeg" and configured in ("auto", "ffmpeg") and fallback_until > now:
+            return "opencv"
+        if current == "opencv" and configured == "ffmpeg" and fallback_until <= now:
+            return "ffmpeg"
+        return current
+
+    @staticmethod
     def _ffmpeg_exit_opencv_fallback_seconds(exit_code: Optional[int]) -> float:
         """
         Temporary OpenCV fallback duration after ffmpeg process exits.
@@ -1009,17 +1033,30 @@ class DetectorWorker:
 
                 def _open_capture_backend(is_reconnect: bool = False) -> bool:
                     nonlocal cap, active_url, ffmpeg_proc, ffmpeg_frame_shape, ffmpeg_frame_size, active_backend
-                    if active_backend == "ffmpeg":
-                        if self._allows_ffmpeg_flapping_fallback(capture_backend):
-                            now_ts = time.time()
-                            fallback_until = float(self.ffmpeg_fallback_until.get(camera_id, 0.0))
-                            if fallback_until > now_ts:
-                                active_backend = "opencv"
+                    if self._allows_ffmpeg_flapping_fallback(capture_backend):
+                        now_ts = time.time()
+                        fallback_until = float(self.ffmpeg_fallback_until.get(camera_id, 0.0))
+                        selected_backend = self._select_capture_backend_for_reopen(
+                            current_backend=active_backend,
+                            configured_backend=capture_backend,
+                            fallback_until_ts=fallback_until,
+                            now_ts=now_ts,
+                        )
+                        if selected_backend != active_backend:
+                            if selected_backend == "opencv":
                                 logger.warning(
                                     "Camera %s using temporary OpenCV fallback for %.0fs after ffmpeg exits",
                                     camera_id,
-                                    fallback_until - now_ts,
+                                    max(0.0, fallback_until - now_ts),
                                 )
+                            else:
+                                logger.info(
+                                    "Camera %s retrying ffmpeg backend after fallback window",
+                                    camera_id,
+                                )
+                            active_backend = selected_backend
+
+                    if active_backend == "ffmpeg":
                         ffmpeg_proc, active_url, ffmpeg_frame_shape = self._open_ffmpeg_with_fallbacks(
                             rtsp_urls,
                             config,
