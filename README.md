@@ -1,6 +1,6 @@
 # Thermal Dual Vision — Smart Motion Detector
 
-> Home Assistant addon · v4.0.71 · AI-powered person detection for thermal & color cameras
+> Home Assistant addon · v4.0.72 · AI-powered person detection for thermal & color cameras
 
 ## What is this?
 
