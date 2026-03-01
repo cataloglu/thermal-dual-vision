@@ -456,6 +456,19 @@ def test_thermal_suppression_rearm_scales_with_camera_load():
     assert worker._thermal_suppression_rearm_seconds(active_motion_cameras=4) == 26.0
 
 
+def test_thermal_confidence_policy_relaxes_only_with_multi_cam_and_strong_motion():
+    """Thermal confidence floor should relax under concurrent strong motion only."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    # Single camera: keep configured threshold.
+    assert worker._thermal_confidence_policy(0.55, active_motion_cameras=1, motion_area_now=2000, base_min_area=400) == 0.55
+    # Multi-camera but weak motion: no relax.
+    assert worker._thermal_confidence_policy(0.55, active_motion_cameras=2, motion_area_now=700, base_min_area=400) == 0.55
+    # Multi-camera + strong motion: relax a bit.
+    assert worker._thermal_confidence_policy(0.55, active_motion_cameras=2, motion_area_now=1000, base_min_area=400) == 0.48
+    # Heavy concurrent load + strong motion: relax more.
+    assert worker._thermal_confidence_policy(0.55, active_motion_cameras=4, motion_area_now=1200, base_min_area=400) == 0.45
+
+
 def test_stream_read_failure_policy_softens_reconnect_flap_after_reconnect():
     """Read failure reconnect should be more conservative right after reconnect."""
     worker = DetectorWorker.__new__(DetectorWorker)
