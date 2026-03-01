@@ -464,9 +464,13 @@ def test_thermal_confidence_policy_relaxes_only_with_multi_cam_and_strong_motion
     # Multi-camera but weak motion: no relax.
     assert worker._thermal_confidence_policy(0.55, active_motion_cameras=2, motion_area_now=700, base_min_area=400) == 0.55
     # Multi-camera + strong motion: relax a bit.
-    assert worker._thermal_confidence_policy(0.55, active_motion_cameras=2, motion_area_now=1000, base_min_area=400) == 0.48
+    assert worker._thermal_confidence_policy(
+        0.55, active_motion_cameras=2, motion_area_now=1000, base_min_area=400
+    ) == pytest.approx(0.48, abs=1e-6)
     # Heavy concurrent load + strong motion: relax more.
-    assert worker._thermal_confidence_policy(0.55, active_motion_cameras=4, motion_area_now=1200, base_min_area=400) == 0.45
+    assert worker._thermal_confidence_policy(
+        0.55, active_motion_cameras=4, motion_area_now=1200, base_min_area=400
+    ) == pytest.approx(0.45, abs=1e-6)
 
 
 def test_stream_read_failure_policy_softens_reconnect_flap_after_reconnect():
