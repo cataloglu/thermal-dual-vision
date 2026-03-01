@@ -381,21 +381,32 @@ class DetectorWorker:
         configured_backend: str,
         fallback_until_ts: float,
         now_ts: float,
+        recent_reconnects: int = 0,
     ) -> str:
         """
         Resolve backend choice during reopen attempts.
 
         - While temporary fallback is active, force OpenCV.
         - In forced ffmpeg mode, allow retrying ffmpeg after fallback window.
+        - In auto mode, retry ffmpeg after fallback only when reconnect pressure
+          indicates OpenCV path is still unstable.
         """
         current = str(current_backend or "opencv").lower()
         configured = str(configured_backend or "auto").lower()
         fallback_until = float(fallback_until_ts or 0.0)
         now = float(now_ts)
+        pressure = max(0, int(recent_reconnects))
 
         if current == "ffmpeg" and configured in ("auto", "ffmpeg") and fallback_until > now:
             return "opencv"
         if current == "opencv" and configured == "ffmpeg" and fallback_until <= now:
+            return "ffmpeg"
+        if (
+            current == "opencv"
+            and configured == "auto"
+            and fallback_until <= now
+            and pressure >= 2
+        ):
             return "ffmpeg"
         return current
 
@@ -1193,11 +1204,17 @@ class DetectorWorker:
                     if self._allows_ffmpeg_flapping_fallback(capture_backend):
                         now_ts = time.time()
                         fallback_until = float(self.ffmpeg_fallback_until.get(camera_id, 0.0))
+                        reconnect_pressure = (
+                            self._count_recent_reconnects(camera_id, window_seconds=300.0)
+                            if is_reconnect
+                            else 0
+                        )
                         selected_backend = self._select_capture_backend_for_reopen(
                             current_backend=active_backend,
                             configured_backend=capture_backend,
                             fallback_until_ts=fallback_until,
                             now_ts=now_ts,
+                            recent_reconnects=reconnect_pressure,
                         )
                         if selected_backend != active_backend:
                             if selected_backend == "opencv":

@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.72] - 2026-03-02
+
+### Düzeltmeler
+
+- **Auto backend recovery iyileştirildi**: Fallback süresi bittikten sonra OpenCV tarafında reconnect baskısı devam ediyorsa sistem kontrollü şekilde tekrar ffmpeg backend’i deniyor.
+- **Pressure-aware backend seçimi**: Backend seçimi artık son reconnect yoğunluğunu da dikkate alıyor; OpenCV’de takılı kalan döngülerde ffmpeg’e dönüş penceresi açıldı.
+- **Yeni test**: Auto modda reconnect pressure altında ffmpeg’e geri deneme davranışı için unit test eklendi.
+
 ## [4.0.71] - 2026-03-02
 
 ### Düzeltmeler
