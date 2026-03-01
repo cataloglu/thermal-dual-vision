@@ -6,6 +6,15 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.62] - 2026-03-01
+
+### Düzeltmeler
+
+- **FFmpeg exit(0) için daha agresif stabilizasyon**: `ffmpeg capture exited (code=0)` görüldüğünde kamera bazlı geçici OpenCV fallback penceresi eklendi; aynı kamerada tekrar eden ffmpeg reopen döngüsü kırılmaya çalışılır.
+- **Reconnect sonrası thermal baseline reseti**: Stream reconnect anında thermal motion state/baseline temizlenip daha uzun warmup uygulanıyor; reconnect sonrası görülen `area=0 -> çok büyük area` spike’ları azaltıldı.
+- **Forced ffmpeg modunda da fallback güvenliği korundu**: `capture_backend=ffmpeg` kullanılırken de stabilite için geçici OpenCV fallback devreye girebilir.
+- **Test kapsamı genişletildi**: Exit-code fallback süresi ve reconnect sonrası thermal warmup reset davranışı için yeni unit testler eklendi.
+
 ## [4.0.61] - 2026-03-01
 
 ### Düzeltmeler
