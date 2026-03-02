@@ -702,13 +702,13 @@ def test_select_capture_backend_for_reopen_respects_fallback_window():
         fallback_until_ts=140.0,
         now_ts=150.0,
     ) == "ffmpeg"
-    # Auto mode stays on OpenCV after fallback (stability-first).
+    # Auto mode returns to ffmpeg after fallback window.
     assert worker._select_capture_backend_for_reopen(
         current_backend="opencv",
         configured_backend="auto",
         fallback_until_ts=140.0,
         now_ts=150.0,
-    ) == "opencv"
+    ) == "ffmpeg"
 
 
 def test_select_capture_backend_for_reopen_retries_ffmpeg_in_auto_on_reconnect_pressure():

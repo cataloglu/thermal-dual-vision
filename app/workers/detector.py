@@ -387,9 +387,9 @@ class DetectorWorker:
         Resolve backend choice during reopen attempts.
 
         - While temporary fallback is active, force OpenCV.
-        - In forced ffmpeg mode, allow retrying ffmpeg after fallback window.
-        - In auto mode, retry ffmpeg after fallback only when reconnect pressure
-          indicates OpenCV path is still unstable.
+        - In forced ffmpeg mode, retry ffmpeg after fallback window.
+        - In auto mode, retry ffmpeg after fallback window (prefer ffmpeg as
+          primary path once temporary fallback period has elapsed).
         - In auto mode, allow early ffmpeg retry even inside fallback window when
           reconnect pressure becomes high (OpenCV path likely unstable too).
         """
@@ -414,7 +414,6 @@ class DetectorWorker:
             current == "opencv"
             and configured == "auto"
             and fallback_until <= now
-            and pressure >= 2
         ):
             return "ffmpeg"
         return current
