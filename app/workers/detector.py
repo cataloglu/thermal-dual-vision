@@ -407,7 +407,7 @@ class DetectorWorker:
             current == "opencv"
             and configured == "auto"
             and fallback_until > now
-            and pressure >= 4
+            and pressure >= 3
         ):
             return "ffmpeg"
         if (
@@ -420,17 +420,30 @@ class DetectorWorker:
         return current
 
     @staticmethod
-    def _ffmpeg_exit_opencv_fallback_seconds(exit_code: Optional[int]) -> float:
+    def _ffmpeg_exit_opencv_fallback_seconds(
+        exit_code: Optional[int],
+        recent_reconnects: int = 0,
+    ) -> float:
         """
         Temporary OpenCV fallback duration after ffmpeg process exits.
 
-        Exit code 0 is common in silent go2rtc/ffmpeg stream resets; keep fallback
-        longer to break reconnect loops and stabilize motion baselines.
+        Exit code 0 is common in silent go2rtc/ffmpeg stream resets.
+        Use shorter fallback for isolated exits, but keep it longer under
+        reconnect pressure to avoid backend oscillation.
         """
         code = int(exit_code) if exit_code is not None else -1
+        pressure = max(0, int(recent_reconnects))
         if code == 0:
-            return 600.0
-        return 240.0
+            if pressure >= 6:
+                return 600.0
+            if pressure >= 3:
+                return 360.0
+            return 180.0
+        if pressure >= 6:
+            return 300.0
+        if pressure >= 3:
+            return 210.0
+        return 120.0
 
     def _mark_thermal_reconnect_warmup(
         self,
@@ -1327,7 +1340,14 @@ class DetectorWorker:
                                 if ffmpeg_proc is not None and exit_code is not None:
                                     if self._allows_ffmpeg_flapping_fallback(capture_backend):
                                         now_ts = time.time()
-                                        fallback_seconds = self._ffmpeg_exit_opencv_fallback_seconds(exit_code)
+                                        reconnect_pressure = self._count_recent_reconnects(
+                                            camera_id,
+                                            window_seconds=300.0,
+                                        )
+                                        fallback_seconds = self._ffmpeg_exit_opencv_fallback_seconds(
+                                            exit_code,
+                                            recent_reconnects=reconnect_pressure,
+                                        )
                                         self.ffmpeg_fallback_until[camera_id] = max(
                                             float(self.ffmpeg_fallback_until.get(camera_id, 0.0)),
                                             now_ts + fallback_seconds,

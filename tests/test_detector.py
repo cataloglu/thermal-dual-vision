@@ -738,15 +738,19 @@ def test_select_capture_backend_for_reopen_allows_early_ffmpeg_retry_inside_fall
         configured_backend="auto",
         fallback_until_ts=220.0,
         now_ts=180.0,
-        recent_reconnects=1,
+        recent_reconnects=2,
     ) == "opencv"
 
 
-def test_ffmpeg_exit_opencv_fallback_seconds_prefers_longer_on_clean_exit():
-    """ffmpeg exit code 0 should trigger longer temporary OpenCV fallback."""
+def test_ffmpeg_exit_opencv_fallback_seconds_scales_with_reconnect_pressure():
+    """ffmpeg fallback duration should be shorter when exits are isolated."""
     worker = DetectorWorker.__new__(DetectorWorker)
-    assert worker._ffmpeg_exit_opencv_fallback_seconds(0) == 600.0
-    assert worker._ffmpeg_exit_opencv_fallback_seconds(1) == 240.0
+    assert worker._ffmpeg_exit_opencv_fallback_seconds(0, recent_reconnects=0) == 180.0
+    assert worker._ffmpeg_exit_opencv_fallback_seconds(0, recent_reconnects=4) == 360.0
+    assert worker._ffmpeg_exit_opencv_fallback_seconds(0, recent_reconnects=7) == 600.0
+    assert worker._ffmpeg_exit_opencv_fallback_seconds(1, recent_reconnects=0) == 120.0
+    assert worker._ffmpeg_exit_opencv_fallback_seconds(1, recent_reconnects=4) == 210.0
+    assert worker._ffmpeg_exit_opencv_fallback_seconds(1, recent_reconnects=7) == 300.0
 
 
 def test_mark_thermal_reconnect_warmup_resets_motion_baseline_state():

@@ -6,6 +6,15 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.74] - 2026-03-02
+
+### Düzeltmeler
+
+- **FFmpeg exit fallback süresi adaptif hale geldi**: `ffmpeg exit(0)` sonrası OpenCV fallback artık reconnect baskısına göre 180s/360s/600s seviyelerinde ayarlanıyor; izole kesintilerde ffmpeg’e daha hızlı dönüş sağlanıyor.
+- **Non-zero exit fallback adaptasyonu**: Hata kodlu exit durumlarında fallback süresi baskıya göre 120s/210s/300s olarak ölçeklendi.
+- **Early retry eşiği düşürüldü**: Fallback penceresi içindeyken OpenCV reconnect baskısı `>=3` olduğunda ffmpeg erken tekrar deneniyor.
+- **Test güncellendi**: Yeni adaptif fallback süreleri ve fallback içi early retry eşiği için unit testler güncellendi.
+
 ## [4.0.73] - 2026-03-02
 
 ### Düzeltmeler
