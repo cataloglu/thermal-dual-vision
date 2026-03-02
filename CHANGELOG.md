@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.73] - 2026-03-02
+
+### Düzeltmeler
+
+- **Fallback içinde erken ffmpeg retry**: Auto modda OpenCV fallback aktifken reconnect baskısı yükselirse 600s dolmasını beklemeden ffmpeg backend erken tekrar denenir.
+- **Daha net backend logları**: Erken ffmpeg geri denemesi için reconnect pressure ve fallback kalan süre loglanır.
+- **Yeni test**: Fallback penceresi içinde pressure yüksek/düşük senaryolarında backend seçim davranışını doğrulayan unit test eklendi.
+
 ## [4.0.72] - 2026-03-02
 
 ### Düzeltmeler
