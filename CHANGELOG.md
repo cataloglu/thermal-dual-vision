@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.75] - 2026-03-02
+
+### Düzeltmeler
+
+- **Auto modda fallback sonrası ffmpeg’e zorunlu dönüş**: Geçici OpenCV fallback süresi bittiğinde backend seçimi artık reconnect baskısı beklemeden tekrar ffmpeg’i tercih ediyor.
+- **OpenCV’de takılı kalma azaltıldı**: Uzun süre OpenCV’de kalıp periyodik `read failures` reconnect döngüsüne giren kameralarda ffmpeg’e geri dönüş daha deterministik hale getirildi.
+- **Test güncellendi**: Auto modun fallback sonrası ffmpeg’e geri dönmesini doğrulayan unit test beklentileri güncellendi.
+
 ## [4.0.74] - 2026-03-02
 
 ### Düzeltmeler
