@@ -388,9 +388,9 @@ def test_thermal_temporal_policy_relaxes_under_multi_camera_motion():
     """Thermal temporal gate should relax slightly under concurrent camera load."""
     worker = DetectorWorker.__new__(DetectorWorker)
     min_frames, max_gap, recovery_conf = worker._thermal_temporal_policy(0.55, active_motion_cameras=1)
-    assert min_frames == 3
+    assert min_frames == 2
     assert max_gap == 1
-    assert recovery_conf >= 0.65
+    assert recovery_conf >= 0.62
 
     min_frames_busy, max_gap_busy, recovery_conf_busy = worker._thermal_temporal_policy(
         0.55,
@@ -1040,6 +1040,15 @@ def test_thermal_static_guard_allows_moving_track_or_multi_camera_load():
         active_motion_cameras=1,
         confidence_threshold=0.55,
         base_min_area=260,
+    ) is True
+
+    # High configured base min_area should not over-block clear moving tracks.
+    assert worker._passes_thermal_static_event_guard(
+        detection_frames=moving_frames,
+        motion_area_now=900,
+        active_motion_cameras=1,
+        confidence_threshold=0.55,
+        base_min_area=700,
     ) is True
 
     # Low-conf static ghost with multi-cam remains blocked.

@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.76] - 2026-03-02
+
+### Düzeltmeler
+
+- **Kısa walk-through event yakalama iyileştirildi (thermal)**: Tek kamera akışında temporal tutarlılık kapısı 3 kare yerine 2 kare ile event adayını ilerletecek şekilde güncellendi; kısa süreli insan geçişlerinde kaçırma azaltıldı.
+- **Yüksek min_area altında thermal static guard dengelendi**: Hareketli izlerin event’e geçişinde motion-area kapısı, çok yüksek `base_min_area` değerlerinde aşırı sertleşmeyecek şekilde normalize edildi; “motion active var ama event yok” vakaları azaltıldı.
+- **Test kapsamı güncellendi**: Thermal temporal politika beklentileri güncellendi ve yüksek `base_min_area` ile hareketli track’in geçişini doğrulayan unit test eklendi.
+
 ## [4.0.75] - 2026-03-02
 
 ### Düzeltmeler

@@ -706,7 +706,10 @@ class DetectorWorker:
             return 2, 2, max(float(confidence_threshold) + 0.02, 0.50)
         if active_motion_cameras >= 2:
             return 2, 1, max(float(confidence_threshold) + 0.03, 0.52)
-        return 3, 1, max(float(confidence_threshold) + 0.10, 0.65)
+        # Single-camera walk-throughs can be short in thermal streams; keeping
+        # this at 3 frames causes frequent misses under low/variable inference FPS.
+        # Static-ghost and confidence gates still run afterwards.
+        return 2, 1, max(float(confidence_threshold) + 0.07, 0.62)
 
     @staticmethod
     def _thermal_bbox_center_spread(
@@ -899,11 +902,18 @@ class DetectorWorker:
 
         # Real walk-through signature: enough travel + lower overlap over time.
         movement_conf_floor = max(min_conf_floor, 0.68)
+        # Avoid over-tightening movement gate when user/global min_area is set
+        # aggressively high for noisy scenes (e.g. 650-900). We still require
+        # clear movement signature, but cap the min_area contribution.
+        guard_min_area = min(max(260, int(base_min_area)), 420)
+        movement_motion_gate = max(780, int(guard_min_area * 2.0))
+        if active_motion_cameras >= 2:
+            movement_motion_gate = max(movement_motion_gate, int(guard_min_area * 2.2))
         if (
             spread >= 12.0
             and median_iou <= 0.88
             and (best_conf + 1e-6) >= movement_conf_floor
-            and int(motion_area_now) >= max(800, int(base_min_area) * 3)
+            and int(motion_area_now) >= movement_motion_gate
             and directional_ratio >= 0.60
             and net_displacement >= max(8.0, float(spread) * 0.55)
         ):
