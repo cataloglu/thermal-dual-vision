@@ -390,6 +390,8 @@ class DetectorWorker:
         - In forced ffmpeg mode, allow retrying ffmpeg after fallback window.
         - In auto mode, retry ffmpeg after fallback only when reconnect pressure
           indicates OpenCV path is still unstable.
+        - In auto mode, allow early ffmpeg retry even inside fallback window when
+          reconnect pressure becomes high (OpenCV path likely unstable too).
         """
         current = str(current_backend or "opencv").lower()
         configured = str(configured_backend or "auto").lower()
@@ -400,6 +402,13 @@ class DetectorWorker:
         if current == "ffmpeg" and configured in ("auto", "ffmpeg") and fallback_until > now:
             return "opencv"
         if current == "opencv" and configured == "ffmpeg" and fallback_until <= now:
+            return "ffmpeg"
+        if (
+            current == "opencv"
+            and configured == "auto"
+            and fallback_until > now
+            and pressure >= 4
+        ):
             return "ffmpeg"
         if (
             current == "opencv"
@@ -1224,10 +1233,18 @@ class DetectorWorker:
                                     max(0.0, fallback_until - now_ts),
                                 )
                             else:
-                                logger.info(
-                                    "Camera %s retrying ffmpeg backend after fallback window",
-                                    camera_id,
-                                )
+                                if fallback_until > now_ts:
+                                    logger.info(
+                                        "Camera %s retrying ffmpeg backend early (OpenCV reconnect pressure=%s, fallback_left=%.0fs)",
+                                        camera_id,
+                                        reconnect_pressure,
+                                        max(0.0, fallback_until - now_ts),
+                                    )
+                                else:
+                                    logger.info(
+                                        "Camera %s retrying ffmpeg backend after fallback window",
+                                        camera_id,
+                                    )
                             active_backend = selected_backend
 
                     if active_backend == "ffmpeg":

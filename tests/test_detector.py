@@ -723,6 +723,25 @@ def test_select_capture_backend_for_reopen_retries_ffmpeg_in_auto_on_reconnect_p
     ) == "ffmpeg"
 
 
+def test_select_capture_backend_for_reopen_allows_early_ffmpeg_retry_inside_fallback():
+    """Auto mode should break out of fallback early when OpenCV reconnect pressure is high."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    assert worker._select_capture_backend_for_reopen(
+        current_backend="opencv",
+        configured_backend="auto",
+        fallback_until_ts=220.0,
+        now_ts=180.0,
+        recent_reconnects=4,
+    ) == "ffmpeg"
+    assert worker._select_capture_backend_for_reopen(
+        current_backend="opencv",
+        configured_backend="auto",
+        fallback_until_ts=220.0,
+        now_ts=180.0,
+        recent_reconnects=1,
+    ) == "opencv"
+
+
 def test_ffmpeg_exit_opencv_fallback_seconds_prefers_longer_on_clean_exit():
     """ffmpeg exit code 0 should trigger longer temporary OpenCV fallback."""
     worker = DetectorWorker.__new__(DetectorWorker)
