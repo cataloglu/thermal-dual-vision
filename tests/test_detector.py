@@ -762,6 +762,35 @@ def test_ffmpeg_exit_opencv_fallback_seconds_scales_with_reconnect_pressure():
     assert worker._ffmpeg_exit_opencv_fallback_seconds(1, recent_reconnects=7) == 300.0
 
 
+def test_should_use_opencv_fallback_after_ffmpeg_exit_isolation_aware():
+    """Isolated code=0 exits should retry ffmpeg directly before fallback."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    # Isolated code=0: no OpenCV fallback.
+    assert worker._should_use_opencv_fallback_after_ffmpeg_exit(
+        exit_code=0,
+        recent_code0_ffmpeg_exits=0,
+        recent_reconnects=0,
+    ) is False
+    # Repeated code=0: fallback should be enabled.
+    assert worker._should_use_opencv_fallback_after_ffmpeg_exit(
+        exit_code=0,
+        recent_code0_ffmpeg_exits=1,
+        recent_reconnects=0,
+    ) is True
+    # High reconnect pressure: fallback even on first code=0.
+    assert worker._should_use_opencv_fallback_after_ffmpeg_exit(
+        exit_code=0,
+        recent_code0_ffmpeg_exits=0,
+        recent_reconnects=4,
+    ) is True
+    # Non-zero exits are treated as hard failures.
+    assert worker._should_use_opencv_fallback_after_ffmpeg_exit(
+        exit_code=1,
+        recent_code0_ffmpeg_exits=0,
+        recent_reconnects=0,
+    ) is True
+
+
 def test_mark_thermal_reconnect_warmup_resets_motion_baseline_state():
     """Reconnect warmup should clear thermal baseline and chatter counters."""
     worker = DetectorWorker.__new__(DetectorWorker)

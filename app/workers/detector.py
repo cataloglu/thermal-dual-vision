@@ -461,6 +461,29 @@ class DetectorWorker:
             return 210.0
         return 120.0
 
+    @staticmethod
+    def _should_use_opencv_fallback_after_ffmpeg_exit(
+        exit_code: Optional[int],
+        recent_code0_ffmpeg_exits: int = 0,
+        recent_reconnects: int = 0,
+    ) -> bool:
+        """
+        Decide whether ffmpeg exit should trigger temporary OpenCV fallback.
+
+        - Non-zero exits are treated as hard failures -> fallback immediately.
+        - Exit code 0 is often a transient upstream reset; do not fallback on
+          isolated events. Fallback only if it repeats soon or reconnect pressure
+          is already high.
+        """
+        code = int(exit_code) if exit_code is not None else -1
+        code0_exits = max(0, int(recent_code0_ffmpeg_exits))
+        pressure = max(0, int(recent_reconnects))
+        if code != 0:
+            return True
+        if pressure >= 3:
+            return True
+        return code0_exits >= 1
+
     def _mark_thermal_reconnect_warmup(
         self,
         camera_id: str,
@@ -1366,12 +1389,25 @@ class DetectorWorker:
                             if active_backend == "ffmpeg":
                                 exit_code = ffmpeg_proc.poll() if ffmpeg_proc else None
                                 if ffmpeg_proc is not None and exit_code is not None:
-                                    if self._allows_ffmpeg_flapping_fallback(capture_backend):
+                                    reconnect_pressure = self._count_recent_reconnects(
+                                        camera_id,
+                                        window_seconds=300.0,
+                                    )
+                                    recent_code0_exits = self._count_recent_reconnect_reasons(
+                                        camera_id,
+                                        reasons={"ffmpeg_exit_0"},
+                                        window_seconds=180.0,
+                                    )
+                                    use_fallback = self._should_use_opencv_fallback_after_ffmpeg_exit(
+                                        exit_code=exit_code,
+                                        recent_code0_ffmpeg_exits=recent_code0_exits,
+                                        recent_reconnects=reconnect_pressure,
+                                    )
+                                    if (
+                                        self._allows_ffmpeg_flapping_fallback(capture_backend)
+                                        and use_fallback
+                                    ):
                                         now_ts = time.time()
-                                        reconnect_pressure = self._count_recent_reconnects(
-                                            camera_id,
-                                            window_seconds=300.0,
-                                        )
                                         fallback_seconds = self._ffmpeg_exit_opencv_fallback_seconds(
                                             exit_code,
                                             recent_reconnects=reconnect_pressure,
@@ -1383,13 +1419,27 @@ class DetectorWorker:
                                     self._update_stream_stats(
                                         camera_id,
                                         reconnect_increment=1,
-                                        last_reconnect_reason="ffmpeg_exit",
+                                        last_reconnect_reason=f"ffmpeg_exit_{int(exit_code)}",
                                     )
+                                    error_hint = self._latest_ffmpeg_error_hint(camera_id)
                                     logger.warning(
-                                        "Camera %s ffmpeg capture exited (code=%s); reopening",
+                                        "Camera %s ffmpeg capture exited (code=%s); reopening%s",
                                         camera_id,
                                         exit_code,
+                                        f" | ffmpeg: {error_hint}" if error_hint else "",
                                     )
+                                    if int(exit_code) == 0 and not use_fallback:
+                                        logger.info(
+                                            "Camera %s ffmpeg exit code=0 appears isolated; retrying ffmpeg without OpenCV fallback",
+                                            camera_id,
+                                        )
+                                    if int(exit_code) == 0 and use_fallback:
+                                        logger.warning(
+                                            "Camera %s code=0 exit repeated (recent=%s, pressure=%s); enabling temporary OpenCV fallback",
+                                            camera_id,
+                                            recent_code0_exits,
+                                            reconnect_pressure,
+                                        )
                             if not _open_capture_backend(is_reconnect=True):
                                 open_failures += 1
                                 if open_failures >= max(config.stream.max_reconnect_attempts, 1):
@@ -2497,7 +2547,12 @@ class DetectorWorker:
         transport = getattr(config.stream, "protocol", "tcp")
         loglevel = os.getenv("FFMPEG_LOGLEVEL", "error").strip() or "error"
         frame_size = output_size[0] * output_size[1] * 3
-        timeout_us = int(getattr(config.stream, "read_failure_timeout_seconds", 8.0) * 1_000_000)
+        # Too-short RTSP timeout can turn brief upstream jitter into ffmpeg EOF.
+        timeout_secs = max(
+            15.0,
+            float(getattr(config.stream, "read_failure_timeout_seconds", 8.0)),
+        )
+        timeout_us = int(timeout_secs * 1_000_000)
         input_urls = [self._append_rtsp_timeout(rtsp_url, timeout_us), rtsp_url]
 
         for url_idx, input_url in enumerate(input_urls):
@@ -2808,6 +2863,7 @@ class DetectorWorker:
                 "frames_failed": 0,
                 "reconnects": 0,
                 "reconnect_timestamps": deque(maxlen=20),
+                "reconnect_events": deque(maxlen=40),
                 "last_log": 0.0,
                 "last_frames_read": 0,
                 "last_frames_failed": 0,
@@ -2839,8 +2895,15 @@ class DetectorWorker:
                 if not isinstance(reconnect_times, deque):
                     reconnect_times = deque(maxlen=20)
                     stats["reconnect_timestamps"] = reconnect_times
+                reconnect_events = stats.get("reconnect_events")
+                if not isinstance(reconnect_events, deque):
+                    reconnect_events = deque(maxlen=40)
+                    stats["reconnect_events"] = reconnect_events
+                reason = str(last_reconnect_reason or "reconnect")
                 for _ in range(max(0, int(reconnect_increment))):
-                    reconnect_times.append(time.time())
+                    ts = time.time()
+                    reconnect_times.append(ts)
+                    reconnect_events.append((ts, reason))
             if last_error:
                 stats["last_error"] = last_error
             if last_reconnect_reason:
@@ -2857,6 +2920,42 @@ class DetectorWorker:
                 return 0
             reconnect_times = list(stats.get("reconnect_timestamps", []))
         return sum(1 for ts in reconnect_times if (now - float(ts)) <= window)
+
+    def _count_recent_reconnect_reasons(
+        self,
+        camera_id: str,
+        reasons: Optional[set[str]] = None,
+        window_seconds: float = 300.0,
+    ) -> int:
+        now = time.time()
+        window = max(1.0, float(window_seconds))
+        allowed = {str(r) for r in reasons} if reasons else None
+        with self.stream_stats_lock:
+            stats = self.stream_stats.get(camera_id)
+            if not stats:
+                return 0
+            events = list(stats.get("reconnect_events", []))
+        count = 0
+        for ts, reason in events:
+            if (now - float(ts)) > window:
+                continue
+            if allowed is not None and str(reason) not in allowed:
+                continue
+            count += 1
+        return count
+
+    def _latest_ffmpeg_error_hint(self, camera_id: str, max_chars: int = 200) -> Optional[str]:
+        with self.ffmpeg_error_lock:
+            errors = list(self.ffmpeg_last_errors.get(camera_id, []))
+        if not errors:
+            return None
+        last = str(errors[-1]).strip()
+        if not last:
+            return None
+        compact = " ".join(last.split())
+        if len(compact) <= max_chars:
+            return compact
+        return compact[: max(40, int(max_chars) - 3)] + "..."
 
     def _log_stream_summary(self, camera_id: str, interval: float, protocol: str) -> None:
         now = time.time()
