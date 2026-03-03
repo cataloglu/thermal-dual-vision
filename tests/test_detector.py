@@ -977,6 +977,21 @@ def test_thermal_bbox_net_displacement_separates_drift_from_static():
     assert worker._thermal_bbox_net_displacement(oscillating_frames) < 5.0
 
 
+def test_thermal_bbox_area_growth_ratio_detects_approach_motion():
+    """Area growth should capture approach/retreat motion with low center travel."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    static_size_frames = [
+        [{"bbox": [120, 80, 170, 230], "confidence": 0.70}]
+        for _ in range(5)
+    ]
+    growing_frames = [
+        [{"bbox": [120 - i, 80 - (i * 2), 170 + i, 230 + (i * 3)], "confidence": 0.70}]
+        for i in range(5)
+    ]
+    assert worker._thermal_bbox_area_growth_ratio(static_size_frames) == pytest.approx(1.0, abs=1e-6)
+    assert worker._thermal_bbox_area_growth_ratio(growing_frames) >= 1.25
+
+
 def test_thermal_bbox_edge_touch_ratio_detects_border_hugging_boxes():
     """Edge-touch ratio should be high for border-hugging static boxes."""
     worker = DetectorWorker.__new__(DetectorWorker)
@@ -1139,6 +1154,19 @@ def test_thermal_static_guard_allows_moving_track_or_multi_camera_load():
         active_motion_cameras=3,
         confidence_threshold=0.55,
         base_min_area=260,
+    ) is True
+
+    # Approach motion (bbox grows with low center drift) should pass.
+    approach_frames = [
+        [{"bbox": [130 - i, 90 - (i * 2), 180 + i, 235 + (i * 3)], "confidence": 0.71}]
+        for i in range(5)
+    ]
+    assert worker._passes_thermal_static_event_guard(
+        detection_frames=approach_frames,
+        motion_area_now=1300,
+        active_motion_cameras=1,
+        confidence_threshold=0.55,
+        base_min_area=700,
     ) is True
 
 
