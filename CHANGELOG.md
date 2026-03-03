@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.80] - 2026-03-03
+
+### Düzeltmeler
+
+- **“Motion aktif ama `no_detections`” için thermal kurtarma adımı eklendi**: Güçlü hareket + tekrarlayan boş infer durumunda daha düşük eşikle tek ek infer deneniyor; kısa yürüyüş/giriş kaçırmaları azaltıldı.
+- **`no_detections` teşhisi detaylandırıldı**: Gate loglarında artık `raw/ar/qual/zone/conf/area` özetleri yazılıyor; sorunun motion mı, infer mi, kalite/zone filtresi mi olduğu doğrudan görülebiliyor.
+- **Test kapsamı genişletildi**: Thermal deep-recovery threshold politikası için unit test eklendi.
+
 ## [4.0.79] - 2026-03-03
 
 ### Düzeltmeler

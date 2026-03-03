@@ -1066,6 +1066,44 @@ class DetectorWorker:
         return conf
 
     @staticmethod
+    def _thermal_deep_recovery_threshold(
+        base_confidence: float,
+        motion_area_now: int,
+        base_min_area: int,
+        no_detection_streak: int,
+        active_motion_cameras: int,
+    ) -> Optional[float]:
+        """
+        Extra-lenient thermal retry threshold for prolonged no-detection periods.
+
+        Used only under strong motion + repeated misses to recover walk-throughs
+        that remain below the regular thermal confidence floor.
+        """
+        streak = max(0, int(no_detection_streak))
+        if streak < 4:
+            return None
+
+        min_area = max(1, int(base_min_area))
+        motion_area = max(0, int(motion_area_now))
+        if active_motion_cameras >= 2:
+            strong_motion_gate = max(1000, int(min_area * 2.0))
+        else:
+            strong_motion_gate = max(1300, int(min_area * 2.5))
+        if motion_area < strong_motion_gate:
+            return None
+
+        base = max(0.25, float(base_confidence))
+        relax_delta = 0.22 if active_motion_cameras >= 2 else 0.18
+        threshold = max(0.18, base - relax_delta)
+
+        if active_motion_cameras >= 4 and motion_area >= max(1600, int(min_area * 3.0)):
+            threshold = max(0.16, threshold - 0.04)
+
+        if threshold >= base:
+            return None
+        return float(threshold)
+
+    @staticmethod
     def _should_hold_thermal_suppression_for_motion(
         current_area: int,
         adaptive_min_area: int,
@@ -1741,14 +1779,14 @@ class DetectorWorker:
                 def _log_gate(reason: str) -> None:
                     last_gate = self.last_gate_log.get(camera_id, 0.0)
                     if current_time - last_gate >= 30:
-                        info_reasons = {
-                            "no_detections",
-                            "temporal_consistency_failed",
-                            "thermal_static_guard",
-                        }
+                        info_reasons = (
+                            reason.startswith("no_detections")
+                            or reason.startswith("temporal_consistency_failed")
+                            or reason == "thermal_static_guard"
+                        )
                         level = (
                             logging.INFO
-                            if detection_source == "thermal" and reason in info_reasons
+                            if detection_source == "thermal" and info_reasons
                             else logging.DEBUG
                         )
                         logger.log(level, "EVENT_GATE camera=%s reason=%s", camera_id, reason)
@@ -1920,7 +1958,6 @@ class DetectorWorker:
                 # Thermal fallbacks produced too many false positives in production.
                 if len(detections_raw) == 0 and detection_source != "thermal":
                     relaxed_threshold = max(0.35, confidence_threshold - 0.10)
-                    class_diag_summary = ""
                     last_relaxed = float(self.last_relaxed_infer_time.get(camera_id, 0.0))
                     if (
                         relaxed_threshold < confidence_threshold
@@ -1972,6 +2009,38 @@ class DetectorWorker:
                                 relaxed_threshold,
                                 len(relaxed_detections),
                                 motion_area_now,
+                            )
+                if len(detections_raw) == 0 and detection_source == "thermal":
+                    motion_area_now = int(
+                        self.motion_state.get(camera_id, {}).get("thermal_motion_area_raw", 0)
+                    )
+                    deep_threshold = self._thermal_deep_recovery_threshold(
+                        base_confidence=confidence_threshold,
+                        motion_area_now=motion_area_now,
+                        base_min_area=int(getattr(config.motion, "min_area", 0)),
+                        no_detection_streak=int(self.no_detection_streak.get(camera_id, 0)) + 1,
+                        active_motion_cameras=active_motion_cameras,
+                    )
+                    last_relaxed = float(self.last_relaxed_infer_time.get(camera_id, 0.0))
+                    if (
+                        deep_threshold is not None
+                        and current_time - last_relaxed >= 0.8
+                    ):
+                        deep_recovery = self.inference_service.infer(
+                            preprocessed,
+                            confidence_threshold=deep_threshold,
+                            inference_resolution=tuple(config.detection.inference_resolution),
+                        )
+                        self.last_relaxed_infer_time[camera_id] = current_time
+                        if deep_recovery:
+                            detections_raw = deep_recovery
+                            logger.info(
+                                "DETECT camera=%s thermal_deep_recovery threshold=%.2f recovered=%s area=%s streak=%s",
+                                camera_id,
+                                deep_threshold,
+                                len(deep_recovery),
+                                motion_area_now,
+                                int(self.no_detection_streak.get(camera_id, 0)) + 1,
                             )
                 inference_latency = time.perf_counter() - t0
                 model_name = getattr(config.detection, "model", "yolov8n-person") or "yolov8n-person"
@@ -2168,7 +2237,22 @@ class DetectorWorker:
                                         "DETECT camera=%s inference_suppressed for %ds (%d consecutive empty results)",
                                         camera_id, suppression_secs, streak_limit,
                                     )
-                    _log_gate("no_detections")
+                    if detection_source == "thermal":
+                        motion_area_now = int(
+                            self.motion_state.get(camera_id, {}).get("thermal_motion_area_raw", 0)
+                        )
+                        _log_gate(
+                            "no_detections "
+                            f"raw={len(detections_raw)} ar={detections_after_ar} "
+                            f"qual={detections_after_qual} zone={len(detections)} "
+                            f"conf={confidence_threshold:.2f} area={motion_area_now}"
+                        )
+                    else:
+                        _log_gate(
+                            "no_detections "
+                            f"raw={len(detections_raw)} ar={detections_after_ar} zone={len(detections)} "
+                            f"conf={confidence_threshold:.2f}"
+                        )
                     continue
                 self.no_detection_streak[camera_id] = 0
                 self.empty_inference_streak[camera_id] = 0
