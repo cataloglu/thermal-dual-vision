@@ -989,7 +989,7 @@ def test_thermal_bbox_area_growth_ratio_detects_approach_motion():
         for i in range(5)
     ]
     assert worker._thermal_bbox_area_growth_ratio(static_size_frames) == pytest.approx(1.0, abs=1e-6)
-    assert worker._thermal_bbox_area_growth_ratio(growing_frames) >= 1.8
+    assert worker._thermal_bbox_area_growth_ratio(growing_frames) >= 1.25
 
 
 def test_thermal_bbox_edge_touch_ratio_detects_border_hugging_boxes():

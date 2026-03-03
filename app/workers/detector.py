@@ -971,7 +971,8 @@ class DetectorWorker:
                 return False
 
         # Low-confidence + static/jitter signature => block.
-        approach_motion = area_growth >= 1.8
+        approach_motion = area_growth >= 1.25
+        strong_approach_motion = area_growth >= 1.40
         if best_conf < min_conf_floor:
             static_like = (
                 spread < 12.0
@@ -979,7 +980,7 @@ class DetectorWorker:
                 or directional_ratio < 0.60
             )
             if static_like and not (
-                approach_motion and int(motion_area_now) >= max(1000, int(base_min_area) * 2)
+                strong_approach_motion and int(motion_area_now) >= max(1000, int(base_min_area) * 2)
             ):
                 return False
 
