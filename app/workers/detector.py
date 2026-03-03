@@ -802,6 +802,40 @@ class DetectorWorker:
         return float(np.hypot(ex - sx, ey - sy))
 
     @staticmethod
+    def _thermal_bbox_area_growth_ratio(
+        detection_frames: List[List[Dict[str, Any]]],
+        sample_frames: int = 5,
+    ) -> float:
+        """
+        Estimate best-box area growth across recent frames.
+
+        Helps detect approach/retreat motion where center displacement can stay
+        low but object scale changes significantly.
+        """
+        if not detection_frames:
+            return 1.0
+        frames = detection_frames[-max(2, int(sample_frames)) :]
+        areas: List[float] = []
+        for frame_dets in frames:
+            dets_with_bbox = [
+                det for det in (frame_dets or []) if isinstance(det, dict) and det.get("bbox")
+            ]
+            if not dets_with_bbox:
+                continue
+            best_det = max(dets_with_bbox, key=lambda det: float(det.get("confidence", 0.0)))
+            x1, y1, x2, y2 = map(float, best_det["bbox"])
+            w = max(0.0, x2 - x1)
+            h = max(0.0, y2 - y1)
+            area = w * h
+            if area > 0.0:
+                areas.append(area)
+        if len(areas) < 2:
+            return 1.0
+        min_area = max(min(areas), 1.0)
+        max_area = max(areas)
+        return float(max_area / min_area)
+
+    @staticmethod
     def _bbox_iou(box_a: List[float], box_b: List[float]) -> float:
         """Compute IoU for two [x1, y1, x2, y2] boxes."""
         ax1, ay1, ax2, ay2 = map(float, box_a)
@@ -914,6 +948,10 @@ class DetectorWorker:
             detection_frames=detection_frames,
             sample_frames=5,
         )
+        area_growth = cls._thermal_bbox_area_growth_ratio(
+            detection_frames=detection_frames,
+            sample_frames=5,
+        )
         directional_ratio = float(net_displacement) / max(float(spread), 1.0)
         edge_touch_ratio = 0.0
         if frame_width and frame_height:
@@ -933,12 +971,17 @@ class DetectorWorker:
                 return False
 
         # Low-confidence + static/jitter signature => block.
-        if best_conf < min_conf_floor and (
-            spread < 12.0
-            or median_iou > 0.88
-            or directional_ratio < 0.60
-        ):
-            return False
+        approach_motion = area_growth >= 1.8
+        if best_conf < min_conf_floor:
+            static_like = (
+                spread < 12.0
+                or median_iou > 0.88
+                or directional_ratio < 0.60
+            )
+            if static_like and not (
+                approach_motion and int(motion_area_now) >= max(1000, int(base_min_area) * 2)
+            ):
+                return False
 
         # Real walk-through signature: enough travel + lower overlap over time.
         movement_conf_floor = max(min_conf_floor, 0.68)
@@ -950,12 +993,17 @@ class DetectorWorker:
         if active_motion_cameras >= 2:
             movement_motion_gate = max(movement_motion_gate, int(guard_min_area * 2.2))
         if (
-            spread >= 12.0
-            and median_iou <= 0.88
+            (
+                (
+                    spread >= 12.0
+                    and median_iou <= 0.88
+                    and directional_ratio >= 0.60
+                    and net_displacement >= max(8.0, float(spread) * 0.55)
+                )
+                or approach_motion
+            )
             and (best_conf + 1e-6) >= movement_conf_floor
             and int(motion_area_now) >= movement_motion_gate
-            and directional_ratio >= 0.60
-            and net_displacement >= max(8.0, float(spread) * 0.55)
         ):
             return True
 
@@ -1692,7 +1740,17 @@ class DetectorWorker:
                 def _log_gate(reason: str) -> None:
                     last_gate = self.last_gate_log.get(camera_id, 0.0)
                     if current_time - last_gate >= 30:
-                        logger.debug("EVENT_GATE camera=%s reason=%s", camera_id, reason)
+                        info_reasons = {
+                            "no_detections",
+                            "temporal_consistency_failed",
+                            "thermal_static_guard",
+                        }
+                        level = (
+                            logging.INFO
+                            if detection_source == "thermal" and reason in info_reasons
+                            else logging.DEBUG
+                        )
+                        logger.log(level, "EVENT_GATE camera=%s reason=%s", camera_id, reason)
                         self.last_gate_log[camera_id] = current_time
 
                 frame_age = self._get_last_frame_age(camera_id, current_time)
