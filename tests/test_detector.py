@@ -484,6 +484,47 @@ def test_thermal_confidence_policy_relaxes_only_with_multi_cam_and_strong_motion
     ) == pytest.approx(0.45, abs=1e-6)
 
 
+def test_thermal_deep_recovery_threshold_requires_streak_and_strong_motion():
+    """Deep thermal retry should activate only under repeated misses + strong motion."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    # Not enough repeated misses yet.
+    assert worker._thermal_deep_recovery_threshold(
+        base_confidence=0.45,
+        motion_area_now=2200,
+        base_min_area=700,
+        no_detection_streak=3,
+        active_motion_cameras=3,
+    ) is None
+    # Repeated misses but weak motion should not trigger deep retry.
+    assert worker._thermal_deep_recovery_threshold(
+        base_confidence=0.45,
+        motion_area_now=900,
+        base_min_area=700,
+        no_detection_streak=5,
+        active_motion_cameras=3,
+    ) is None
+    # Strong motion + repeated misses should trigger lower threshold.
+    threshold = worker._thermal_deep_recovery_threshold(
+        base_confidence=0.45,
+        motion_area_now=1800,
+        base_min_area=700,
+        no_detection_streak=5,
+        active_motion_cameras=3,
+    )
+    assert threshold is not None
+    assert 0.18 <= threshold <= 0.23
+    # Very dense concurrent motion can relax slightly further.
+    dense_threshold = worker._thermal_deep_recovery_threshold(
+        base_confidence=0.45,
+        motion_area_now=2600,
+        base_min_area=700,
+        no_detection_streak=6,
+        active_motion_cameras=4,
+    )
+    assert dense_threshold is not None
+    assert 0.16 <= dense_threshold <= threshold
+
+
 def test_get_event_media_data_filters_to_event_window():
     """Event media selection should prefer frames from requested event window."""
     worker = DetectorWorker.__new__(DetectorWorker)
