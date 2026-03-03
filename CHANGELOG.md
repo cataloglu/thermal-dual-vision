@@ -6,6 +6,15 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.78] - 2026-03-03
+
+### Düzeltmeler
+
+- **`ffmpeg exit(code=0)` kök neden ayrıştırması eklendi**: Exit anında son ffmpeg stderr satırı loga taşındı; böylece “niye exit oldu” bilgisi artık görünür.
+- **İzole `code=0` için yanlış fallback azaltıldı**: Tekil `ffmpeg exit(0)` olayında doğrudan OpenCV fallback yerine önce ffmpeg tekrar deneniyor; yalnızca kısa pencerede tekrar eden `code=0` veya yüksek reconnect baskısında fallback açılıyor.
+- **RTSP timeout taban değeri yükseltildi**: Çok düşük input timeout nedeniyle oluşan gereksiz EOF/code=0 çıkışlarını azaltmak için ffmpeg RTSP timeout alt sınırı 15s yapıldı.
+- **Test kapsamı genişletildi**: İzole/repeat `code=0`, reconnect pressure ve non-zero exit durumlarında fallback kararını doğrulayan unit test eklendi.
+
 ## [4.0.77] - 2026-03-03
 
 ### Düzeltmeler
