@@ -338,6 +338,23 @@ class DetectorWorker:
         return base_interval
 
     @staticmethod
+    def _thermal_warmup_motion_gate(
+        min_area: int,
+        gate_floor: int,
+        gate_multiplier: float,
+    ) -> int:
+        """
+        Compute motion-area gate used during thermal warmup/reconnect windows.
+
+        This keeps tiny reconnect jitters blocked while allowing strong motion
+        to pass without waiting for the full warmup timeout.
+        """
+        base_min = max(1, int(min_area))
+        floor = max(1, int(gate_floor))
+        multiplier = max(0.5, float(gate_multiplier))
+        return max(floor, int(base_min * multiplier))
+
+    @staticmethod
     def _thermal_auto_min_area_cap(
         configured_ceiling: int,
         active_motion_cameras: int,
@@ -947,7 +964,9 @@ class DetectorWorker:
             return max(streak * 8, 180), min(duration, 6)
         if active_motion_cameras >= 2:
             return max(streak * 6, 120), min(duration, 8)
-        return max(streak * 3, 45), min(duration, 12)
+        # Single-camera thermal setups are vulnerable to repeated
+        # suppress/unsuppress loops during real walk-throughs.
+        return max(streak * 5, 70), min(duration, 8)
 
     @staticmethod
     def _thermal_confidence_policy(
@@ -3080,13 +3099,25 @@ class DetectorWorker:
 
         prebuffer_seconds = float(getattr(config.event, "prebuffer_seconds", 0.0))
         if is_thermal_motion and now < float(state.get("thermal_motion_gate_warmup_until", 0.0)):
-            motion_area = 0
+            warmup_gate = self._thermal_warmup_motion_gate(
+                min_area=min_area,
+                gate_floor=700,
+                gate_multiplier=1.0,
+            )
+            if motion_area < warmup_gate:
+                motion_area = 0
         if is_thermal_motion:
             reconnect_gate_seconds = float(motion_settings.get("thermal_reconnect_warmup_seconds", 6.0))
             reconnect_gate_seconds = max(0.0, reconnect_gate_seconds)
             last_reconnect_ts = float(self.last_reconnect_ts.get(camera.id, 0.0))
             if last_reconnect_ts > 0.0 and (now - last_reconnect_ts) < reconnect_gate_seconds:
-                motion_area = 0
+                reconnect_gate = self._thermal_warmup_motion_gate(
+                    min_area=min_area,
+                    gate_floor=650,
+                    gate_multiplier=0.95,
+                )
+                if motion_area < reconnect_gate:
+                    motion_area = 0
         if is_thermal_motion:
             active_factor = float(motion_settings.get("thermal_active_hysteresis", 1.08))
             idle_factor = float(motion_settings.get("thermal_idle_hysteresis", 0.92))

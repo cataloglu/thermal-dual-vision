@@ -374,6 +374,15 @@ def test_thermal_probe_interval_scales_with_camera_load():
     assert worker._thermal_probe_interval_seconds(6, active_motion_cameras=4) >= 0.8
 
 
+def test_thermal_warmup_motion_gate_respects_floor_and_multiplier():
+    """Warmup gate should preserve a floor while scaling with min_area."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    assert worker._thermal_warmup_motion_gate(min_area=850, gate_floor=700, gate_multiplier=1.0) == 850
+    assert worker._thermal_warmup_motion_gate(min_area=1100, gate_floor=650, gate_multiplier=0.95) == 1045
+    # Floor should dominate low min_area values.
+    assert worker._thermal_warmup_motion_gate(min_area=260, gate_floor=650, gate_multiplier=0.95) == 650
+
+
 def test_thermal_auto_min_area_cap_scales_with_camera_load():
     """Thermal auto min-area cap should drop as concurrent load increases."""
     worker = DetectorWorker.__new__(DetectorWorker)
@@ -414,8 +423,8 @@ def test_thermal_suppression_policy_delays_suppression_under_load():
     """Suppression should trigger later and shorter under concurrent load."""
     worker = DetectorWorker.__new__(DetectorWorker)
     streak_single, secs_single = worker._thermal_suppression_policy(15, 30, active_motion_cameras=1)
-    assert streak_single >= 30
-    assert secs_single <= 15
+    assert streak_single >= 70
+    assert secs_single <= 8
 
     streak_busy, secs_busy = worker._thermal_suppression_policy(15, 30, active_motion_cameras=2)
     assert streak_busy >= 45
