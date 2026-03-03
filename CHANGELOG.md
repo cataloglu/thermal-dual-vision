@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.79] - 2026-03-03
+
+### Düzeltmeler
+
+- **“Giriş var, event yok” senaryosu için thermal guard iyileştirildi**: Merkezde az kayan ama bbox boyutu büyüyen yaklaşma hareketi (kişinin kameraya doğru gelmesi) artık statik hayalet olarak bloklanmıyor.
+- **Gate teşhisi görünür hale getirildi**: Thermal akışta `no_detections`, `temporal_consistency_failed` ve `thermal_static_guard` düşüşleri INFO seviyesinde loglanıyor.
+- **Test kapsamı genişletildi**: Thermal bbox area-growth ve approach-motion geçişi için yeni/ güncel unit testler eklendi.
+
 ## [4.0.78] - 2026-03-03
 
 ### Düzeltmeler
