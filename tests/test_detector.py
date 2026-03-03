@@ -1211,6 +1211,48 @@ def test_thermal_static_guard_allows_moving_track_or_multi_camera_load():
     ) is True
 
 
+def test_thermal_static_guard_deep_recovery_mode_keeps_motion_but_blocks_static():
+    """Deep-recovery mode should allow low-conf moving tracks, not static ghosts."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    moving_low_conf = [
+        [{"bbox": [120 + (i * 12), 70, 170 + (i * 12), 230], "confidence": 0.33}]
+        for i in range(5)
+    ]
+    static_low_conf = [
+        [{"bbox": [120, 70, 170, 230], "confidence": 0.33}]
+        for _ in range(5)
+    ]
+
+    # Default guard remains strict for low-confidence boxes.
+    assert worker._passes_thermal_static_event_guard(
+        detection_frames=moving_low_conf,
+        motion_area_now=2200,
+        active_motion_cameras=1,
+        confidence_threshold=0.55,
+        base_min_area=700,
+    ) is False
+
+    # Deep-recovery mode: moving signature + strong motion can pass.
+    assert worker._passes_thermal_static_event_guard(
+        detection_frames=moving_low_conf,
+        motion_area_now=2200,
+        active_motion_cameras=1,
+        confidence_threshold=0.23,
+        base_min_area=700,
+        deep_recovery_mode=True,
+    ) is True
+
+    # Deep-recovery mode still blocks static low-confidence ghosts.
+    assert worker._passes_thermal_static_event_guard(
+        detection_frames=static_low_conf,
+        motion_area_now=2600,
+        active_motion_cameras=1,
+        confidence_threshold=0.23,
+        base_min_area=700,
+        deep_recovery_mode=True,
+    ) is False
+
+
 def test_detect_static_phantom_event_true():
     """Highly duplicate low-confidence static bbox stream should be marked phantom."""
     worker = DetectorWorker.__new__(DetectorWorker)

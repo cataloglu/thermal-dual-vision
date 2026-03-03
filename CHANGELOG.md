@@ -6,6 +6,15 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.81] - 2026-03-04
+
+### Düzeltmeler
+
+- **Deep-recovery artık kalite kapısında düşmüyor**: Thermal deep-recovery ile gelen adaylar için kalite `conf` eşiği recovery eşiğiyle hizalandı; `raw=1, qual=0` döngüsü kırıldı.
+- **Deep-recovery için static-guard entegrasyonu eklendi**: Recovery modunda düşük güvenli ama güçlü hareket imzalı yürüyüşler geçebilirken statik düşük güvenli hayaletler bloklanmaya devam ediyor.
+- **Gate teşhisi genişletildi**: `no_detections` loguna `qual_conf` alanı eklendi.
+- **Test kapsamı genişletildi**: Deep-recovery guard davranışı için ek unit test eklendi.
+
 ## [4.0.80] - 2026-03-03
 
 ### Düzeltmeler
