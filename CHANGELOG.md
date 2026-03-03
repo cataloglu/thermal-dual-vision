@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.77] - 2026-03-03
+
+### Düzeltmeler
+
+- **Reconnect sonrası thermal kör pencere azaltıldı**: Warmup/reconnect döneminde motion artık tamamen sıfırlanmıyor; güçlü motion sinyali varsa event hattına geçebiliyor.
+- **Tek kamera thermal suppression döngüsü yumuşatıldı**: `inference_suppressed` tekrarlarını azaltmak için single-camera suppression streak yükseltildi ve suppression süresi kısaltıldı.
+- **Test kapsamı genişletildi**: Thermal warmup gate helper ve güncellenen suppression politikası için detector unit testleri güncellendi.
+
 ## [4.0.76] - 2026-03-02
 
 ### Düzeltmeler
