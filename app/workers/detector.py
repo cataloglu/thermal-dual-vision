@@ -998,7 +998,7 @@ class DetectorWorker:
                 return False
 
         # Real walk-through signature: enough travel + lower overlap over time.
-        movement_conf_floor = max(min_conf_floor, 0.34 if recovery_mode else 0.68)
+        movement_conf_floor = max(min_conf_floor, 0.32 if recovery_mode else 0.68)
         # Avoid over-tightening movement gate when user/global min_area is set
         # aggressively high for noisy scenes (e.g. 650-900). We still require
         # clear movement signature, but cap the min_area contribution.
