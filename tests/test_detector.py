@@ -1282,6 +1282,48 @@ def test_thermal_static_guard_deep_recovery_handles_elevated_min_area():
     ) is True
 
 
+def test_thermal_static_guard_deep_recovery_sparse_history_allows_motion():
+    """Sparse deep-recovery history should not be treated as static by default."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    sparse_track = [
+        [],
+        [{"bbox": [120, 80, 170, 230], "confidence": 0.38}],
+        [{"bbox": [120, 80, 170, 230], "confidence": 0.38}],
+    ]
+
+    assert worker._passes_thermal_static_event_guard(
+        detection_frames=sparse_track,
+        motion_area_now=1800,
+        active_motion_cameras=1,
+        confidence_threshold=0.37,
+        base_min_area=700,
+        frame_width=320,
+        frame_height=240,
+        deep_recovery_mode=True,
+    ) is True
+
+
+def test_thermal_static_guard_deep_recovery_sparse_history_blocks_edge_artifacts():
+    """Sparse deep-recovery tracks touching frame edges should still be blocked."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    edge_sparse_track = [
+        [],
+        [{"bbox": [0, 30, 48, 220], "confidence": 0.38}],
+        [{"bbox": [0, 31, 48, 221], "confidence": 0.38}],
+    ]
+
+    assert worker._passes_thermal_static_event_guard(
+        detection_frames=edge_sparse_track,
+        motion_area_now=1800,
+        active_motion_cameras=1,
+        confidence_threshold=0.37,
+        base_min_area=700,
+        frame_width=320,
+        frame_height=240,
+        deep_recovery_mode=True,
+    ) is False
+
+
 def test_detect_static_phantom_event_true():
     """Highly duplicate low-confidence static bbox stream should be marked phantom."""
     worker = DetectorWorker.__new__(DetectorWorker)

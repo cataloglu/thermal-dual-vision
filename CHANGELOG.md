@@ -6,6 +6,15 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.83] - 2026-03-04
+
+### Düzeltmeler
+
+- **Deep-recovery temporal kapısı tekrar gevşetildi**: Recovery modunda `conf_gate` marjı düşürüldü ve güçlü tek-kamera motion için minimum motion kapısı aşağı çekildi; `temporal_consistency_failed` kaynaklı kaçırmalar azaltıldı.
+- **Deep-recovery static-guard sparse-history koruması eklendi**: Az kareli recovery izleri varsayılan statik hayalet gibi düşmek yerine kontrollü şekilde event hattına ilerleyebiliyor.
+- **Edge artifact koruması korundu**: Sparse-history gevşetmesine rağmen frame kenarına yapışan düşük güvenli bbox’lar bloklanmaya devam ediyor.
+- **Test kapsamı genişletildi**: Deep-recovery sparse-history geçişi ve edge-artifact bloklaması için yeni unit testler eklendi.
+
 ## [4.0.82] - 2026-03-04
 
 ### Düzeltmeler

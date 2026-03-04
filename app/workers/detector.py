@@ -968,6 +968,14 @@ class DetectorWorker:
                 frame_height=int(frame_height),
                 sample_frames=5,
             )
+        recent_frames = detection_frames[-5:] if detection_frames else []
+        observed_frames = 0
+        for frame_dets in recent_frames:
+            if any(
+                isinstance(det, dict) and det.get("bbox")
+                for det in (frame_dets or [])
+            ):
+                observed_frames += 1
 
         # Border-hugging boxes are usually static background artifacts.
         edge_strict_conf = max(
@@ -1005,10 +1013,23 @@ class DetectorWorker:
                     or median_iou > 0.88
                     or directional_ratio < 0.60
                 )
+            sparse_recovery_track = False
+            if recovery_mode and observed_frames < 3:
+                # Sparse history can make real walk-through tracks look static.
+                # Keep a guarded pass path for deep-recovery detections.
+                sparse_recovery_track = (
+                    best_conf >= max(float(confidence_threshold) + 0.01, 0.34)
+                    and int(motion_area_now) >= max(1200, int(base_min_area) * 2)
+                    and edge_touch_ratio < 0.80
+                )
             if static_like and not (
+                sparse_recovery_track
+                or
                 strong_approach_motion and int(motion_area_now) >= max(1000, int(base_min_area) * 2)
             ):
                 return False
+            if sparse_recovery_track:
+                return True
 
         # Real walk-through signature: enough travel + lower overlap over time.
         movement_conf_floor = (
@@ -2345,8 +2366,8 @@ class DetectorWorker:
                             # Deep recovery already requires repeated misses +
                             # strong motion; keep temporal recovery reachable
                             # even when adaptive min_area is elevated.
-                            min_motion_mult = 2
-                            min_motion_floor = 1100 if active_motion_cameras >= 2 else 1200
+                            min_motion_mult = 2 if active_motion_cameras >= 2 else 1
+                            min_motion_floor = 1050 if active_motion_cameras >= 2 else 950
                         min_motion_area = max(
                             min_motion_floor,
                             guard_min_area * min_motion_mult,
@@ -2355,12 +2376,12 @@ class DetectorWorker:
                         if thermal_recovery_conf_override is not None:
                             recovery_conf_gate = min(
                                 recovery_conf_gate,
-                                max(float(thermal_recovery_conf_override) + 0.04, 0.30),
+                                max(float(thermal_recovery_conf_override) + 0.02, 0.28),
                             )
                             if motion_area_now >= max(2200, guard_min_area * 3):
                                 recovery_conf_gate = min(
                                     recovery_conf_gate,
-                                    max(float(thermal_recovery_conf_override) + 0.02, 0.28),
+                                    max(float(thermal_recovery_conf_override) + 0.00, 0.26),
                                 )
                         if best_conf >= recovery_conf_gate and motion_area_now >= min_motion_area:
                             temporal_pass = True
