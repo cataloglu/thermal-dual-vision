@@ -6,6 +6,16 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.82] - 2026-03-04
+
+### Düzeltmeler
+
+- **Deep-recovery + yüksek `min_area` kilidi çözüldü**: Thermal static-guard içindeki recovery hareket kapısı artık `base_min_area*2` ile aşırı sertleşmiyor; `min_area` yükselse bile hareketli track’ler event hattında bloklanmıyor.
+- **Deep-recovery static-guard daha akıllı hale getirildi**: Recovery modunda düşük güvenli thermal adaylar için confidence/statik imza kuralları dengelendi; statik hayaletleri bloklarken gerçek yürüyüşlerin geçişi kolaylaştırıldı.
+- **Thermal temporal-recovery kapısı deep-recovery ile hizalandı**: `thermal_recovery_conf_override` aktifken temporal kurtarma eşikleri (confidence + motion area) normal moda göre normalize edildi; `temporal_consistency_failed` kaynaklı kaçırmalar azaltıldı.
+- **Tek kamera güçlü motion için daha derin recovery retry**: Çok güçlü thermal hareketlerde deep-recovery confidence eşiği ek olarak gevşetiliyor; `raw=0` döngülerinde toparlama olasılığı artırıldı.
+- **Test kapsamı genişletildi**: Yüksek `min_area` altında deep-recovery static-guard geçişi ve tek kamera güçlü motion deep-recovery eşiği için yeni unit testler eklendi.
+
 ## [4.0.81] - 2026-03-04
 
 ### Düzeltmeler

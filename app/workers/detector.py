@@ -944,7 +944,9 @@ class DetectorWorker:
         best_conf = max((float(det.get("confidence", 0.0)) for det in current_dets), default=0.0)
         recovery_mode = bool(deep_recovery_mode)
         if recovery_mode:
-            min_conf_floor = max(float(confidence_threshold) + 0.10, 0.32)
+            # Keep recovery mode permissive enough for low-conf thermal hits,
+            # while still requiring clear motion signature downstream.
+            min_conf_floor = max(float(confidence_threshold) + 0.02, 0.30)
         else:
             min_conf_floor = max(float(confidence_threshold) + 0.15, 0.67)
         spread = cls._thermal_bbox_center_spread(detection_frames=detection_frames, sample_frames=5)
@@ -987,18 +989,33 @@ class DetectorWorker:
         approach_motion = area_growth >= 1.25
         strong_approach_motion = area_growth >= 1.40
         if best_conf < min_conf_floor:
-            static_like = (
-                spread < 12.0
-                or median_iou > 0.88
-                or directional_ratio < 0.60
-            )
+            if recovery_mode:
+                # In deep recovery, require at least 2 static indicators.
+                static_signals = 0
+                if spread < 11.0:
+                    static_signals += 1
+                if median_iou > 0.90:
+                    static_signals += 1
+                if directional_ratio < 0.55:
+                    static_signals += 1
+                static_like = static_signals >= 2
+            else:
+                static_like = (
+                    spread < 12.0
+                    or median_iou > 0.88
+                    or directional_ratio < 0.60
+                )
             if static_like and not (
                 strong_approach_motion and int(motion_area_now) >= max(1000, int(base_min_area) * 2)
             ):
                 return False
 
         # Real walk-through signature: enough travel + lower overlap over time.
-        movement_conf_floor = max(min_conf_floor, 0.32 if recovery_mode else 0.68)
+        movement_conf_floor = (
+            max(float(confidence_threshold) - 0.02, 0.30)
+            if recovery_mode
+            else max(min_conf_floor, 0.68)
+        )
         # Avoid over-tightening movement gate when user/global min_area is set
         # aggressively high for noisy scenes (e.g. 650-900). We still require
         # clear movement signature, but cap the min_area contribution.
@@ -1007,9 +1024,12 @@ class DetectorWorker:
         if active_motion_cameras >= 2:
             movement_motion_gate = max(movement_motion_gate, int(guard_min_area * 2.2))
         if recovery_mode:
+            # Do not scale strictly with user/auto min_area (often 900-1100+),
+            # otherwise deep-recovery tracks around 1200-1800 area get blocked.
+            recovery_gate = max(900, int(guard_min_area * 2.3))
             movement_motion_gate = max(
                 movement_motion_gate,
-                max(1100, int(base_min_area) * 2),
+                recovery_gate,
             )
         if (
             (
@@ -1113,6 +1133,14 @@ class DetectorWorker:
         base = max(0.25, float(base_confidence))
         relax_delta = 0.22 if active_motion_cameras >= 2 else 0.18
         threshold = max(0.18, base - relax_delta)
+
+        # Single-camera thermal streams with very strong motion can still miss
+        # at base-0.18; allow deeper retry to prevent repeated event misses.
+        if active_motion_cameras <= 1:
+            if motion_area >= max(2400, int(min_area * 3.0)):
+                threshold = max(0.20, threshold - 0.06)
+            if motion_area >= max(7000, int(min_area * 6.0)):
+                threshold = max(0.20, threshold - 0.05)
 
         if active_motion_cameras >= 4 and motion_area >= max(1600, int(min_area * 3.0)):
             threshold = max(0.16, threshold - 0.04)
@@ -2311,17 +2339,37 @@ class DetectorWorker:
                         )
                         min_motion_mult = 2 if active_motion_cameras >= 2 else 3
                         min_motion_floor = 1200 if active_motion_cameras >= 2 else 1400
+                        base_min_area = int(getattr(config.motion, "min_area", 0))
+                        guard_min_area = min(max(260, base_min_area), 700)
+                        if thermal_recovery_conf_override is not None:
+                            # Deep recovery already requires repeated misses +
+                            # strong motion; keep temporal recovery reachable
+                            # even when adaptive min_area is elevated.
+                            min_motion_mult = 2
+                            min_motion_floor = 1100 if active_motion_cameras >= 2 else 1200
                         min_motion_area = max(
                             min_motion_floor,
-                            int(getattr(config.motion, "min_area", 0)) * min_motion_mult,
+                            guard_min_area * min_motion_mult,
                         )
-                        if best_conf >= thermal_recovery_conf and motion_area_now >= min_motion_area:
+                        recovery_conf_gate = thermal_recovery_conf
+                        if thermal_recovery_conf_override is not None:
+                            recovery_conf_gate = min(
+                                recovery_conf_gate,
+                                max(float(thermal_recovery_conf_override) + 0.04, 0.30),
+                            )
+                            if motion_area_now >= max(2200, guard_min_area * 3):
+                                recovery_conf_gate = min(
+                                    recovery_conf_gate,
+                                    max(float(thermal_recovery_conf_override) + 0.02, 0.28),
+                                )
+                        if best_conf >= recovery_conf_gate and motion_area_now >= min_motion_area:
                             temporal_pass = True
                             logger.debug(
-                                "EVENT_GATE camera=%s reason=thermal_temporal_recovered best_conf=%.2f area=%s",
+                                "EVENT_GATE camera=%s reason=thermal_temporal_recovered best_conf=%.2f area=%s conf_gate=%.2f",
                                 camera_id,
                                 best_conf,
                                 motion_area_now,
+                                recovery_conf_gate,
                             )
                     else:
                         # Recovery path: allow a confident single-frame person hit

@@ -524,6 +524,17 @@ def test_thermal_deep_recovery_threshold_requires_streak_and_strong_motion():
     assert dense_threshold is not None
     assert 0.16 <= dense_threshold <= threshold
 
+    # Single-camera + very strong motion should relax further than base-0.18.
+    single_threshold = worker._thermal_deep_recovery_threshold(
+        base_confidence=0.55,
+        motion_area_now=9000,
+        base_min_area=700,
+        no_detection_streak=6,
+        active_motion_cameras=1,
+    )
+    assert single_threshold is not None
+    assert single_threshold <= 0.30
+
 
 def test_get_event_media_data_filters_to_event_window():
     """Event media selection should prefer frames from requested event window."""
@@ -1251,6 +1262,24 @@ def test_thermal_static_guard_deep_recovery_mode_keeps_motion_but_blocks_static(
         base_min_area=700,
         deep_recovery_mode=True,
     ) is False
+
+
+def test_thermal_static_guard_deep_recovery_handles_elevated_min_area():
+    """Deep-recovery moving tracks should pass even when adaptive min_area rises."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    moving_mid_low_conf = [
+        [{"bbox": [120 + (i * 12), 80, 170 + (i * 12), 230], "confidence": 0.38}]
+        for i in range(5)
+    ]
+
+    assert worker._passes_thermal_static_event_guard(
+        detection_frames=moving_mid_low_conf,
+        motion_area_now=1500,
+        active_motion_cameras=1,
+        confidence_threshold=0.37,
+        base_min_area=1100,
+        deep_recovery_mode=True,
+    ) is True
 
 
 def test_detect_static_phantom_event_true():
