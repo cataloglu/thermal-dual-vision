@@ -1059,6 +1059,15 @@ class DetectorWorker:
                 for det in (frame_dets or [])
             ):
                 observed_frames += 1
+        sparse_recovery_track = False
+        if recovery_mode and observed_frames < 3:
+            # Sparse history can make real walk-through tracks look static.
+            # Keep a guarded pass path for deep-recovery detections.
+            sparse_recovery_track = (
+                best_conf >= max(float(confidence_threshold) + 0.00, 0.30)
+                and int(motion_area_now) >= max(1200, int(base_min_area) * 2)
+                and edge_touch_ratio < 0.80
+            )
 
         # Border-hugging boxes are usually static background artifacts.
         edge_strict_conf = max(
@@ -1096,23 +1105,14 @@ class DetectorWorker:
                     or median_iou > 0.88
                     or directional_ratio < 0.60
                 )
-            sparse_recovery_track = False
-            if recovery_mode and observed_frames < 3:
-                # Sparse history can make real walk-through tracks look static.
-                # Keep a guarded pass path for deep-recovery detections.
-                sparse_recovery_track = (
-                    best_conf >= max(float(confidence_threshold) + 0.01, 0.34)
-                    and int(motion_area_now) >= max(1200, int(base_min_area) * 2)
-                    and edge_touch_ratio < 0.80
-                )
             if static_like and not (
                 sparse_recovery_track
                 or
                 strong_approach_motion and int(motion_area_now) >= max(1000, int(base_min_area) * 2)
             ):
                 return False
-            if sparse_recovery_track:
-                return True
+        if sparse_recovery_track:
+            return True
 
         # Real walk-through signature: enough travel + lower overlap over time.
         movement_conf_floor = (
