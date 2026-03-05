@@ -1066,6 +1066,21 @@ class DetectorWorker:
             and int(motion_area_now) >= movement_motion_gate
         ):
             return True
+        if recovery_mode:
+            # Sustained deep-recovery tracks with clear travel should bypass the
+            # strict static fallback path.
+            persistent_recovery_track = (
+                observed_frames >= 4
+                and (best_conf + 1e-6) >= max(float(confidence_threshold) + 0.06, 0.34)
+                and int(motion_area_now) >= max(1300, int(base_min_area) * 2)
+                and edge_touch_ratio < 0.70
+                and (
+                    net_displacement >= 6.0
+                    or (area_growth >= 1.15 and directional_ratio >= 0.45)
+                )
+            )
+            if persistent_recovery_track:
+                return True
 
         # Static box acceptance requires stronger evidence.
         if active_motion_cameras >= 2:
@@ -1162,6 +1177,12 @@ class DetectorWorker:
                 threshold = max(0.20, threshold - 0.06)
             if motion_area >= max(7000, int(min_area * 6.0)):
                 threshold = max(0.20, threshold - 0.05)
+            # Prolonged single-camera no-detection streaks need a deeper retry
+            # floor, or recovery keeps oscillating without event creation.
+            if streak >= 20 and motion_area >= max(1300, int(min_area * 2.0)):
+                threshold = max(0.22, threshold - 0.05)
+            if streak >= 90 and motion_area >= max(1600, int(min_area * 2.2)):
+                threshold = max(0.22, threshold - 0.04)
 
         if active_motion_cameras >= 4 and motion_area >= max(1600, int(min_area * 3.0)):
             threshold = max(0.16, threshold - 0.04)
