@@ -122,6 +122,7 @@ class DetectorWorker:
         self.thermal_motion_peak_area: Dict[str, int] = defaultdict(int)
         self.thermal_motion_peak_ts: Dict[str, float] = {}
         self.last_relaxed_infer_time: Dict[str, float] = {}
+        self.last_thermal_allclass_infer_time: Dict[str, float] = {}
         self.thermal_recovery_hold_detections: Dict[str, List[Dict[str, Any]]] = {}
         self.thermal_recovery_hold_until: Dict[str, float] = {}
         self.stale_gate_hits: Dict[str, int] = defaultdict(int)
@@ -212,6 +213,7 @@ class DetectorWorker:
         self.suppression_rearm_until.clear()
         self.thermal_motion_peak_area.clear()
         self.thermal_motion_peak_ts.clear()
+        self.last_thermal_allclass_infer_time.clear()
         self.thermal_recovery_hold_detections.clear()
         self.thermal_recovery_hold_until.clear()
         self.last_reconnect_ts.clear()
@@ -262,6 +264,7 @@ class DetectorWorker:
         self.suppression_rearm_until.pop(camera_id, None)
         self.thermal_motion_peak_area.pop(camera_id, None)
         self.thermal_motion_peak_ts.pop(camera_id, None)
+        self.last_thermal_allclass_infer_time.pop(camera_id, None)
         self.thermal_recovery_hold_detections.pop(camera_id, None)
         self.thermal_recovery_hold_until.pop(camera_id, None)
         self.last_reconnect_ts.pop(camera_id, None)
@@ -1026,7 +1029,7 @@ class DetectorWorker:
         if recovery_mode:
             # Keep recovery mode permissive enough for low-conf thermal hits,
             # while still requiring clear motion signature downstream.
-            min_conf_floor = max(float(confidence_threshold) + 0.02, 0.30)
+            min_conf_floor = max(float(confidence_threshold) + 0.00, 0.24)
         else:
             min_conf_floor = max(float(confidence_threshold) + 0.15, 0.67)
         spread = cls._thermal_bbox_center_spread(detection_frames=detection_frames, sample_frames=5)
@@ -1060,14 +1063,14 @@ class DetectorWorker:
         # Border-hugging boxes are usually static background artifacts.
         edge_strict_conf = max(
             float(confidence_threshold) + 0.25,
-            0.74 if recovery_mode else 0.78,
+            0.68 if recovery_mode else 0.78,
         )
         if edge_touch_ratio >= 0.80 and best_conf < edge_strict_conf:
             return False
         # Border-side oscillation usually indicates vegetation sway, not a walk-through.
         edge_soft_conf = max(
             float(confidence_threshold) + 0.20,
-            0.70 if recovery_mode else 0.74,
+            0.64 if recovery_mode else 0.74,
         )
         if edge_touch_ratio >= 0.60 and best_conf < edge_soft_conf:
             if spread >= 8.0 and directional_ratio < 0.55:
@@ -1113,7 +1116,7 @@ class DetectorWorker:
 
         # Real walk-through signature: enough travel + lower overlap over time.
         movement_conf_floor = (
-            max(float(confidence_threshold) - 0.02, 0.30)
+            max(float(confidence_threshold) - 0.04, 0.24)
             if recovery_mode
             else max(min_conf_floor, 0.68)
         )
@@ -1151,12 +1154,12 @@ class DetectorWorker:
             # strict static fallback path.
             persistent_recovery_track = (
                 observed_frames >= 4
-                and (best_conf + 1e-6) >= max(float(confidence_threshold) + 0.06, 0.34)
-                and int(motion_area_now) >= max(1300, int(base_min_area) * 2)
+                and (best_conf + 1e-6) >= max(float(confidence_threshold) + 0.01, 0.24)
+                and int(motion_area_now) >= max(1000, int(base_min_area) * 15 // 10)
                 and edge_touch_ratio < 0.70
                 and (
-                    net_displacement >= 6.0
-                    or (area_growth >= 1.15 and directional_ratio >= 0.45)
+                    net_displacement >= 4.0
+                    or (area_growth >= 1.08 and directional_ratio >= 0.40)
                 )
             )
             if persistent_recovery_track:
@@ -2227,13 +2230,18 @@ class DetectorWorker:
                         int(base_min_area * (1.5 if active_motion_cameras >= 2 else 1.3)),
                     )
                     allclass_threshold = max(
-                        0.18,
-                        confidence_threshold - (0.20 if active_motion_cameras >= 2 else 0.24),
+                        0.12,
+                        confidence_threshold - (0.28 if active_motion_cameras >= 2 else 0.32),
                     )
-                    last_relaxed = float(self.last_relaxed_infer_time.get(camera_id, 0.0))
+                    if motion_area_now >= max(2400, int(base_min_area) * 4):
+                        allclass_threshold = min(allclass_threshold, 0.18)
+                    last_allclass = float(self.last_thermal_allclass_infer_time.get(camera_id, 0.0))
+                    allclass_cooldown = (
+                        0.45 if motion_area_now >= max(2000, int(base_min_area) * 3) else 0.70
+                    )
                     if (
                         motion_area_now >= allclass_motion_gate
-                        and current_time - last_relaxed >= 0.7
+                        and current_time - last_allclass >= allclass_cooldown
                     ):
                         pseudo = self.inference_service.preprocess_thermal_pseudocolor(frame)
                         allclass_detections = self.inference_service.infer_all_classes(
@@ -2241,13 +2249,13 @@ class DetectorWorker:
                             confidence_threshold=allclass_threshold,
                             inference_resolution=tuple(config.detection.inference_resolution),
                         )
-                        self.last_relaxed_infer_time[camera_id] = current_time
+                        self.last_thermal_allclass_infer_time[camera_id] = current_time
                         coerced = self._coerce_allclass_to_person(allclass_detections)
                         if coerced:
                             detections_raw = coerced
                             thermal_recovery_conf_override = max(
-                                0.18,
-                                min(0.32, float(allclass_threshold) + 0.02),
+                                0.16,
+                                min(0.26, float(allclass_threshold) + 0.01),
                             )
                             thermal_allclass_fallback = True
                             logger.info(
@@ -2345,6 +2353,12 @@ class DetectorWorker:
                     if thermal_recovery_conf_override is not None
                     else confidence_threshold
                 )
+                if detection_source == "thermal" and thermal_recovery_conf_override is None:
+                    conf_relax = 0.08 if active_motion_cameras >= 2 else 0.05
+                    thermal_conf_floor = min(
+                        thermal_conf_floor,
+                        max(0.20, confidence_threshold - conf_relax),
+                    )
                 thermal_min_area_ratio = 0.0015
                 thermal_min_height_ratio = 0.05
                 if detection_source == "thermal" and active_motion_cameras >= 2:

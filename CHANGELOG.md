@@ -6,6 +6,15 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.87] - 2026-03-06
+
+### Düzeltmeler
+
+- **Thermal fallback deneme pencereleri ayrıldı**: Deep-recovery ve all-class fallback artık ayrı cooldown izliyor; deep denemesi all-class yolunu bloke etmiyor.
+- **All-class fallback daha agresif hale getirildi**: Çok güçlü motion altında fallback confidence eşiği daha aşağı çekildi ve tekrar deneme aralığı hızlandırıldı.
+- **Recovery static-guard gevşetildi**: Recovery modunda confidence/motion imzası eşikleri biraz daha toleranslı hale getirildi; `thermal_static_guard` kaynaklı kaçırmalar azaltıldı.
+- **Thermal quality conf floor hafif yumuşatıldı**: Recovery dışı durumda da thermal `qual_conf` eşiği küçük bir marjla aşağı çekildi.
+
 ## [4.0.86] - 2026-03-06
 
 ### Düzeltmeler
