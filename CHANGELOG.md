@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.84] - 2026-03-05
+
+### Düzeltmeler
+
+- **Uzun no-detection serilerinde deep-recovery güçlendirildi**: Tek kamera thermal akışlarda uzun kaçırma serilerinde deep-recovery eşiği kademeli olarak daha esnek hale getirildi.
+- **Deep-recovery static-guard geçişi iyileştirildi**: Kalıcı ve hareket imzası taşıyan recovery track’leri için kontrollü geçiş yolu eklendi; gereksiz `thermal_static_guard` düşmeleri azaltıldı.
+- **Test kapsamı genişletildi**: Uzun streak eşiği ve persistent recovery/static ayırımı için yeni unit testler eklendi.
+
 ## [4.0.83] - 2026-03-04
 
 ### Düzeltmeler
