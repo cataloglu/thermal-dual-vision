@@ -536,6 +536,29 @@ def test_thermal_deep_recovery_threshold_requires_streak_and_strong_motion():
     assert single_threshold <= 0.30
 
 
+def test_thermal_deep_recovery_threshold_single_camera_prolonged_streak_relaxes_more():
+    """Single-camera prolonged misses should lower deep-recovery threshold further."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    baseline = worker._thermal_deep_recovery_threshold(
+        base_confidence=0.55,
+        motion_area_now=1900,
+        base_min_area=700,
+        no_detection_streak=4,
+        active_motion_cameras=1,
+    )
+    prolonged = worker._thermal_deep_recovery_threshold(
+        base_confidence=0.55,
+        motion_area_now=1900,
+        base_min_area=700,
+        no_detection_streak=120,
+        active_motion_cameras=1,
+    )
+    assert baseline is not None
+    assert prolonged is not None
+    assert prolonged < baseline
+    assert prolonged <= 0.30
+
+
 def test_get_event_media_data_filters_to_event_window():
     """Event media selection should prefer frames from requested event window."""
     worker = DetectorWorker.__new__(DetectorWorker)
@@ -1320,6 +1343,46 @@ def test_thermal_static_guard_deep_recovery_sparse_history_blocks_edge_artifacts
         base_min_area=700,
         frame_width=320,
         frame_height=240,
+        deep_recovery_mode=True,
+    ) is False
+
+
+def test_thermal_static_guard_deep_recovery_persistent_track_allows_motion():
+    """Sustained deep-recovery tracks with real travel should pass static guard."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    persistent_track = [
+        [{"bbox": [120 + (i * 2), 70, 170 + (i * 2), 230], "confidence": 0.39}]
+        for i in range(5)
+    ]
+
+    assert worker._passes_thermal_static_event_guard(
+        detection_frames=persistent_track,
+        motion_area_now=2000,
+        active_motion_cameras=1,
+        confidence_threshold=0.23,
+        base_min_area=700,
+        frame_width=640,
+        frame_height=512,
+        deep_recovery_mode=True,
+    ) is True
+
+
+def test_thermal_static_guard_deep_recovery_persistent_static_track_still_blocks():
+    """Persistent but static deep-recovery tracks must stay blocked."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    static_track = [
+        [{"bbox": [120, 70, 170, 230], "confidence": 0.42}]
+        for _ in range(5)
+    ]
+
+    assert worker._passes_thermal_static_event_guard(
+        detection_frames=static_track,
+        motion_area_now=2400,
+        active_motion_cameras=1,
+        confidence_threshold=0.23,
+        base_min_area=700,
+        frame_width=640,
+        frame_height=512,
         deep_recovery_mode=True,
     ) is False
 
