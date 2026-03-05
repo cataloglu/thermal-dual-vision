@@ -2107,6 +2107,7 @@ class DetectorWorker:
                 confidence_threshold = float(config.detection.confidence_threshold)
                 thermal_recovery_conf_override: Optional[float] = None
                 thermal_allclass_fallback = False
+                thermal_recovery_hold_applied = False
                 if detection_source == "thermal":
                     thermal_conf = float(
                         getattr(config.detection, "thermal_confidence_threshold", confidence_threshold)
@@ -2226,18 +2227,23 @@ class DetectorWorker:
                     )
                     base_min_area = int(getattr(config.motion, "min_area", 0))
                     allclass_motion_gate = max(
-                        700,
-                        int(base_min_area * (1.5 if active_motion_cameras >= 2 else 1.3)),
+                        520,
+                        int(base_min_area * (1.25 if active_motion_cameras >= 2 else 1.10)),
                     )
+                    no_det_streak = int(self.no_detection_streak.get(camera_id, 0)) + 1
+                    if no_det_streak >= 8:
+                        allclass_motion_gate = min(allclass_motion_gate, 700)
+                    if no_det_streak >= 24:
+                        allclass_motion_gate = min(allclass_motion_gate, 480)
                     allclass_threshold = max(
-                        0.12,
-                        confidence_threshold - (0.28 if active_motion_cameras >= 2 else 0.32),
+                        0.10,
+                        confidence_threshold - (0.30 if active_motion_cameras >= 2 else 0.34),
                     )
                     if motion_area_now >= max(2400, int(base_min_area) * 4):
-                        allclass_threshold = min(allclass_threshold, 0.18)
+                        allclass_threshold = min(allclass_threshold, 0.16)
                     last_allclass = float(self.last_thermal_allclass_infer_time.get(camera_id, 0.0))
                     allclass_cooldown = (
-                        0.45 if motion_area_now >= max(2000, int(base_min_area) * 3) else 0.70
+                        0.35 if motion_area_now >= max(2000, int(base_min_area) * 3) else 0.55
                     )
                     if (
                         motion_area_now >= allclass_motion_gate
@@ -2264,7 +2270,7 @@ class DetectorWorker:
                                 allclass_threshold,
                                 len(coerced),
                                 motion_area_now,
-                                int(self.no_detection_streak.get(camera_id, 0)) + 1,
+                                no_det_streak,
                             )
                 if (
                     len(detections_raw) > 0
@@ -2302,6 +2308,7 @@ class DetectorWorker:
                         held = self._clone_recovery_detections(cached_hold, confidence_decay=0.03)
                         if held:
                             detections_raw = held
+                            thermal_recovery_hold_applied = True
                             best_hold_conf = max(
                                 (float(det.get("confidence", 0.0)) for det in held),
                                 default=0.20,
@@ -2638,16 +2645,52 @@ class DetectorWorker:
                     if thermal_recovery_conf_override is not None:
                         guard_conf_threshold = float(thermal_recovery_conf_override)
                         guard_deep_recovery_mode = True
-                    if not self._passes_thermal_static_event_guard(
-                        detection_frames=list(self.detection_history[camera_id]),
-                        motion_area_now=motion_area_now,
-                        active_motion_cameras=active_motion_cameras,
-                        confidence_threshold=guard_conf_threshold,
-                        base_min_area=int(getattr(config.motion, "min_area", 0)),
-                        frame_width=frame_w,
-                        frame_height=frame_h,
-                        deep_recovery_mode=guard_deep_recovery_mode,
+                    detection_frames_for_guard = list(self.detection_history[camera_id])
+                    allow_recovery_static_bypass = False
+                    if (
+                        thermal_recovery_conf_override is not None
+                        and (thermal_allclass_fallback or thermal_recovery_hold_applied)
                     ):
+                        base_min_area = int(getattr(config.motion, "min_area", 0))
+                        recovery_frames = detection_frames_for_guard[-4:] if detection_frames_for_guard else []
+                        recovery_observed = sum(
+                            1
+                            for frame_dets in recovery_frames
+                            if any(
+                                isinstance(det, dict) and det.get("bbox")
+                                for det in (frame_dets or [])
+                            )
+                        )
+                        edge_touch_ratio = self._thermal_bbox_edge_touch_ratio(
+                            detection_frames=detection_frames_for_guard,
+                            frame_width=frame_w,
+                            frame_height=frame_h,
+                            sample_frames=5,
+                        )
+                        best_conf_now = max(
+                            (float(det.get("confidence", 0.0)) for det in detections),
+                            default=0.0,
+                        )
+                        allow_recovery_static_bypass = (
+                            recovery_observed >= 2
+                            and motion_area_now >= max(1600, int(base_min_area) * 2)
+                            and best_conf_now >= max(guard_conf_threshold - 0.08, 0.18)
+                            and edge_touch_ratio < 0.78
+                        )
+                    static_guard_pass = (
+                        allow_recovery_static_bypass
+                        or self._passes_thermal_static_event_guard(
+                            detection_frames=detection_frames_for_guard,
+                            motion_area_now=motion_area_now,
+                            active_motion_cameras=active_motion_cameras,
+                            confidence_threshold=guard_conf_threshold,
+                            base_min_area=int(getattr(config.motion, "min_area", 0)),
+                            frame_width=frame_w,
+                            frame_height=frame_h,
+                            deep_recovery_mode=guard_deep_recovery_mode,
+                        )
+                    )
+                    if not static_guard_pass:
                         self.event_start_time[camera_id] = None
                         _log_gate("thermal_static_guard")
                         continue

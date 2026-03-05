@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.88] - 2026-03-06
+
+### Düzeltmeler
+
+- **All-class fallback daha erken devreye giriyor**: Motion gate düşürüldü, uzun `no_detection` serilerinde gate kademeli daha da aşağı çekildi ve fallback deneme aralığı hızlandırıldı.
+- **Recovery static-guard bypass eklendi**: All-class/hold recovery ile gelen kısa süreli tutarlı izlerde (yeterli motion + düşük edge-touch) static guard kontrollü atlanabiliyor.
+- **Recovery davranışı loglarla uyumlandı**: `no_detection` artarken fallback devreye giriş daha deterministik hale getirildi.
+
 ## [4.0.87] - 2026-03-06
 
 ### Düzeltmeler
