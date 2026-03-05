@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.86] - 2026-03-06
+
+### Düzeltmeler
+
+- **Thermal recovery sürekliliği eklendi**: Deep/all-class recovery ile gelen adaylar kısa bir “hold” penceresinde tekrar kullanılarak ardışık kare sürekliliği güçlendirildi (event öncesi temporal kırılmaları azaltır).
+- **Recovery hold güvenlik katmanı eklendi**: Hold yalnızca güçlü motion devam ederken devreye girer ve confidence küçük bir decay ile düşürülerek kontrollü tutulur.
+- **Test kapsamı artırıldı**: Recovery hold pencere ölçeklenmesi ve detection clone/decay davranışı için yeni unit testler eklendi.
+
 ## [4.0.85] - 2026-03-06
 
 ### Düzeltmeler

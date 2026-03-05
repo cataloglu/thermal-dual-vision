@@ -587,6 +587,37 @@ def test_coerce_allclass_to_person_skips_invalid_entries():
     assert coerced == []
 
 
+def test_thermal_recovery_hold_window_seconds_scales_with_load():
+    worker = DetectorWorker.__new__(DetectorWorker)
+    assert worker._thermal_recovery_hold_window_seconds(1) == pytest.approx(0.65, abs=1e-6)
+    assert worker._thermal_recovery_hold_window_seconds(2) == pytest.approx(0.80, abs=1e-6)
+    assert worker._thermal_recovery_hold_window_seconds(4) == pytest.approx(1.00, abs=1e-6)
+
+
+def test_clone_recovery_detections_applies_confidence_decay():
+    worker = DetectorWorker.__new__(DetectorWorker)
+    detections = [
+        {"bbox": [10, 20, 30, 40], "confidence": 0.42, "class_id": 0, "class_name": "person"},
+        {"bbox": [50, 60, 80, 100], "confidence": 0.19, "class_id": 0, "class_name": "person"},
+    ]
+    cloned = worker._clone_recovery_detections(detections, confidence_decay=0.03)
+    assert len(cloned) == 2
+    assert cloned[0]["confidence"] == pytest.approx(0.39, abs=1e-6)
+    # Confidence should not fall below the guard floor.
+    assert cloned[1]["confidence"] == pytest.approx(0.18, abs=1e-6)
+
+
+def test_clone_recovery_detections_skips_invalid_entries():
+    worker = DetectorWorker.__new__(DetectorWorker)
+    detections = [
+        {"bbox": [10, 20, 30], "confidence": 0.7},
+        {"bbox": [1, 2, 3, 4], "confidence": "bad"},
+        "bad",
+    ]
+    cloned = worker._clone_recovery_detections(detections)  # type: ignore[arg-type]
+    assert cloned == []
+
+
 def test_get_event_media_data_filters_to_event_window():
     """Event media selection should prefer frames from requested event window."""
     worker = DetectorWorker.__new__(DetectorWorker)

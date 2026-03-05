@@ -122,6 +122,8 @@ class DetectorWorker:
         self.thermal_motion_peak_area: Dict[str, int] = defaultdict(int)
         self.thermal_motion_peak_ts: Dict[str, float] = {}
         self.last_relaxed_infer_time: Dict[str, float] = {}
+        self.thermal_recovery_hold_detections: Dict[str, List[Dict[str, Any]]] = {}
+        self.thermal_recovery_hold_until: Dict[str, float] = {}
         self.stale_gate_hits: Dict[str, int] = defaultdict(int)
         self.last_reconnect_ts: Dict[str, float] = {}
         self.stream_stats: Dict[str, Dict[str, Any]] = defaultdict(dict)
@@ -210,6 +212,8 @@ class DetectorWorker:
         self.suppression_rearm_until.clear()
         self.thermal_motion_peak_area.clear()
         self.thermal_motion_peak_ts.clear()
+        self.thermal_recovery_hold_detections.clear()
+        self.thermal_recovery_hold_until.clear()
         self.last_reconnect_ts.clear()
         self.ffmpeg_fallback_until.clear()
         logger.info("DetectorWorker stopped")
@@ -258,6 +262,8 @@ class DetectorWorker:
         self.suppression_rearm_until.pop(camera_id, None)
         self.thermal_motion_peak_area.pop(camera_id, None)
         self.thermal_motion_peak_ts.pop(camera_id, None)
+        self.thermal_recovery_hold_detections.pop(camera_id, None)
+        self.thermal_recovery_hold_until.pop(camera_id, None)
         self.last_reconnect_ts.pop(camera_id, None)
         self.ffmpeg_frame_shapes.pop(camera_id, None)
         with self.ffmpeg_error_lock:
@@ -784,6 +790,46 @@ class DetectorWorker:
                 }
             )
         return coerced
+
+    @staticmethod
+    def _thermal_recovery_hold_window_seconds(active_motion_cameras: int) -> float:
+        """Short hold window to keep thermal recovery tracks temporally stable."""
+        cams = max(0, int(active_motion_cameras))
+        if cams >= 3:
+            return 1.00
+        if cams >= 2:
+            return 0.80
+        return 0.65
+
+    @staticmethod
+    def _clone_recovery_detections(
+        detections: List[Dict[str, Any]],
+        confidence_decay: float = 0.03,
+    ) -> List[Dict[str, Any]]:
+        """Clone cached detections with slight confidence decay for hold frames."""
+        cloned: List[Dict[str, Any]] = []
+        decay = max(0.0, float(confidence_decay))
+        for det in detections or []:
+            if not isinstance(det, dict):
+                continue
+            bbox = det.get("bbox")
+            if not isinstance(bbox, (list, tuple)) or len(bbox) != 4:
+                continue
+            try:
+                x1, y1, x2, y2 = [int(v) for v in bbox]
+                conf = float(det.get("confidence", 0.0))
+            except Exception:
+                continue
+            new_conf = max(0.18, conf - decay)
+            cloned.append(
+                {
+                    "bbox": [x1, y1, x2, y2],
+                    "confidence": new_conf,
+                    "class_id": int(det.get("class_id", 0)),
+                    "class_name": str(det.get("class_name", "person") or "person"),
+                }
+            )
+        return cloned
 
     @staticmethod
     def _thermal_bbox_center_spread(
@@ -2212,6 +2258,60 @@ class DetectorWorker:
                                 motion_area_now,
                                 int(self.no_detection_streak.get(camera_id, 0)) + 1,
                             )
+                if (
+                    len(detections_raw) > 0
+                    and detection_source == "thermal"
+                    and thermal_recovery_conf_override is not None
+                ):
+                    hold_detections = self._clone_recovery_detections(
+                        detections_raw,
+                        confidence_decay=0.01,
+                    )
+                    if hold_detections:
+                        self.thermal_recovery_hold_detections[camera_id] = hold_detections
+                        self.thermal_recovery_hold_until[camera_id] = current_time + float(
+                            self._thermal_recovery_hold_window_seconds(active_motion_cameras)
+                        )
+                elif len(detections_raw) == 0 and detection_source == "thermal":
+                    # Recovery detections can be sparse (every few frames) and fail
+                    # temporal consistency. Reuse very recent recovery candidates for
+                    # a short window while motion is still clearly active.
+                    hold_until = float(self.thermal_recovery_hold_until.get(camera_id, 0.0))
+                    cached_hold = self.thermal_recovery_hold_detections.get(camera_id, [])
+                    motion_area_now = int(
+                        self.motion_state.get(camera_id, {}).get("thermal_motion_area_raw", 0)
+                    )
+                    base_min_area = int(getattr(config.motion, "min_area", 0))
+                    hold_motion_gate = max(
+                        700,
+                        int(base_min_area * (1.5 if active_motion_cameras >= 2 else 1.3)),
+                    )
+                    if (
+                        current_time <= hold_until
+                        and motion_area_now >= hold_motion_gate
+                        and cached_hold
+                    ):
+                        held = self._clone_recovery_detections(cached_hold, confidence_decay=0.03)
+                        if held:
+                            detections_raw = held
+                            best_hold_conf = max(
+                                (float(det.get("confidence", 0.0)) for det in held),
+                                default=0.20,
+                            )
+                            thermal_recovery_conf_override = max(
+                                0.18,
+                                min(0.32, best_hold_conf),
+                            )
+                            last_hold_log = float(self.last_fallback_log.get(camera_id, 0.0))
+                            if current_time - last_hold_log >= 6.0:
+                                logger.info(
+                                    "DETECT camera=%s thermal_recovery_hold reused=%s area=%s hold_for=%.2fs",
+                                    camera_id,
+                                    len(held),
+                                    motion_area_now,
+                                    max(0.0, hold_until - current_time),
+                                )
+                                self.last_fallback_log[camera_id] = current_time
                 inference_latency = time.perf_counter() - t0
                 model_name = getattr(config.detection, "model", "yolov8n-person") or "yolov8n-person"
                 try:
