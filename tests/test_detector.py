@@ -559,6 +559,34 @@ def test_thermal_deep_recovery_threshold_single_camera_prolonged_streak_relaxes_
     assert prolonged <= 0.30
 
 
+def test_coerce_allclass_to_person_keeps_valid_boxes():
+    """All-class fallback detections should be normalized into person candidates."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    detections = [
+        {"bbox": [10, 20, 30, 40], "confidence": 0.41, "class_id": 7, "class_name": "car"},
+        {"bbox": [15, 25, 35, 45], "confidence": 0.63, "class_id": 15, "class_name": "cat"},
+    ]
+    coerced = worker._coerce_allclass_to_person(detections)
+    assert len(coerced) == 2
+    assert all(det["class_id"] == 0 for det in coerced)
+    assert all(det["class_name"] == "person" for det in coerced)
+    assert coerced[0]["bbox"] == [10, 20, 30, 40]
+    assert coerced[1]["confidence"] == pytest.approx(0.63, abs=1e-6)
+
+
+def test_coerce_allclass_to_person_skips_invalid_entries():
+    """Invalid fallback entries should be ignored safely."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    detections = [
+        {"bbox": [10, 20, 30], "confidence": 0.5},
+        {"bbox": [0, 1, 2, 3], "confidence": 0.0},
+        {"confidence": 0.7},
+        "bad_entry",
+    ]
+    coerced = worker._coerce_allclass_to_person(detections)  # type: ignore[arg-type]
+    assert coerced == []
+
+
 def test_get_event_media_data_filters_to_event_window():
     """Event media selection should prefer frames from requested event window."""
     worker = DetectorWorker.__new__(DetectorWorker)

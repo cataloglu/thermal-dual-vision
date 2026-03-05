@@ -752,6 +752,40 @@ class DetectorWorker:
         return 2, 1, max(float(confidence_threshold) + 0.07, 0.62)
 
     @staticmethod
+    def _coerce_allclass_to_person(
+        detections: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        """
+        Convert class-agnostic fallback detections into person candidates.
+
+        This is used only in thermal recovery mode when person-only inference
+        repeatedly returns empty results under active motion.
+        """
+        coerced: List[Dict[str, Any]] = []
+        for det in detections or []:
+            if not isinstance(det, dict):
+                continue
+            bbox = det.get("bbox")
+            if not isinstance(bbox, (list, tuple)) or len(bbox) != 4:
+                continue
+            try:
+                x1, y1, x2, y2 = [int(v) for v in bbox]
+                conf = float(det.get("confidence", 0.0))
+            except Exception:
+                continue
+            if conf <= 0.0:
+                continue
+            coerced.append(
+                {
+                    "bbox": [x1, y1, x2, y2],
+                    "confidence": conf,
+                    "class_id": 0,
+                    "class_name": "person",
+                }
+            )
+        return coerced
+
+    @staticmethod
     def _thermal_bbox_center_spread(
         detection_frames: List[List[Dict[str, Any]]],
         sample_frames: int = 5,
@@ -2023,6 +2057,7 @@ class DetectorWorker:
                 # Run inference (with metrics)
                 confidence_threshold = float(config.detection.confidence_threshold)
                 thermal_recovery_conf_override: Optional[float] = None
+                thermal_allclass_fallback = False
                 if detection_source == "thermal":
                     thermal_conf = float(
                         getattr(config.detection, "thermal_confidence_threshold", confidence_threshold)
@@ -2133,6 +2168,50 @@ class DetectorWorker:
                                 motion_area_now,
                                 int(self.no_detection_streak.get(camera_id, 0)) + 1,
                             )
+                if len(detections_raw) == 0 and detection_source == "thermal":
+                    # Scrypted-like recovery path: if person-only head keeps
+                    # returning empty under clear thermal motion, retry with
+                    # pseudo-color + all-class inference and coerce to person.
+                    motion_area_now = int(
+                        self.motion_state.get(camera_id, {}).get("thermal_motion_area_raw", 0)
+                    )
+                    base_min_area = int(getattr(config.motion, "min_area", 0))
+                    allclass_motion_gate = max(
+                        700,
+                        int(base_min_area * (1.5 if active_motion_cameras >= 2 else 1.3)),
+                    )
+                    allclass_threshold = max(
+                        0.18,
+                        confidence_threshold - (0.20 if active_motion_cameras >= 2 else 0.24),
+                    )
+                    last_relaxed = float(self.last_relaxed_infer_time.get(camera_id, 0.0))
+                    if (
+                        motion_area_now >= allclass_motion_gate
+                        and current_time - last_relaxed >= 0.7
+                    ):
+                        pseudo = self.inference_service.preprocess_thermal_pseudocolor(frame)
+                        allclass_detections = self.inference_service.infer_all_classes(
+                            pseudo,
+                            confidence_threshold=allclass_threshold,
+                            inference_resolution=tuple(config.detection.inference_resolution),
+                        )
+                        self.last_relaxed_infer_time[camera_id] = current_time
+                        coerced = self._coerce_allclass_to_person(allclass_detections)
+                        if coerced:
+                            detections_raw = coerced
+                            thermal_recovery_conf_override = max(
+                                0.18,
+                                min(0.32, float(allclass_threshold) + 0.02),
+                            )
+                            thermal_allclass_fallback = True
+                            logger.info(
+                                "DETECT camera=%s thermal_allclass_recovery threshold=%.2f recovered=%s area=%s streak=%s",
+                                camera_id,
+                                allclass_threshold,
+                                len(coerced),
+                                motion_area_now,
+                                int(self.no_detection_streak.get(camera_id, 0)) + 1,
+                            )
                 inference_latency = time.perf_counter() - t0
                 model_name = getattr(config.detection, "model", "yolov8n-person") or "yolov8n-person"
                 try:
@@ -2166,13 +2245,20 @@ class DetectorWorker:
                     if thermal_recovery_conf_override is not None
                     else confidence_threshold
                 )
-                thermal_min_area_ratio = 0.0018
-                thermal_min_height_ratio = 0.06
+                thermal_min_area_ratio = 0.0015
+                thermal_min_height_ratio = 0.05
                 if detection_source == "thermal" and active_motion_cameras >= 2:
                     # Concurrent thermal load: keep quality gates slightly looser
                     # to reduce misses on smaller/farther person boxes.
-                    thermal_min_area_ratio = 0.0014
-                    thermal_min_height_ratio = 0.05
+                    thermal_min_area_ratio = 0.0012
+                    thermal_min_height_ratio = 0.045
+                if detection_source == "thermal" and thermal_allclass_fallback:
+                    thermal_min_area_ratio = min(thermal_min_area_ratio, 0.0010)
+                    thermal_min_height_ratio = min(thermal_min_height_ratio, 0.042)
+                    thermal_conf_floor = min(
+                        thermal_conf_floor,
+                        max(0.18, confidence_threshold - 0.10),
+                    )
                 if detection_source == "thermal" and detections_after_ar > 0:
                     frame_h, frame_w = frame.shape[:2]
                     frame_area = float(max(frame_h * frame_w, 1))

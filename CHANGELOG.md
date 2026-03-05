@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.85] - 2026-03-06
+
+### Düzeltmeler
+
+- **Scrypted-benzeri thermal recovery yolu eklendi**: Thermal’da person-only inference sürekli boş dönüyorsa pseudo-color + all-class recovery denenip adaylar kontrollü şekilde person hattına aktarılıyor.
+- **Thermal quality kapıları yumuşatıldı**: Alan/yükseklik eşikleri thermal için daha yakalayıcı olacak şekilde gevşetildi; özellikle `raw>0` iken `qual=0` düşüşleri azaltıldı.
+- **Test kapsamı artırıldı**: All-class recovery adaylarının person hattına güvenli normalize edilmesi için yeni unit testler eklendi.
+
 ## [4.0.84] - 2026-03-05
 
 ### Düzeltmeler
