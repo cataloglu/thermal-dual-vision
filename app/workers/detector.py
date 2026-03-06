@@ -1250,6 +1250,40 @@ class DetectorWorker:
         )
 
     @staticmethod
+    def _passes_thermal_recovery_event_conf_guard(
+        detections: List[Dict[str, Any]],
+        motion_area_now: int,
+        base_min_area: int,
+        confidence_threshold: float,
+        thermal_recovery_conf_override: Optional[float],
+        thermal_allclass_fallback: bool,
+        thermal_recovery_hold_applied: bool,
+    ) -> bool:
+        """
+        Final confidence guard for all-class/hold thermal recovery events.
+
+        Recovery helps recall, but very low-confidence tracks can still become
+        noisy false positives. Apply a stricter floor right before event timing.
+        """
+        if thermal_recovery_conf_override is None:
+            return True
+        if not (thermal_allclass_fallback or thermal_recovery_hold_applied):
+            return True
+
+        best_conf = max(
+            (float(det.get("confidence", 0.0)) for det in (detections or [])),
+            default=0.0,
+        )
+        conf_gate = max(
+            float(thermal_recovery_conf_override) + 0.06,
+            float(confidence_threshold) - 0.20,
+            0.26,
+        )
+        if int(motion_area_now) >= max(3200, int(base_min_area) * 4):
+            conf_gate = max(0.24, conf_gate - 0.02)
+        return (best_conf + 1e-6) >= conf_gate
+
+    @staticmethod
     def _thermal_suppression_policy(
         base_streak: int,
         base_duration_secs: int,
@@ -2756,6 +2790,19 @@ class DetectorWorker:
                     if not static_guard_pass:
                         self.event_start_time[camera_id] = None
                         _log_gate("thermal_static_guard")
+                        continue
+                    base_min_area = int(getattr(config.motion, "min_area", 0))
+                    if not self._passes_thermal_recovery_event_conf_guard(
+                        detections=detections,
+                        motion_area_now=motion_area_now,
+                        base_min_area=base_min_area,
+                        confidence_threshold=confidence_threshold,
+                        thermal_recovery_conf_override=thermal_recovery_conf_override,
+                        thermal_allclass_fallback=thermal_allclass_fallback,
+                        thermal_recovery_hold_applied=thermal_recovery_hold_applied,
+                    ):
+                        self.event_start_time[camera_id] = None
+                        _log_gate("thermal_recovery_low_conf")
                         continue
 
                 # Enforce minimum event duration

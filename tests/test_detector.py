@@ -1522,6 +1522,54 @@ def test_recovery_static_bypass_allows_non_edge_track_with_travel_signature():
     ) is True
 
 
+def test_thermal_recovery_event_conf_guard_blocks_very_low_conf_recovery():
+    """All-class/hold recovery events should block very low confidence tracks."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    detections = [{"bbox": [160, 80, 260, 320], "confidence": 0.20}]
+
+    assert worker._passes_thermal_recovery_event_conf_guard(
+        detections=detections,
+        motion_area_now=2200,
+        base_min_area=700,
+        confidence_threshold=0.45,
+        thermal_recovery_conf_override=0.18,
+        thermal_allclass_fallback=True,
+        thermal_recovery_hold_applied=False,
+    ) is False
+
+
+def test_thermal_recovery_event_conf_guard_allows_recovery_with_enough_confidence():
+    """All-class recovery should pass when confidence clears the final guard."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    detections = [{"bbox": [160, 80, 260, 320], "confidence": 0.32}]
+
+    assert worker._passes_thermal_recovery_event_conf_guard(
+        detections=detections,
+        motion_area_now=2200,
+        base_min_area=700,
+        confidence_threshold=0.45,
+        thermal_recovery_conf_override=0.18,
+        thermal_allclass_fallback=True,
+        thermal_recovery_hold_applied=False,
+    ) is True
+
+
+def test_thermal_recovery_event_conf_guard_relaxes_slightly_on_very_strong_motion():
+    """Very strong thermal motion can allow a slightly lower recovery confidence."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    detections = [{"bbox": [160, 80, 260, 320], "confidence": 0.24}]
+
+    assert worker._passes_thermal_recovery_event_conf_guard(
+        detections=detections,
+        motion_area_now=3600,
+        base_min_area=700,
+        confidence_threshold=0.45,
+        thermal_recovery_conf_override=0.18,
+        thermal_allclass_fallback=False,
+        thermal_recovery_hold_applied=True,
+    ) is True
+
+
 def test_detect_static_phantom_event_true():
     """Highly duplicate low-confidence static bbox stream should be marked phantom."""
     worker = DetectorWorker.__new__(DetectorWorker)

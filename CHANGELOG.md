@@ -6,6 +6,14 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.90] - 2026-03-06
+
+### Düzeltmeler
+
+- **Fake event azaltımı için son confidence guard eklendi**: Thermal all-class/hold recovery ile gelen çok düşük güvenli adaylar, event yaratmadan önce `thermal_recovery_low_conf` kapısında eleniyor.
+- **Recovery event confidence eşiği güçlendirildi**: Recovery override + global confidence kombinasyonundan türetilen daha yüksek bir final eşik uygulanıyor; yalnızca çok güçlü motion’da küçük bir esneme var.
+- **Test kapsamı artırıldı**: Recovery event confidence guard için bloklama/geçiş senaryolarını doğrulayan yeni unit testler eklendi.
+
 ## [4.0.89] - 2026-03-06
 
 ### Düzeltmeler
