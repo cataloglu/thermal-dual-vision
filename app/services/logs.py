@@ -1,5 +1,5 @@
 """
-Logs service for Smart Motion Detector v2.
+Logs service for Thermal Dual Vision.
 
 Handles log file reading for diagnostics.
 """

@@ -1,5 +1,5 @@
 """
-Detection worker for Smart Motion Detector v2.
+Detection worker for Thermal Dual Vision.
 
 This worker handles YOLOv8 person detection pipeline including:
 - RTSP stream ingestion

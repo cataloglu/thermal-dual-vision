@@ -1,5 +1,5 @@
 """
-Database session management for Smart Motion Detector v2.
+Database session management for Thermal Dual Vision.
 
 This module handles database connection, session creation, and initialization.
 """

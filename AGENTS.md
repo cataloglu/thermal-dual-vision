@@ -19,7 +19,7 @@ Single-product Home Assistant add-on: Python 3.11 FastAPI backend + React 18 Typ
 
 ### Testing
 
-- **Backend tests**: `source .venv/bin/activate && python -m pytest tests/ -v` (178 tests, all unit/integration, no external services required)
+- **Backend tests**: `source .venv/bin/activate && python -m pytest tests/ -v` (266 tests, all unit/integration, no external services required)
 - **Frontend lint**: `cd ui && npm run lint` (zero-warning policy)
 - **Frontend build**: `cd ui && npm run build` (runs `tsc` then `vite build`)
 - Config: `pytest.ini` at repo root

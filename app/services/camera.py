@@ -1,5 +1,5 @@
 """
-Camera service for Smart Motion Detector v2.
+Camera service for Thermal Dual Vision.
 
 This service handles RTSP camera connections, snapshot capture,
 and connection testing with proper error handling and retry logic.

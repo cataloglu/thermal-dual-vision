@@ -1,5 +1,5 @@
 """
-Prometheus metrics service for Smart Motion Detector v2.
+Prometheus metrics service for Thermal Dual Vision.
 
 Exports performance metrics for monitoring and alerting.
 """

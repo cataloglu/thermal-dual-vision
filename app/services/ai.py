@@ -1,5 +1,5 @@
 """
-AI service for Smart Motion Detector v2.
+AI service for Thermal Dual Vision.
 
 Handles OpenAI Vision API integration for event analysis.
 """
@@ -222,7 +222,7 @@ class AIService:
                     ],
                     max_tokens=config.ai.max_tokens,
                     temperature=config.ai.temperature if config.ai.temperature is not None else 0.3,
-                    timeout=60.0,
+                    timeout=float(config.ai.timeout) if config.ai.timeout is not None else 30.0,
                 )
             finally:
                 await client.close()

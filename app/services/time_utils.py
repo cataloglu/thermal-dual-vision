@@ -1,5 +1,5 @@
 """
-Time utilities for Smart Motion Detector v2.
+Time utilities for Thermal Dual Vision.
 
 This module provides time-based utilities for auto detection source selection.
 """

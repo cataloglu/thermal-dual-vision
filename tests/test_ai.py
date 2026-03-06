@@ -32,6 +32,7 @@ def mock_config():
     config.ai.model = "gpt-4o"
     config.ai.max_tokens = 200
     config.ai.temperature = 0.3
+    config.ai.timeout = 30
     config.ai.prompt_template = "default"
     config.ai.custom_prompt = None
     return config

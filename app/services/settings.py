@@ -1,5 +1,5 @@
 """
-Settings service for Smart Motion Detector v2.
+Settings service for Thermal Dual Vision.
 
 This service handles configuration file management including:
 - Loading config from config.json

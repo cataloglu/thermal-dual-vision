@@ -1,1 +1,1 @@
-"""Workers package for Smart Motion Detector v2."""
+"""Workers package for Thermal Dual Vision."""

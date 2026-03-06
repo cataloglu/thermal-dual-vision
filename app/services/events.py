@@ -1,5 +1,5 @@
 """
-Event service for Smart Motion Detector v2.
+Event service for Thermal Dual Vision.
 
 This service handles event CRUD operations, pagination, and filtering.
 """

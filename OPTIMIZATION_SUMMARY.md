@@ -84,9 +84,8 @@
 🆕 app/services/metrics.py (Prometheus)
 🆕 tests/test_inference_optimized.py (unit tests)
 🆕 tests/benchmark_performance.py (benchmarking)
-🆕 docs/TECHNICAL_ANALYSIS.md (detaylı analiz)
-🆕 docs/IMPLEMENTATION_STATUS.md (status)
-🆕 docs/OPTIMIZATION_COMPLETE.md (complete guide)
+🆕 docs/PERFORMANCE_TUNING.md (detaylı analiz)
+🆕 docs/ARCHITECTURE.md (mimari dokümantasyon)
 🆕 docs/UPGRADE_GUIDE.md (upgrade rehberi)
 🆕 docs/grafana-dashboard.json (Grafana)
 ```
@@ -146,28 +145,25 @@ performance:
 
 ## 📚 DOKÜMANTASYON
 
-### Yeni Dokümantasyon (Okumanı Öneriyorum!)
+### Dokümantasyon
 
-1. **📘 Technical Analysis** (`docs/TECHNICAL_ANALYSIS.md`)
-   - Detaylı kod analizi
-   - Best practices karşılaştırması
-   - Performans önerileri
-   - **50+ sayfa kapsamlı analiz**
+1. **📘 Performance Tuning** (`docs/PERFORMANCE_TUNING.md`)
+   - Detaylı performans analizi
+   - YOLO model seçimi ve benchmark tabloları
+   - Thermal kamera parametreleri
 
 2. **📗 Upgrade Guide** (`docs/UPGRADE_GUIDE.md`)
-   - v2.1 → v2.2 yükseltme adımları
+   - Sürümler arası yükseltme adımları
    - Config değişiklikleri
-   - Test senaryoları
    - Sorun giderme
 
-3. **📕 Optimization Complete** (`docs/OPTIMIZATION_COMPLETE.md`)
-   - Tüm iyileştirmeler
-   - Implementation detayları
-   - Action plan
-   - Success criteria
+3. **📕 Architecture** (`docs/ARCHITECTURE.md`)
+   - Tüm bileşenlerin mimarisi
+   - DetectorWorker pipeline açıklaması
+   - Inference backend seçimi
 
-4. **📙 Implementation Status** (`docs/IMPLEMENTATION_STATUS.md`)
-   - Faz-by-faz durum
+4. **📙 API Contract** (`docs/API_CONTRACT.md`)
+   - Tüm endpoint'lerin güncel dokümantasyonu
    - Test checklist
    - Deployment notes
 
@@ -393,10 +389,10 @@ max_gap_frames=1          # ✅ 1 olmalı
 ## 📞 DESTEK VE DOKÜMANTASYON
 
 ### Ana Dokümantasyon
-- 📘 **Technical Analysis**: `docs/TECHNICAL_ANALYSIS.md` (50+ sayfa)
+- 📘 **Performance Tuning**: `docs/PERFORMANCE_TUNING.md`
 - 📗 **Upgrade Guide**: `docs/UPGRADE_GUIDE.md`
-- 📕 **Optimization Complete**: `docs/OPTIMIZATION_COMPLETE.md`
-- 📙 **Implementation Status**: `docs/IMPLEMENTATION_STATUS.md`
+- 📕 **Architecture**: `docs/ARCHITECTURE.md`
+- 📙 **API Contract**: `docs/API_CONTRACT.md`
 
 ### Tests & Benchmarks
 - 🧪 **Unit Tests**: `tests/test_inference_optimized.py`
@@ -458,7 +454,7 @@ pytest tests/test_inference_optimized.py -v
 
 ## ☕ KAHVE MOLASINDAN SONRA...
 
-1. 📖 `docs/TECHNICAL_ANALYSIS.md` oku (50 sayfa detay!)
+1. 📖 `docs/PERFORMANCE_TUNING.md` ve `docs/ARCHITECTURE.md` oku
 2. 🚀 Sistemi başlat, export'u izle
 3. 📊 Benchmark çalıştır
 4. 🎯 24-saat test başlat

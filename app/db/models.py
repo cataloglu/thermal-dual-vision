@@ -1,5 +1,5 @@
 """
-SQLAlchemy database models for Smart Motion Detector v2.
+SQLAlchemy database models for Thermal Dual Vision.
 
 This module contains all database models including Camera, Zone, and Event.
 """

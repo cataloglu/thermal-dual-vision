@@ -1,5 +1,5 @@
 """
-Recording state service for Smart Motion Detector v2.
+Recording state service for Thermal Dual Vision.
 
 Stores per-camera recording toggles in the database so multiple processes
 share consistent state.

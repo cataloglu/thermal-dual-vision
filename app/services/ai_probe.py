@@ -1,5 +1,5 @@
 """
-AI test service for Smart Motion Detector v2.
+AI test service for Thermal Dual Vision.
 
 Handles OpenAI connection testing.
 """

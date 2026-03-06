@@ -1,5 +1,5 @@
 """
-Retention worker for Smart Motion Detector v2.
+Retention worker for Thermal Dual Vision.
 
 This worker handles automatic cleanup of old events and media files
 based on retention policy and disk usage limits.
