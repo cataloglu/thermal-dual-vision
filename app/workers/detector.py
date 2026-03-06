@@ -1174,6 +1174,68 @@ class DetectorWorker:
             strong_motion = max(2200, int(base_min_area) * 6)
         return best_conf >= strong_conf and int(motion_area_now) >= strong_motion
 
+    @classmethod
+    def _should_allow_recovery_static_bypass(
+        cls,
+        detection_frames: List[List[Dict[str, Any]]],
+        motion_area_now: int,
+        best_conf_now: float,
+        guard_conf_threshold: float,
+        base_min_area: int,
+        frame_width: int,
+        frame_height: int,
+    ) -> bool:
+        """Allow guarded static-bypass for sustained thermal recovery tracks."""
+        recovery_frames = detection_frames[-4:] if detection_frames else []
+        recovery_observed = sum(
+            1
+            for frame_dets in recovery_frames
+            if any(
+                isinstance(det, dict) and det.get("bbox")
+                for det in (frame_dets or [])
+            )
+        )
+        if recovery_observed < 2:
+            return False
+
+        if int(motion_area_now) < max(1600, int(base_min_area) * 2):
+            return False
+        if float(best_conf_now) < max(float(guard_conf_threshold) - 0.08, 0.18):
+            return False
+
+        edge_touch_ratio = cls._thermal_bbox_edge_touch_ratio(
+            detection_frames=detection_frames,
+            frame_width=frame_width,
+            frame_height=frame_height,
+            sample_frames=5,
+        )
+        if edge_touch_ratio < 0.78:
+            return True
+
+        # Recovery tracks near the frame edge can still be genuine walk-throughs.
+        # Keep this path strict: require sustained observations + travel signature.
+        spread = cls._thermal_bbox_center_spread(
+            detection_frames=detection_frames,
+            sample_frames=5,
+        )
+        net_displacement = cls._thermal_bbox_net_displacement(
+            detection_frames=detection_frames,
+            sample_frames=5,
+        )
+        area_growth = cls._thermal_bbox_area_growth_ratio(
+            detection_frames=detection_frames,
+            sample_frames=5,
+        )
+        directional_ratio = float(net_displacement) / max(float(spread), 1.0)
+        return (
+            recovery_observed >= 3
+            and edge_touch_ratio < 0.90
+            and (
+                net_displacement >= max(7.0, float(spread) * 0.55)
+                or (area_growth >= 1.12 and directional_ratio >= 0.32)
+            )
+        )
+
     @staticmethod
     def _thermal_suppression_policy(
         base_streak: int,
@@ -2652,30 +2714,18 @@ class DetectorWorker:
                         and (thermal_allclass_fallback or thermal_recovery_hold_applied)
                     ):
                         base_min_area = int(getattr(config.motion, "min_area", 0))
-                        recovery_frames = detection_frames_for_guard[-4:] if detection_frames_for_guard else []
-                        recovery_observed = sum(
-                            1
-                            for frame_dets in recovery_frames
-                            if any(
-                                isinstance(det, dict) and det.get("bbox")
-                                for det in (frame_dets or [])
-                            )
-                        )
-                        edge_touch_ratio = self._thermal_bbox_edge_touch_ratio(
-                            detection_frames=detection_frames_for_guard,
-                            frame_width=frame_w,
-                            frame_height=frame_h,
-                            sample_frames=5,
-                        )
                         best_conf_now = max(
                             (float(det.get("confidence", 0.0)) for det in detections),
                             default=0.0,
                         )
-                        allow_recovery_static_bypass = (
-                            recovery_observed >= 2
-                            and motion_area_now >= max(1600, int(base_min_area) * 2)
-                            and best_conf_now >= max(guard_conf_threshold - 0.08, 0.18)
-                            and edge_touch_ratio < 0.78
+                        allow_recovery_static_bypass = self._should_allow_recovery_static_bypass(
+                            detection_frames=detection_frames_for_guard,
+                            motion_area_now=motion_area_now,
+                            best_conf_now=best_conf_now,
+                            guard_conf_threshold=guard_conf_threshold,
+                            base_min_area=base_min_area,
+                            frame_width=frame_w,
+                            frame_height=frame_h,
                         )
                     static_guard_pass = (
                         allow_recovery_static_bypass

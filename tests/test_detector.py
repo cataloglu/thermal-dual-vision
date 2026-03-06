@@ -1446,6 +1446,44 @@ def test_thermal_static_guard_deep_recovery_persistent_static_track_still_blocks
     ) is False
 
 
+def test_recovery_static_bypass_allows_edge_track_with_clear_travel():
+    """Edge-touching recovery tracks with real travel should bypass static guard."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    edge_moving_track = [
+        [{"bbox": [4 + (i * 10), 90, 92 + (i * 10), 310], "confidence": 0.30}]
+        for i in range(5)
+    ]
+
+    assert worker._should_allow_recovery_static_bypass(
+        detection_frames=edge_moving_track,
+        motion_area_now=2600,
+        best_conf_now=0.30,
+        guard_conf_threshold=0.25,
+        base_min_area=700,
+        frame_width=640,
+        frame_height=512,
+    ) is True
+
+
+def test_recovery_static_bypass_blocks_edge_track_without_travel_signature():
+    """Edge-touching jitter tracks should not bypass static guard."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    edge_jitter_track = [
+        [{"bbox": [2, 100 + i, 90, 320 + i], "confidence": 0.31}]
+        for i in range(5)
+    ]
+
+    assert worker._should_allow_recovery_static_bypass(
+        detection_frames=edge_jitter_track,
+        motion_area_now=3000,
+        best_conf_now=0.31,
+        guard_conf_threshold=0.25,
+        base_min_area=700,
+        frame_width=640,
+        frame_height=512,
+    ) is False
+
+
 def test_detect_static_phantom_event_true():
     """Highly duplicate low-confidence static bbox stream should be marked phantom."""
     worker = DetectorWorker.__new__(DetectorWorker)
