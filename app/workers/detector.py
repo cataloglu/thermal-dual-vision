@@ -1198,9 +1198,12 @@ class DetectorWorker:
         if recovery_observed < 2:
             return False
 
-        if int(motion_area_now) < max(1600, int(base_min_area) * 2):
+        conf_floor = max(float(guard_conf_threshold) - 0.05, 0.22)
+        if float(best_conf_now) < conf_floor:
             return False
-        if float(best_conf_now) < max(float(guard_conf_threshold) - 0.08, 0.18):
+
+        motion_gate = max(1800, int(base_min_area) * 22 // 10)
+        if int(motion_area_now) < motion_gate:
             return False
 
         edge_touch_ratio = cls._thermal_bbox_edge_touch_ratio(
@@ -1209,11 +1212,7 @@ class DetectorWorker:
             frame_height=frame_height,
             sample_frames=5,
         )
-        if edge_touch_ratio < 0.78:
-            return True
 
-        # Recovery tracks near the frame edge can still be genuine walk-throughs.
-        # Keep this path strict: require sustained observations + travel signature.
         spread = cls._thermal_bbox_center_spread(
             detection_frames=detection_frames,
             sample_frames=5,
@@ -1227,13 +1226,27 @@ class DetectorWorker:
             sample_frames=5,
         )
         directional_ratio = float(net_displacement) / max(float(spread), 1.0)
+        clear_travel = (
+            net_displacement >= max(6.0, float(spread) * 0.50)
+            and directional_ratio >= 0.28
+        )
+        approach_travel = area_growth >= 1.12 and directional_ratio >= 0.32
+        if not (clear_travel or approach_travel):
+            return False
+
+        if edge_touch_ratio < 0.78:
+            # For low-confidence tracks, avoid one-frame bypass spikes.
+            if float(best_conf_now) < max(conf_floor, 0.26) and recovery_observed < 3:
+                return False
+            return True
+
+        # Recovery tracks near frame edge can still be real, but keep this stricter.
         return (
             recovery_observed >= 3
-            and edge_touch_ratio < 0.90
-            and (
-                net_displacement >= max(7.0, float(spread) * 0.55)
-                or (area_growth >= 1.12 and directional_ratio >= 0.32)
-            )
+            and edge_touch_ratio < 0.88
+            and float(best_conf_now) >= max(conf_floor, 0.25)
+            and net_displacement >= max(7.5, float(spread) * 0.58)
+            and directional_ratio >= 0.34
         )
 
     @staticmethod

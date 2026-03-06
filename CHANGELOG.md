@@ -6,6 +6,15 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.89] - 2026-03-06
+
+### Düzeltmeler
+
+- **Recovery static-bypass sıkılaştırıldı**: Bypass artık yalnızca güven eşiği + yeterli motion + net hareket imzası (travel/approach) birlikte sağlandığında geçiyor.
+- **Centered static recovery adayları bloklanıyor**: Edge dışında kalan ama yerinde duran düşük güvenli kutular için bypass kapatıldı; fake event üretimi azaltıldı.
+- **Edge recovery için daha sıkı koruma**: Kenara yakın track’lerde bypass kararı için ek gözlem/travel koşulları sertleştirildi.
+- **Test kapsamı artırıldı**: Non-edge static bloklama ve non-edge gerçek hareket geçişi için yeni unit testler eklendi.
+
 ## [4.0.88] - 2026-03-06
 
 ### Düzeltmeler

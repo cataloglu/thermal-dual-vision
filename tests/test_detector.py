@@ -1484,6 +1484,44 @@ def test_recovery_static_bypass_blocks_edge_track_without_travel_signature():
     ) is False
 
 
+def test_recovery_static_bypass_blocks_non_edge_static_track():
+    """Centered static recovery track should not bypass static guard."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    centered_static_track = [
+        [{"bbox": [180, 90, 280, 320], "confidence": 0.33}]
+        for _ in range(5)
+    ]
+
+    assert worker._should_allow_recovery_static_bypass(
+        detection_frames=centered_static_track,
+        motion_area_now=3400,
+        best_conf_now=0.33,
+        guard_conf_threshold=0.25,
+        base_min_area=700,
+        frame_width=640,
+        frame_height=512,
+    ) is False
+
+
+def test_recovery_static_bypass_allows_non_edge_track_with_travel_signature():
+    """Centered moving recovery track should still bypass static guard."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    centered_moving_track = [
+        [{"bbox": [160 + (i * 14), 90, 260 + (i * 14), 320], "confidence": 0.34}]
+        for i in range(5)
+    ]
+
+    assert worker._should_allow_recovery_static_bypass(
+        detection_frames=centered_moving_track,
+        motion_area_now=3400,
+        best_conf_now=0.34,
+        guard_conf_threshold=0.25,
+        base_min_area=700,
+        frame_width=640,
+        frame_height=512,
+    ) is True
+
+
 def test_detect_static_phantom_event_true():
     """Highly duplicate low-confidence static bbox stream should be marked phantom."""
     worker = DetectorWorker.__new__(DetectorWorker)
