@@ -1526,8 +1526,10 @@ def test_thermal_recovery_event_conf_guard_blocks_very_low_conf_recovery():
     """All-class/hold recovery events should block very low confidence tracks."""
     worker = DetectorWorker.__new__(DetectorWorker)
     detections = [{"bbox": [160, 80, 260, 320], "confidence": 0.20}]
+    detection_frames = [detections for _ in range(5)]
 
     assert worker._passes_thermal_recovery_event_conf_guard(
+        detection_frames=detection_frames,
         detections=detections,
         motion_area_now=2200,
         base_min_area=700,
@@ -1542,8 +1544,10 @@ def test_thermal_recovery_event_conf_guard_allows_recovery_with_enough_confidenc
     """All-class recovery should pass when confidence clears the final guard."""
     worker = DetectorWorker.__new__(DetectorWorker)
     detections = [{"bbox": [160, 80, 260, 320], "confidence": 0.32}]
+    detection_frames = [detections for _ in range(5)]
 
     assert worker._passes_thermal_recovery_event_conf_guard(
+        detection_frames=detection_frames,
         detections=detections,
         motion_area_now=2200,
         base_min_area=700,
@@ -1557,17 +1561,43 @@ def test_thermal_recovery_event_conf_guard_allows_recovery_with_enough_confidenc
 def test_thermal_recovery_event_conf_guard_relaxes_slightly_on_very_strong_motion():
     """Very strong thermal motion can allow a slightly lower recovery confidence."""
     worker = DetectorWorker.__new__(DetectorWorker)
-    detections = [{"bbox": [160, 80, 260, 320], "confidence": 0.24}]
+    detections = [{"bbox": [160, 80, 260, 320], "confidence": 0.30}]
+    detection_frames = [detections for _ in range(5)]
 
     assert worker._passes_thermal_recovery_event_conf_guard(
+        detection_frames=detection_frames,
         detections=detections,
-        motion_area_now=3600,
+        motion_area_now=4600,
         base_min_area=700,
         confidence_threshold=0.45,
         thermal_recovery_conf_override=0.18,
         thermal_allclass_fallback=False,
         thermal_recovery_hold_applied=True,
     ) is True
+
+
+def test_thermal_recovery_event_conf_guard_blocks_sparse_recovery_history():
+    """Recovery event guard should block sparse one-off detections."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    detections = [{"bbox": [160, 80, 260, 320], "confidence": 0.40}]
+    sparse_frames = [
+        [],
+        detections,
+        [],
+        detections,
+        [],
+    ]
+
+    assert worker._passes_thermal_recovery_event_conf_guard(
+        detection_frames=sparse_frames,
+        detections=detections,
+        motion_area_now=4800,
+        base_min_area=700,
+        confidence_threshold=0.45,
+        thermal_recovery_conf_override=0.18,
+        thermal_allclass_fallback=True,
+        thermal_recovery_hold_applied=False,
+    ) is False
 
 
 def test_detect_static_phantom_event_true():

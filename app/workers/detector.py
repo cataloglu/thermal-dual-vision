@@ -1251,6 +1251,7 @@ class DetectorWorker:
 
     @staticmethod
     def _passes_thermal_recovery_event_conf_guard(
+        detection_frames: List[List[Dict[str, Any]]],
         detections: List[Dict[str, Any]],
         motion_area_now: int,
         base_min_area: int,
@@ -1270,17 +1271,29 @@ class DetectorWorker:
         if not (thermal_allclass_fallback or thermal_recovery_hold_applied):
             return True
 
+        recent_frames = detection_frames[-5:] if detection_frames else []
+        recovery_observed = sum(
+            1
+            for frame_dets in recent_frames
+            if any(
+                isinstance(det, dict) and det.get("bbox")
+                for det in (frame_dets or [])
+            )
+        )
+        if recovery_observed < 3:
+            return False
+
         best_conf = max(
             (float(det.get("confidence", 0.0)) for det in (detections or [])),
             default=0.0,
         )
         conf_gate = max(
-            float(thermal_recovery_conf_override) + 0.06,
-            float(confidence_threshold) - 0.20,
-            0.26,
+            float(thermal_recovery_conf_override) + 0.10,
+            float(confidence_threshold) - 0.15,
+            0.32,
         )
-        if int(motion_area_now) >= max(3200, int(base_min_area) * 4):
-            conf_gate = max(0.24, conf_gate - 0.02)
+        if int(motion_area_now) >= max(4200, int(base_min_area) * 5):
+            conf_gate = max(0.30, conf_gate - 0.02)
         return (best_conf + 1e-6) >= conf_gate
 
     @staticmethod
@@ -2336,23 +2349,23 @@ class DetectorWorker:
                     )
                     base_min_area = int(getattr(config.motion, "min_area", 0))
                     allclass_motion_gate = max(
-                        520,
-                        int(base_min_area * (1.25 if active_motion_cameras >= 2 else 1.10)),
+                        900,
+                        int(base_min_area * (1.80 if active_motion_cameras >= 2 else 1.60)),
                     )
                     no_det_streak = int(self.no_detection_streak.get(camera_id, 0)) + 1
                     if no_det_streak >= 8:
-                        allclass_motion_gate = min(allclass_motion_gate, 700)
+                        allclass_motion_gate = min(allclass_motion_gate, 1000)
                     if no_det_streak >= 24:
-                        allclass_motion_gate = min(allclass_motion_gate, 480)
+                        allclass_motion_gate = min(allclass_motion_gate, 820)
                     allclass_threshold = max(
-                        0.10,
-                        confidence_threshold - (0.30 if active_motion_cameras >= 2 else 0.34),
+                        0.18,
+                        confidence_threshold - (0.20 if active_motion_cameras >= 2 else 0.24),
                     )
                     if motion_area_now >= max(2400, int(base_min_area) * 4):
-                        allclass_threshold = min(allclass_threshold, 0.16)
+                        allclass_threshold = max(allclass_threshold, 0.18)
                     last_allclass = float(self.last_thermal_allclass_infer_time.get(camera_id, 0.0))
                     allclass_cooldown = (
-                        0.35 if motion_area_now >= max(2000, int(base_min_area) * 3) else 0.55
+                        0.80 if motion_area_now >= max(2600, int(base_min_area) * 4) else 1.10
                     )
                     if (
                         motion_area_now >= allclass_motion_gate
@@ -2793,6 +2806,7 @@ class DetectorWorker:
                         continue
                     base_min_area = int(getattr(config.motion, "min_area", 0))
                     if not self._passes_thermal_recovery_event_conf_guard(
+                        detection_frames=detection_frames_for_guard,
                         detections=detections,
                         motion_area_now=motion_area_now,
                         base_min_area=base_min_area,

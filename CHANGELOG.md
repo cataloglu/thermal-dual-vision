@@ -6,6 +6,15 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.91] - 2026-03-06
+
+### Düzeltmeler
+
+- **Recovery event hattı Scrypted-benzeri doğrulama ile sıkılaştırıldı**: All-class fallback yalnızca daha güçlü motion/güven koşullarında tetikleniyor; deneme aralığı uzatıldı.
+- **Recovery event confidence guard sertleştirildi**: Event öncesi güven tabanı yükseltildi ve recovery track’in son karelerde gerçekten devam ediyor olması zorunlu hale getirildi.
+- **Düşük güvenli/sparse recovery adayları engellendi**: Tekil veya seyrek düşük güvenli track’lerin event’e dönüşmesi azaltıldı.
+- **Test kapsamı genişletildi**: Recovery confidence guard için sparse history bloklama dahil yeni testler eklendi.
+
 ## [4.0.90] - 2026-03-06
 
 ### Düzeltmeler
