@@ -23,10 +23,10 @@ class DetectionConfig(BaseModel):
         description="Minimum confidence for detections (higher = fewer false alarms)"
     )
     thermal_confidence_threshold: float = Field(
-        default=0.55,
+        default=0.42,
         ge=0.0,
         le=1.0,
-        description="Minimum confidence for thermal (higher = fewer false alarms from heat blobs)"
+        description="Minimum confidence for thermal detection. 0.42 matches Scrypted-level single-pass sensitivity; higher = fewer events but may miss real detections."
     )
     nms_iou_threshold: float = Field(
         default=0.45,

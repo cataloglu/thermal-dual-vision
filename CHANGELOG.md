@@ -6,6 +6,17 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.94] - 2026-03-07
+
+### Büyük Değişiklik — Termal Algılama Pipeline Sadeleştirildi (Scrypted Modeli)
+
+- **`thermal_confidence_threshold` 0.55 → 0.42**: Primary YOLO tespiti artık tek geçişte Scrypted ile aynı hassasiyette çalışıyor. 0.55'te modelin çoğu gerçek tespiti kaçırması ve 0.20'ye kadar inen recovery'ye düşmesi sorununu kökten çözdü.
+- **Allclass recovery kaldırıldı**: `thermal_allclass_recovery` bloğu — tüm YOLO sınıflarını 0.18-0.20 confidence'ta çalıştırıp her şeyi "insan" olarak etiketleyen mekanizma — tamamen kaldırıldı. Bu kod radyatör, sıcak duvar, araba kaputu gibi ısı kaynaklarını insan olarak tespit ediyordu; AI review ile filtreleniyordu ama yine de sahte eventler oluşturuyordu.
+- **Deep recovery minimum 0.18 → 0.35**: Kalan yedek geçiş artık en az 0.35 confidence gerektirir. Streak eşiği 4 → 6, motion gate daha yüksek. Allclass yokken bu güvenlik ağı artık temiz.
+- **AI review değişmedi**: Hırsız alarm kullanım senaryosu için AI onayı tam kalmaya devam eder.
+
+**Beklenen etki:** `thermal_allclass_recovery` ve `thermal_recovery_hold` log satırları artık görünmeyecek. Sahte eventler (AI tarafından reddedilen) dramatik biçimde azalacak.
+
 ## [4.0.93] - 2026-03-07
 
 ### Düzeltmeler

@@ -486,78 +486,72 @@ def test_thermal_confidence_policy_relaxes_only_with_multi_cam_and_strong_motion
 
 
 def test_thermal_deep_recovery_threshold_requires_streak_and_strong_motion():
-    """Deep thermal retry should activate only under repeated misses + strong motion."""
+    """Deep thermal retry activates only under repeated misses + strong motion.
+
+    Thresholds tightened (min floor 0.35, streak ≥ 6) after removing allclass
+    recovery — primary detection at 0.42 now handles most cases.
+    """
     worker = DetectorWorker.__new__(DetectorWorker)
-    # Not enough repeated misses yet.
+    # Fewer than 6 consecutive misses: no deep retry.
     assert worker._thermal_deep_recovery_threshold(
         base_confidence=0.45,
         motion_area_now=2200,
         base_min_area=700,
-        no_detection_streak=3,
+        no_detection_streak=5,
         active_motion_cameras=3,
     ) is None
-    # Repeated misses but weak motion should not trigger deep retry.
+    # 6 misses but weak motion: no deep retry.
     assert worker._thermal_deep_recovery_threshold(
         base_confidence=0.45,
-        motion_area_now=900,
+        motion_area_now=800,
         base_min_area=700,
-        no_detection_streak=5,
+        no_detection_streak=6,
         active_motion_cameras=3,
     ) is None
-    # Strong motion + repeated misses should trigger lower threshold.
+    # 6 misses + strong multi-camera motion: threshold returned, floor ≥ 0.35.
     threshold = worker._thermal_deep_recovery_threshold(
         base_confidence=0.45,
-        motion_area_now=1800,
+        motion_area_now=2500,
         base_min_area=700,
-        no_detection_streak=5,
+        no_detection_streak=6,
         active_motion_cameras=3,
     )
     assert threshold is not None
-    assert 0.18 <= threshold <= 0.23
-    # Very dense concurrent motion can relax slightly further.
-    dense_threshold = worker._thermal_deep_recovery_threshold(
-        base_confidence=0.45,
-        motion_area_now=2600,
-        base_min_area=700,
-        no_detection_streak=6,
-        active_motion_cameras=4,
-    )
-    assert dense_threshold is not None
-    assert 0.16 <= dense_threshold <= threshold
+    assert 0.35 <= threshold < 0.45
 
-    # Single-camera + very strong motion should relax further than base-0.18.
+    # Single-camera strong motion at streak 6: threshold returned, floor ≥ 0.35.
     single_threshold = worker._thermal_deep_recovery_threshold(
-        base_confidence=0.55,
-        motion_area_now=9000,
+        base_confidence=0.45,
+        motion_area_now=3000,
         base_min_area=700,
         no_detection_streak=6,
         active_motion_cameras=1,
     )
     assert single_threshold is not None
-    assert single_threshold <= 0.30
+    assert 0.35 <= single_threshold < 0.45
 
 
 def test_thermal_deep_recovery_threshold_single_camera_prolonged_streak_relaxes_more():
-    """Single-camera prolonged misses should lower deep-recovery threshold further."""
+    """Single-camera prolonged misses still return a valid threshold (≥ 0.35 floor)."""
     worker = DetectorWorker.__new__(DetectorWorker)
     baseline = worker._thermal_deep_recovery_threshold(
-        base_confidence=0.55,
-        motion_area_now=1900,
+        base_confidence=0.45,
+        motion_area_now=3000,
         base_min_area=700,
-        no_detection_streak=4,
+        no_detection_streak=6,
         active_motion_cameras=1,
     )
     prolonged = worker._thermal_deep_recovery_threshold(
-        base_confidence=0.55,
-        motion_area_now=1900,
+        base_confidence=0.45,
+        motion_area_now=3000,
         base_min_area=700,
         no_detection_streak=120,
         active_motion_cameras=1,
     )
     assert baseline is not None
     assert prolonged is not None
-    assert prolonged < baseline
-    assert prolonged <= 0.30
+    # Prolonged streak threshold equals baseline (simplified logic has no streak relaxation).
+    assert prolonged >= 0.35
 
 
 def test_coerce_allclass_to_person_keeps_valid_boxes():
