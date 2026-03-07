@@ -23,7 +23,6 @@ from app.services.time_utils import get_detection_source
 from app.services.video_analyzer import analyze_video as run_video_analysis
 from app.utils.paths import DATA_DIR
 from app.version import __version__
-from telegram import Bot
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -225,6 +224,7 @@ async def test_telegram(request: TelegramTestRequest, db=Depends(get_session)) -
             message = f"🧪 Telegram test\n📹 {camera_name}"
             collage_path = media_service.get_media_path(event.id, "collage")
             mp4_path = media_service.get_media_path(event.id, "mp4")
+            from telegram import Bot  # lazy import: optional feature
             bot = Bot(token=bot_token)
             for chat_id in chat_ids:
                 if collage_path and collage_path.exists():
