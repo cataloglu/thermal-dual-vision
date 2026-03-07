@@ -6,6 +6,13 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.95] - 2026-03-07
+
+### Değişiklikler
+
+- **Camera Settings UI sadeleştirildi**: Tüm karmaşık preset grupları ve 3'lü seçimler kaldırıldı. Yerine 2 büyük buton: **Kararlı** (az yanlış alarm, hırsız alarm için önerilen) ve **Hassas** (daha az kaçırma). Inference backend her zaman görünür. Geri kalan tüm ayarlar "Uzman Ayarlar" altına taşındı.
+- **Preset threshold değerleri güncellendi**: Tüm presetlerdeki `thermal_confidence_threshold` değerleri yeni 0.42 baseline ile uyumlu hale getirildi (eski 0.55/0.60 değerleri kaldırıldı).
+
 ## [4.0.94] - 2026-03-07
 
 ### Büyük Değişiklik — Termal Algılama Pipeline Sadeleştirildi (Scrypted Modeli)
