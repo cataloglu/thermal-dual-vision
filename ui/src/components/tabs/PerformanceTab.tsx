@@ -21,7 +21,7 @@ const QUICK_MODES: Record<QuickMode, { label: string; desc: string; icon: string
     label: 'Kararlı',
     desc: 'Az yanlış alarm. Hırsız alarm için önerilen.',
     updates: (s) => ({
-      detection: { ...s.detection, model: 'yolov8s-person', inference_fps: 5, inference_resolution: [640, 640], confidence_threshold: 0.50, thermal_confidence_threshold: 0.44 },
+      detection: { ...s.detection, model: 'yolov8s-thermal', inference_fps: 5, inference_resolution: [640, 640], confidence_threshold: 0.50, thermal_confidence_threshold: 0.57 },
       motion:    { ...s.motion,    mode: 'auto', auto_profile: 'normal', algorithm: 'mog2', sensitivity: 6, min_area: 450, cooldown_seconds: 6, thermal_suppression_enabled: true, thermal_suppression_streak: 12, thermal_suppression_duration: 20, thermal_suppression_wakeup_ratio: 2.0 },
       thermal:   { ...s.thermal,   enable_enhancement: true, enhancement_method: 'clahe', clahe_clip_limit: 2.0, clahe_tile_size: [32, 32], gaussian_blur_kernel: [3, 3] },
       stream:    { ...s.stream,    protocol: 'tcp', capture_backend: 'ffmpeg', buffer_size: 1, reconnect_delay_seconds: 5, max_reconnect_attempts: 20, read_failure_threshold: 5, read_failure_timeout_seconds: 15 },
@@ -32,7 +32,7 @@ const QUICK_MODES: Record<QuickMode, { label: string; desc: string; icon: string
     label: 'Hassas',
     desc: 'Daha az kaçırma. Bazı yanlış alarm olabilir.',
     updates: (s) => ({
-      detection: { ...s.detection, model: 'yolov8s-person', inference_fps: 8, inference_resolution: [640, 640], confidence_threshold: 0.45, thermal_confidence_threshold: 0.38 },
+      detection: { ...s.detection, model: 'yolov8s-thermal', inference_fps: 8, inference_resolution: [640, 640], confidence_threshold: 0.45, thermal_confidence_threshold: 0.50 },
       motion:    { ...s.motion,    mode: 'auto', auto_profile: 'high', algorithm: 'mog2', sensitivity: 6, min_area: 260, cooldown_seconds: 4, thermal_suppression_enabled: true, thermal_suppression_streak: 15, thermal_suppression_duration: 12, thermal_suppression_wakeup_ratio: 1.8 },
       thermal:   { ...s.thermal,   enable_enhancement: true, enhancement_method: 'clahe', clahe_clip_limit: 2.2, clahe_tile_size: [32, 32], gaussian_blur_kernel: [3, 3] },
       stream:    { ...s.stream,    protocol: 'tcp', capture_backend: 'ffmpeg', buffer_size: 1, reconnect_delay_seconds: 3, max_reconnect_attempts: 20, read_failure_threshold: 3, read_failure_timeout_seconds: 10 },
@@ -116,11 +116,17 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
                 onChange={(e) => onChange({ ...settings, detection: { ...settings.detection, model: e.target.value as Settings['detection']['model'] } })}
                 className="w-full px-3 py-2 bg-surface1 border border-border rounded-lg text-text text-sm"
               >
+                <option value="yolov8s-thermal">⭐ YOLOv8s Thermal — termal kameralar için özel</option>
                 <option value="yolov8n-person">YOLOv8n — hızlı, düşük CPU</option>
-                <option value="yolov8s-person">YOLOv8s — dengeli (önerilen)</option>
+                <option value="yolov8s-person">YOLOv8s — dengeli</option>
                 <option value="yolov9t">YOLOv9t</option>
                 <option value="yolov9s">YOLOv9s — en doğru, yüksek CPU</option>
               </select>
+              {settings.detection.model === 'yolov8s-thermal' && (
+                <p className="text-xs text-accent mt-1">
+                  ⭐ Termal kameralar için fine-tune edilmiş model. İlk yüklemede HuggingFace'den otomatik indirilir (~6MB). Termal eşiği 0.55-0.60 önerilir.
+                </p>
+              )}
             </div>
 
             {/* FPS */}

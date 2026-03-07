@@ -12,9 +12,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 class DetectionConfig(BaseModel):
     """YOLOv8 person detection configuration."""
     
-    model: Literal["yolov8n-person", "yolov8s-person", "yolov9t", "yolov9s"] = Field(
+    model: Literal["yolov8n-person", "yolov8s-person", "yolov9t", "yolov9s", "yolov8s-thermal"] = Field(
         default="yolov8s-person",
-        description="Primary model selection: yolov8n (fast), yolov8s (accurate), yolov9t (thermal), yolov9s (best)"
+        description="Primary model selection: yolov8n (fast), yolov8s (accurate), yolov9t (thermal), yolov9s (best), yolov8s-thermal (termal kameralar için fine-tune)"
     )
     confidence_threshold: float = Field(
         default=0.50,
@@ -26,7 +26,7 @@ class DetectionConfig(BaseModel):
         default=0.42,
         ge=0.0,
         le=1.0,
-        description="Minimum confidence for thermal detection. 0.42 matches Scrypted-level single-pass sensitivity; higher = fewer events but may miss real detections."
+        description="Minimum confidence for thermal detection. Use 0.55-0.60 with yolov8s-thermal model; 0.35-0.42 for standard models."
     )
     nms_iou_threshold: float = Field(
         default=0.45,

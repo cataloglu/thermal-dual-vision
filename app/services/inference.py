@@ -25,6 +25,15 @@ class InferenceService:
     MODELS_DIR = DATA_DIR / "models"
     PERSON_CLASS_ID = 0  # COCO class ID for person
     PERSON_CLASS_ALIASES = {"person", "human", "people"}
+
+    # Models hosted on HuggingFace that are downloaded on first use.
+    # Key = model_name used in config, Value = {repo_id, filename}
+    HUGGINGFACE_MODELS: Dict[str, Dict[str, str]] = {
+        "yolov8s-thermal": {
+            "repo_id": "pitangent-ds/YOLOv8-human-detection-thermal",
+            "filename": "model.pt",
+        },
+    }
     
     # Preprocessing configuration
     INFERENCE_SIZE = (640, 640)
@@ -95,6 +104,33 @@ class InferenceService:
         # Fallback to PyTorch CPU
         return "cpu"
 
+    def _ensure_huggingface_model(self, model_name: str) -> None:
+        """Download a HuggingFace-hosted model if not already cached locally."""
+        if model_name not in self.HUGGINGFACE_MODELS:
+            return
+        pytorch_path = self.MODELS_DIR / f"{model_name}.pt"
+        if pytorch_path.exists():
+            return
+        info = self.HUGGINGFACE_MODELS[model_name]
+        logger.info(
+            "Downloading thermal model %s from HuggingFace (%s)...",
+            model_name, info["repo_id"],
+        )
+        try:
+            from huggingface_hub import hf_hub_download  # lazy import
+            downloaded = hf_hub_download(
+                repo_id=info["repo_id"],
+                filename=info["filename"],
+            )
+            shutil.copy(downloaded, str(pytorch_path))
+            logger.info("Thermal model saved to %s", pytorch_path)
+        except Exception as exc:
+            logger.error("Failed to download %s from HuggingFace: %s", model_name, exc)
+            raise RuntimeError(
+                f"Cannot download thermal model '{model_name}'. "
+                "Ensure the addon has internet access and huggingface_hub is installed."
+            ) from exc
+
     def load_model(self, model_name: str = "yolov8n") -> None:
         """
         Load YOLO model. Backend from config: auto | cpu | onnx | openvino | tensorrt.
@@ -109,6 +145,9 @@ class InferenceService:
             self._inference_device = None
             self.active_backend = "unknown"
             logger.info("Loading YOLO model: %s (backend=%s)", model_name, backend)
+
+            # Download from HuggingFace if needed (e.g. yolov8s-thermal)
+            self._ensure_huggingface_model(model_name)
 
             tensorrt_path = self.MODELS_DIR / f"{model_name}.engine"
             onnx_path = self.MODELS_DIR / f"{model_name}.onnx"
