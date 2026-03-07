@@ -5,7 +5,7 @@
 export type InferenceBackend = 'auto' | 'cpu' | 'onnx' | 'openvino' | 'tensorrt';
 
 export interface DetectionConfig {
-  model: 'yolov8n-person' | 'yolov8s-person' | 'yolov9t' | 'yolov9s';
+  model: 'yolov8n-person' | 'yolov8s-person' | 'yolov9t' | 'yolov9s' | 'yolov8s-thermal';
   confidence_threshold: number;
   thermal_confidence_threshold: number;
   nms_iou_threshold: number;

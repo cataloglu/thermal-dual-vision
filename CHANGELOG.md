@@ -6,6 +6,15 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.97] - 2026-03-07
+
+### Yeni Özellik — Termal Kamera İçin Özel Model
+
+- **`yolov8s-thermal` model eklendi**: HuggingFace `pitangent-ds/YOLOv8-human-detection-thermal` modeli desteklendi. Termal kameralar için fine-tune edilmiş, grayscale ve pseudocolor destekli. İlk kullanımda otomatik indirilir (~6MB). Scrypted ile aynı confidence seviyesi (0.55-0.60) sağlar.
+- **`InferenceService._ensure_huggingface_model()`**: HuggingFace modellerini ilk kullanımda otomatik indirip cache'leyen mekanizma eklendi.
+- **Quick mode presets güncellendi**: Kararlı (threshold=0.57) ve Hassas (threshold=0.50) preset'leri artık yolov8s-thermal modeli kullanıyor.
+- **`requirements.txt`**: `huggingface_hub>=0.23.0` eklendi.
+
 ## [4.0.96] - 2026-03-07
 
 ### Değişiklikler
