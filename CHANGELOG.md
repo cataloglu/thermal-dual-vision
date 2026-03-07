@@ -6,6 +6,13 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.93] - 2026-03-07
+
+### Düzeltmeler
+
+- **Kritik: thermal allclass recovery sonsuz döngüsü giderildi**: `thermal_static_guard` bir recovery tespitini (allclass/hold) bloke ettiğinde her iki streak sayacı zaten sıfırlanmış olduğundan suppress hiçbir zaman tetiklenmiyordu. Isıtıcı/sıcak duvar gibi statik termal kaynakların bulunduğu kameralarda YOLO sürekli allclass inference yapıyor, static_guard blokluyordu ama kamera asla baskılanmıyordu (streak=1904 gözlemlendi). Artık static_guard bir recovery tespitini blokladığında `empty_inference_streak` re-increment ediliyor ve eşik aşılırsa kısa süreli baskılama ateşleniyor.
+- **allclass motion area üst sınırı eklendi**: Frame'in %25'inden büyük motion area değerlerinde (640×640 için ~102,400 piksel) allclass recovery artık çalışmıyor. Bu seviyedeki hareket alanı (sıcak duvar, büyük ısı kaynağı) kesinlikle insan değildir.
+
 ## [4.0.92] - 2026-03-07
 
 ### Düzeltmeler
