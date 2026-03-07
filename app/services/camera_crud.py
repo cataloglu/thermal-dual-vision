@@ -1,5 +1,5 @@
 """
-Camera CRUD service for Smart Motion Detector v2.
+Camera CRUD service for Thermal Dual Vision.
 
 Handles camera database operations (Create, Read, Update, Delete).
 """

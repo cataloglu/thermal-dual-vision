@@ -1,5 +1,5 @@
 """
-Inference service for Smart Motion Detector v2.
+Inference service for Thermal Dual Vision.
 
 This service handles YOLOv8 model loading, preprocessing, and inference.
 """
@@ -32,9 +32,11 @@ class InferenceService:
     CLAHE_TILE_SIZE = (32, 32)
     GAUSSIAN_KERNEL = (3, 3)
     
-    # Aspect ratio filtering (person shape)
-    PERSON_RATIO_MIN = 0.3  # Tall/skinny person
-    PERSON_RATIO_MAX = 0.8  # Normal person
+    # Aspect ratio filtering defaults — used only when called without explicit bounds.
+    # At runtime the detector uses config.detection.get_effective_aspect_ratio_bounds()
+    # which returns (0.2, 1.2) for "person" preset and (0.25, 1.0) for "thermal_person".
+    PERSON_RATIO_MIN = 0.2
+    PERSON_RATIO_MAX = 1.2
     
     def __init__(self):
         """Initialize inference service."""

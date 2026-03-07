@@ -1,5 +1,5 @@
 """
-Media service for Smart Motion Detector v2.
+Media service for Thermal Dual Vision.
 
 This service handles event media generation and management.
 """

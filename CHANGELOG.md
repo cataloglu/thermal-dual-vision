@@ -6,6 +6,22 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.92] - 2026-03-07
+
+### Düzeltmeler
+
+- **AI timeout artık config'den okunuyor**: `config.ai.timeout` (varsayılan 30s) daha önce yok sayılıp sabit 60s kullanılıyordu; artık kullanıcı değeri etkin.
+- **Aspect ratio sınıf sabitleri runtime preset ile hizalandı**: `InferenceService.PERSON_RATIO_MIN/MAX` değerleri (0.3/0.8) runtime'da kullanılan `"person"` preset sınırlarıyla (0.2/1.2) çelişiyordu; sabitler güncellendi.
+- **Telegram modül importu lazy hale getirildi**: `from telegram import Bot` backend başlangıcında zorunlu hard-import oluşturuyordu; artık sadece `/api/telegram/test` endpoint'i çağrıldığında yükleniyor.
+- **Tüm modül docstring'leri ürün adıyla güncellendi**: 25 dosyada "Smart Motion Detector v2" → "Thermal Dual Vision"; FastAPI başlığı da düzeltildi.
+- **`requirements.txt` minimum sürümler eklendi**: Bağımlılıklara minimum sürüm kısıtlamaları eklenerek yeniden üretilebilirlik artırıldı.
+
+### Dokümantasyon
+
+- **`AGENTS.md`**: Test sayısı 178 → 266 olarak güncellendi.
+- **`docs/API_CONTRACT.md`**: `DELETE` endpoint yanıtları (204 No Content), `record` config alanları, `telegram.event_types`, `/api/live` `output_mode` tutarsızlıkları düzeltildi.
+- **`DEPLOY_NOW.md` / `OPTIMIZATION_SUMMARY.md`**: Var olmayan dokümanlara yapılan referanslar mevcut dosyalarla değiştirildi.
+
 ## [4.0.91] - 2026-03-06
 
 ### Düzeltmeler

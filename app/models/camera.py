@@ -1,5 +1,5 @@
 """
-Camera models for Smart Motion Detector v2.
+Camera models for Thermal Dual Vision.
 
 This module contains Pydantic models for camera-related operations.
 """

@@ -1,5 +1,5 @@
 """
-Multiprocessing-based detector worker for Smart Motion Detector v2.
+Multiprocessing-based detector worker for Thermal Dual Vision.
 
 This is an alternative implementation using multiprocessing instead of threading
 to overcome Python GIL limitations and achieve true parallel processing.

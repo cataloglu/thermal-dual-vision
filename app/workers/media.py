@@ -1,5 +1,5 @@
 """
-Media generation worker for Smart Motion Detector v2.
+Media generation worker for Thermal Dual Vision.
 
 This worker handles creation of event media files:
 - Collage (5 frame grid)

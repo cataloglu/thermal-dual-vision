@@ -310,16 +310,16 @@ min_consecutive_frames=2,  # 3 → 2 (daha az strict)
 ### Sorularına cevap bul:
 
 1. **Temporal consistency nedir?**  
-   → `docs/TECHNICAL_ANALYSIS.md` - Section 6.4
+   → `docs/PERFORMANCE_TUNING.md` (Temporal Consistency bölümü)
 
 2. **YOLO optimization nasıl çalışır?**  
-   → `docs/TECHNICAL_ANALYSIS.md` - Section 8.3
+   → `docs/INFERENCE_BACKEND.md`
 
 3. **MOG2 ne yapar?**  
-   → `docs/TECHNICAL_ANALYSIS.md` - Section 8.2
+   → `docs/ARCHITECTURE.md` (Motion Detection bölümü)
 
 4. **Multiprocessing neden experimental?**  
-   → `docs/OPTIMIZATION_COMPLETE.md` - Section "Known Issues"
+   → `docs/ARCHITECTURE.md` (Worker Modes bölümü)
 
 5. **Metrics nasıl kullanılır?**  
    → `docs/grafana-dashboard.json` + This file

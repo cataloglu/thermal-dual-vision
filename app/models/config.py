@@ -1,5 +1,5 @@
 """
-Configuration models for Smart Motion Detector v2.
+Configuration models for Thermal Dual Vision.
 
 This module contains Pydantic models for all configuration sections.
 All models include validation rules and default values.

@@ -1,5 +1,5 @@
 """
-Smart Motion Detector v2 - Main Entry Point
+Thermal Dual Vision - Main Entry Point
 """
 import asyncio
 import logging
@@ -151,7 +151,7 @@ async def _wait_for_startup_readiness(timeout_seconds: float = 15.0) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan for startup/shutdown tasks."""
-    logger.info("Starting Smart Motion Detector v2")
+    logger.info("Starting Thermal Dual Vision")
 
     retention_worker.start()
     logger.info("Retention worker started")
@@ -209,7 +209,7 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
-        logger.info("Shutting down Smart Motion Detector v2")
+        logger.info("Shutting down Thermal Dual Vision")
         mqtt_service.stop()
         logger.info("MQTT service stopped")
         deps.detector_worker.stop()
@@ -225,7 +225,7 @@ async def lifespan(app: FastAPI):
 # ---------------------------------------------------------------------------
 
 app = FastAPI(
-    title="Smart Motion Detector API",
+    title="Thermal Dual Vision API",
     version=__version__,
     description="Person detection with thermal/color camera support",
     lifespan=lifespan,
@@ -254,7 +254,7 @@ app.include_router(websocket_router.router)
 
 @app.get("/")
 async def root():
-    return {"message": "Smart Motion Detector v2", "status": "ok"}
+    return {"message": "Thermal Dual Vision", "status": "ok"}
 
 
 @app.get("/ready")

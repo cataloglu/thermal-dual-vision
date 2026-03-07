@@ -87,13 +87,14 @@ def test_aspect_ratio_filter(inference_service):
         {"bbox": [500, 100, 800, 300], "confidence": 0.8},  # Ratio: 300/200 = 1.5 (too wide - tree/wall)
     ]
     
-    # Filter by aspect ratio
+    # Filter by aspect ratio using class defaults (0.2–1.2 matching "person" preset)
     filtered = inference_service.filter_by_aspect_ratio(detections)
-    
-    # Should keep only detections with ratio 0.3-0.8
-    assert len(filtered) == 2
-    assert filtered[0]["aspect_ratio"] == 0.4
-    assert filtered[1]["aspect_ratio"] == 0.75
+
+    # 0.25 (>=0.2 passes), 0.4 passes, 0.75 passes; 1.5 (>1.2) filtered out
+    assert len(filtered) == 3
+    assert filtered[0]["aspect_ratio"] == pytest.approx(0.25)
+    assert filtered[1]["aspect_ratio"] == pytest.approx(0.4)
+    assert filtered[2]["aspect_ratio"] == pytest.approx(0.75)
 
 
 def test_temporal_consistency_valid(inference_service):

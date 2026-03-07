@@ -1,1 +1,1 @@
-"""Database package for Smart Motion Detector v2."""
+"""Database package for Thermal Dual Vision."""

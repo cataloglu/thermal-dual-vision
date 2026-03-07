@@ -1,5 +1,5 @@
 """
-Telegram service for Smart Motion Detector v2.
+Telegram service for Thermal Dual Vision.
 
 Handles Telegram bot notifications for events.
 """

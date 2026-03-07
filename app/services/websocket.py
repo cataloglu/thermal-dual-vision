@@ -1,5 +1,5 @@
 """
-WebSocket service for Smart Motion Detector v2.
+WebSocket service for Thermal Dual Vision.
 
 Handles real-time event and status updates via WebSocket connections.
 """

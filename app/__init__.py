@@ -1,1 +1,1 @@
-# Smart Motion Detector v2
+# Thermal Dual Vision

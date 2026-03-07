@@ -208,10 +208,7 @@ Response body:
 ### DELETE /api/cameras/{id}
 UI: **Settings** (Delete Camera)
 
-Response body:
-```json
-{ "deleted": true, "id": "cam-1" }
-```
+Response: **HTTP 204 No Content** (empty body)
 
 ### Camera status enum
 - `connected`
@@ -309,10 +306,7 @@ Response:
 ### DELETE /api/events/{id}
 UI: **Events** (Manual delete)
 
-Response:
-```json
-{ "deleted": true, "id": "evt-1" }
-```
+Response: **HTTP 204 No Content** (empty body)
 
 ---
 
@@ -325,14 +319,14 @@ Response:
 ```json
 {
   "streams": [
-    { "camera_id": "cam-1", "name": "Gate", "stream_url": "/api/live/cam-1", "output_mode": "mjpeg" }
+    { "camera_id": "cam-1", "name": "Gate", "stream_url": "/api/live/cam-1" }
   ]
 }
 ```
 
 ### WebSocket / Stream Notu
 - Live görüntü için **WS veya MJPEG** stream kullanılabilir.
-- API bu dokümanda **stream_url** ve **output_mode** döndürür; `webrtc` için go2rtc gereklidir.
+- API **stream_url** döndürür; `webrtc` için go2rtc gereklidir.
 
 ### Stream endpoint detayları
 - `mjpeg`: `GET /api/live/{camera_id}.mjpeg`
@@ -396,12 +390,7 @@ Response:
     "webrtc": { "enabled": false, "go2rtc_url": "" }
   },
   "record": {
-    "enabled": false,
-    "retention_days": 7,
-    "record_segments_seconds": 10,
-    "disk_limit_percent": 80,
-    "cleanup_policy": "oldest_first",
-    "delete_order": ["mp4", "collage"]
+    "enabled": false
   },
   "event": {
     "cooldown_seconds": 5,
@@ -431,8 +420,7 @@ Response:
     "chat_ids": ["123456789"],
     "rate_limit_seconds": 5,
     "send_images": true,
-    "video_speed": 4,
-    "event_types": ["person"],
+    "video_speed": 2,
     "cooldown_seconds": 5,
     "max_messages_per_min": 20,
     "snapshot_quality": 85
@@ -467,7 +455,7 @@ Request body (partial update):
   "stream": { "protocol": "tcp", "buffer_size": 2 },
   "motion": { "sensitivity": 6, "cooldown_seconds": 4 },
   "live": { "output_mode": "webrtc", "webrtc": { "enabled": true, "go2rtc_url": "http://localhost:1984" } },
-  "record": { "enabled": true, "retention_days": 14, "record_segments_seconds": 10, "disk_limit_percent": 85 },
+  "record": { "enabled": true },
   "event": { "cooldown_seconds": 3, "frame_buffer_size": 15 },
   "media": { "retention_days": 14, "disk_limit_percent": 85 },
   "ai": { "enabled": true, "api_key": "sk-***" },
@@ -512,12 +500,7 @@ Response:
     "webrtc": { "enabled": true, "go2rtc_url": "http://localhost:1984" }
   },
   "record": {
-    "enabled": true,
-    "retention_days": 14,
-    "record_segments_seconds": 10,
-    "disk_limit_percent": 85,
-    "cleanup_policy": "oldest_first",
-    "delete_order": ["mp4", "collage"]
+    "enabled": true
   },
   "event": {
     "cooldown_seconds": 3,
@@ -530,15 +513,14 @@ Response:
     "cleanup_interval_hours": 24,
     "disk_limit_percent": 85
   },
-  "ai": { "enabled": true, "api_key": "***REDACTED***", "model": "gpt-4", "max_tokens": 1000, "timeout": 30 },
+  "ai": { "enabled": true, "api_key": "***REDACTED***", "model": "gpt-4o", "max_tokens": 200, "timeout": 30 },
   "telegram": {
     "enabled": true,
     "bot_token": "***REDACTED***",
     "chat_ids": ["123456789"],
     "rate_limit_seconds": 5,
     "send_images": true,
-    "video_speed": 4,
-    "event_types": ["person"],
+    "video_speed": 2,
     "cooldown_seconds": 5,
     "max_messages_per_min": 20,
     "snapshot_quality": 85
