@@ -6,6 +6,12 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [4.0.96] - 2026-03-07
+
+### Değişiklikler
+
+- **İnce Ayar bölümü 15+ kontrolden 5'e indirildi**: Model, FPS, Termal eşik, Hareket hassasiyeti, CLAHE toggle — bu kadar. Çözünürlük, NMS, aspect ratio, motion algoritması, suppression parametreleri, stream protokol/backend/buffer, reconnect ayarları, worker mode, Prometheus hepsi sabit iyi defaultlara çekilerek UI'dan kaldırıldı.
+
 ## [4.0.95] - 2026-03-07
 
 ### Değişiklikler
