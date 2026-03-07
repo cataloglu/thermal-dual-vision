@@ -1353,44 +1353,29 @@ class DetectorWorker:
         active_motion_cameras: int,
     ) -> Optional[float]:
         """
-        Extra-lenient thermal retry threshold for prolonged no-detection periods.
+        Conservative thermal retry threshold for prolonged no-detection periods.
 
-        Used only under strong motion + repeated misses to recover walk-throughs
-        that remain below the regular thermal confidence floor.
+        With thermal_confidence_threshold now at 0.42, the primary pass already
+        handles most real detections. Deep recovery is a narrow safety net:
+        minimum floor is 0.35 to prevent warm-object false positives that plagued
+        the old 0.18-floor approach.
         """
         streak = max(0, int(no_detection_streak))
-        if streak < 4:
+        if streak < 6:
             return None
 
         min_area = max(1, int(base_min_area))
         motion_area = max(0, int(motion_area_now))
         if active_motion_cameras >= 2:
-            strong_motion_gate = max(1000, int(min_area * 2.0))
+            strong_motion_gate = max(1200, int(min_area * 2.5))
         else:
-            strong_motion_gate = max(1300, int(min_area * 2.5))
+            strong_motion_gate = max(1500, int(min_area * 3.0))
         if motion_area < strong_motion_gate:
             return None
 
-        base = max(0.25, float(base_confidence))
-        relax_delta = 0.22 if active_motion_cameras >= 2 else 0.18
-        threshold = max(0.18, base - relax_delta)
-
-        # Single-camera thermal streams with very strong motion can still miss
-        # at base-0.18; allow deeper retry to prevent repeated event misses.
-        if active_motion_cameras <= 1:
-            if motion_area >= max(2400, int(min_area * 3.0)):
-                threshold = max(0.20, threshold - 0.06)
-            if motion_area >= max(7000, int(min_area * 6.0)):
-                threshold = max(0.20, threshold - 0.05)
-            # Prolonged single-camera no-detection streaks need a deeper retry
-            # floor, or recovery keeps oscillating without event creation.
-            if streak >= 20 and motion_area >= max(1300, int(min_area * 2.0)):
-                threshold = max(0.22, threshold - 0.05)
-            if streak >= 90 and motion_area >= max(1600, int(min_area * 2.2)):
-                threshold = max(0.22, threshold - 0.04)
-
-        if active_motion_cameras >= 4 and motion_area >= max(1600, int(min_area * 3.0)):
-            threshold = max(0.16, threshold - 0.04)
+        base = max(0.35, float(base_confidence))
+        relax_delta = 0.07 if active_motion_cameras >= 2 else 0.05
+        threshold = max(0.35, base - relax_delta)
 
         if threshold >= base:
             return None
@@ -2340,66 +2325,10 @@ class DetectorWorker:
                                 motion_area_now,
                                 int(self.no_detection_streak.get(camera_id, 0)) + 1,
                             )
-                if len(detections_raw) == 0 and detection_source == "thermal":
-                    # Scrypted-like recovery path: if person-only head keeps
-                    # returning empty under clear thermal motion, retry with
-                    # pseudo-color + all-class inference and coerce to person.
-                    motion_area_now = int(
-                        self.motion_state.get(camera_id, {}).get("thermal_motion_area_raw", 0)
-                    )
-                    base_min_area = int(getattr(config.motion, "min_area", 0))
-                    allclass_motion_gate = max(
-                        900,
-                        int(base_min_area * (1.80 if active_motion_cameras >= 2 else 1.60)),
-                    )
-                    no_det_streak = int(self.no_detection_streak.get(camera_id, 0)) + 1
-                    if no_det_streak >= 8:
-                        allclass_motion_gate = min(allclass_motion_gate, 1000)
-                    if no_det_streak >= 24:
-                        allclass_motion_gate = min(allclass_motion_gate, 820)
-                    allclass_threshold = max(
-                        0.18,
-                        confidence_threshold - (0.20 if active_motion_cameras >= 2 else 0.24),
-                    )
-                    if motion_area_now >= max(2400, int(base_min_area) * 4):
-                        allclass_threshold = max(allclass_threshold, 0.18)
-                    last_allclass = float(self.last_thermal_allclass_infer_time.get(camera_id, 0.0))
-                    allclass_cooldown = (
-                        0.80 if motion_area_now >= max(2600, int(base_min_area) * 4) else 1.10
-                    )
-                    frame_pixels = (
-                        int(config.detection.inference_resolution[0])
-                        * int(config.detection.inference_resolution[1])
-                    )
-                    allclass_motion_max = int(frame_pixels * 0.25)  # 25% of frame = 102,400 for 640×640
-                    if (
-                        motion_area_now >= allclass_motion_gate
-                        and motion_area_now <= allclass_motion_max
-                        and current_time - last_allclass >= allclass_cooldown
-                    ):
-                        pseudo = self.inference_service.preprocess_thermal_pseudocolor(frame)
-                        allclass_detections = self.inference_service.infer_all_classes(
-                            pseudo,
-                            confidence_threshold=allclass_threshold,
-                            inference_resolution=tuple(config.detection.inference_resolution),
-                        )
-                        self.last_thermal_allclass_infer_time[camera_id] = current_time
-                        coerced = self._coerce_allclass_to_person(allclass_detections)
-                        if coerced:
-                            detections_raw = coerced
-                            thermal_recovery_conf_override = max(
-                                0.16,
-                                min(0.26, float(allclass_threshold) + 0.01),
-                            )
-                            thermal_allclass_fallback = True
-                            logger.info(
-                                "DETECT camera=%s thermal_allclass_recovery threshold=%.2f recovered=%s area=%s streak=%s",
-                                camera_id,
-                                allclass_threshold,
-                                len(coerced),
-                                motion_area_now,
-                                no_det_streak,
-                            )
+                # Allclass recovery removed: lowering thermal_confidence_threshold to 0.42
+                # makes the primary person-only YOLO pass sufficient (Scrypted-style single pass).
+                # All-class inference at 0.18–0.20 was catching radiators, warm walls, car hoods —
+                # producing the infinite recovery loops and AI-rejected events seen in production.
                 if (
                     len(detections_raw) > 0
                     and detection_source == "thermal"
@@ -2501,13 +2430,7 @@ class DetectorWorker:
                     # to reduce misses on smaller/farther person boxes.
                     thermal_min_area_ratio = 0.0012
                     thermal_min_height_ratio = 0.045
-                if detection_source == "thermal" and thermal_allclass_fallback:
-                    thermal_min_area_ratio = min(thermal_min_area_ratio, 0.0010)
-                    thermal_min_height_ratio = min(thermal_min_height_ratio, 0.042)
-                    thermal_conf_floor = min(
-                        thermal_conf_floor,
-                        max(0.18, confidence_threshold - 0.10),
-                    )
+                # Allclass fallback quality relaxation removed with allclass recovery.
                 if detection_source == "thermal" and detections_after_ar > 0:
                     frame_h, frame_w = frame.shape[:2]
                     frame_area = float(max(frame_h * frame_w, 1))
