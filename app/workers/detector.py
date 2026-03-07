@@ -2367,8 +2367,14 @@ class DetectorWorker:
                     allclass_cooldown = (
                         0.80 if motion_area_now >= max(2600, int(base_min_area) * 4) else 1.10
                     )
+                    frame_pixels = (
+                        int(config.detection.inference_resolution[0])
+                        * int(config.detection.inference_resolution[1])
+                    )
+                    allclass_motion_max = int(frame_pixels * 0.25)  # 25% of frame = 102,400 for 640×640
                     if (
                         motion_area_now >= allclass_motion_gate
+                        and motion_area_now <= allclass_motion_max
                         and current_time - last_allclass >= allclass_cooldown
                     ):
                         pseudo = self.inference_service.preprocess_thermal_pseudocolor(frame)
@@ -2801,6 +2807,22 @@ class DetectorWorker:
                         )
                     )
                     if not static_guard_pass:
+                        # Re-increment empty_inference_streak for recovery detections blocked by
+                        # static guard. Without this, allclass recovery loops indefinitely on static
+                        # thermal hot-spots because both streak counters are reset to 0 before the
+                        # guard check, so suppression can never fire on the recovery path.
+                        if thermal_allclass_fallback or thermal_recovery_hold_applied:
+                            cur_static_empty = self.empty_inference_streak.get(camera_id, 0) + 1
+                            self.empty_inference_streak[camera_id] = cur_static_empty
+                            if cur_static_empty >= thermal_suppression_streak:
+                                self.suppressed_until[camera_id] = current_time + float(thermal_suppression_secs)
+                                self.empty_inference_streak[camera_id] = 0
+                                self.last_motion_area[camera_id] = motion_area_now
+                                logger.info(
+                                    "DETECT camera=%s allclass_recovery_suppressed for %ds"
+                                    " (static_guard blocked %d consecutive recovery frames)",
+                                    camera_id, thermal_suppression_secs, thermal_suppression_streak,
+                                )
                         self.event_start_time[camera_id] = None
                         _log_gate("thermal_static_guard")
                         continue
