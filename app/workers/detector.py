@@ -2183,10 +2183,9 @@ class DetectorWorker:
                     frame_area = float(max(frame_h * frame_w, 1))
                     min_area_ratio = thermal_min_area_ratio
                     min_height_ratio = thermal_min_height_ratio
-                    # Event creation requires higher confidence than inference threshold.
-                    # YOLO inference at 0.40 widens the search; event gate at 0.50
-                    # combined with motion-mask overlap check below.
-                    conf_floor = max(0.50, thermal_conf_floor)
+                    # conf_floor matches inference threshold. Movement check (below)
+                    # handles stationary false alarms instead of a high conf_floor.
+                    conf_floor = thermal_conf_floor
                     # Retrieve motion mask for bbox-overlap filtering.
                     thermal_motion_mask = self.motion_state.get(camera_id, {}).get("thermal_motion_mask")
                     # For motion-guided crop: skip full-frame area/height checks
