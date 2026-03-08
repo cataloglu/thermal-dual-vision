@@ -114,17 +114,10 @@ class DetectorWorker:
         self.last_gate_log: Dict[str, float] = {}
         self.last_fallback_log: Dict[str, float] = {}
         self.no_detection_streak: Dict[str, int] = defaultdict(int)
-        self.empty_inference_streak: Dict[str, int] = defaultdict(int)
-        self.suppressed_until: Dict[str, float] = {}
         self.last_motion_area: Dict[str, int] = defaultdict(int)
-        self.last_suppression_probe: Dict[str, float] = {}
-        self.suppression_rearm_until: Dict[str, float] = {}
         self.thermal_motion_peak_area: Dict[str, int] = defaultdict(int)
         self.thermal_motion_peak_ts: Dict[str, float] = {}
         self.last_relaxed_infer_time: Dict[str, float] = {}
-        self.last_thermal_allclass_infer_time: Dict[str, float] = {}
-        self.thermal_recovery_hold_detections: Dict[str, List[Dict[str, Any]]] = {}
-        self.thermal_recovery_hold_until: Dict[str, float] = {}
         self.stale_gate_hits: Dict[str, int] = defaultdict(int)
         self.last_reconnect_ts: Dict[str, float] = {}
         self.stream_stats: Dict[str, Dict[str, Any]] = defaultdict(dict)
@@ -209,13 +202,8 @@ class DetectorWorker:
         self.latest_frames.clear()
         self.latest_frame_locks.clear()
         self.stale_gate_hits.clear()
-        self.last_suppression_probe.clear()
-        self.suppression_rearm_until.clear()
         self.thermal_motion_peak_area.clear()
         self.thermal_motion_peak_ts.clear()
-        self.last_thermal_allclass_infer_time.clear()
-        self.thermal_recovery_hold_detections.clear()
-        self.thermal_recovery_hold_until.clear()
         self.last_reconnect_ts.clear()
         self.ffmpeg_fallback_until.clear()
         logger.info("DetectorWorker stopped")
@@ -257,16 +245,9 @@ class DetectorWorker:
         self.no_detection_streak.pop(camera_id, None)
         self.last_relaxed_infer_time.pop(camera_id, None)
         self.stale_gate_hits.pop(camera_id, None)
-        self.empty_inference_streak.pop(camera_id, None)
-        self.suppressed_until.pop(camera_id, None)
         self.last_motion_area.pop(camera_id, None)
-        self.last_suppression_probe.pop(camera_id, None)
-        self.suppression_rearm_until.pop(camera_id, None)
         self.thermal_motion_peak_area.pop(camera_id, None)
         self.thermal_motion_peak_ts.pop(camera_id, None)
-        self.last_thermal_allclass_infer_time.pop(camera_id, None)
-        self.thermal_recovery_hold_detections.pop(camera_id, None)
-        self.thermal_recovery_hold_until.pop(camera_id, None)
         self.last_reconnect_ts.pop(camera_id, None)
         self.ffmpeg_frame_shapes.pop(camera_id, None)
         with self.ffmpeg_error_lock:
@@ -1355,10 +1336,9 @@ class DetectorWorker:
         """
         Conservative thermal retry threshold for prolonged no-detection periods.
 
-        With thermal_confidence_threshold now at 0.42, the primary pass already
-        handles most real detections. Deep recovery is a narrow safety net:
-        minimum floor is 0.35 to prevent warm-object false positives that plagued
-        the old 0.18-floor approach.
+        Note: Deep recovery is a legacy safety net from before v5.0.0 motion-crop
+        approach. The motion-crop path makes this largely redundant, but it is
+        retained as a fallback when no motion bbox is available (e.g. warmup period).
         """
         streak = max(0, int(no_detection_streak))
         if streak < 6:
@@ -2805,7 +2785,6 @@ class DetectorWorker:
             if is_reconnect:
                 if camera_id:
                     self.last_reconnect_ts[camera_id] = time.time()
-                    self.suppression_rearm_until[camera_id] = time.time() + 20.0
                 logger.info("Reconnected camera %s (ffmpeg backend)", camera_id)
             else:
                 logger.info("Opened camera %s with ffmpeg backend", camera_id)

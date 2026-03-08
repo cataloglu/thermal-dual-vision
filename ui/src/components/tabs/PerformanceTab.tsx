@@ -124,7 +124,7 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
               </select>
               {settings.detection.model === 'yolov8s-thermal' && (
                 <p className="text-xs text-accent mt-1">
-                  ⭐ Termal kameralar için fine-tune edilmiş model. İlk yüklemede HuggingFace'den otomatik indirilir (~6MB). Termal eşiği 0.55-0.60 önerilir.
+                  ⭐ Termal kameralar için fine-tune edilmiş model. İlk yüklemede HuggingFace'den otomatik indirilir (~6MB). v5.0+ motion-crop ile standart eşik yeterlidir.
                 </p>
               )}
             </div>
@@ -161,10 +161,10 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
             </div>
 
             {/* CLAHE toggle */}
-            <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-surface1/50">
+              <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-surface1/50">
               <div>
                 <div className="text-sm font-medium text-text">Termal Görüntü İyileştirme (CLAHE)</div>
-                <div className="text-xs text-muted">Kontrast artırır, tespiti kolaylaştırır. Kapalı = biraz daha az CPU.</div>
+                <div className="text-xs text-muted">Multiprocessing modunda kontrast artırır. Threading modunda (varsayılan) etkisizdir.</div>
               </div>
               <input
                 type="checkbox"
