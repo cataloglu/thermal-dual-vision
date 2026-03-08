@@ -2184,10 +2184,11 @@ class DetectorWorker:
                     min_area_ratio = thermal_min_area_ratio
                     min_height_ratio = thermal_min_height_ratio
                     # Event creation requires higher confidence than inference threshold.
-                    # YOLO inference at 0.40 widens the search; event gate at 0.55
-                    # filters false alarms (trees/poles: 0.44-0.56) while keeping
-                    # real human detections (typically 0.60-0.90+).
-                    conf_floor = max(0.55, thermal_conf_floor)
+                    # YOLO inference at 0.40 widens the search; event gate at 0.50
+                    # combined with motion-mask overlap check below.
+                    conf_floor = max(0.50, thermal_conf_floor)
+                    # Retrieve motion mask for bbox-overlap filtering.
+                    thermal_motion_mask = self.motion_state.get(camera_id, {}).get("thermal_motion_mask")
                     # For motion-guided crop: skip full-frame area/height checks
                     # (bbox appears small after scaling back from small crop).
                     # Instead use inference-space height: reverse-calculate how tall
@@ -2221,6 +2222,28 @@ class DetectorWorker:
                             if height_ratio < min_height_ratio:
                                 thermal_drop_height += 1
                                 continue
+                        # Motion-mask overlap check (only for motion-crop path).
+                        # Stationary objects (poles, trees, furniture) in the motion
+                        # region will have near-zero overlap with the motion mask —
+                        # the motion came from something else nearby.
+                        if crop_info is not None and thermal_motion_mask is not None:
+                            try:
+                                mh, mw = thermal_motion_mask.shape[:2]
+                                bx1 = max(0, min(int(x1f), mw - 1))
+                                by1 = max(0, min(int(y1f), mh - 1))
+                                bx2 = max(bx1 + 1, min(int(x2f), mw))
+                                by2 = max(by1 + 1, min(int(y2f), mh))
+                                bbox_px = (bx2 - bx1) * (by2 - by1)
+                                if bbox_px > 0:
+                                    motion_in_bbox = float(
+                                        thermal_motion_mask[by1:by2, bx1:bx2].sum()
+                                    )
+                                    overlap_ratio = motion_in_bbox / (255.0 * bbox_px)
+                                    if overlap_ratio < 0.08:
+                                        thermal_drop_area += 1
+                                        continue
+                            except Exception:
+                                pass  # mask/frame shape mismatch — skip
                         filtered_thermal.append(det)
                     detections = filtered_thermal
                 
@@ -3702,8 +3725,13 @@ class DetectorWorker:
         state["thermal_noise_var"] = noise_var
         state["thermal_motion_persisted"] = persisted_motion
         state["thermal_motion_area_raw"] = motion_area
-        if not persisted_motion:
+        # Save motion mask for bbox-overlap check in quality filter.
+        # Only keep when motion is active to avoid memory accumulation.
+        if persisted_motion:
+            state["thermal_motion_mask"] = raw_mask  # uint8 0/255, full frame
+        else:
             state["thermal_motion_bbox"] = None
+            state.pop("thermal_motion_mask", None)
         return motion_area if persisted_motion else 0
 
     def _filter_detections_by_zones(
