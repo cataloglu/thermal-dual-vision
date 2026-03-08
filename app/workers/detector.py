@@ -2184,21 +2184,31 @@ class DetectorWorker:
                     min_area_ratio = thermal_min_area_ratio
                     min_height_ratio = thermal_min_height_ratio
                     conf_floor = thermal_conf_floor
-                    # When motion-guided crop was used, the bbox was scaled back from
-                    # a small crop to full-frame coordinates — it will appear small
-                    # relative to the frame. Skip area/height checks; the motion gate
-                    # already ensured a real moving object was present.
-                    skip_size_checks = crop_info is not None
+                    # For motion-guided crop: skip full-frame area/height checks
+                    # (bbox appears small after scaling back from small crop).
+                    # Instead use inference-space height: reverse-calculate how tall
+                    # the detection was in the 640px inference frame and require ≥12%.
+                    # A cat/bird is ~5-8% of inference height; a person is ≥15%.
+                    inf_h = float(config.detection.inference_resolution[1])
                     filtered_thermal: List[Dict] = []
                     for det in detections_ar:
                         conf = float(det.get("confidence", 0.0))
                         if conf < conf_floor:
                             thermal_drop_conf += 1
                             continue
-                        if not skip_size_checks:
-                            x1, y1, x2, y2 = det["bbox"]
-                            w = max(0, x2 - x1)
-                            h = max(0, y2 - y1)
+                        x1f, y1f, x2f, y2f = det["bbox"]
+                        w = max(0, x2f - x1f)
+                        h = max(0, y2f - y1f)
+                        if crop_info is not None:
+                            # Reverse-calculate height in inference space.
+                            # scaled_h = inf_det_h * (crop_h / inf_h)
+                            # → inf_det_h = h * (inf_h / crop_h)
+                            _, _, crop_w_ci, crop_h_ci = crop_info
+                            inf_det_h = h * (inf_h / float(max(crop_h_ci, 1)))
+                            if inf_det_h < inf_h * 0.12:   # < 12% of 640px = ~77px
+                                thermal_drop_height += 1
+                                continue
+                        else:
                             area_ratio = (w * h) / frame_area
                             height_ratio = h / float(max(frame_h, 1))
                             if area_ratio < min_area_ratio:
