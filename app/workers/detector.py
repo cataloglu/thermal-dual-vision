@@ -2181,29 +2181,32 @@ class DetectorWorker:
                 if detection_source == "thermal" and detections_after_ar > 0:
                     frame_h, frame_w = frame.shape[:2]
                     frame_area = float(max(frame_h * frame_w, 1))
-                    # Thermal confidence tends to be lower; keep floors aligned
-                    # with the actual inference thresholds to avoid dropping
-                    # fallback recoveries (e.g., 0.20-0.25 conf hits).
                     min_area_ratio = thermal_min_area_ratio
                     min_height_ratio = thermal_min_height_ratio
                     conf_floor = thermal_conf_floor
+                    # When motion-guided crop was used, the bbox was scaled back from
+                    # a small crop to full-frame coordinates — it will appear small
+                    # relative to the frame. Skip area/height checks; the motion gate
+                    # already ensured a real moving object was present.
+                    skip_size_checks = crop_info is not None
                     filtered_thermal: List[Dict] = []
                     for det in detections_ar:
-                        x1, y1, x2, y2 = det["bbox"]
-                        w = max(0, x2 - x1)
-                        h = max(0, y2 - y1)
-                        area_ratio = (w * h) / frame_area
-                        height_ratio = h / float(max(frame_h, 1))
                         conf = float(det.get("confidence", 0.0))
                         if conf < conf_floor:
                             thermal_drop_conf += 1
                             continue
-                        if area_ratio < min_area_ratio:
-                            thermal_drop_area += 1
-                            continue
-                        if height_ratio < min_height_ratio:
-                            thermal_drop_height += 1
-                            continue
+                        if not skip_size_checks:
+                            x1, y1, x2, y2 = det["bbox"]
+                            w = max(0, x2 - x1)
+                            h = max(0, y2 - y1)
+                            area_ratio = (w * h) / frame_area
+                            height_ratio = h / float(max(frame_h, 1))
+                            if area_ratio < min_area_ratio:
+                                thermal_drop_area += 1
+                                continue
+                            if height_ratio < min_height_ratio:
+                                thermal_drop_height += 1
+                                continue
                         filtered_thermal.append(det)
                     detections = filtered_thermal
                 
