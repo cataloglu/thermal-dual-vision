@@ -21,9 +21,9 @@ const QUICK_MODES: Record<QuickMode, { label: string; desc: string; icon: string
     label: 'Kararlı',
     desc: 'Az yanlış alarm. Hırsız alarm için önerilen.',
     updates: (s) => ({
-      detection: { ...s.detection, model: 'yolov8s-thermal', inference_fps: 5, inference_resolution: [640, 640], confidence_threshold: 0.50 },
+      detection: { ...s.detection, model: 'yolov8s-thermal', inference_fps: 5, inference_resolution: [640, 640], confidence_threshold: 0.40 },
       motion:    { ...s.motion,    mode: 'auto', auto_profile: 'normal', algorithm: 'mog2', sensitivity: 6, min_area: 450, cooldown_seconds: 6 },
-      thermal:   { ...s.thermal,   enable_enhancement: true, enhancement_method: 'clahe', clahe_clip_limit: 2.0, clahe_tile_size: [32, 32], gaussian_blur_kernel: [3, 3] },
+      thermal:   { ...s.thermal,   enable_enhancement: false, enhancement_method: 'clahe', clahe_clip_limit: 2.0, clahe_tile_size: [32, 32], gaussian_blur_kernel: [3, 3] },
       stream:    { ...s.stream,    protocol: 'tcp', capture_backend: 'ffmpeg', buffer_size: 1, reconnect_delay_seconds: 5, max_reconnect_attempts: 20, read_failure_threshold: 5, read_failure_timeout_seconds: 15 },
     }),
   },
@@ -32,9 +32,9 @@ const QUICK_MODES: Record<QuickMode, { label: string; desc: string; icon: string
     label: 'Hassas',
     desc: 'Daha az kaçırma. Bazı yanlış alarm olabilir.',
     updates: (s) => ({
-      detection: { ...s.detection, model: 'yolov8s-thermal', inference_fps: 8, inference_resolution: [640, 640], confidence_threshold: 0.45 },
+      detection: { ...s.detection, model: 'yolov8s-thermal', inference_fps: 8, inference_resolution: [640, 640], confidence_threshold: 0.35 },
       motion:    { ...s.motion,    mode: 'auto', auto_profile: 'high', algorithm: 'mog2', sensitivity: 6, min_area: 260, cooldown_seconds: 4 },
-      thermal:   { ...s.thermal,   enable_enhancement: true, enhancement_method: 'clahe', clahe_clip_limit: 2.2, clahe_tile_size: [32, 32], gaussian_blur_kernel: [3, 3] },
+      thermal:   { ...s.thermal,   enable_enhancement: false, enhancement_method: 'clahe', clahe_clip_limit: 2.0, clahe_tile_size: [32, 32], gaussian_blur_kernel: [3, 3] },
       stream:    { ...s.stream,    protocol: 'tcp', capture_backend: 'ffmpeg', buffer_size: 1, reconnect_delay_seconds: 3, max_reconnect_attempts: 20, read_failure_threshold: 3, read_failure_timeout_seconds: 10 },
     }),
   },
@@ -158,20 +158,6 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
                 <option value="normal">Normal — dengeli</option>
                 <option value="high">Yüksek — küçük hareket yeterli</option>
               </select>
-            </div>
-
-            {/* CLAHE toggle */}
-              <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-surface1/50">
-              <div>
-                <div className="text-sm font-medium text-text">Termal Görüntü İyileştirme (CLAHE)</div>
-                <div className="text-xs text-muted">Multiprocessing modunda kontrast artırır. Threading modunda (varsayılan) etkisizdir.</div>
-              </div>
-              <input
-                type="checkbox"
-                checked={settings.thermal.enable_enhancement}
-                onChange={(e) => onChange({ ...settings, thermal: { ...settings.thermal, enable_enhancement: e.target.checked } })}
-                className="ml-4 w-4 h-4 cursor-pointer"
-              />
             </div>
 
             <div className="flex justify-end pt-1">
