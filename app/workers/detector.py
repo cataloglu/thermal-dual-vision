@@ -2183,7 +2183,10 @@ class DetectorWorker:
                     frame_area = float(max(frame_h * frame_w, 1))
                     min_area_ratio = thermal_min_area_ratio
                     min_height_ratio = thermal_min_height_ratio
-                    conf_floor = thermal_conf_floor
+                    # Event creation requires higher confidence than inference threshold.
+                    # YOLO inference at 0.40 widens the search; event gate at 0.50
+                    # prevents low-confidence trees/shadows from creating alarms.
+                    conf_floor = max(0.50, thermal_conf_floor)
                     # For motion-guided crop: skip full-frame area/height checks
                     # (bbox appears small after scaling back from small crop).
                     # Instead use inference-space height: reverse-calculate how tall
