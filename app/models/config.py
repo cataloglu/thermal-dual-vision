@@ -22,12 +22,6 @@ class DetectionConfig(BaseModel):
         le=1.0,
         description="Minimum confidence for detections (higher = fewer false alarms)"
     )
-    thermal_confidence_threshold: float = Field(
-        default=0.42,
-        ge=0.0,
-        le=1.0,
-        description="Minimum confidence for thermal detection. Use 0.55-0.60 with yolov8s-thermal model; 0.35-0.42 for standard models."
-    )
     nms_iou_threshold: float = Field(
         default=0.45,
         ge=0.0,
@@ -160,28 +154,6 @@ class MotionConfig(BaseModel):
         le=5.0,
         description="Safety multiplier applied to learned noise percentile"
     )
-    thermal_suppression_enabled: bool = Field(
-        default=True,
-        description="Enable inference suppression when thermal noise triggers motion but YOLO finds nothing"
-    )
-    thermal_suppression_streak: int = Field(
-        default=15,
-        ge=5,
-        le=100,
-        description="How many consecutive empty YOLO results before suppressing inference"
-    )
-    thermal_suppression_duration: int = Field(
-        default=30,
-        ge=5,
-        le=300,
-        description="How long (seconds) inference is paused after suppression triggers"
-    )
-    thermal_suppression_wakeup_ratio: float = Field(
-        default=2.5,
-        ge=1.5,
-        le=10.0,
-        description="Motion area must increase by this factor to cancel suppression early"
-    )
     presets: dict[str, MotionPreset] = Field(
         default_factory=lambda: {
             "thermal_recommended": MotionPreset(
@@ -200,50 +172,15 @@ class MotionConfig(BaseModel):
 
 
 class ThermalConfig(BaseModel):
-    """Thermal image enhancement configuration."""
-    
-    enable_enhancement: bool = Field(
-        default=True,
-        description="Enable thermal image enhancement"
-    )
-    enhancement_method: Literal["clahe", "histogram", "none"] = Field(
-        default="clahe",
-        description="Enhancement method"
-    )
-    clahe_clip_limit: float = Field(
-        default=2.0,
-        ge=0.0,
-        description="CLAHE clip limit"
-    )
-    clahe_tile_size: List[int] = Field(
-        default=[32, 32],
-        description="CLAHE tile grid size (larger = less blockiness, e.g. 32x32)"
-    )
-    gaussian_blur_kernel: List[int] = Field(
-        default=[3, 3],
-        description="Gaussian blur kernel size [width, height]"
-    )
+    """Thermal config stub — kept for backward compat with existing config.json files."""
 
-    @field_validator("clahe_tile_size", "gaussian_blur_kernel")
-    @classmethod
-    def validate_size(cls, v: List[int]) -> List[int]:
-        """Validate size parameters."""
-        if len(v) != 2:
-            raise ValueError("Size must have exactly 2 values [width, height]")
-        if any(x <= 0 for x in v):
-            raise ValueError("Size values must be positive")
-        # OpenCV requires odd kernel sizes for Gaussian blur
-        if cls.__name__ == "ThermalConfig":
-            pass  # validated by field name below
-        return v
+    model_config = ConfigDict(extra="ignore")
 
-    @field_validator("gaussian_blur_kernel")
-    @classmethod
-    def validate_odd_kernel(cls, v: List[int]) -> List[int]:
-        """Gaussian blur kernel dimensions must be odd."""
-        if any(x % 2 == 0 for x in v):
-            raise ValueError("gaussian_blur_kernel values must be odd (e.g. [3,3], [5,5])")
-        return v
+    enable_enhancement: bool = Field(default=True)
+    enhancement_method: str = Field(default="clahe")
+    clahe_clip_limit: float = Field(default=2.0)
+    clahe_tile_size: List[int] = Field(default=[32, 32])
+    gaussian_blur_kernel: List[int] = Field(default=[3, 3])
 
 
 class StreamConfig(BaseModel):
