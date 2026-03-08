@@ -270,6 +270,10 @@ class SettingsService:
         if isinstance(detection, dict):
             if detection.get("confidence_threshold") in (0.25, 0.35):
                 detection["confidence_threshold"] = 0.30
+            # v5.0+: migrate old 0.50/0.55/0.57/0.42 thresholds to 0.40
+            # (motion-crop pre-filters; old values caused qual=0 for all detections)
+            if detection.get("confidence_threshold") in (0.50, 0.55, 0.57, 0.44, 0.42):
+                detection["confidence_threshold"] = 0.40
             # Remove legacy thermal_confidence_threshold (removed in v5.0.0)
             detection.pop("thermal_confidence_threshold", None)
             result["detection"] = detection

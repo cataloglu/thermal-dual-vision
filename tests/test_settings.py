@@ -63,7 +63,7 @@ def test_save_and_load_config(settings_service):
     # Create custom config
     config = AppConfig()
     config.detection.model = "yolov8s-person"
-    config.detection.confidence_threshold = 0.5
+    config.detection.confidence_threshold = 0.40
     config.motion.sensitivity = 8
     config.ai.enabled = True
     config.ai.api_key = "sk-test-api-key-12345"
@@ -75,7 +75,7 @@ def test_save_and_load_config(settings_service):
     loaded_config = settings_service.load_config()
     
     assert loaded_config.detection.model == "yolov8s-person"
-    assert loaded_config.detection.confidence_threshold == 0.5
+    assert loaded_config.detection.confidence_threshold == 0.40
     assert loaded_config.motion.sensitivity == 8
     assert loaded_config.ai.enabled is True
     assert loaded_config.ai.api_key == "sk-test-api-key-12345"
@@ -339,7 +339,7 @@ def test_update_multiple_sections(settings_service):
     partial_data = {
         "detection": {
             "model": "yolov8s-person",
-            "confidence_threshold": 0.5
+            "confidence_threshold": 0.40
         },
         "motion": {
             "sensitivity": 9,
@@ -357,7 +357,7 @@ def test_update_multiple_sections(settings_service):
     updated = settings_service.update_settings(partial_data)
     
     assert updated["detection"]["model"] == "yolov8s-person"
-    assert updated["detection"]["confidence_threshold"] == 0.5
+    assert updated["detection"]["confidence_threshold"] == 0.40
     assert updated["motion"]["sensitivity"] == 9
     assert updated["motion"]["cooldown_seconds"] == 3
     assert updated["thermal"]["enable_enhancement"] is False
