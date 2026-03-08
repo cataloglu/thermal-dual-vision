@@ -68,7 +68,7 @@ def test_put_settings_partial_update(client):
     update_data = {
         "detection": {
             "model": "yolov8s-person",
-            "confidence_threshold": 0.5
+            "confidence_threshold": 0.40
         }
     }
     
@@ -79,7 +79,7 @@ def test_put_settings_partial_update(client):
     
     # Check updated fields
     assert data["detection"]["model"] == "yolov8s-person"
-    assert data["detection"]["confidence_threshold"] == 0.5
+    assert data["detection"]["confidence_threshold"] == 0.40
     
     # Check other fields remain default
     defaults = AppConfig().model_dump()

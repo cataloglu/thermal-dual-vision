@@ -17,10 +17,10 @@ class DetectionConfig(BaseModel):
         description="Primary model selection: yolov8n (fast), yolov8s (accurate), yolov9t (thermal), yolov9s (best), yolov8s-thermal (termal kameralar için fine-tune)"
     )
     confidence_threshold: float = Field(
-        default=0.50,
+        default=0.40,
         ge=0.0,
         le=1.0,
-        description="Minimum confidence for detections (higher = fewer false alarms)"
+        description="Minimum confidence for detections. 0.40 is optimal for motion-crop approach (v5.0+)."
     )
     nms_iou_threshold: float = Field(
         default=0.45,
