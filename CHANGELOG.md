@@ -6,6 +6,39 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [5.0.0] - 2026-03-08
+
+### Büyük Mimari Değişiklik — Hareket Tabanlı Tespit (Scrypted Modeli)
+
+Bu sürüm algılama felsefesini kökten değiştiriyor:
+
+**Eski (yanlış):** Tüm termal frame'de YOLO çalıştır → sıcak duvar/araba/beton içinden "insan" bul
+
+**Yeni (doğru):** Sadece HAREKET EDEN bölgeyi kes → o bölgede YOLO çalıştır → insan mı?
+
+Hırsız her zaman hareket eder. Statik ısı kaynakları (duvar, radyatör, araba) hareket etmez, YOLO hiç görmez.
+
+#### Eklenenler
+- **`_motion_crop_thermal_frame`**: Motion IIR maskından union bounding box alır, frame'i o bölgeye kırpar (+%50 padding), inference resolution'a resize eder, grayscale→BGR dönüşümü yapar.
+- **`_scale_detections_to_frame`**: YOLO'nun crop koordinatlarındaki bbox'larını orijinal frame koordinatlarına geri çevirir.
+- **Motion bbox takibi**: `_motion_area_thermal_iir` fonksiyonu artık hareket eden tüm blobların union bounding box'ını `thermal_motion_bbox` olarak state'e kaydediyor.
+
+#### Kaldırılanlar
+- `thermal_confidence_threshold` — Artık tek global `confidence_threshold` var
+- `thermal_deep_recovery` — Motion crop bu ihtiyacı ortadan kaldırdı
+- `thermal_recovery_hold` — Artık gerekli değil
+- `thermal_static_guard` — Motion gate zaten statik nesneleri eledi
+- `thermal_suppression` — Motion gate tek ön filtre
+- CLAHE / pseudocolor preprocessing — Grayscale→BGR yeterli
+- `ThermalConfig` alanları (CLAHE ayarları) — Geriye uyumluluk için stub kaldı
+- MotionConfig'deki `thermal_suppression_*` alanları
+
+#### Sonuç
+- Scrypted ile aynı mantık: "Bu hareket eden şey insan mı?"
+- Sahte alarm sıfıra yaklaşır (statik ısı kaynağı = hareket yok = YOLO çalışmaz)
+- Gecikme dramatik düşer (kişi görününce hemen yakalanır, threshold ayarı gerekmez)
+- Standart `yolov8s-person` modeli yeterli (termal özel model opsiyonel)
+
 ## [4.0.97] - 2026-03-07
 
 ### Yeni Özellik — Termal Kamera İçin Özel Model

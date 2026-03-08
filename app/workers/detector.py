@@ -2060,7 +2060,6 @@ class DetectorWorker:
                         info_reasons = (
                             reason.startswith("no_detections")
                             or reason.startswith("temporal_consistency_failed")
-                            or reason == "thermal_static_guard"
                         )
                         level = (
                             logging.INFO
@@ -2111,123 +2110,23 @@ class DetectorWorker:
                     )
                     continue
 
-                suppression_active = False
-                suppression_wakeup_candidate = False
-                suppression_candidate_area = 0
-                suppression_candidate_prev = 0
-                suppression_candidate_ratio = 0.0
                 active_motion_cameras = self._count_recent_motion_cameras(window_seconds=6.0)
-                thermal_suppression_streak = int(
-                    getattr(config.motion, "thermal_suppression_streak", 15)
-                )
-                thermal_suppression_secs = int(
-                    getattr(config.motion, "thermal_suppression_duration", 30)
-                )
-                if detection_source == "thermal" and getattr(
-                    config.motion, "thermal_suppression_enabled", True
-                ):
-                    (
-                        thermal_suppression_streak,
-                        thermal_suppression_secs,
-                    ) = self._thermal_suppression_policy(
-                        base_streak=thermal_suppression_streak,
-                        base_duration_secs=thermal_suppression_secs,
-                        active_motion_cameras=active_motion_cameras,
-                    )
-
-                # Thermal inference suppression: if YOLO returned empty N times
-                # in a row, skip inference until motion area increases significantly.
-                if detection_source == "thermal" and getattr(config.motion, "thermal_suppression_enabled", True):
-                    wakeup_ratio = float(getattr(config.motion, "thermal_suppression_wakeup_ratio", 2.5))
-                    suppression_secs = thermal_suppression_secs
-                    suppressed_ts = self.suppressed_until.get(camera_id, 0.0)
-                    current_area = int(self.motion_state.get(camera_id, {}).get("thermal_motion_area_raw", 0))
-                    prev_area = int(self.last_motion_area.get(camera_id, current_area))
-                    self._update_thermal_motion_peak(
-                        camera_id=camera_id,
-                        current_area=current_area,
-                        now_ts=current_time,
-                    )
-                    min_wakeup_area = max(1200, int(getattr(config.motion, "min_area", 0)) * 3)
-                    probe_interval_secs = self._thermal_probe_interval_seconds(
-                        suppression_secs=suppression_secs,
-                        active_motion_cameras=active_motion_cameras,
-                    )
-                    rearm_until = float(self.suppression_rearm_until.get(camera_id, 0.0))
-                    if current_time < rearm_until and current_time < float(suppressed_ts):
-                        self.suppressed_until.pop(camera_id, None)
-                        suppressed_ts = 0.0
-                    suppression_active = current_time < suppressed_ts
-                    if current_time < suppressed_ts:
-                        last_probe = float(self.last_suppression_probe.get(camera_id, 0.0))
-                        probe_due = (current_time - last_probe) >= probe_interval_secs
-                        wakeup_candidate = self._should_wakeup_thermal_suppression(
-                            current_area=current_area,
-                            prev_area=prev_area,
-                            wakeup_ratio=wakeup_ratio,
-                            min_wakeup_area=min_wakeup_area,
-                        )
-                        # Run inference when wakeup_candidate (area jump) OR probe_due (periodic).
-                        # Previously: wakeup_candidate required probe_due, so we skipped inference
-                        # when a person entered during suppression if probe_due was false.
-                        if wakeup_candidate:
-                            suppression_wakeup_candidate = True
-                            suppression_candidate_area = current_area
-                            suppression_candidate_prev = prev_area
-                            suppression_candidate_ratio = (
-                                float(current_area) / float(max(prev_area, 1))
-                            )
-                            self.last_suppression_probe[camera_id] = current_time
-                        elif probe_due:
-                            self.last_suppression_probe[camera_id] = current_time
-                            logger.debug(
-                                "DETECT camera=%s suppression_probe area=%s prev=%s",
-                                camera_id,
-                                current_area,
-                                prev_area,
-                            )
-                        else:
-                            self.last_motion_area[camera_id] = current_area
-                            self._update_frame_buffer(
-                                camera_id=camera_id,
-                                frame=frame,
-                                detections=[],
-                                frame_interval=frame_interval,
-                                buffer_size=buffer_size,
-                            )
-                            continue
-                    self.last_motion_area[camera_id] = current_area
 
                 # Preprocess frame
-                if detection_source == "thermal" and config.thermal.enable_enhancement:
-                    adaptive_clip = self._get_adaptive_clahe_clip(frame, config)
-                    preprocessed = self.inference_service.preprocess_thermal(
+                # Thermal cameras: motion-guided crop → grayscale→BGR → YOLO
+                # Color cameras: standard preprocessing (unchanged)
+                crop_info: Optional[tuple] = None
+                if detection_source == "thermal":
+                    preprocessed, crop_info = self._motion_crop_thermal_frame(
                         frame,
-                        enable_enhancement=True,
-                        clahe_clip_limit=adaptive_clip,
-                        clahe_tile_size=tuple(config.thermal.clahe_tile_size),
+                        camera_id,
+                        tuple(config.detection.inference_resolution),
                     )
                 else:
                     preprocessed = self.inference_service.preprocess_color(frame)
-                
-                # Run inference (with metrics)
+
+                # Single confidence threshold for all cameras
                 confidence_threshold = float(config.detection.confidence_threshold)
-                thermal_recovery_conf_override: Optional[float] = None
-                thermal_allclass_fallback = False
-                thermal_recovery_hold_applied = False
-                if detection_source == "thermal":
-                    thermal_conf = float(
-                        getattr(config.detection, "thermal_confidence_threshold", confidence_threshold)
-                    )
-                    motion_area_now = int(
-                        self.motion_state.get(camera_id, {}).get("thermal_motion_area_raw", 0)
-                    )
-                    confidence_threshold = self._thermal_confidence_policy(
-                        base_confidence=thermal_conf,
-                        active_motion_cameras=active_motion_cameras,
-                        motion_area_now=motion_area_now,
-                        base_min_area=int(getattr(config.motion, "min_area", 0)),
-                    )
                 t0 = time.perf_counter()
                 detections_raw = self.inference_service.infer(
                     preprocessed,
@@ -2258,132 +2157,11 @@ class DetectorWorker:
                                 relaxed_threshold,
                                 len(relaxed_detections),
                             )
-                elif (
-                    len(detections_raw) == 0
-                    and detection_source == "thermal"
-                    and active_motion_cameras >= 2
-                ):
-                    # Concurrent thermal motion: allow a small, gated retry to
-                    # reduce "only one camera catches" misses under contention.
-                    motion_area_now = int(
-                        self.motion_state.get(camera_id, {}).get("thermal_motion_area_raw", 0)
+                # Scale bounding boxes from cropped inference coords back to full frame
+                if crop_info is not None and detections_raw:
+                    detections_raw = self._scale_detections_to_frame(
+                        detections_raw, crop_info, tuple(config.detection.inference_resolution)
                     )
-                    retry_motion_gate = max(900, int(getattr(config.motion, "min_area", 0)) * 2)
-                    relaxed_threshold = max(0.25, confidence_threshold - 0.05)
-                    last_relaxed = float(self.last_relaxed_infer_time.get(camera_id, 0.0))
-                    if (
-                        motion_area_now >= retry_motion_gate
-                        and relaxed_threshold < confidence_threshold
-                        and current_time - last_relaxed >= 1.0
-                    ):
-                        relaxed_detections = self.inference_service.infer(
-                            preprocessed,
-                            confidence_threshold=relaxed_threshold,
-                            inference_resolution=tuple(config.detection.inference_resolution),
-                        )
-                        self.last_relaxed_infer_time[camera_id] = current_time
-                        if relaxed_detections:
-                            detections_raw = relaxed_detections
-                            thermal_recovery_conf_override = float(relaxed_threshold)
-                            logger.debug(
-                                "DETECT camera=%s thermal_relaxed_threshold=%.2f recovered=%s area=%s",
-                                camera_id,
-                                relaxed_threshold,
-                                len(relaxed_detections),
-                                motion_area_now,
-                            )
-                if len(detections_raw) == 0 and detection_source == "thermal":
-                    motion_area_now = int(
-                        self.motion_state.get(camera_id, {}).get("thermal_motion_area_raw", 0)
-                    )
-                    deep_threshold = self._thermal_deep_recovery_threshold(
-                        base_confidence=confidence_threshold,
-                        motion_area_now=motion_area_now,
-                        base_min_area=int(getattr(config.motion, "min_area", 0)),
-                        no_detection_streak=int(self.no_detection_streak.get(camera_id, 0)) + 1,
-                        active_motion_cameras=active_motion_cameras,
-                    )
-                    last_relaxed = float(self.last_relaxed_infer_time.get(camera_id, 0.0))
-                    if (
-                        deep_threshold is not None
-                        and current_time - last_relaxed >= 0.8
-                    ):
-                        deep_recovery = self.inference_service.infer(
-                            preprocessed,
-                            confidence_threshold=deep_threshold,
-                            inference_resolution=tuple(config.detection.inference_resolution),
-                        )
-                        self.last_relaxed_infer_time[camera_id] = current_time
-                        if deep_recovery:
-                            detections_raw = deep_recovery
-                            thermal_recovery_conf_override = max(0.20, float(deep_threshold))
-                            logger.info(
-                                "DETECT camera=%s thermal_deep_recovery threshold=%.2f recovered=%s area=%s streak=%s",
-                                camera_id,
-                                deep_threshold,
-                                len(deep_recovery),
-                                motion_area_now,
-                                int(self.no_detection_streak.get(camera_id, 0)) + 1,
-                            )
-                # Allclass recovery removed: lowering thermal_confidence_threshold to 0.42
-                # makes the primary person-only YOLO pass sufficient (Scrypted-style single pass).
-                # All-class inference at 0.18–0.20 was catching radiators, warm walls, car hoods —
-                # producing the infinite recovery loops and AI-rejected events seen in production.
-                if (
-                    len(detections_raw) > 0
-                    and detection_source == "thermal"
-                    and thermal_recovery_conf_override is not None
-                ):
-                    hold_detections = self._clone_recovery_detections(
-                        detections_raw,
-                        confidence_decay=0.01,
-                    )
-                    if hold_detections:
-                        self.thermal_recovery_hold_detections[camera_id] = hold_detections
-                        self.thermal_recovery_hold_until[camera_id] = current_time + float(
-                            self._thermal_recovery_hold_window_seconds(active_motion_cameras)
-                        )
-                elif len(detections_raw) == 0 and detection_source == "thermal":
-                    # Recovery detections can be sparse (every few frames) and fail
-                    # temporal consistency. Reuse very recent recovery candidates for
-                    # a short window while motion is still clearly active.
-                    hold_until = float(self.thermal_recovery_hold_until.get(camera_id, 0.0))
-                    cached_hold = self.thermal_recovery_hold_detections.get(camera_id, [])
-                    motion_area_now = int(
-                        self.motion_state.get(camera_id, {}).get("thermal_motion_area_raw", 0)
-                    )
-                    base_min_area = int(getattr(config.motion, "min_area", 0))
-                    hold_motion_gate = max(
-                        700,
-                        int(base_min_area * (1.5 if active_motion_cameras >= 2 else 1.3)),
-                    )
-                    if (
-                        current_time <= hold_until
-                        and motion_area_now >= hold_motion_gate
-                        and cached_hold
-                    ):
-                        held = self._clone_recovery_detections(cached_hold, confidence_decay=0.03)
-                        if held:
-                            detections_raw = held
-                            thermal_recovery_hold_applied = True
-                            best_hold_conf = max(
-                                (float(det.get("confidence", 0.0)) for det in held),
-                                default=0.20,
-                            )
-                            thermal_recovery_conf_override = max(
-                                0.18,
-                                min(0.32, best_hold_conf),
-                            )
-                            last_hold_log = float(self.last_fallback_log.get(camera_id, 0.0))
-                            if current_time - last_hold_log >= 6.0:
-                                logger.info(
-                                    "DETECT camera=%s thermal_recovery_hold reused=%s area=%s hold_for=%.2fs",
-                                    camera_id,
-                                    len(held),
-                                    motion_area_now,
-                                    max(0.0, hold_until - current_time),
-                                )
-                                self.last_fallback_log[camera_id] = current_time
                 inference_latency = time.perf_counter() - t0
                 model_name = getattr(config.detection, "model", "yolov8n-person") or "yolov8n-person"
                 try:
@@ -2412,17 +2190,7 @@ class DetectorWorker:
                 thermal_drop_conf = 0
                 thermal_drop_area = 0
                 thermal_drop_height = 0
-                thermal_conf_floor = (
-                    float(thermal_recovery_conf_override)
-                    if thermal_recovery_conf_override is not None
-                    else confidence_threshold
-                )
-                if detection_source == "thermal" and thermal_recovery_conf_override is None:
-                    conf_relax = 0.08 if active_motion_cameras >= 2 else 0.05
-                    thermal_conf_floor = min(
-                        thermal_conf_floor,
-                        max(0.20, confidence_threshold - conf_relax),
-                    )
+                thermal_conf_floor = confidence_threshold
                 thermal_min_area_ratio = 0.0015
                 thermal_min_height_ratio = 0.05
                 if detection_source == "thermal" and active_motion_cameras >= 2:
@@ -2430,7 +2198,6 @@ class DetectorWorker:
                     # to reduce misses on smaller/farther person boxes.
                     thermal_min_area_ratio = 0.0012
                     thermal_min_height_ratio = 0.045
-                # Allclass fallback quality relaxation removed with allclass recovery.
                 if detection_source == "thermal" and detections_after_ar > 0:
                     frame_h, frame_w = frame.shape[:2]
                     frame_area = float(max(frame_h * frame_w, 1))
@@ -2503,30 +2270,6 @@ class DetectorWorker:
                     self.last_detection_pipeline_log[camera_id] = current_time
                 self.detection_history[camera_id].append(detections)
 
-                # If suppression was active, lift it only after probe sees actual detections.
-                if suppression_active and len(detections) > 0:
-                    self.suppressed_until.pop(camera_id, None)
-                    self.empty_inference_streak[camera_id] = 0
-                    self.last_suppression_probe.pop(camera_id, None)
-                    self.suppression_rearm_until[camera_id] = current_time + float(
-                        self._thermal_suppression_rearm_seconds(active_motion_cameras)
-                    )
-                    if suppression_wakeup_candidate:
-                        logger.info(
-                            "DETECT camera=%s suppression_wakeup_confirmed area=%s prev=%s growth=%.2f detections=%s",
-                            camera_id,
-                            suppression_candidate_area,
-                            suppression_candidate_prev,
-                            suppression_candidate_ratio,
-                            len(detections),
-                        )
-                    else:
-                        logger.info(
-                            "DETECT camera=%s suppression_probe_confirmed detections=%s",
-                            camera_id,
-                            len(detections),
-                        )
-
                 # Detection log: when person found throttle to 10s; empty every 60s (reduces log noise)
                 last_log = self.last_detection_log.get(camera_id, 0.0)
                 interval = 10.0 if len(detections) > 0 else 60.0
@@ -2542,54 +2285,13 @@ class DetectorWorker:
 
                 # Check if person detected
                 if len(detections) == 0:
-                    self.no_detection_streak[camera_id] += 1
+                    self.no_detection_streak[camera_id] = (
+                        self.no_detection_streak.get(camera_id, 0) + 1
+                    )
                     if self.no_detection_streak[camera_id] <= 2:
                         _log_gate(f"no_detections_grace streak={self.no_detection_streak[camera_id]}")
                         continue
                     self.event_start_time[camera_id] = None
-                    if detection_source == "thermal" and getattr(config.motion, "thermal_suppression_enabled", True):
-                        streak_limit = thermal_suppression_streak
-                        suppression_secs = thermal_suppression_secs
-                        motion_state_now = self.motion_state.get(camera_id, {})
-                        current_area = int(motion_state_now.get("thermal_motion_area_raw", 0))
-                        adaptive_min_area = int(
-                            motion_state_now.get(
-                                "thermal_auto_min_area",
-                                int(getattr(config.motion, "min_area", 0)),
-                            )
-                            or int(getattr(config.motion, "min_area", 0))
-                        )
-                        rearm_until = float(self.suppression_rearm_until.get(camera_id, 0.0))
-                        if current_time < rearm_until:
-                            self.empty_inference_streak[camera_id] = 0
-                        else:
-                            effective_area = self._effective_thermal_motion_area(
-                                camera_id=camera_id,
-                                current_area=current_area,
-                                now_ts=current_time,
-                            )
-                            if self._should_hold_thermal_suppression_for_motion(
-                                current_area=effective_area,
-                                adaptive_min_area=adaptive_min_area,
-                                active_motion_cameras=active_motion_cameras,
-                            ):
-                                self.empty_inference_streak[camera_id] = max(
-                                    0,
-                                    self.empty_inference_streak.get(camera_id, 0) - 1,
-                                )
-                            else:
-                                self.empty_inference_streak[camera_id] = (
-                                    self.empty_inference_streak.get(camera_id, 0) + 1
-                                )
-                                if self.empty_inference_streak[camera_id] >= streak_limit:
-                                    self.suppressed_until[camera_id] = current_time + float(suppression_secs)
-                                    self.empty_inference_streak[camera_id] = 0
-                                    self.last_suppression_probe[camera_id] = current_time
-                                    self.last_motion_area[camera_id] = current_area
-                                    logger.info(
-                                        "DETECT camera=%s inference_suppressed for %ds (%d consecutive empty results)",
-                                        camera_id, suppression_secs, streak_limit,
-                                    )
                     if detection_source == "thermal":
                         motion_area_now = int(
                             self.motion_state.get(camera_id, {}).get("thermal_motion_area_raw", 0)
@@ -2608,8 +2310,6 @@ class DetectorWorker:
                         )
                     continue
                 self.no_detection_streak[camera_id] = 0
-                self.empty_inference_streak[camera_id] = 0
-                self.last_suppression_probe.pop(camera_id, None)
 
                 # Check temporal consistency (only when we have detections)
                 thermal_recovery_conf = 0.0
@@ -2641,27 +2341,11 @@ class DetectorWorker:
                         min_motion_floor = 1200 if active_motion_cameras >= 2 else 1400
                         base_min_area = int(getattr(config.motion, "min_area", 0))
                         guard_min_area = min(max(260, base_min_area), 700)
-                        if thermal_recovery_conf_override is not None:
-                            # Deep recovery already requires repeated misses +
-                            # strong motion; keep temporal recovery reachable
-                            # even when adaptive min_area is elevated.
-                            min_motion_mult = 2 if active_motion_cameras >= 2 else 1
-                            min_motion_floor = 1050 if active_motion_cameras >= 2 else 950
                         min_motion_area = max(
                             min_motion_floor,
                             guard_min_area * min_motion_mult,
                         )
                         recovery_conf_gate = thermal_recovery_conf
-                        if thermal_recovery_conf_override is not None:
-                            recovery_conf_gate = min(
-                                recovery_conf_gate,
-                                max(float(thermal_recovery_conf_override) + 0.02, 0.28),
-                            )
-                            if motion_area_now >= max(2200, guard_min_area * 3):
-                                recovery_conf_gate = min(
-                                    recovery_conf_gate,
-                                    max(float(thermal_recovery_conf_override) + 0.00, 0.26),
-                                )
                         if best_conf >= recovery_conf_gate and motion_area_now >= min_motion_area:
                             temporal_pass = True
                             logger.debug(
@@ -2685,84 +2369,6 @@ class DetectorWorker:
                     self.event_start_time[camera_id] = None
                     _log_gate("temporal_consistency_failed")
                     continue
-
-                if detection_source == "thermal":
-                    motion_area_now = int(
-                        self.motion_state.get(camera_id, {}).get("thermal_motion_area_raw", 0)
-                    )
-                    frame_h, frame_w = frame.shape[:2]
-                    guard_conf_threshold = confidence_threshold
-                    guard_deep_recovery_mode = False
-                    if thermal_recovery_conf_override is not None:
-                        guard_conf_threshold = float(thermal_recovery_conf_override)
-                        guard_deep_recovery_mode = True
-                    detection_frames_for_guard = list(self.detection_history[camera_id])
-                    allow_recovery_static_bypass = False
-                    if (
-                        thermal_recovery_conf_override is not None
-                        and (thermal_allclass_fallback or thermal_recovery_hold_applied)
-                    ):
-                        base_min_area = int(getattr(config.motion, "min_area", 0))
-                        best_conf_now = max(
-                            (float(det.get("confidence", 0.0)) for det in detections),
-                            default=0.0,
-                        )
-                        allow_recovery_static_bypass = self._should_allow_recovery_static_bypass(
-                            detection_frames=detection_frames_for_guard,
-                            motion_area_now=motion_area_now,
-                            best_conf_now=best_conf_now,
-                            guard_conf_threshold=guard_conf_threshold,
-                            base_min_area=base_min_area,
-                            frame_width=frame_w,
-                            frame_height=frame_h,
-                        )
-                    static_guard_pass = (
-                        allow_recovery_static_bypass
-                        or self._passes_thermal_static_event_guard(
-                            detection_frames=detection_frames_for_guard,
-                            motion_area_now=motion_area_now,
-                            active_motion_cameras=active_motion_cameras,
-                            confidence_threshold=guard_conf_threshold,
-                            base_min_area=int(getattr(config.motion, "min_area", 0)),
-                            frame_width=frame_w,
-                            frame_height=frame_h,
-                            deep_recovery_mode=guard_deep_recovery_mode,
-                        )
-                    )
-                    if not static_guard_pass:
-                        # Re-increment empty_inference_streak for recovery detections blocked by
-                        # static guard. Without this, allclass recovery loops indefinitely on static
-                        # thermal hot-spots because both streak counters are reset to 0 before the
-                        # guard check, so suppression can never fire on the recovery path.
-                        if thermal_allclass_fallback or thermal_recovery_hold_applied:
-                            cur_static_empty = self.empty_inference_streak.get(camera_id, 0) + 1
-                            self.empty_inference_streak[camera_id] = cur_static_empty
-                            if cur_static_empty >= thermal_suppression_streak:
-                                self.suppressed_until[camera_id] = current_time + float(thermal_suppression_secs)
-                                self.empty_inference_streak[camera_id] = 0
-                                self.last_motion_area[camera_id] = motion_area_now
-                                logger.info(
-                                    "DETECT camera=%s allclass_recovery_suppressed for %ds"
-                                    " (static_guard blocked %d consecutive recovery frames)",
-                                    camera_id, thermal_suppression_secs, thermal_suppression_streak,
-                                )
-                        self.event_start_time[camera_id] = None
-                        _log_gate("thermal_static_guard")
-                        continue
-                    base_min_area = int(getattr(config.motion, "min_area", 0))
-                    if not self._passes_thermal_recovery_event_conf_guard(
-                        detection_frames=detection_frames_for_guard,
-                        detections=detections,
-                        motion_area_now=motion_area_now,
-                        base_min_area=base_min_area,
-                        confidence_threshold=confidence_threshold,
-                        thermal_recovery_conf_override=thermal_recovery_conf_override,
-                        thermal_allclass_fallback=thermal_allclass_fallback,
-                        thermal_recovery_hold_applied=thermal_recovery_hold_applied,
-                    ):
-                        self.event_start_time[camera_id] = None
-                        _log_gate("thermal_recovery_low_conf")
-                        continue
 
                 # Enforce minimum event duration
                 start_time = self.event_start_time.get(camera_id)
@@ -3420,6 +3026,78 @@ class DetectorWorker:
             camera_id,
         )
 
+    def _motion_crop_thermal_frame(
+        self,
+        frame: "np.ndarray",
+        camera_id: str,
+        inference_resolution: tuple,
+    ) -> tuple:
+        """
+        Crop the thermal frame to the motion region + padding, then resize for YOLO.
+
+        Returns (inference_frame, crop_info) where crop_info is (x1, y1, crop_w, crop_h),
+        or (full_frame_prepared, None) if no valid motion crop is available.
+        """
+        motion_bbox = self.motion_state.get(camera_id, {}).get("thermal_motion_bbox")
+        frame_h, frame_w = frame.shape[:2]
+        inf_w, inf_h = inference_resolution
+
+        if motion_bbox is not None:
+            bx, by, bw, bh = motion_bbox
+            pad_x = max(bw, 80)
+            pad_y = max(bh, 80)
+            x1 = max(0, bx - pad_x)
+            y1 = max(0, by - pad_y)
+            x2 = min(frame_w, bx + bw + pad_x)
+            y2 = min(frame_h, by + bh + pad_y)
+            crop_w = x2 - x1
+            crop_h = y2 - y1
+            if crop_w >= 64 and crop_h >= 64:
+                cropped = frame[y1:y2, x1:x2]
+                resized = cv2.resize(cropped, (inf_w, inf_h))
+                if len(resized.shape) == 2 or (len(resized.shape) == 3 and resized.shape[2] == 1):
+                    f = resized if len(resized.shape) == 2 else resized[:, :, 0]
+                    inference_frame = cv2.cvtColor(f, cv2.COLOR_GRAY2BGR)
+                else:
+                    inference_frame = resized
+                return inference_frame, (x1, y1, crop_w, crop_h)
+
+        if len(frame.shape) == 2 or (len(frame.shape) == 3 and frame.shape[2] == 1):
+            f = frame if len(frame.shape) == 2 else frame[:, :, 0]
+            full_resized = cv2.resize(f, (inf_w, inf_h))
+            inference_frame = cv2.cvtColor(full_resized, cv2.COLOR_GRAY2BGR)
+        else:
+            full_resized = cv2.resize(frame, (inf_w, inf_h))
+            inference_frame = full_resized
+        return inference_frame, None
+
+    @staticmethod
+    def _scale_detections_to_frame(
+        detections: list,
+        crop_info: tuple,
+        inference_resolution: tuple,
+    ) -> list:
+        """Scale YOLO bounding boxes from cropped inference coordinates back to full frame."""
+        if not crop_info or not detections:
+            return detections
+        x1_crop, y1_crop, crop_w, crop_h = crop_info
+        inf_w, inf_h = inference_resolution
+        scale_x = crop_w / inf_w
+        scale_y = crop_h / inf_h
+        scaled = []
+        for det in detections:
+            d = dict(det)
+            if "bbox" in d:
+                bx1, by1, bx2, by2 = d["bbox"]
+                d["bbox"] = [
+                    int(bx1 * scale_x) + x1_crop,
+                    int(by1 * scale_y) + y1_crop,
+                    int(bx2 * scale_x) + x1_crop,
+                    int(by2 * scale_y) + y1_crop,
+                ]
+            scaled.append(d)
+        return scaled
+
     def _get_adaptive_clahe_clip(self, frame: np.ndarray, config) -> float:
         if len(frame.shape) == 3:
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -3986,10 +3664,26 @@ class DetectorWorker:
         num_labels, _, stats, _ = cv2.connectedComponentsWithStats(raw_mask, connectivity=8)
         min_blob = max(8, int(min_area * float(motion_settings.get("thermal_min_blob_ratio", 0.12))))
         motion_area = 0
+        union_x1, union_y1, union_x2, union_y2 = None, None, None, None
         for idx in range(1, num_labels):
             area = int(stats[idx, cv2.CC_STAT_AREA])
             if area >= min_blob:
                 motion_area += area
+                bx = int(stats[idx, cv2.CC_STAT_LEFT])
+                by = int(stats[idx, cv2.CC_STAT_TOP])
+                bw = int(stats[idx, cv2.CC_STAT_WIDTH])
+                bh = int(stats[idx, cv2.CC_STAT_HEIGHT])
+                if union_x1 is None:
+                    union_x1, union_y1, union_x2, union_y2 = bx, by, bx + bw, by + bh
+                else:
+                    union_x1 = min(union_x1, bx)
+                    union_y1 = min(union_y1, by)
+                    union_x2 = max(union_x2, bx + bw)
+                    union_y2 = max(union_y2, by + bh)
+        if union_x1 is not None:
+            state["thermal_motion_bbox"] = (union_x1, union_y1, union_x2 - union_x1, union_y2 - union_y1)
+        else:
+            state["thermal_motion_bbox"] = None
 
         persist_window = int(motion_settings.get("thermal_persistence_window", 4))
         persist_required = int(motion_settings.get("thermal_persistence_required", 3))
@@ -4012,6 +3706,8 @@ class DetectorWorker:
         state["thermal_noise_var"] = noise_var
         state["thermal_motion_persisted"] = persisted_motion
         state["thermal_motion_area_raw"] = motion_area
+        if not persisted_motion:
+            state["thermal_motion_bbox"] = None
         return motion_area if persisted_motion else 0
 
     def _filter_detections_by_zones(

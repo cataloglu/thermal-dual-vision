@@ -7,7 +7,6 @@ export type InferenceBackend = 'auto' | 'cpu' | 'onnx' | 'openvino' | 'tensorrt'
 export interface DetectionConfig {
   model: 'yolov8n-person' | 'yolov8s-person' | 'yolov9t' | 'yolov9s' | 'yolov8s-thermal';
   confidence_threshold: number;
-  thermal_confidence_threshold: number;
   nms_iou_threshold: number;
   inference_resolution: [number, number];
   inference_fps: number;
@@ -31,10 +30,6 @@ export interface MotionConfig {
   auto_min_area_floor?: number;
   auto_min_area_ceiling?: number;
   auto_multiplier?: number;
-  thermal_suppression_enabled?: boolean;
-  thermal_suppression_streak?: number;
-  thermal_suppression_duration?: number;
-  thermal_suppression_wakeup_ratio?: number;
   presets: {
     thermal_recommended: {
       sensitivity: number;

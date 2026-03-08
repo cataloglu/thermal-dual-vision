@@ -21,8 +21,8 @@ const QUICK_MODES: Record<QuickMode, { label: string; desc: string; icon: string
     label: 'Kararlı',
     desc: 'Az yanlış alarm. Hırsız alarm için önerilen.',
     updates: (s) => ({
-      detection: { ...s.detection, model: 'yolov8s-thermal', inference_fps: 5, inference_resolution: [640, 640], confidence_threshold: 0.50, thermal_confidence_threshold: 0.57 },
-      motion:    { ...s.motion,    mode: 'auto', auto_profile: 'normal', algorithm: 'mog2', sensitivity: 6, min_area: 450, cooldown_seconds: 6, thermal_suppression_enabled: true, thermal_suppression_streak: 12, thermal_suppression_duration: 20, thermal_suppression_wakeup_ratio: 2.0 },
+      detection: { ...s.detection, model: 'yolov8s-thermal', inference_fps: 5, inference_resolution: [640, 640], confidence_threshold: 0.50 },
+      motion:    { ...s.motion,    mode: 'auto', auto_profile: 'normal', algorithm: 'mog2', sensitivity: 6, min_area: 450, cooldown_seconds: 6 },
       thermal:   { ...s.thermal,   enable_enhancement: true, enhancement_method: 'clahe', clahe_clip_limit: 2.0, clahe_tile_size: [32, 32], gaussian_blur_kernel: [3, 3] },
       stream:    { ...s.stream,    protocol: 'tcp', capture_backend: 'ffmpeg', buffer_size: 1, reconnect_delay_seconds: 5, max_reconnect_attempts: 20, read_failure_threshold: 5, read_failure_timeout_seconds: 15 },
     }),
@@ -32,8 +32,8 @@ const QUICK_MODES: Record<QuickMode, { label: string; desc: string; icon: string
     label: 'Hassas',
     desc: 'Daha az kaçırma. Bazı yanlış alarm olabilir.',
     updates: (s) => ({
-      detection: { ...s.detection, model: 'yolov8s-thermal', inference_fps: 8, inference_resolution: [640, 640], confidence_threshold: 0.45, thermal_confidence_threshold: 0.50 },
-      motion:    { ...s.motion,    mode: 'auto', auto_profile: 'high', algorithm: 'mog2', sensitivity: 6, min_area: 260, cooldown_seconds: 4, thermal_suppression_enabled: true, thermal_suppression_streak: 15, thermal_suppression_duration: 12, thermal_suppression_wakeup_ratio: 1.8 },
+      detection: { ...s.detection, model: 'yolov8s-thermal', inference_fps: 8, inference_resolution: [640, 640], confidence_threshold: 0.45 },
+      motion:    { ...s.motion,    mode: 'auto', auto_profile: 'high', algorithm: 'mog2', sensitivity: 6, min_area: 260, cooldown_seconds: 4 },
       thermal:   { ...s.thermal,   enable_enhancement: true, enhancement_method: 'clahe', clahe_clip_limit: 2.2, clahe_tile_size: [32, 32], gaussian_blur_kernel: [3, 3] },
       stream:    { ...s.stream,    protocol: 'tcp', capture_backend: 'ffmpeg', buffer_size: 1, reconnect_delay_seconds: 3, max_reconnect_attempts: 20, read_failure_threshold: 3, read_failure_timeout_seconds: 10 },
     }),
@@ -143,25 +143,6 @@ export const CameraSettingsTab: React.FC<CameraSettingsTabProps> = ({ settings, 
                   className="flex-1"
                 />
                 <span className="text-sm font-mono text-text w-8 text-right">{settings.detection.inference_fps}</span>
-              </div>
-            </div>
-
-            {/* Thermal threshold */}
-            <div>
-              <label className="text-sm font-medium text-text block mb-0.5">
-                Termal Eşik
-                <span className="text-xs font-normal text-muted ml-2">— şu an: {settings.detection.thermal_confidence_threshold.toFixed(2)}</span>
-              </label>
-              <p className="text-xs text-muted mb-1.5">Düşür → daha fazla tespit &nbsp;|&nbsp; Yükselt → daha az yanlış alarm</p>
-              <input
-                type="range" min={0.25} max={0.65} step={0.01}
-                value={settings.detection.thermal_confidence_threshold}
-                onChange={(e) => onChange({ ...settings, detection: { ...settings.detection, thermal_confidence_threshold: parseFloat(e.target.value) } })}
-                className="w-full"
-              />
-              <div className="flex justify-between text-xs text-muted mt-0.5">
-                <span>0.25 (çok hassas)</span>
-                <span>0.65 (çok kısıtlı)</span>
               </div>
             </div>
 
