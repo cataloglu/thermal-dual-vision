@@ -2221,28 +2221,9 @@ class DetectorWorker:
                             if height_ratio < min_height_ratio:
                                 thermal_drop_height += 1
                                 continue
-                        # Motion-mask overlap check (only for motion-crop path).
-                        # Stationary objects (poles, trees, furniture) in the motion
-                        # region will have near-zero overlap with the motion mask —
-                        # the motion came from something else nearby.
-                        if crop_info is not None and thermal_motion_mask is not None:
-                            try:
-                                mh, mw = thermal_motion_mask.shape[:2]
-                                bx1 = max(0, min(int(x1f), mw - 1))
-                                by1 = max(0, min(int(y1f), mh - 1))
-                                bx2 = max(bx1 + 1, min(int(x2f), mw))
-                                by2 = max(by1 + 1, min(int(y2f), mh))
-                                bbox_px = (bx2 - bx1) * (by2 - by1)
-                                if bbox_px > 0:
-                                    motion_in_bbox = float(
-                                        thermal_motion_mask[by1:by2, bx1:bx2].sum()
-                                    )
-                                    overlap_ratio = motion_in_bbox / (255.0 * bbox_px)
-                                    if overlap_ratio < 0.08:
-                                        thermal_drop_area += 1
-                                        continue
-                            except Exception:
-                                pass  # mask/frame shape mismatch — skip
+                        # Stationary object detection is handled by the downstream
+                        # movement check (bbox centroid displacement across history frames).
+                        # Motion-mask overlap was too strict for sparse IIR masks.
                         filtered_thermal.append(det)
                     detections = filtered_thermal
                 
