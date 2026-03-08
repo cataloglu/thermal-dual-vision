@@ -6,6 +6,18 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [5.0.13] - 2026-03-09
+
+### Temizlik — Atıl Kod Kaldırıldı (Legacy Termal Kurtarma Sistemi)
+
+v5.0.0 mimarisine geçişte kullanılmayan ~700 satır eski kod (`_thermal_suppression_*`, `_passes_thermal_static_event_guard`, `_thermal_deep_recovery_threshold`, `_thermal_bbox_*` analiz metodları vb.) `detector.py`'dan tamamen kaldırıldı.
+
+- Bu metodlar artık ana pipeline'da çağrılmıyordu; yalnızca yanıltıcı test güvencesi oluşturuyordu
+- İlgili 39 test fonksiyonu da kaldırıldı (toplam: 266 → 233)
+- Aktif pipeline değişikliği yok; davranış aynı
+
+---
+
 ## [5.0.0] - 2026-03-08
 
 ### Büyük Mimari Değişiklik — Hareket Tabanlı Tespit (Scrypted Modeli)
