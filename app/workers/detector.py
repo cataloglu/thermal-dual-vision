@@ -2184,43 +2184,16 @@ class DetectorWorker:
                     min_area_ratio = thermal_min_area_ratio
                     min_height_ratio = thermal_min_height_ratio
                     # conf_floor matches inference threshold. Movement check (below)
-                    # handles stationary false alarms instead of a high conf_floor.
+                    # Scrypted-style: only confidence floor. No size checks.
+                    # Movement check (downstream) handles stationary false alarms.
+                    # AI review handles remaining non-human detections.
                     conf_floor = thermal_conf_floor
-                    # Retrieve motion mask for bbox-overlap filtering.
-                    thermal_motion_mask = self.motion_state.get(camera_id, {}).get("thermal_motion_mask")
-                    # For motion-guided crop: skip full-frame area/height checks
-                    # (bbox appears small after scaling back from small crop).
-                    # Instead use inference-space height: reverse-calculate how tall
-                    # the detection was in the 640px inference frame and require ≥12%.
-                    # A cat/bird is ~5-8% of inference height; a person is ≥15%.
-                    inf_h = float(config.detection.inference_resolution[1])
                     filtered_thermal: List[Dict] = []
                     for det in detections_ar:
                         conf = float(det.get("confidence", 0.0))
                         if conf < conf_floor:
                             thermal_drop_conf += 1
                             continue
-                        x1f, y1f, x2f, y2f = det["bbox"]
-                        w = max(0, x2f - x1f)
-                        h = max(0, y2f - y1f)
-                        if crop_info is not None:
-                            # Reverse-calculate height in inference space.
-                            # scaled_h = inf_det_h * (crop_h / inf_h)
-                            # → inf_det_h = h * (inf_h / crop_h)
-                            _, _, crop_w_ci, crop_h_ci = crop_info
-                            inf_det_h = h * (inf_h / float(max(crop_h_ci, 1)))
-                            if inf_det_h < inf_h * 0.12:   # < 12% of 640px = ~77px
-                                thermal_drop_height += 1
-                                continue
-                        else:
-                            area_ratio = (w * h) / frame_area
-                            height_ratio = h / float(max(frame_h, 1))
-                            if area_ratio < min_area_ratio:
-                                thermal_drop_area += 1
-                                continue
-                            if height_ratio < min_height_ratio:
-                                thermal_drop_height += 1
-                                continue
                         # Stationary object detection is handled by the downstream
                         # movement check (bbox centroid displacement across history frames).
                         # Motion-mask overlap was too strict for sparse IIR masks.
