@@ -270,8 +270,8 @@ class SettingsService:
         if isinstance(detection, dict):
             if detection.get("confidence_threshold") in (0.25, 0.35):
                 detection["confidence_threshold"] = 0.30
-            if detection.get("thermal_confidence_threshold") in (0.25, 0.45):
-                detection["thermal_confidence_threshold"] = 0.35  # Thermal needs lower threshold
+            # Remove legacy thermal_confidence_threshold (removed in v5.0.0)
+            detection.pop("thermal_confidence_threshold", None)
             result["detection"] = detection
         # Motion: keep user values, only normalize invalid legacy enums/ranges.
         motion = result.get("motion")

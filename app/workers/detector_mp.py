@@ -1490,27 +1490,13 @@ def camera_detection_process(
                         continue
                 last_motion_area = current_area
             
-            # Preprocess frame
-            if detection_source == "thermal" and config.thermal.enable_enhancement:
-                preprocessed = inference_service.preprocess_thermal(
-                    frame,
-                    enable_enhancement=True,
-                    clahe_clip_limit=config.thermal.clahe_clip_limit,
-                    clahe_tile_size=tuple(config.thermal.clahe_tile_size),
-                )
-            else:
-                preprocessed = inference_service.preprocess_color(frame)
-            
-            # Run YOLO inference
+            # Preprocess frame — v5.0 motion-guided approach:
+            # thermal cameras use grayscale→BGR (no CLAHE; motion crop is the filter).
+            # color cameras use standard preprocessing (unchanged).
+            preprocessed = inference_service.preprocess_color(frame)
+
+            # Single confidence threshold for all cameras (no thermal-specific relaxation)
             confidence_threshold = float(config.detection.confidence_threshold)
-            if detection_source == "thermal":
-                thermal_conf = float(getattr(config.detection, "thermal_confidence_threshold", confidence_threshold))
-                motion_area_now = int(thermal_motion_state.get("thermal_motion_area_raw", 0))
-                confidence_threshold = _thermal_confidence_policy(
-                    base_confidence=thermal_conf,
-                    motion_area_now=motion_area_now,
-                    base_min_area=int(getattr(config.motion, "min_area", 0)),
-                )
             
             detections_raw = inference_service.infer(
                 preprocessed,

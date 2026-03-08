@@ -1636,3 +1636,77 @@ def test_detect_static_phantom_event_false_when_high_conf():
 
     metrics = worker._detect_static_phantom_event(frames, detections)
     assert metrics is None
+
+
+# ── v5.0.0 motion-crop pipeline tests ──────────────────────────────────────
+
+def test_scale_detections_to_frame_basic():
+    """Bounding boxes from crop space must be correctly mapped back to full frame."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    # Crop: top-left corner (100, 50), size 200×200; inference resolution 640×640
+    crop_info = (100, 50, 200, 200)
+    inf_res = (640, 640)
+    detections = [{"bbox": [0, 0, 640, 640], "confidence": 0.8}]
+    scaled = worker._scale_detections_to_frame(detections, crop_info, inf_res)
+    assert len(scaled) == 1
+    # Full crop maps back to crop coords in full frame
+    assert scaled[0]["bbox"] == [100, 50, 300, 250]
+
+
+def test_scale_detections_to_frame_partial():
+    """Partial crop bbox is correctly scaled."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    crop_info = (0, 0, 320, 256)
+    inf_res = (640, 640)
+    # Detection at center of 640×640 inference frame
+    detections = [{"bbox": [320, 320, 640, 640], "confidence": 0.7}]
+    scaled = worker._scale_detections_to_frame(detections, crop_info, inf_res)
+    bx1, by1, bx2, by2 = scaled[0]["bbox"]
+    assert bx1 == 160 and by1 == 128
+    assert bx2 == 320 and by2 == 256
+
+
+def test_scale_detections_to_frame_none_crop():
+    """When crop_info is None, detections pass through unchanged."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    detections = [{"bbox": [10, 20, 30, 40], "confidence": 0.6}]
+    result = worker._scale_detections_to_frame(detections, None, (640, 640))
+    assert result == detections
+
+
+def test_scale_detections_to_frame_empty():
+    """Empty detection list returns empty list."""
+    worker = DetectorWorker.__new__(DetectorWorker)
+    result = worker._scale_detections_to_frame([], (0, 0, 100, 100), (640, 640))
+    assert result == []
+
+
+def test_motion_crop_thermal_frame_no_bbox(tmp_path):
+    """When no motion bbox available, returns full-frame BGR conversion."""
+    from collections import defaultdict
+    worker = DetectorWorker.__new__(DetectorWorker)
+    worker.motion_state = defaultdict(dict)  # no thermal_motion_bbox
+
+    # Grayscale thermal frame 512×640
+    frame = np.random.randint(0, 255, (512, 640), dtype=np.uint8)
+    result_frame, crop_info = worker._motion_crop_thermal_frame(frame, "cam1", (640, 640))
+
+    assert crop_info is None
+    assert result_frame.shape == (640, 640, 3)  # resized, 3-channel
+
+
+def test_motion_crop_thermal_frame_with_bbox():
+    """When motion bbox available, crops and returns crop_info."""
+    from collections import defaultdict
+    worker = DetectorWorker.__new__(DetectorWorker)
+    worker.motion_state = {"cam1": {"thermal_motion_bbox": (100, 80, 200, 150)}}
+
+    # BGR thermal frame 480×640
+    frame = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)
+    result_frame, crop_info = worker._motion_crop_thermal_frame(frame, "cam1", (640, 640))
+
+    assert crop_info is not None
+    x1, y1, cw, ch = crop_info
+    assert x1 >= 0 and y1 >= 0
+    assert cw > 0 and ch > 0
+    assert result_frame.shape == (640, 640, 3)
