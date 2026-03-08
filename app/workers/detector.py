@@ -2390,6 +2390,44 @@ class DetectorWorker:
                     _log_gate("temporal_consistency_failed")
                     continue
 
+                # Scrypted-style movement check: require detection centroid to have
+                # moved across history frames (d.movement.moving in Scrypted).
+                # Stationary objects (poles, trees, furniture) that pass temporal
+                # consistency are rejected here. Only MOVING detections create events.
+                if detections:
+                    history_list = list(self.detection_history[camera_id])
+                    if len(history_list) >= 3:
+                        best = max(detections, key=lambda d: float(d.get("confidence", 0.0)))
+                        bx1, by1, bx2, by2 = best["bbox"]
+                        cur_cx = (bx1 + bx2) / 2.0
+                        cur_cy = (by1 + by2) / 2.0
+                        # Check frames from 3+ cycles ago (skip the 2 most recent)
+                        old_frames = [f for f in history_list[:-2] if f]
+                        if old_frames:
+                            for old_frame in reversed(old_frames):
+                                for od in old_frame:
+                                    ox1, oy1, ox2, oy2 = od["bbox"]
+                                    inter_w = max(0, min(bx2, ox2) - max(bx1, ox1))
+                                    inter_h = max(0, min(by2, oy2) - max(by1, oy1))
+                                    inter = inter_w * inter_h
+                                    union = max(1, (bx2 - bx1) * (by2 - by1) + (ox2 - ox1) * (oy2 - oy1) - inter)
+                                    if inter / union > 0.30:
+                                        # Same object found in older frame — did it move?
+                                        ocx = (ox1 + ox2) / 2.0
+                                        ocy = (oy1 + oy2) / 2.0
+                                        dist = ((cur_cx - ocx) ** 2 + (cur_cy - ocy) ** 2) ** 0.5
+                                        if dist < 12.0:
+                                            # Barely moved → stationary object → reject
+                                            _log_gate("stationary_object")
+                                            self.event_start_time[camera_id] = None
+                                            temporal_pass = False
+                                        break
+                                if not temporal_pass:
+                                    break
+
+                if not temporal_pass:
+                    continue
+
                 # Enforce minimum event duration
                 start_time = self.event_start_time.get(camera_id)
                 if start_time is None:
