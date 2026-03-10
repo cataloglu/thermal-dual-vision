@@ -2007,6 +2007,12 @@ class DetectorWorker:
                 "-hide_banner",
                 "-loglevel",
                 loglevel,
+                # Discard corrupt packets instead of exiting on H.264 decode errors.
+                # Without these flags a single corrupt macroblock (bytestream overflow)
+                # causes ffmpeg to exit cleanly (code=0), forcing a full reconnect cycle
+                # that resets detection history and triggers temporal_consistency_failed.
+                "-fflags", "+discardcorrupt",
+                "-err_detect", "ignore_err",
                 "-rtsp_transport",
                 transport,
                 "-i",
