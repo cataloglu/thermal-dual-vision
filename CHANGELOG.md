@@ -6,6 +6,18 @@ Format [Keep a Changelog](https://keepachangelog.com/tr/1.0.0/) esas alınır.
 
 ---
 
+## [5.0.14] - 2026-03-10
+
+### Düzeltme — ffmpeg H.264 Hata Toleransı
+
+**Sorun:** Kameralar sık sık `error while decoding MB X Y, bytestream Z` hatasıyla bağlantıyı kesiyordu. Bunun nedeni: ffmpeg subprocess komutunun hata toleransı bayrakları olmadan çalışması. Tek bir bozuk H.264 makrobloku ffmpeg'i tamamen durduruyordu → reconnect → detection history sıfırlanıyor → `temporal_consistency_failed`.
+
+**Düzeltme:** ffmpeg komutuna `-fflags +discardcorrupt` ve `-err_detect ignore_err` eklendi. Bu bayraklar OpenCV backend'de zaten vardı (`err_detect;ignore_err`) ama ffmpeg subprocess'inde eksikti.
+
+Beklenen etki: kameralar çok daha nadir bağlantı kesecek, detection history korunacak, `temporal_consistency_failed` sayısı önemli ölçüde azalacak.
+
+---
+
 ## [5.0.13] - 2026-03-09
 
 ### Temizlik — Atıl Kod Kaldırıldı (Legacy Termal Kurtarma Sistemi)
